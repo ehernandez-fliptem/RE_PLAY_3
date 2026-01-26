@@ -1,0 +1,504 @@
+import { Fragment, useState } from "react";
+import { useNavigate } from "react-router";
+import { DataGrid, GridActionsCellItem } from "@mui/x-data-grid";
+import {
+  Build,
+  Check,
+  ChevronLeft,
+  Close,
+  CloudDownload,
+  Mail,
+  PriorityHigh,
+} from "@mui/icons-material";
+
+import { clienteAxios, handlingError } from "../../../app/config/axios";
+import {
+  alpha,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Checkbox,
+  Divider,
+  FormControlLabel,
+  Grid,
+  lighten,
+  Stack,
+  Typography,
+} from "@mui/material";
+import InputFileUpload from "../../utils/FileUpload";
+import { closeSnackbar, enqueueSnackbar } from "notistack";
+import ModalContainer from "../../utils/ModalContainer";
+import DataGridToolbar from "../../utils/DataGridToolbar";
+import { esES } from "@mui/x-data-grid/locales";
+import Spinner from "../../utils/Spinner";
+
+type Errores = {
+  nombre: string;
+  apellido_pat: string;
+  apellido_mat: string;
+  correo: string;
+  contrasena: string;
+  telefono: string;
+};
+
+type TUsuarios = {
+  _id: string;
+  correo: string;
+  contrasena: string;
+  nombre: string;
+  apellido_pat: string;
+  apellido_mat?: string;
+  telefono?: string;
+  empresa: string;
+  envioHabilitado?: boolean;
+  correoEnviado?: boolean;
+  errores?: Errores;
+};
+
+const pageSizeOptions = [10, 25, 50];
+
+export default function CargaVisitantes() {
+  const navigate = useNavigate();
+  const [registros, setRegistros] = useState<TUsuarios[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [sePuedeEnviar, setSePuedeEnviar] = useState(false);
+  const [error, setError] = useState(false);
+  const [envioCorreos, setEnvioCorreos] = useState(true);
+  const [usuariosGuardados, setUsuariosGuardados] = useState(false);
+  const [descargando, setDescargando] = useState(false);
+  const [showError, setShowError] = useState(false);
+  const [errores, setErrores] = useState<Errores>({
+    nombre: "",
+    apellido_pat: "",
+    apellido_mat: "",
+    correo: "",
+    contrasena: "",
+    telefono: "",
+  });
+  const presetDatos = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { checked } = e.target;
+    setEnvioCorreos(checked);
+  };
+
+  const onChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError(false);
+    setIsLoading(true);
+    setRegistros([]);
+    try {
+      const allowFiles = ["csv", "xlsx", "xls"];
+      const file = (e.target.files as FileList)[0];
+      if (!file) {
+        enqueueSnackbar("No subiste ningún archivo.", { variant: "warning" });
+      }
+      const type_file = file.name.split(".")[1];
+      if (!allowFiles.find((item) => item === type_file)) {
+        enqueueSnackbar(`El tipo de archivo ${type_file} no está permitido.`, {
+          variant: "warning",
+        });
+        return;
+      }
+      const data = new FormData();
+      data.append("document", file, file.name);
+      const res = await clienteAxios.post(
+        "/api/visitantes/cargar-formato",
+        data
+      );
+
+      if (res.data.estado) {
+        setRegistros(res.data.datos);
+        setSePuedeEnviar(true);
+      } else {
+        setError(true);
+        setRegistros(res.data.datos);
+        setSePuedeEnviar(false);
+        enqueueSnackbar("Revisa los valores en tu archivo.", {
+          variant: "warning",
+        });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setIsLoading(false);
+      setUsuariosGuardados(false);
+    }
+  };
+
+  const descargarFormato = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    setDescargando(true);
+    try {
+      const res = await clienteAxios.get("/api/visitantes/descargar-formato", {
+        responseType: "blob",
+      });
+      if (res.data) {
+        const url = window.URL.createObjectURL(new Blob([res.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", `Visitantes.xlsx`);
+        document.body.appendChild(link);
+        link.click();
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setDescargando(false);
+    }
+  };
+
+  const enviar = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    try {
+      e.preventDefault();
+      let key;
+      setIsLoading(true);
+      setUsuariosGuardados(false);
+      if (envioCorreos) {
+        key = enqueueSnackbar(`Enviando correos`, {
+          variant: "info",
+          persist: true,
+        });
+      }
+      const res = await clienteAxios.post("/api/visitantes/programacion", {
+        registros,
+        envioCorreos,
+      });
+      if (envioCorreos && key) closeSnackbar(key);
+      if (res.data.estado) {
+        const { visitantes, correos, registros } = res.data.datos;
+        enqueueSnackbar(`Visitante creados: ${visitantes}`, {
+          variant: "success",
+        });
+        if (envioCorreos)
+          enqueueSnackbar(`Correo enviados: ${correos}`, {
+            variant: "success",
+          });
+        setUsuariosGuardados(true);
+        setRegistros(registros);
+      } else {
+        setError(true);
+        setRegistros(res.data.datos);
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setIsLoading(false);
+      setSePuedeEnviar(false);
+    }
+  };
+
+  const verError = (id: string) => {
+    const datos = registros.find((item) => item._id === id);
+    setErrores(datos?.errores || { ...errores });
+    setShowError(true);
+  };
+
+  const regresar = () => {
+    navigate(`/visitantes`);
+  };
+
+  return (
+    <Box component="div" sx={{ minHeight: 400, position: "relative" }}>
+      <DataGrid
+        getRowId={(rows) => rows._id}
+        getRowHeight={() => "auto"}
+        loading={isLoading}
+        rows={registros}
+        columns={[
+          {
+            headerName: "Nombre",
+            field: "nombre",
+            flex: 1,
+            display: "flex",
+            minWidth: 180,
+            renderCell: ({ row }) =>
+              `${row.nombre || ""} ${row.apellido_pat || ""} ${
+                row.apellido_mat || ""
+              }`,
+          },
+          {
+            headerName: "Correo",
+            field: "correo",
+            flex: 1,
+            display: "flex",
+            minWidth: 250,
+          },
+          {
+            headerName: "Contraseña",
+            field: "contrasena",
+            flex: 1,
+            display: "flex",
+            minWidth: 120,
+            valueGetter: () => "**********",
+          },
+          {
+            headerName: "Empresa",
+            field: "empresa",
+            flex: 1,
+            display: "flex",
+            minWidth: 120,
+          },
+          {
+            headerName: "Teléfono",
+            field: "telefono",
+            flex: 1,
+            display: "flex",
+            minWidth: 120,
+          },
+          {
+            headerName: "Estado",
+            field: "errores",
+            filterable: true,
+            type: "actions",
+            flex: 1,
+            display: "flex",
+            minWidth: 100,
+            getActions: ({ row }) => [
+              usuariosGuardados ? (
+                <>
+                  {row.envioHabilitado ? (
+                    <>
+                      {row.correoEnviado ? (
+                        <GridActionsCellItem
+                          icon={<Mail color="success" />}
+                          label="Correo enviado"
+                        />
+                      ) : (
+                        <GridActionsCellItem
+                          icon={<Mail color="error" />}
+                          label="Correo no enviado"
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <GridActionsCellItem
+                      icon={<Check color="success" />}
+                      label="Sin errores"
+                    />
+                  )}
+                </>
+              ) : (
+                <>
+                  {row.errores ? (
+                    <GridActionsCellItem
+                      icon={<PriorityHigh color="error" />}
+                      onClick={() => verError(row._id)}
+                      label="Error"
+                    />
+                  ) : (
+                    <GridActionsCellItem
+                      icon={<Check color="success" />}
+                      label="Sin errores"
+                    />
+                  )}
+                </>
+              ),
+            ],
+          },
+        ]}
+        disableRowSelectionOnClick
+        rowSelection={false}
+        initialState={{
+          pagination: { paginationModel: { pageSize: 10 } },
+        }}
+        pagination
+        pageSizeOptions={pageSizeOptions}
+        showToolbar
+        localeText={{
+          ...esES.components.MuiDataGrid.defaultProps.localeText,
+          toolbarColumns: "",
+          toolbarFilters: "",
+          toolbarDensity: "",
+          toolbarExport: "",
+          noRowsLabel: "Sin registros",
+        }}
+        slots={{
+          toolbar: () => (
+            <Fragment>
+              <DataGridToolbar
+                tableTitle="Carga masiva de visitantes"
+                showExportButton={false}
+              />
+              {descargando ? (
+                <Spinner size="small" />
+              ) : (
+                <Stack
+                  spacing={2}
+                  display="flex"
+                  direction={{ xs: "column", sm: "row" }}
+                  sx={{ p: 1 }}
+                >
+                  <Box sx={{ width: "100%" }}>
+                    <FormControlLabel
+                      label="Enviar correos a visitantes"
+                      control={
+                        <Checkbox
+                          name="envioCorreos"
+                          checked={envioCorreos}
+                          onChange={presetDatos}
+                        />
+                      }
+                    />
+                  </Box>
+                  <Stack
+                    spacing={2}
+                    direction={{ xs: "column", sm: "row" }}
+                    display="flex"
+                    justifyContent="flex-end"
+                    alignItems="center"
+                    sx={{ width: "100%" }}
+                  >
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={descargarFormato}
+                      startIcon={<CloudDownload fontSize="small" />}
+                      sx={{ width: "100%", mr: 1 }}
+                    >
+                      Descargar
+                    </Button>
+                    <InputFileUpload
+                      buttonProps={{
+                        sx: { width: "100%" },
+                        size: "small",
+                        variant: "contained",
+                      }}
+                      name="envioCorreos"
+                      onUpload={onChange}
+                      label="Subir"
+                    />
+                  </Stack>
+                </Stack>
+              )}
+              <Divider
+                sx={(theme) => ({
+                  borderBottom: `1px solid ${lighten(
+                    alpha(theme.palette.divider, 0.3),
+                    0.88
+                  )}`,
+                })}
+              />
+            </Fragment>
+          ),
+        }}
+      />
+      <Divider sx={{ my: 2 }} />
+      <Box
+        component="footer"
+        sx={{
+          display: "flex",
+          justifyContent: "end",
+          mt: 2,
+          mb: 0.5,
+        }}
+      >
+        {!isLoading && (
+          <Stack
+            spacing={2}
+            direction={{ xs: "column-reverse", sm: "row" }}
+            justifyContent="end"
+            sx={{ width: "100%" }}
+          >
+            <Button
+              type="button"
+              size="medium"
+              variant="contained"
+              color="secondary"
+              onClick={regresar}
+              startIcon={<Close />}
+            >
+              Cancelar
+            </Button>
+            {sePuedeEnviar && (
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={enviar}
+                disabled={error}
+                startIcon={<Build />}
+              >
+                Procesar
+              </Button>
+            )}
+          </Stack>
+        )}
+      </Box>
+      {showError && <ModalErrores errores={errores} setOpen={setShowError} />}
+    </Box>
+  );
+}
+
+type PropsModalError = {
+  errores: Errores;
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+};
+type ErrorEntry = Record<string, string>;
+
+const ModalErrores = ({ errores, setOpen }: PropsModalError) => {
+  const erroresArr = Object.entries(errores).reduce(
+    (acc: ErrorEntry[], [key, value]) => {
+      acc.push({ [key]: value });
+      return acc;
+    },
+    []
+  );
+
+  return (
+    <ModalContainer containerProps={{ maxWidth: "lg" }}>
+      <Card elevation={5}>
+        <CardContent>
+          <Typography variant="h5" component="h5" textAlign="center">
+            Errores
+          </Typography>
+          <Grid container spacing={1} sx={{ my: 2 }}>
+            {erroresArr.map((item) => {
+              const [key, value] = Object.entries(item)[0];
+              return (
+                <>
+                  <Grid size={{ xs: 12, md: 2 }}>
+                    <Typography variant="subtitle1">
+                      <strong>{key.toUpperCase()}:</strong>
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 10 }}>
+                    <Typography color="error" variant="subtitle1">
+                      {value}
+                    </Typography>
+                  </Grid>
+                </>
+              );
+            })}
+          </Grid>
+          <Box
+            component="footer"
+            sx={{
+              display: "flex",
+              justifyContent: "end",
+            }}
+          >
+            <Stack
+              spacing={2}
+              direction={{ xs: "column-reverse", sm: "row" }}
+              justifyContent="end"
+              sx={{ width: "100%" }}
+            >
+              <Button
+                sx={{ width: { xs: "100%", sm: "auto" } }}
+                type="button"
+                size="medium"
+                variant="contained"
+                color="secondary"
+                onClick={() => setOpen(false)}
+                startIcon={<ChevronLeft />}
+              >
+                Regresar
+              </Button>
+            </Stack>
+          </Box>
+        </CardContent>
+      </Card>
+    </ModalContainer>
+  );
+};

@@ -1,0 +1,62 @@
+import mongoose, { Schema, Document, Model } from 'mongoose';
+
+export interface IEvento extends Document {
+    tipo_dispositivo: number;
+    img_evento?: string;
+    img_usuario?: string;
+    qr?: string;
+    tipo_check?: number;
+    id_registro?: mongoose.Types.ObjectId;
+    id_horario?: mongoose.Types.ObjectId;
+    id_acceso?: mongoose.Types.ObjectId;
+    id_usuario?: mongoose.Types.ObjectId;
+    id_visitante?: mongoose.Types.ObjectId;
+    id_panel?: mongoose.Types.ObjectId;
+    validado_por?: mongoose.Types.ObjectId;
+    esAutorizado: number;
+    comentario?: string;
+    latitud?: string;
+    longitud?: string;
+    fecha_creacion?: Date;
+    creado_por?: mongoose.Types.ObjectId;
+    fecha_modificacion?: Date;
+    modificado_por?: mongoose.Types.ObjectId;
+    activo: boolean;
+}
+
+const eventoSchema = new Schema<IEvento>({
+    tipo_dispositivo: { type: Number, default: 1, ref: 'tipos_dispositivos' },
+    img_evento: { type: String, default: '' },
+    img_usuario: { type: String, default: '' },
+    qr: { type: String, default: '' },
+    tipo_check: { type: Number, default: 0,  ref: 'tipos_eventos' },
+    id_registro: { type: Schema.Types.ObjectId, default: null, ref: 'registros' },
+    id_horario: { type: Schema.Types.ObjectId, default: null, ref: 'horarios' },
+    id_acceso: { type: Schema.Types.ObjectId, default: null, ref: 'accesos' },
+    id_usuario: { type: Schema.Types.ObjectId, default: null, ref: 'usuarios' },
+    id_visitante: { type: Schema.Types.ObjectId, default: null, ref: 'visitantes' },
+    id_panel: { type: Schema.Types.ObjectId, default: null, ref: 'hikvision_dispositivos' },
+    validado_por: { type: Schema.Types.ObjectId, default: null, ref: 'usuarios' },
+    esAutorizado: { type: Number, default: 0 }, // 0 - Indefinido, 1 - Autorizado, 3 - Rechazado
+    comentario: { type: String },
+    latitud: { type: String },
+    longitud: { type: String },
+    fecha_creacion: { type: Date, default: Date.now },
+    creado_por: { type: Schema.Types.ObjectId, default: null, ref: 'usuarios' },
+    fecha_modificacion: { type: Date },
+    modificado_por: { type: Schema.Types.ObjectId, default: null, ref: 'usuarios' },
+    activo: { type: Boolean, default: true },
+});
+
+eventoSchema.pre<IEvento>('save', async function (next) {
+    try {
+        this.fecha_creacion = this.fecha_creacion || new Date();
+        next();
+    } catch (error) {
+        next(error as Error);
+    }
+});
+
+const Eventos: Model<IEvento> = mongoose.model<IEvento>('eventos', eventoSchema);
+
+export default Eventos;

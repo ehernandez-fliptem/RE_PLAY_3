@@ -1,0 +1,21 @@
+{
+  "name": "hikvision-auth",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "run": "ts-node src/getSession.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "puppeteer": "^24.35.0",
+    "undici": "^7.18.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.8",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

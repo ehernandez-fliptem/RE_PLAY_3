@@ -1,0 +1,28 @@
+export const REGEX_NAME = /^[a-zA-ZÀ-ÿ]+(([a-zA-ZÀ-ÿ ])?[a-zA-ZÀ-ÿ]*)*$/;
+export const REGEX_NAME_ZONE = /^(?! )[A-Za-z0-9 ]*(?<! )$/;
+export const REGEX_NUMBER = /^\d*$/;
+export const REGEX_NEG_NUMBER = /^-?\d+?$/;
+export const REGEX_FABRI = /^([a-zA-ZÀ-ÖØ-öø-ÿ0-9&.-_,]+\.?(( )[a-zA-ZÀ-ÖØ-öø-ÿ0-9&.-_,]+\.?)*)*$/
+export const REGEX_EMAIL = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+export const REGEX_PASS = /^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~]).{8,}$/;
+export const REGEX_USERNAME = /^[A-Za-z0-9_.-]{4,16}$/;
+export const REGEX_RFC = /^([A-ZÑ\x26]{3,4}([0-9]{2})(0[1-9]|1[0-2])(0[1-9]|1[0-9]|2[0-9]|3[0-1]))([A-Z\d]{3})?$/;
+export const REGEX_CODE = /^(\d{6}){1}$/;
+export const REGEX_PHONE = /^\d{1,15}$/;
+export const REGEX_EXT = /^\d{1,10}?$/;
+export const REGEX_ALFANUM = /^[a-zA-ZÀ-ÖØ-öø-ÿ0-9]*$/;
+export const REGEX_NSS = /^(\d{2})(\d{2})(\d{2})\d{5}$/;
+export const REGEX_LOCATION = /^[-]?[0-9]{1,2}(?:\.[0-9]+)?,[ ]?[-]?[0-9]{1,3}(?:\.[0-9]+)?$/;
+export const REGEX_DECIMAL = /^\d+(?:\.\d{1,2})?$/;
+export const REGEX_PREFIX = /^[\d\D]{1,5}$/;
+export const REGEX_NUMVIVI = /^\d+$/;
+export const REGEX_HTMLTAG = /<[^>]*>/;
+export const REGEX_IP = /^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(:[0-9]{1,5})?$/;
+export const REGEX_BASE64 = /^data:([a-z]+\/[a-z0-9-+.]+(;[a-z-]+=[a-z0-9-]+)?)?(;base64)?,([a-z0-9!$&',()*+;=\-._~:@/?%\s]*)$/i;
+export const REGEX_ADDDAYS = /^\d{1,2}\/[dmh]$/;
+export const REGEX_HEX = /^#(([0-9a-fA-F]{2}){3}|([0-9a-fA-F]){3})$/;
+
+export const HASUPPERCASE = /[A-Z]/; 
+export const HASNUMBER = /[0-9]/; 
+export const HASLOWERCASE = /[a-z]/; 
+export const HASSYMBOLE = /[!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/; 
