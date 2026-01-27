@@ -189,6 +189,32 @@ export default function Visitantes() {
       });
   };
 
+  const bloquear = (ID: string) => {
+    confirm({
+      title: "¿Seguro que desea bloquear a este visitante?",
+      description:
+        "Esta acción bloquea el acceso al sistema para el visitante.",
+      allowClose: true,
+      confirmationText: "Continuar",
+    })
+      .then(async (result) => {
+        if (result.confirmed) {
+          const res = await clienteAxios.patch(
+            `/api/visitantes/bloquear/${ID}`
+          );
+          if (res.data.estado) {
+            apiRef.current?.updateRows([{ _id: ID, bloqueado: true }]);
+          } else {
+            enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+          }
+        }
+      })
+      .catch((error) => {
+        const { restartSession } = handlingError(error);
+        if (restartSession) navigate("/logout", { replace: true });
+      });
+  };
+
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
       <DataGrid
@@ -319,21 +345,21 @@ export default function Visitantes() {
             display: "flex",
             minWidth: 100,
             getActions: ({ row }) => [
-              row.bloqueado ? (
-                <GridActionsCellItem
-                  icon={<Lock color="error" />}
-                  onClick={() => desbloquear(row._id)}
-                  label="Bloqueado Temporalmente"
-                  title="Bloqueado Temporalmente"
-                />
-              ) : (
-                <GridActionsCellItem
-                  icon={<LockOpen color="success" />}
-                  label="Acceso"
-                  title="Acceso"
-                />
-              ),
-            ],
+              <GridActionsCellItem
+                icon={
+                  row.bloqueado
+                    ? <Lock color="error" />
+                    : <LockOpen color="success" />
+                }
+                label={row.bloqueado ? "Desbloquear" : "Bloquear"}
+                title={row.bloqueado ? "Desbloquear" : "Bloquear"}
+                onClick={() =>
+                  row.bloqueado
+                    ? desbloquear(row._id)
+                    : bloquear(row._id)
+                }
+              />
+            ]
           },
         ]}
         disableRowSelectionOnClick
