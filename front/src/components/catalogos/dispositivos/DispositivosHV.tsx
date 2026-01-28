@@ -179,10 +179,13 @@ const sincronizar = async (panelId: string) => {
     );
 
     if (resUsers.data?.estado) {
-      enqueueSnackbar(
-        `Usuarios: ${resUsers.data.datos?.usuarios ?? 0} / Registros: ${resUsers.data.datos?.registros ?? 0} / Tarjetas: ${resUsers.data.datos?.tarjetas ?? 0} / Eventos: ${resUsers.data.datos?.eventos ?? 0}`,
-        { variant: "success", persist: true }
-      );
+      // enqueueSnackbar(
+      //   `Usuarios: ${resUsers.data.datos?.usuarios ?? 0} / Registros: ${resUsers.data.datos?.registros ?? 0} / Tarjetas: ${resUsers.data.datos?.tarjetas ?? 0} / Eventos: ${resUsers.data.datos?.eventos ?? 0}`,
+      //   { variant: "success", persist: true }
+      // );
+      enqueueSnackbar("Sincronización Exitosa", {
+        variant: "success",
+      });
     } else {
       enqueueSnackbar(resUsers.data?.mensaje || "Error al sincronizar usuarios", {
         variant: "error",

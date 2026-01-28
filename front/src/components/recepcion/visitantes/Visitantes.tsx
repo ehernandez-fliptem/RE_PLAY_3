@@ -31,9 +31,17 @@ import { base64ToFile } from "../../helpers/generalHelpers";
 import ErrorOverlay from "../../error/DataGridError";
 import Spinner from "../../utils/Spinner";
 
+import { isBlockedNow } from "../../../utils/bloqueo";
+
+import CircularProgress from "@mui/material/CircularProgress";
+
+
 const pageSizeOptions = [10, 25, 50];
 
 export default function Visitantes() {
+  console.log("[VISITANTES] render");
+  console.log("Prueba 01");
+
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();
   const navigate = useNavigate();
@@ -42,6 +50,11 @@ export default function Visitantes() {
     id_usuario: "",
     descargando: false,
   });
+
+  const [loadingRows, setLoadingRows] = useState<Record<string, boolean>>({});
+  const setRowLoading = (id: string, isLoading: boolean) =>
+    setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
+
 
   const dataSource: GridDataSource = useMemo(
     () => ({
@@ -163,57 +176,72 @@ export default function Visitantes() {
     }
   };
 
-  const desbloquear = (ID: string) => {
-    confirm({
-      title: "¿Seguro que desea desbloquear a este visitante?",
-      description:
-        "Esta acción restaura los intentos para que el visitante pueda iniciar sesión.",
-      allowClose: true,
-      confirmationText: "Continuar",
-    })
-      .then(async (result) => {
-        if (result.confirmed) {
-          const res = await clienteAxios.patch(
-            `/api/visitantes/desbloquear/${ID}`
-          );
-          if (res.data.estado) {
-            apiRef.current?.updateRows([{ _id: ID, bloqueado: false }]);
-          } else {
-            enqueueSnackbar(res.data.mensaje, { variant: "warning" });
-          }
-        }
-      })
-      .catch((error) => {
-        const { restartSession } = handlingError(error);
-        if (restartSession) navigate("/logout", { replace: true });
-      });
-  };
+const accionDesbloquear = (ID: string) => {
+  confirm({
+    title: "¿Seguro que desea desbloquear a este visitante?",
+    description: "Esta acción restaura los intentos y habilita el acceso SOLO por hoy.",
+    allowClose: true,
+    confirmationText: "Continuar",
+  })
+    .then(async (result) => {
+      if (!result.confirmed) return;
 
-  const bloquear = (ID: string) => {
-    confirm({
-      title: "¿Seguro que desea bloquear a este visitante?",
-      description:
-        "Esta acción bloquea el acceso al sistema para el visitante.",
-      allowClose: true,
-      confirmationText: "Continuar",
-    })
-      .then(async (result) => {
-        if (result.confirmed) {
-          const res = await clienteAxios.patch(
-            `/api/visitantes/bloquear/${ID}`
-          );
-          if (res.data.estado) {
-            apiRef.current?.updateRows([{ _id: ID, bloqueado: true }]);
-          } else {
-            enqueueSnackbar(res.data.mensaje, { variant: "warning" });
-          }
+      setRowLoading(ID, true);
+
+      try {
+        const res = await clienteAxios.patch(`/api/visitantes/desbloquear/${ID}`);
+
+        if (res.data.estado) {
+          const v = res.data.data;
+          apiRef.current?.updateRows([
+            { _id: ID, bloqueado: v.bloqueado, desbloqueado_hasta: v.desbloqueado_hasta ?? null },
+          ]);
+        } else {
+          enqueueSnackbar(res.data.mensaje, { variant: "warning" });
         }
-      })
-      .catch((error) => {
+      } catch (error: any) {
         const { restartSession } = handlingError(error);
         if (restartSession) navigate("/logout", { replace: true });
-      });
-  };
+      } finally {
+        setRowLoading(ID, false);
+      }
+    })
+    .catch(() => {});
+};
+
+const accionBloquear = (ID: string) => {
+  confirm({
+    title: "¿Seguro que desea bloquear a este visitante?",
+    description: "Esta acción bloquea el acceso al sistema para el visitante.",
+    allowClose: true,
+    confirmationText: "Continuar",
+  })
+    .then(async (result) => {
+      if (!result.confirmed) return;
+
+      setRowLoading(ID, true);
+
+      try {
+        const res = await clienteAxios.patch(`/api/visitantes/bloquear/${ID}`);
+
+        if (res.data.estado) {
+          const v = res.data.data;
+          apiRef.current?.updateRows([
+            { _id: ID, bloqueado: v.bloqueado, desbloqueado_hasta: v.desbloqueado_hasta ?? null },
+          ]);
+        } else {
+          enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+        }
+      } catch (error: any) {
+        const { restartSession } = handlingError(error);
+        if (restartSession) navigate("/logout", { replace: true });
+      } finally {
+        setRowLoading(ID, false);
+      }
+    })
+    .catch(() => {});
+};
+
 
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
@@ -344,23 +372,45 @@ export default function Visitantes() {
             flex: 1,
             display: "flex",
             minWidth: 100,
-            getActions: ({ row }) => [
-              <GridActionsCellItem
-                icon={
-                  row.bloqueado
-                    ? <Lock color="error" />
-                    : <LockOpen color="success" />
-                }
-                label={row.bloqueado ? "Desbloquear" : "Bloquear"}
-                title={row.bloqueado ? "Desbloquear" : "Bloquear"}
-                onClick={() =>
-                  row.bloqueado
-                    ? desbloquear(row._id)
-                    : bloquear(row._id)
-                }
-              />
-            ]
-          },
+
+            // Esto ayuda a que DataGrid recalcule el cell cuando cambie el row
+            valueGetter: (_value, row) => `${row?.bloqueado ?? false}-${row?.desbloqueado_hasta ?? ""}`,
+
+            getActions: ({ row }) => {
+              const isLoading = !!loadingRows[row._id];
+
+              if (isLoading) {
+                return [
+                  <GridActionsCellItem
+                    icon={<CircularProgress size={18} />}
+                    label="Procesando"
+                    disabled
+                    onClick={() => {}}
+                  />,
+                ];
+              }
+
+              const bloqueadoEfectivo = isBlockedNow(row);
+
+              return [
+                bloqueadoEfectivo ? (
+                  <GridActionsCellItem
+                    icon={<Lock color="error" />}
+                    onClick={() => accionDesbloquear(row._id)}
+                    label="Bloqueado"
+                    title="Desbloquear"
+                  />
+                ) : (
+                  <GridActionsCellItem
+                    icon={<LockOpen color="success" />}
+                    onClick={() => accionBloquear(row._id)}
+                    label="Acceso"
+                    title="Bloquear"
+                  />
+                ),
+              ];
+            }
+          }
         ]}
         disableRowSelectionOnClick
         disableColumnFilter

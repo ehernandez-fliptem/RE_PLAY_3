@@ -11,6 +11,9 @@ import { generarCodigoUnico } from '../utils/utils';
 
 
 export interface IVisitante extends Document {
+    _id: any;          // o Types.ObjectId
+    bloqueado: boolean;
+    desbloqueado_hasta?: Date | null; 
     id_visitante: number,
     codigo: string;
     img_usuario?: string;
@@ -117,6 +120,8 @@ const visitanteSchema = new Schema<IVisitante>({
     fecha_modificacion: { type: Date },
     modificado_por: { type: Schema.Types.ObjectId, default: null, ref: 'usuarios' },
     activo: { type: Boolean, default: true },
+    bloqueado: { type: Boolean, default: false },
+    desbloqueado_hasta: { type: Date, default: null },
 });
 
 visitanteSchema.pre<IVisitante>('save', async function (next) {

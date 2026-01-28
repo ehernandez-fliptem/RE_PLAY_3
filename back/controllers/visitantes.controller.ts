@@ -78,6 +78,88 @@ const tryParseJson = (s: string) => {
   }
 };
 
+///// bloquear y desbloquear visitantes
+    function getHoyRangoLocal() {
+    const beginTime = dayjs().format("YYYY-MM-DDT00:00:00");
+    const endTime = dayjs().format("YYYY-MM-DDT23:59:59");
+    return { beginTime, endTime };
+    }
+
+    function getRangoPasado(diasAtras = 1) {
+    // endTime ayer 23:59:59 -> ya expiró
+    const beginTime = dayjs().subtract(diasAtras + 1, "day").format("YYYY-MM-DDT00:00:00");
+    const endTime = dayjs().subtract(diasAtras, "day").format("YYYY-MM-DDT23:59:59");
+    return { beginTime, endTime };
+    }
+
+    function calcEmployeeNo(id_visitante: number) {
+    const base = 29000;
+    return String(base + Number(id_visitante));
+    }
+
+    /**
+     * Actualiza vigencia en Hikvision (UserInfo/Modify) para un employeeNo
+     * - Intenta en todos los paneles activos
+     * - Los paneles caídos se omiten
+     */
+    async function hvSetValidForEmployee(employeeNo: string, valid: { enable: boolean; beginTime: string; endTime: string }) {
+    const paneles = await DispositivosHv.find({ activo: true }, { direccion_ip: 1 }).lean();
+
+    const panelesOrdenados = [...paneles].sort((a: any, b: any) => {
+        const aLocal = String(a.direccion_ip).startsWith("192.168.100.");
+        const bLocal = String(b.direccion_ip).startsWith("192.168.100.");
+        return Number(bLocal) - Number(aLocal);
+    });
+
+    for (const panel of panelesOrdenados as any[]) {
+        const ip = panel.direccion_ip;
+
+        // quick check
+        try {
+        await runCurl([
+            "--silent", "--show-error", "--fail-with-body",
+            "--connect-timeout", "1",
+            "--max-time", "2",
+            "--digest", "-u", `${HV_USER}:${HV_PASS}`,
+            "-X", "GET",
+            `http://${ip}/ISAPI/System/deviceInfo`,
+        ]);
+        } catch {
+        continue;
+        }
+
+        // modify
+        const urlModify = `https://${ip}/ISAPI/AccessControl/UserInfo/Modify?format=json`;
+
+        const payload = {
+        UserInfo: {
+            employeeNo,
+            Valid: {
+            enable: valid.enable,
+            beginTime: valid.beginTime,
+            endTime: valid.endTime,
+            timeType: "local",
+            },
+        },
+        };
+
+        try {
+        await runCurl([
+            "--silent", "--show-error", "--fail-with-body",
+            "--insecure",
+            "--digest", "-u", `${HV_USER}:${HV_PASS}`,
+            "-H", "Content-Type: application/json",
+            "-X", "PUT",
+            urlModify,
+            "-d", JSON.stringify(payload),
+        ]);
+        } catch (e: any) {
+        // seguimos con el siguiente panel
+        console.log("[HV] Modify ERROR:", ip, String(e?.message || e).slice(0, 200));
+        }
+    }
+    }
+/////
 
 const faceDetector = new FaceDetector();
 
@@ -171,6 +253,127 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 };
+
+// RE_PLAY_3/back/controllers/visitantes.controller.ts
+
+export async function obtenerGrid(req: Request, res: Response): Promise<void> {
+    try {
+        const { filter = "{}", pagination = "{}", sort = "{}" } = req.query as any;
+
+        const queryFilter = JSON.parse(filter);
+        const querySort = JSON.parse(sort);
+        const queryPagination = JSON.parse(pagination);
+
+        const { filter: filterMDB, sort: sortMDB, pagination: paginationMDB } =
+        customAggregationForDataGrids(
+            queryFilter,
+            querySort,
+            queryPagination,
+            ["id_visitante", "empresa", "nombre"]
+        );
+
+        const aggregation: PipelineStage[] = [
+        {
+            $set: {
+            // nombre completo
+            nombre: {
+                $trim: {
+                input: { $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"] },
+                },
+            },
+
+            // img_usuario boolean
+            img_usuario: {
+                $cond: {
+                if: { $or: [{ $eq: ["$img_usuario", ""] }, { $eq: ["$img_usuario", null] }] },
+                then: false,
+                else: true,
+                },
+            },
+
+            // ---- FIX DEFINITIVO ----
+            // Si viene string → Date
+            // Si ya es Date → se queda
+            // Si no existe → null
+            desbloqueado_hasta: {
+                $cond: [
+                { $eq: [{ $type: "$desbloqueado_hasta" }, "string"] },
+                { $toDate: "$desbloqueado_hasta" },
+                "$desbloqueado_hasta",
+                ],
+            },
+
+            // bloqueado seguro
+            bloqueado: {
+                $ifNull: [
+                "$bloqueado",
+                {
+                    $cond: {
+                    if: {
+                        $and: [
+                        { $ne: ["$token_bloqueo", null] },
+                        { $ne: ["$token_bloqueo", ""] },
+                        ],
+                    },
+                    then: true,
+                    else: false,
+                    },
+                },
+                ],
+            },
+            },
+        },
+
+        {
+            $project: {
+            codigo: 0,
+            apellido_pat: 0,
+            apellido_mat: 0,
+            contrasena: 0,
+            telefono: 0,
+            correo: 0,
+            token_web: 0,
+            token_app: 0,
+            token_bloqueo: 0,
+            intentos: 0,
+            fecha_creacion: 0,
+            creado_por: 0,
+            fecha_modificacion: 0,
+            modificado_por: 0,
+            documentos: 0,
+            },
+        },
+        ];
+
+        if (filterMDB?.length) {
+        aggregation.push({ $match: { $or: filterMDB } });
+        }
+
+        aggregation.push(
+        { $sort: sortMDB || { id_visitante: 1 } },
+        {
+            $facet: {
+            paginatedResults: [
+                { $skip: paginationMDB.skip },
+                { $limit: paginationMDB.limit },
+            ],
+            totalCount: [{ $count: "count" }],
+            },
+        }
+        );
+
+        const registros = await Visitantes.aggregate(aggregation);
+        res.status(200).json({ estado: true, datos: registros[0] });
+    } catch (error: any) {
+        console.error(error);
+        res.status(500).send({
+        estado: false,
+        mensaje: `${error.name}: ${error.message}`,
+        });
+    }
+}
+
+
 
 export async function obtenerTodosActivos(req: Request, res: Response): Promise<void> {
     try {
@@ -463,6 +666,8 @@ export async function crear(req: Request, res: Response): Promise<void> {
         const imgResized = await resizeImage(img_usuario);
         lap("resizeImage done", { hasImg: !!imgResized });
 
+        const endOfTodayDate = dayjs().endOf("day").toDate(); // Date real para Mongo
+
         // 4) Crear visitante (SIN card_code aún)
         const nuevo = new Visitantes({
         contrasena: hash,
@@ -474,6 +679,8 @@ export async function crear(req: Request, res: Response): Promise<void> {
         telefono,
         correo,
         creado_por: id_usuario,
+        bloqueado: false,
+        desbloqueado_hasta: endOfTodayDate,
         });
 
         // 5) Validar modelo
@@ -485,6 +692,13 @@ export async function crear(req: Request, res: Response): Promise<void> {
 
         // 6) Guardar en BD (aquí se genera id_visitante)
         const reg_saved = await nuevo.save();
+
+        // Nombre completo (úsalo para HV y correo)
+        const fullName = `${reg_saved.nombre ?? ""} ${reg_saved.apellido_pat ?? ""} ${reg_saved.apellido_mat ?? ""}`
+        .replace(/\s+/g, " ")
+        .trim();
+
+
         lap("mongo save ok", {
         _id: String(reg_saved._id),
         id_visitante: reg_saved.id_visitante,
@@ -494,9 +708,14 @@ export async function crear(req: Request, res: Response): Promise<void> {
         const cardNo = generarCardCodeDesdeId(reg_saved.id_visitante);
 
         // 8) Guardar card_code
+        // await Visitantes.updateOne(
+        // { _id: reg_saved._id },
+        // { $set: { card_code: cardNo } }
+        // );
+
         await Visitantes.updateOne(
         { _id: reg_saved._id },
-        { $set: { card_code: cardNo } }
+        { $set: { card_code: cardNo, bloqueado: false, desbloqueado_hasta: endOfTodayDate } }
         );
 
         // 8.1) Enviar correo con QR (cardNo)
@@ -523,9 +742,9 @@ export async function crear(req: Request, res: Response): Promise<void> {
         const employeeNo = String(base + Number(reg_saved.id_visitante));
 
         // 10) Nombre completo
-        const fullName = `${reg_saved.nombre ?? ""} ${reg_saved.apellido_pat ?? ""} ${reg_saved.apellido_mat ?? ""}`
-        .replace(/\s+/g, " ")
-        .trim();
+        //const fullName = `${reg_saved.nombre ?? ""} ${reg_saved.apellido_pat ?? ""} ${reg_saved.apellido_mat ?? ""}`
+        //.replace(/\s+/g, " ")
+        //.trim();
 
         console.log("[CREAR] Datos HV:", { employeeNo, cardNo, fullName });
 
@@ -1127,40 +1346,97 @@ const añadir = async () => {
         });
 }
 
-export async function desbloquear(req: Request, res: Response): Promise<void> {
-    try {
-        const validar_registro = await Visitantes.findByIdAndUpdate(req.params.id, { $set: { token_bloqueo: '', intentos: 5 } });
-        if (!validar_registro) {
-            res.status(200).json({ estado: false, mensaje: 'Visitante no encontrado.' });
-            return;
-        }
-        res.status(200).json({ estado: true });
-    } catch (error: any) {
-        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
-        res.status(500).send();
-    }
-}
 
-export const bloquear = async (req: Request, res: Response) => {
+export const bloquearBack = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
 
-        const visitante = await Visitantes.findByIdAndUpdate(
-        id,
-        { $set: { bloqueado: true } },
-        { new: true }
-        );
-
+        // Necesitamos id_visitante para calcular employeeNo
+        const visitante = await Visitantes.findById(id, "_id bloqueado id_visitante desbloqueado_hasta").lean<any>();
         if (!visitante) {
         return res.status(404).json({ estado: false, mensaje: "Visitante no encontrado" });
         }
 
+        // 1) Hikvision: expirar (ayer)
+        const employeeNo = calcEmployeeNo(visitante.id_visitante);
+        const { beginTime, endTime } = getRangoPasado(1);
+
+        await hvSetValidForEmployee(employeeNo, { enable: true, beginTime, endTime });
+
+        // 2) Mongo: marcar bloqueado y limpiar desbloqueo
+        const updated = await Visitantes.findByIdAndUpdate(
+        id,
+        { 
+        $set: { 
+            bloqueado: true,
+            // guarda la fecha real que pusiste en el panel (ayer 23:59:59)
+            desbloqueado_hasta: new Date(endTime),
+            } 
+        },
+        { new: true }
+        )
+        .select("_id bloqueado desbloqueado_hasta")
+        .lean<any>();
+
         return res.json({
         estado: true,
-        mensaje: "Visitante bloqueado",
-        //data: { _id: visitante._id, bloqueado: visitante.bloqueado },
+        mensaje: "Visitante bloqueado (vigencia expirada en panel)",
+        data: {
+            _id: updated._id,
+            bloqueado: true,
+            desbloqueado_hasta: updated.desbloqueado_hasta ?? null,
+        },
         });
-    } catch (error) {
+    } catch (error: any) {
+        console.log("[BLOQUEAR] ERROR:", error?.message || error);
         return res.status(500).json({ estado: false, mensaje: "Error al bloquear visitante" });
     }
-    };
+};
+
+export const desbloquearBack = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        const visitante = await Visitantes.findById(id, "_id bloqueado id_visitante desbloqueado_hasta intentos").lean<any>();
+        if (!visitante) {
+        return res.status(404).json({ estado: false, mensaje: "Visitante no encontrado" });
+        }
+
+        // 1) Hikvision: habilitar solo HOY
+        const employeeNo = calcEmployeeNo(visitante.id_visitante);
+        const { beginTime, endTime } = getHoyRangoLocal();
+
+        await hvSetValidForEmployee(employeeNo, { enable: true, beginTime, endTime });
+
+        // 2) Mongo: desbloquear hasta hoy fin del día
+        
+
+        const updated = await Visitantes.findByIdAndUpdate(
+        id,
+        { 
+        $set: { 
+            bloqueado: false,
+            intentos: 0,
+            // guarda exactamente el endTime que mandaste a Hikvision
+            desbloqueado_hasta: new Date(endTime),
+            } 
+        },
+        { new: true }
+        )
+        .select("_id bloqueado desbloqueado_hasta")
+        .lean<any>();
+
+        return res.json({
+        estado: true,
+        mensaje: "Visitante desbloqueado (válido solo hoy en panel)",
+        data: {
+            _id: updated._id,
+            bloqueado: false,
+            desbloqueado_hasta: updated.desbloqueado_hasta,
+        },
+        });
+    } catch (error: any) {
+        console.log("[DESBLOQUEAR] ERROR:", error?.message || error);
+        return res.status(500).json({ estado: false, mensaje: "Error al desbloquear visitante" });
+    }
+};

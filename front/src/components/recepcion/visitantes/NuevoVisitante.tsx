@@ -196,10 +196,10 @@ export default function NuevoVisitante() {
       }
     }
 
-    enqueueSnackbar(`Visitante creado y sincronizado. OK: ${ok} / Fallidos: ${fail}`, {
-      variant: fail ? "warning" : "success",
-      persist: true,
+    enqueueSnackbar("Visitante creado con exito", {
+      variant: "success",
     });
+
 
     parentGridDataRef.fetchRows();
     navigate("/visitantes");
