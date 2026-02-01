@@ -738,7 +738,8 @@ export async function crear(req: Request, res: Response): Promise<void> {
 
 
         // 9) employeeNo numérico (HV)
-        const base = 29000;
+        // const base = 29000;
+        const base = 99990000;
         const employeeNo = String(base + Number(reg_saved.id_visitante));
 
         // 10) Nombre completo

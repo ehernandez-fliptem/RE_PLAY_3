@@ -1333,16 +1333,31 @@ export async function obtenerReporteIndividual(req: Request, res: Response): Pro
 
 export async function guardarEventoPanel(req: Request, res: Response): Promise<void> {
     try {
+        console.log("Guardando evento de panel...");
         const { ID, tipo_dispositivo, fecha_creacion, img_check, tipo_check_panel, id_panel } = req.body.datos;
         const registroExist = await Eventos.countDocuments({ fecha_creacion: new Date(fecha_creacion) });
         const regexIDGeneral = /^[\d]+$/;
         const regexCode = /^[A-Za-z0-9]{18}$/;
         if (registroExist > 0) {
-            res.status(200).json({ estado: false, mensaje: "Evento ya existe." });
+            console.log("El evento ya existe en la base de datos. " + ID);
+            //await new Promise(resolve => setTimeout(resolve, 1000));
+            res.status(200).json({ estado: false, mensaje: "Evento ya existe." }); 
             return;
         }
+
+        // console.log("+**************************************");
+        //console.log(regexIDGeneral.test(ID));
+        //console.log(ID);
+        // console.log("+**************************************");
+        //await new Promise(resolve => setTimeout(resolve, 1000));
+
+
         if (regexIDGeneral.test(ID)) {
-            const user = await Usuarios.findOne({ id_general: ID }, 'img_usuario');
+            
+            console.log("Buscando usuario con ID: " + ID);
+
+            const user = await Usuarios.findOne({ id_general: ID }, 'img_usuario');            
+
             if (user) {
                 const registroExist = await Eventos.countDocuments({ fecha_creacion: new Date(fecha_creacion) });
                 if (registroExist > 0) {
@@ -1350,6 +1365,10 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
                     return;
                 }
                 if (registroExist === 0) {
+
+                    console.log("Guardando nuevo evento para el usuario: " + ID);
+
+
                     const evento = new Eventos({
                         id_usuario: user._id,
                         tipo_dispositivo,
@@ -1364,138 +1383,235 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
                         id_evento: evento._id
                     });
                 }
+            } 
+            else 
+            { 
+
+                let numero = Number(ID);
+                let IDVisitante = numero - 29000;
+
+                console.log("Usuario no encontrado con ID: " + ID + " , buscando en visitantes: " + IDVisitante);
+
+                const visitante = await Visitantes.findOne({ id_visitante: IDVisitante });
+
+                if (visitante) {
+                    
+                    console.log("Visitante encontrado: " + visitante.nombre);
+
+                    const registroExist = await Eventos.countDocuments({ fecha_creacion: new Date(fecha_creacion) });
+                    if (registroExist > 0) {
+                        res.status(200).json({ estado: false, mensaje: "Evento ya existe." });
+                        return;
+                    }
+
+                    if (registroExist === 0) {
+                        const evento = new Eventos({
+                            id_visitante: visitante._id,
+                            tipo_dispositivo,
+                            fecha_creacion: new Date(fecha_creacion),
+                            //img_usuario: visitante.img_usuario,   // Pero el Visitante no tiene img_usuario en la tabla Visitantes
+                            img_evento: REGEX_BASE64.test(img_check) ? await resizeImage(img_check) : img_check,
+                            id_panel,
+                            tipo_check: tipo_check_panel
+                        });
+                        await evento.save();
+                        socket.emit("eventos:nuevo-evento", {
+                            id_evento: evento._id
+                        });
+                    }
+
+                }
+                else 
+                {
+                    console.log("No se encontró usuario ni visitante con ID: " + ID);
+                    //await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+
             }
+
         }
+        
+        /*
+        else {
 
-        if (regexCode.test(ID)) {
-            const panel = await DispositivosHv.findById(id_panel, 'id_acceso');
-            const objCheck = {
-                id_acceso: panel?.id_acceso || null,
-                tipo_dispositivo,
-                fecha_creacion,
-                img_perfil: "",
-                img_evento: REGEX_BASE64.test(img_check) ? await resizeImage(img_check) : img_check,
-                id_panel,
-            };
+            // 99,990,116
 
-            const registrosVisita = await Registros.aggregate([
-                {
-                    $match: {
-                        $and: [
-                            {
-                                codigo: ID,
-                                activo: true,
-                            },
-                        ],
-                    },
-                },
-                {
-                    $lookup: {
-                        from: "eventos",
-                        localField: "estatus",
-                        foreignField: "_id",
-                        as: "eventos",
-                        pipeline: [
-                            { $project: { tipo_check: 1, fecha_creacion: 1 } },
-                            { $sort: { fecha_creacion: 1 } },
-                        ],
-                    },
-                },
-                {
-                    $lookup: {
-                        from: "visitantes",
-                        localField: "correo",
-                        foreignField: "correo",
-                        as: "visitante",
-                        pipeline: [
-                            {
-                                $project: {
-                                    _id: 1
-                                },
-                            },
-                        ],
-                    },
-                },
-                {
-                    $set: {
-                        estatus: { $arrayElemAt: ["$eventos", -1] },
-                        visitante: { $arrayElemAt: ["$visitante", -1] },
-                    },
-                },
-                {
-                    $set: {
-                        tipo_check: "$estatus.tipo_check",
-                        fecha_creacion_ultimo_evento: "$estatus.fecha_creacion",
-                        id_visitante: "$visitante._id"
-                    },
-                },
-                {
-                    $sort: {
-                        fecha_entrada: 1,
-                    },
-                },
-                {
-                    $project: {
-                        id_visitante: 1,
-                        tipo_registro: 1,
-                        eventos: 1,
-                        estatus: 1,
-                        fecha_salida: 1,
-                        fecha_entrada: 1,
-                        tipo_check: 1,
-                        fecha_creacion_ultimo_evento: 1,
-                    },
-                },
-            ]);
+            //const visitante = await Visitantes.findOne({ id_visitante: ID }, 'img_usuario');
 
-            if (registrosVisita[0]) {
-                const { _id: id_registro, id_visitante } = registrosVisita[0];
-                let { tipo_check } = registrosVisita[0];
+            console.log("Buscando visitante con ID: " + ID);
 
-                const [esValido, comentario] = await validacionRegistroActivo(registrosVisita[0]);
+            const visitante = await Visitantes.findOne({ id_visitante: ID });
+            
+            if (visitante) {
+                    
+                console.log("Visitante encontrado: " + visitante.nombre);
 
-                if (!esValido && comentario) {
-                    await guardarEventoNoValido("", "", comentario, null, "", id_registro, fecha_creacion);
-                    res.status(200).json({ estado: false, mensaje: "Evento no válido." });
-                    return;
+                const registroExist = await Eventos.countDocuments({ fecha_creacion: new Date(fecha_creacion) });
+                    if (registroExist > 0) {
+                        res.status(200).json({ estado: false, mensaje: "Evento ya existe." });
+                        return;
+                    }
+                    if (registroExist === 0) {
+                        const evento = new Eventos({
+                            id_visitante: visitante._id,
+                            //id_visitante: '693afc3d8641a874c5b21e14', // ID de visitante por defecto
+                            // "697ec159d4e1d5f025a44c3b"
+                            // ObjectId("697ec159d4e1d5f025a44c3b")
+                            tipo_dispositivo,
+                            fecha_creacion: new Date(fecha_creacion),
+                            //img_usuario: user.img_usuario,
+                            img_evento: REGEX_BASE64.test(img_check) ? await resizeImage(img_check) : img_check,
+                            id_panel,
+                            tipo_check: tipo_check_panel
+                        });
+                        await evento.save();
+                        socket.emit("eventos:nuevo-evento", {
+                            id_evento: evento._id
+                        });
+                    }
                 }
 
-                switch (Number(tipo_check_panel)) {
-                    case 5:
-                        tipo_check = tipo_check === 6 ? 5 : 0;
-                        break;
-                    case 6:
-                        tipo_check = tipo_check === 5 ? 6 : 0;
-                        break;
-                    case 7:
-                        tipo_check = tipo_check === 5 ? 6 : tipo_check === 6 ? 5 : 0;
-                        break;
-                    default:
-                        tipo_check = 0;
-                        break;
-                }
+            }   
+            */
 
-                if (tipo_check === 0) {
-                    await guardarEventoNoValido("", "", comentario, null, "", id_registro, fecha_creacion);
-                    res.status(200).json({ estado: false, mensaje: "Evento no válido." });
-                    return;
-                }
 
-                await cambiarEventoRegistro({
-                    ...objCheck,
-                    tipo_check: tipo_check,
-                    id_registro: id_registro,
-                    id_visitante: id_visitante,
-                }, { _id: 1 }) as IRegistro;
+        //else
+        //{
 
-                socket.emit("registros:modificar-estado", {
-                    id_registro: id_registro
-                });
+        // if (regexCode.test(ID)) {
+            
+        //     console.log("El ID es un código de registro de visita 01.");
+        //     await new Promise(resolve => setTimeout(resolve, 1000));
 
-                res.status(200).json({ estado: true });
-                return;
-            }
-        }
+        //     const panel = await DispositivosHv.findById(id_panel, 'id_acceso');
+        //     const objCheck = {
+        //         id_acceso: panel?.id_acceso || null,
+        //         tipo_dispositivo,
+        //         fecha_creacion,
+        //         img_perfil: "",
+        //         img_evento: REGEX_BASE64.test(img_check) ? await resizeImage(img_check) : img_check,
+        //         id_panel,
+        //     };
+
+        //     const registrosVisita = await Registros.aggregate([
+        //         {
+        //             $match: {
+        //                 $and: [
+        //                     {
+        //                         codigo: ID,
+        //                         activo: true,
+        //                     },
+        //                 ],
+        //             },
+        //         },
+        //         {
+        //             $lookup: {
+        //                 from: "eventos",
+        //                 localField: "estatus",
+        //                 foreignField: "_id",
+        //                 as: "eventos",
+        //                 pipeline: [
+        //                     { $project: { tipo_check: 1, fecha_creacion: 1 } },
+        //                     { $sort: { fecha_creacion: 1 } },
+        //                 ],
+        //             },
+        //         },
+        //         {
+        //             $lookup: {
+        //                 from: "visitantes",
+        //                 localField: "correo",
+        //                 foreignField: "correo",
+        //                 as: "visitante",
+        //                 pipeline: [
+        //                     {
+        //                         $project: {
+        //                             _id: 1
+        //                         },
+        //                     },
+        //                 ],
+        //             },
+        //         },
+        //         {
+        //             $set: {
+        //                 estatus: { $arrayElemAt: ["$eventos", -1] },
+        //                 visitante: { $arrayElemAt: ["$visitante", -1] },
+        //             },
+        //         },
+        //         {
+        //             $set: {
+        //                 tipo_check: "$estatus.tipo_check",
+        //                 fecha_creacion_ultimo_evento: "$estatus.fecha_creacion",
+        //                 id_visitante: "$visitante._id"
+        //             },
+        //         },
+        //         {
+        //             $sort: {
+        //                 fecha_entrada: 1,
+        //             },
+        //         },
+        //         {
+        //             $project: {
+        //                 id_visitante: 1,
+        //                 tipo_registro: 1,
+        //                 eventos: 1,
+        //                 estatus: 1,
+        //                 fecha_salida: 1,
+        //                 fecha_entrada: 1,
+        //                 tipo_check: 1,
+        //                 fecha_creacion_ultimo_evento: 1,
+        //             },
+        //         },
+        //     ]);
+
+        //     if (registrosVisita[0]) {
+        //         const { _id: id_registro, id_visitante } = registrosVisita[0];
+        //         let { tipo_check } = registrosVisita[0];
+
+        //         const [esValido, comentario] = await validacionRegistroActivo(registrosVisita[0]);
+
+        //         if (!esValido && comentario) {
+        //             await guardarEventoNoValido("", "", comentario, null, "", id_registro, fecha_creacion);
+        //             res.status(200).json({ estado: false, mensaje: "Evento no válido." });
+        //             return;
+        //         }
+
+        //         switch (Number(tipo_check_panel)) {
+        //             case 5:
+        //                 tipo_check = tipo_check === 6 ? 5 : 0;
+        //                 break;
+        //             case 6:
+        //                 tipo_check = tipo_check === 5 ? 6 : 0;
+        //                 break;
+        //             case 7:
+        //                 tipo_check = tipo_check === 5 ? 6 : tipo_check === 6 ? 5 : 0;
+        //                 break;
+        //             default:
+        //                 tipo_check = 0;
+        //                 break;
+        //         }
+
+        //         if (tipo_check === 0) {
+        //             await guardarEventoNoValido("", "", comentario, null, "", id_registro, fecha_creacion);
+        //             res.status(200).json({ estado: false, mensaje: "Evento no válido." });
+        //             return;
+        //         }
+
+        //         await cambiarEventoRegistro({
+        //             ...objCheck,
+        //             tipo_check: tipo_check,
+        //             id_registro: id_registro,
+        //             id_visitante: id_visitante,
+        //         }, { _id: 1 }) as IRegistro;
+
+        //         socket.emit("registros:modificar-estado", {
+        //             id_registro: id_registro
+        //         });
+
+        //         res.status(200).json({ estado: true });
+        //         return;
+        //     }
+        // }
+
         res.status(200).json({ estado: false, mensaje: "Hubo un problema al guardar el panel" });
     } catch (error: any) {
         console.error(error);
