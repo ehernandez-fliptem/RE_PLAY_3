@@ -1330,7 +1330,8 @@ export async function obtenerReporteIndividual(req: Request, res: Response): Pro
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 }
-
+//Flag guardar Eventos
+//Funcion para guardar eventos en la base de datos desde el demonio
 export async function guardarEventoPanel(req: Request, res: Response): Promise<void> {
     try {
         console.log("Guardando evento de panel...");
