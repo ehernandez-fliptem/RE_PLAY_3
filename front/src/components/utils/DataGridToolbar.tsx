@@ -107,6 +107,15 @@ export default function DataGridToolbar({
           alignItems="center"
           sx={{ width: { xs: "100%", sm: "auto" } }}
         >
+          {customActionButtons}
+
+          <Divider
+            orientation="vertical"
+            variant="middle"
+            flexItem
+            sx={{ display: { xs: "none", sm: "block" }, mx: 0.5 }}
+          />
+
           {showColumnsButton && (
             <Tooltip title="Columns">
               <ColumnsPanelTrigger render={<ToolbarButton />}>
@@ -133,12 +142,6 @@ export default function DataGridToolbar({
             </Tooltip>
           )}
 
-          <Divider
-            orientation="vertical"
-            variant="middle"
-            flexItem
-            sx={{ display: { xs: "none", sm: "block" }, mx: 0.5 }}
-          />
           {showExportButton && (
             <React.Fragment>
               <Tooltip title="Exportar">
@@ -250,8 +253,6 @@ export default function DataGridToolbar({
               />
             </StyledQuickFilter>
           )}
-
-          {customActionButtons}
         </Stack>
       </Box>
     </Toolbar>

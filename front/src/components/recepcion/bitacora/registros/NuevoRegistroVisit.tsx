@@ -203,7 +203,6 @@ export default function NuevoRegistroVisit() {
         } else {
           enqueueSnackbar(res.data.mensaje, {
             variant: "error",
-            persist: true,
           });
           setTimeout(() => {
             navigate("/", { replace: true });

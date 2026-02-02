@@ -157,7 +157,6 @@ export default function CargaVisitantes() {
       if (envioCorreos) {
         key = enqueueSnackbar(`Enviando correos`, {
           variant: "info",
-          persist: true,
         });
       }
       const res = await clienteAxios.post("/api/visitantes/programacion", {

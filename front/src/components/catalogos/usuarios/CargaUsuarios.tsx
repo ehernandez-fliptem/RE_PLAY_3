@@ -164,7 +164,6 @@ export default function CargaUsuarios() {
       if (envioCorreos) {
         key = enqueueSnackbar(`Enviando correos`, {
           variant: "info",
-          persist: true,
         });
       }
       const res = await clienteAxios.post("/api/usuarios/programacion", {

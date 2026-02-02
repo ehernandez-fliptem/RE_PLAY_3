@@ -172,11 +172,12 @@ export default function Eventos() {
               rowCount = res.data.datos.totalCount[0]?.count || 0;
             }
           }
-          setIsLoadingData(false);
         } catch (error) {
           const { restartSession } = handlingError(error);
           if (restartSession) navigate("/logout", { replace: true });
           throw error;
+        } finally {
+          setIsLoadingData(false);
         }
 
         return {
@@ -202,10 +203,24 @@ export default function Eventos() {
   );
 
   const onSubmit: SubmitHandler<FormValues> = async () => {
-    setCanSearch(true);
     setIsLoadingData(true);
-    if (canSearch) apiRef.current?.dataSource.fetchRows();
+    if (canSearch) {
+      apiRef.current?.dataSource.fetchRows();
+      return;
+    }
+    setCanSearch(true);
   };
+
+  useEffect(() => {
+    if (canSearch) {
+      apiRef.current?.dataSource.fetchRows();
+    }
+  }, [canSearch, apiRef]);
+
+  useEffect(() => {
+    setIsLoadingData(true);
+    setCanSearch(true);
+  }, []);
 
   const clearForm = () => {
     formContext.reset();

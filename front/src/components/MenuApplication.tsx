@@ -41,7 +41,7 @@ import Copyright from "./utils/Copyright";
 import ThemeButton from "../themes/ThemeButton";
 import type { IRootState } from "../app/store";
 import useNetworkStatus from "./NetworkStatus";
-import Access from "./utils/Access";
+// import Access from "./utils/Access"; // FLAG: Selector de acceso oculto temporalmente - No borrar
 
 const drawerWidth = 200;
 const appBarHeight = 64;
@@ -122,7 +122,7 @@ export default function MenuApplication({ children }: MenuProps) {
   const { rol, nombre, img_usuario, esRoot, empresa } = useSelector(
     (state: IRootState) => state.auth.data
   );
-  const esRecep = rol.includes(2);
+  // const esRecep = rol.includes(2); // FLAG: Selector de acceso oculto temporalmente - No borrar
   const esVisit = rol.includes(10);
   const theme = useTheme();
   const navigate = useNavigate();
@@ -148,7 +148,9 @@ export default function MenuApplication({ children }: MenuProps) {
         setSelectedIndex(0.1);
         return;
       }
-      if (!path) navigate("/bitacora");
+      // FLAG: Bitácora oculta temporalmente - No borrar
+      // if (!path) navigate("/bitacora");
+      if (!path) navigate("/eventos");
       for (const menu of mainMenu) {
         if (menu.submenu) {
           const foundSubMenu = menu.submenu.find(
@@ -261,7 +263,8 @@ export default function MenuApplication({ children }: MenuProps) {
               alignItems: "center",
             }}
           >
-            {esRecep && <Access />}
+            {/* FLAG: Selector de acceso oculto temporalmente - No borrar */}
+            {/* {esRecep && <Access />} */}
           </Box>
           <Box component="div">
             <IconButton

@@ -329,7 +329,6 @@ export default function Bitacora() {
         if (result?.check) {
           key = enqueueSnackbar(`Enviando correos`, {
             variant: "info",
-            persist: true,
           });
         }
         const res = await clienteAxios.put(`/api/registros/cancelar/${ID}`, {

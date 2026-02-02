@@ -1388,7 +1388,7 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
             { 
 
                 let numero = Number(ID);
-                let IDVisitante = numero - 29000;
+                let IDVisitante = numero - 990000;
 
                 console.log("Usuario no encontrado con ID: " + ID + " , buscando en visitantes: " + IDVisitante);
 

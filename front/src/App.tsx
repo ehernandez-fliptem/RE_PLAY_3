@@ -55,6 +55,8 @@ dayjs.extend(duration);
 dayjs.extend(isBetween);
 dayjs.locale("es");
 
+const SNACKBAR_AUTO_HIDE_MS = 3000;
+
 function App() {
   const { token } = useSelector((state: IRootState) => state.auth.data);
   const { palette } = useSelector((state: IRootState) => state.config.data);
@@ -176,7 +178,7 @@ function App() {
                 </IconButton>
               )}
               anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-              autoHideDuration={5000}
+              autoHideDuration={SNACKBAR_AUTO_HIDE_MS}
             >
               <CssBaseline />
               <Container
