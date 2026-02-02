@@ -47,6 +47,13 @@ const mainMenu = [
     path: "/usuarios",
   },
   {
+    id: 0.6,
+    title: "Empleados",
+    rol: [1],
+    icon: <PeopleAlt fontSize="small" />,
+    path: "/empleados",
+  },
+  {
     id: 1,
     title: "Catálogos",
     rol: [1],

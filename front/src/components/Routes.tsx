@@ -15,6 +15,11 @@ import NuevoUsuario from "./catalogos/usuarios/NuevoUsuario";
 import EditarUsuario from "./catalogos/usuarios/EditarUsuario";
 import DetalleUsuario from "./catalogos/usuarios/DetalleUsuario";
 import CargaUsuarios from "./catalogos/usuarios/CargaUsuarios";
+import Empleados from "./catalogos/empleados/Empleados";
+import NuevoEmpleado from "./catalogos/empleados/NuevoEmpleado";
+import EditarEmpleado from "./catalogos/empleados/EditarEmpleado";
+import DetalleEmpleado from "./catalogos/empleados/DetalleEmpleado";
+import CargaEmpleados from "./catalogos/empleados/CargaEmpleados";
 import DispositivosHV from "./catalogos/dispositivos/DispositivosHV";
 import NuevoDispositivoHV from "./catalogos/dispositivos/NuevoDispositivoHV";
 import DetalleDispositivoHV from "./catalogos/dispositivos/DetalleDispositivoHV";
@@ -303,6 +308,37 @@ export default function Routes() {
         {
           path: "carga-masiva",
           element: esAdmin ? <CargaUsuarios /> : <Unauthorized />,
+        },
+        {
+          path: "*",
+          element: <Unknown />,
+        },
+      ],
+    },
+    {
+      path: "/empleados/*",
+      children: [
+        {
+          path: "",
+          element: esAdmin ? <Empleados /> : <Unauthorized />,
+          children: [
+            {
+              path: "nuevo-empleado",
+              element: esAdmin ? <NuevoEmpleado /> : <Unauthorized />,
+            },
+            {
+              path: "editar-empleado/:id",
+              element: esAdmin ? <EditarEmpleado /> : <Unauthorized />,
+            },
+            {
+              path: "detalle-empleado/:id",
+              element: esAdmin ? <DetalleEmpleado /> : <Unauthorized />,
+            },
+          ],
+        },
+        {
+          path: "carga-masiva",
+          element: esAdmin ? <CargaEmpleados /> : <Unauthorized />,
         },
         {
           path: "*",

@@ -4,13 +4,23 @@ import Roles from './models/Roles';
 import TiposRegistros from './models/TiposRegistros';
 import TiposDispositivos from './models/TiposDispositivos';
 import TiposDocumentos from './models/TiposDocumentos';
+import Empleados from './models/Empleados';
 import { CONFIG } from './config';
 
 export async function connectDB(): Promise<void> {
     try {
         await mongoose.connect(CONFIG.MONGODB_URI);
         console.log('🔗 Conectado a la base de datos Flipbot');
-        console.log('🔗 Validando catálogos para el funcionamiento del sistema');
+        console.log('Validando catalogos para el funcionamiento del sistema');
+
+        // Migracion: id_general -> id_empleado en empleados (una sola vez)
+        await Empleados.updateMany(
+            { id_empleado: { $exists: false }, id_general: { $exists: true } },
+            [
+                { $set: { id_empleado: "$id_general" } },
+                { $unset: "id_general" }
+            ]
+        );
 
         const validarTiposEven = await TiposEventos.countDocuments();
         const validarRoles = await Roles.countDocuments();
@@ -68,3 +78,4 @@ export async function connectDB(): Promise<void> {
         throw error;
     }
 };
+
