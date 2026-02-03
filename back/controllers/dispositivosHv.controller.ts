@@ -1165,6 +1165,34 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
     ]);
   };
 
+  const faceDelete = async (
+    ip: string,
+    user: string,
+    pass: string,
+    fpid: string
+  ) => {
+    const url = `http://${ip}/ISAPI/Intelligent/FDLib/FDSetUp?format=json`;
+    const payload = {
+      faceLibType: "blackFD",
+      FDID: "1",
+      FPID: String(fpid),
+      deleteFP: true,
+    };
+
+    return runCurlJson([
+      "--digest",
+      "-u",
+      `${user}:${pass}`,
+      "-H",
+      "Content-Type: application/json",
+      "-X",
+      "PUT",
+      url,
+      "-d",
+      JSON.stringify(payload),
+    ]);
+  };
+
   // ===============================
   // Principal
   // ===============================
@@ -1251,6 +1279,16 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
         face = "OK";
       } else if (faceRes.json?.subStatusCode === "deviceUserAlreadyExistFace") {
         face = "ALREADY_EXISTS";
+        const delRes = await faceDelete(ip, hvUser, hvPass, fpid);
+        if (delRes.json?.statusString === "OK") {
+          const faceRetry = await faceUpload(ip, hvUser, hvPass, employeeNo, fpid, filePath, mime);
+          if (faceRetry.json?.statusString === "OK") {
+            face = "OK";
+          } else {
+            face = "ERROR";
+            console.log("[SYNC-VIS] face retry resp", { status: faceRetry.status, json: faceRetry.json, body: faceRetry.body });
+          }
+        }
       } else {
         face = "ERROR";
         console.log("[SYNC-VIS] face resp", { status: faceRes.status, json: faceRes.json, body: faceRes.body });

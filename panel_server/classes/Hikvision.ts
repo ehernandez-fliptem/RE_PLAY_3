@@ -367,6 +367,53 @@ async getTokenValue() {
                 }
             }
 
+            // Subir/actualizar cara si viene imagen
+            if (hasImage && imageBuffer) {
+                const urlFaceRecord = `http://${this.ip}/ISAPI/Intelligent/FDLib/FaceDataRecord?format=json`;
+                const urlFaceDelete = `http://${this.ip}/ISAPI/Intelligent/FDLib/FDSetUp?format=json`;
+                const dataFaceDelete = { faceLibType: "blackFD", FDID: "1", FPID: employeeNo, deleteFP: true };
+
+                const uploadFace = async () =>
+                    peticionPutImg(
+                        urlFaceRecord,
+                        this.usuario,
+                        this.contrasena,
+                        employeeNo,
+                        fpid,
+                        imageBuffer,
+                        imageName
+                    );
+
+                const resp = await uploadFace();
+                const respText = typeof resp === "string" ? resp : resp.statusString;
+
+                if (respText === "OK") {
+                    this.img_modified = true;
+                    this.img_sync++;
+                } else if (respText === "deviceUserAlreadyExistFace") {
+                    const resDel = (await peticionPutPanel(
+                        urlFaceDelete,
+                        dataFaceDelete,
+                        this.usuario,
+                        this.contrasena
+                    )) as UserInfoSavedResponse;
+
+                    if (resDel.statusString === "OK") {
+                        const respRetry = await uploadFace();
+                        const respRetryText =
+                            typeof respRetry === "string" ? respRetry : respRetry.statusString;
+                        if (respRetryText === "OK") {
+                            this.img_modified = true;
+                            this.img_sync++;
+                        } else {
+                            console.error("Hikvision respondiÃ³ un error:", respRetry);
+                        }
+                    }
+                } else {
+                    console.error("Hikvision respondiÃ³ un error:", resp);
+                }
+            }
+
             // Borrar cara si aplica (tu regla actual)
             if (numOfFace === 1 && !img_usuario && activo) {
                 const urlFaceDelete = `http://${this.ip}/ISAPI/Intelligent/FDLib/FDSetUp?format=json`;
