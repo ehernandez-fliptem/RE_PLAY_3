@@ -300,3 +300,21 @@ pm2 save
   2) Ve a la carpeta del front y copia la carpeta `dist`.
 
   3) Pégala dentro de `back\dist` (debe quedar `back\dist\dist`).
+
+---
+
+## Comandos rapidos (PowerShell)
+
+Desde la raiz del repo:
+
+### Instalacion desde 0
+
+```
+PowerShell -ExecutionPolicy Bypass -File scripts\setup.ps1
+```
+
+### Actualizacion (build + copia front + restart PM2)
+
+```
+PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1
+```
