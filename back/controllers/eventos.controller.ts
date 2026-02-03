@@ -31,8 +31,8 @@ import FaceDescriptors from "../models/FaceDescriptors";
 export async function obtenerTodosPorFiltro(req: Request, res: Response): Promise<void> {
     try {
         const { usuarios, dispositivos, estatus, empresas, fecha_inicio, fecha_final } = req.body.datos;
-        const entrada = dayjs(fecha_inicio).toDate();
-        const salida = dayjs(fecha_final).toDate();
+        const entrada = dayjs(fecha_inicio).startOf("day").subtract(1, "day").toDate();
+        const salida = dayjs(fecha_final).endOf("day").add(1, "day").toDate();
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
         const querySort = JSON.parse(sort) as QueryParams["sort"];
@@ -744,7 +744,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
         const id_acceso = (req as UserRequest).accessId;
         const { qr, tipo_check: tipo_evento, lector } = req.body;
         const regexIDGeneral = /^[\d]+$/;
-        const regexCode = /^[A-Za-z0-9]{18}$/;
+        const regexCardCode = /^VST[A-Z0-9]{16}$/;
         let comentario = "";
         if (![0, 1].includes(Number(lector))) {
             comentario = "El tipo de lector no se reconoce.";
@@ -1334,13 +1334,23 @@ export async function obtenerReporteIndividual(req: Request, res: Response): Pro
 //Funcion para guardar eventos en la base de datos desde el demonio
 export async function guardarEventoPanel(req: Request, res: Response): Promise<void> {
     try {
-        console.log("Guardando evento de panel...");
+        console.log("[EVENTOS][PANEL] Guardando evento de panel...");
         const { ID, tipo_dispositivo, fecha_creacion, img_check, tipo_check_panel, id_panel } = req.body.datos;
+        console.log("[EVENTOS][PANEL] Payload:", {
+            ID,
+            tipo_dispositivo,
+            fecha_creacion,
+            tipo_check_panel,
+            id_panel,
+            img_check_type: typeof img_check,
+            img_check_len: typeof img_check === "string" ? img_check.length : null,
+        });
         const registroExist = await Eventos.countDocuments({ fecha_creacion: new Date(fecha_creacion) });
+        console.log("[EVENTOS][PANEL] registroExist:", registroExist);
         const regexIDGeneral = /^[\d]+$/;
-        const regexCode = /^[A-Za-z0-9]{18}$/;
+        const regexCardCode = /^VST[A-Z0-9]{16}$/;
         if (registroExist > 0) {
-            console.log("El evento ya existe en la base de datos. " + ID);
+            console.log("[EVENTOS][PANEL] Evento ya existe:", ID);
             //await new Promise(resolve => setTimeout(resolve, 1000));
             res.status(200).json({ estado: false, mensaje: "Evento ya existe." }); 
             return;
@@ -1355,7 +1365,7 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
 
         if (regexIDGeneral.test(ID)) {
             
-            console.log("Buscando usuario con ID: " + ID);
+            console.log("[EVENTOS][PANEL] Buscando usuario con ID:", ID);
 
             const user = await Usuarios.findOne({ id_general: ID }, 'img_usuario');            
 
@@ -1367,7 +1377,7 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
                 }
                 if (registroExist === 0) {
 
-                    console.log("Guardando nuevo evento para el usuario: " + ID);
+                    console.log("[EVENTOS][PANEL] Guardando nuevo evento para usuario:", ID);
 
 
                     const evento = new Eventos({
@@ -1391,13 +1401,13 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
                 let numero = Number(ID);
                 let IDVisitante = numero - 990000;
 
-                console.log("Usuario no encontrado con ID: " + ID + " , buscando en visitantes: " + IDVisitante);
+                console.log("[EVENTOS][PANEL] Usuario no encontrado, buscando visitante numérico:", { ID, IDVisitante });
 
                 const visitante = await Visitantes.findOne({ id_visitante: IDVisitante });
 
                 if (visitante) {
                     
-                    console.log("Visitante encontrado: " + visitante.nombre);
+                    console.log("[EVENTOS][PANEL] Visitante encontrado:", visitante.nombre);
 
                     const registroExist = await Eventos.countDocuments({ fecha_creacion: new Date(fecha_creacion) });
                     if (registroExist > 0) {
@@ -1424,14 +1434,46 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
                 }
                 else 
                 {
-                    console.log("No se encontrÃ³ usuario ni visitante con ID: " + ID);
+                    console.log("[EVENTOS][PANEL] No se encontró usuario ni visitante (numérico):", ID);
                     //await new Promise(resolve => setTimeout(resolve, 1000));
                 }
 
             }
 
+        } else if (regexCardCode.test(ID)) {
+            console.log("[EVENTOS][PANEL] Buscando visitante por card_code:", ID);
+
+            const visitante = await Visitantes.findOne({ card_code: ID });
+
+            if (visitante) {
+                console.log("[EVENTOS][PANEL] Visitante encontrado:", visitante.nombre);
+
+                const registroExist = await Eventos.countDocuments({ fecha_creacion: new Date(fecha_creacion) });
+                if (registroExist > 0) {
+                    res.status(200).json({ estado: false, mensaje: "Evento ya existe." });
+                    return;
+                }
+
+                const evento = new Eventos({
+                    id_visitante: visitante._id,
+                    tipo_dispositivo,
+                    fecha_creacion: new Date(fecha_creacion),
+                    img_usuario: visitante.img_usuario,
+                    img_evento: REGEX_BASE64.test(img_check) ? await resizeImage(img_check) : img_check,
+                    id_panel,
+                    tipo_check: tipo_check_panel
+                });
+                await evento.save();
+                socket.emit("eventos:nuevo-evento", {
+                    id_evento: evento._id
+                });
+            } else {
+                console.log("[EVENTOS][PANEL] No se encontró visitante con card_code:", ID);
+            }
+        } else {
+            console.log("[EVENTOS][PANEL] ID no reconocido:", ID);
         }
-        
+
         /*
         else {
 
@@ -1445,7 +1487,7 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
             
             if (visitante) {
                     
-                console.log("Visitante encontrado: " + visitante.nombre);
+                console.log("[EVENTOS][PANEL] Visitante encontrado:", visitante.nombre);
 
                 const registroExist = await Eventos.countDocuments({ fecha_creacion: new Date(fecha_creacion) });
                     if (registroExist > 0) {
@@ -1710,3 +1752,6 @@ const getDaysArray = function (start: string | number | Date, end: string | numb
     }
     return arr;
 };
+
+
+
