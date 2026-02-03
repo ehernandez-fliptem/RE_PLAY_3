@@ -16,7 +16,7 @@ import {
   // HowToReg, // FLAG: Recepción oculta temporalmente - No borrar
   Badge,
   Group,
-  PeopleAlt,
+  // PeopleAlt,
   // PieChart, // FLAG: Reportes oculto temporalmente - No borrar
   Settings,
   // Help, // FLAG: Ayuda oculta temporalmente - No borrar
@@ -41,13 +41,13 @@ const mainMenu = [
   //   icon: <Assignment fontSize="small" />,
   //   path: "/bitacora",
   // },
-  {
-    id: 0.5,
-    title: "Usuarios",
-    rol: [1],
-    icon: <PeopleAlt fontSize="small" />,
-    path: "/usuarios",
-  },
+  // {
+  //   id: 0.5,
+  //   title: "Usuarios",
+  //   rol: [1],
+  //   icon: <PeopleAlt fontSize="small" />,
+  //   path: "/usuarios",
+  // },
   {
     id: 0.6,
     title: "Empleados",
