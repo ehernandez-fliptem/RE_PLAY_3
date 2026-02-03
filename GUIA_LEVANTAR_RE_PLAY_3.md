@@ -32,6 +32,16 @@ Nota: este script limpia procesos viejos de PM2 (pm2 delete all + pm2 save) ante
 PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1
 ```
 
+### Actualizacion por modulo 
+
+```
+PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1 -Target back
+PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1 -Target panel
+PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1 -Target demonio
+PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1 -Target backfront
+PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1 -Target all
+```
+
 
 ---
 # Si no funciona hacerlo manual
@@ -315,4 +325,3 @@ pm2 save
   3) Pégala dentro de `back\dist` (debe quedar `back\dist\dist`).
 
 ---
-
