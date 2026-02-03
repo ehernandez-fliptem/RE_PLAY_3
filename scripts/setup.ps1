@@ -33,7 +33,7 @@ Push-Location $front
 npm install --legacy-peer-deps
 Pop-Location
 
-Write-Step "Builds"
+Write-Step "Builds (front primero)"
 Push-Location $front
 npm run build
 Pop-Location
@@ -45,14 +45,17 @@ if (!(Test-Path $src)) { Fail "No se encontró $src" }
 if (!(Test-Path $dest)) { New-Item -ItemType Directory -Force $dest | Out-Null }
 Copy-Item -Path (Join-Path $src "*") -Destination $dest -Recurse -Force
 
+Write-Step "Build back (después de copiar front)"
 Push-Location $back
 npm run build
 Pop-Location
 
+Write-Step "Build panel_server"
 Push-Location $panel
 npm run build
 Pop-Location
 
+Write-Step "Build demonio_eventos"
 Push-Location $demonio
 npm run build
 Pop-Location

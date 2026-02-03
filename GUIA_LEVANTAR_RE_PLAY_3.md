@@ -14,6 +14,29 @@
 - front (Vite / React)
 
 ---
+## Comandos rapidos (PowerShell)
+
+Desde la raiz del repo:
+
+### Instalacion desde 0
+
+```
+PowerShell -ExecutionPolicy Bypass -File scripts\setup.ps1
+```
+
+Nota: este script limpia procesos viejos de PM2 (pm2 delete all + pm2 save) antes de levantar los nuevos.
+
+### Actualizacion (build + copia front + restart PM2)
+
+```
+PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1
+```
+
+
+---
+# Si no funciona hacerlo manual
+---
+# Pasos para hacerlo manual 
 
 ## 0) Abrir terminal
 
@@ -43,149 +66,27 @@ pm2 delete all
 
 ---
 
-## 3) BACK (API)
+## 3) FRONT (Vite / React) – primero
 
-### 3.1 Entrar al back
-
-```
-cd "<RUTA_BASE>\RE_PLAY_3\back"
-```
-
-### 3.2 Instalar dependencias
-
-```
-npm install
-```
-
-### 3.3 Asegurar TypeScript (solo si el build usa tsc)
-
-```
-npm i -D typescript
-```
-
-### 3.4 Build
-
-```
-npm run build
-```
-
-### 3.5 Ver archivo de arranque
-
-```
-dir dist
-```
-
-Si existe `server.js`:
-
-```
-pm2 start dist\server.js --name back
-```
-
-Si existe `index.js`:
-
-```
-pm2 start dist\index.js --name back
-```
-
----
-
-## 4) PANEL_SERVER
-
-### 4.1 Entrar
-
-```
-cd "<RUTA_BASE>\RE_PLAY_3\panel_server"
-```
-
-### 4.2 Instalar
-
-```
-npm install
-```
-
-### 4.3 TypeScript (si aplica)
-
-```
-npm i -D typescript
-```
-
-### 4.4 Build
-
-```
-npm run build
-```
-
-### 4.5 Levantar
-
-Si hay `dist\index.js`:
-
-```
-pm2 start dist\index.js --name panel_server
-```
-
-Si se levanta por npm:
-
-```
-pm2 start npm --name panel_server -- run start
-```
-
----
-
-## 5) DEMONIO_EVENTOS
-
-### 5.1 Entrar
-
-```
-cd "<RUTA_BASE>\RE_PLAY_3\demonio_eventos"
-```
-
-### 5.2 Instalar
-
-```
-npm install
-```
-
-### 5.3 TypeScript
-
-```
-npm i -D typescript
-```
-
-### 5.4 Build
-
-```
-npm run build
-```
-
-### 5.5 Levantar
-
-```
-pm2 start dist\index.js --name demonio_eventos
-```
-
----
-
-## 6) FRONT (Vite / React)
-
-### 6.1 Entrar
+### 3.1 Entrar
 
 ```
 cd "<RUTA_BASE>\RE_PLAY_3\front"
 ```
 
-### 6.2 Instalar dependencias (ignorar peer deps)
+### 3.2 Instalar dependencias (ignorar peer deps)
 
 ```
 npm install --legacy-peer-deps
 ```
 
-### 6.3 Instalar TypeScript
+### 3.3 Instalar TypeScript
 
 ```
 npm i -D typescript
 ```
 
-### 6.4 Build del front
+### 3.4 Build del front
 
 ```
 npm run build
@@ -201,7 +102,7 @@ Debe existir `index.html`.
 
 ---
 
-## 7) Copiar FRONT al BACK (sin cambiar código)
+## 4) Copiar FRONT al BACK (sin cambiar código)
 
 El back busca:
 
@@ -209,13 +110,13 @@ El back busca:
 back\dist\dist\index.html
 ```
 
-### 7.1 Crear carpeta destino
+### 4.1 Crear carpeta destino
 
 ```
 mkdir "<RUTA_BASE>\RE_PLAY_3\back\dist\dist"
 ```
 
-### 7.2 Copiar build del front
+### 4.2 Copiar build del front
 
 ```
 xcopy /E /I /Y "<RUTA_BASE>\RE_PLAY_3\front\dist" "<RUTA_BASE>\RE_PLAY_3\back\dist\dist"
@@ -225,6 +126,117 @@ Verificar:
 
 ```
 dir "<RUTA_BASE>\RE_PLAY_3\back\dist\dist"
+```
+
+---
+
+## 5) BACK (API)
+
+### 5.1 Entrar al back
+
+```
+cd "<RUTA_BASE>\RE_PLAY_3\back"
+```
+
+### 5.2 Instalar dependencias
+
+```
+npm install
+```
+
+### 5.3 Asegurar TypeScript (solo si el build usa tsc)
+
+```
+npm i -D typescript
+```
+
+### 5.4 Build
+
+```
+npm run build
+```
+
+### 5.5 Ver archivo de arranque
+
+```
+dir dist
+```
+
+Si existe `index.js` (el correcto):
+
+```
+pm2 start dist\index.js --name back
+```
+
+
+---
+
+## 6) PANEL_SERVER
+
+### 6.1 Entrar
+
+```
+cd "<RUTA_BASE>\RE_PLAY_3\panel_server"
+```
+
+### 6.2 Instalar
+
+```
+npm install
+```
+
+### 6.3 TypeScript (si aplica)
+
+```
+npm i -D typescript
+```
+
+### 6.4 Build
+
+```
+npm run build
+```
+
+### 6.5 Levantar
+
+Si hay `dist\index.js`:
+
+```
+pm2 start dist\index.js --name panel_server
+```
+
+---
+
+## 7) DEMONIO_EVENTOS
+
+### 7.1 Entrar
+
+```
+cd "<RUTA_BASE>\RE_PLAY_3\demonio_eventos"
+```
+
+### 7.2 Instalar
+
+```
+npm install
+```
+
+### 7.3 TypeScript
+
+```
+npm i -D typescript
+```
+
+### 7.4 Build
+
+```
+npm run build
+```
+
+### 7.5 Levantar
+
+```
+pm2 start dist\index.js --name demonio_eventos
 ```
 
 ---
@@ -304,20 +316,3 @@ pm2 save
 
 ---
 
-## Comandos rapidos (PowerShell)
-
-Desde la raiz del repo:
-
-### Instalacion desde 0
-
-```
-PowerShell -ExecutionPolicy Bypass -File scripts\setup.ps1
-```
-
-Nota: este script limpia procesos viejos de PM2 (pm2 delete all + pm2 save) antes de levantar los nuevos.
-
-### Actualizacion (build + copia front + restart PM2)
-
-```
-PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1
-```
