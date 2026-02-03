@@ -18,19 +18,19 @@ pm2 save
 
 Write-Step "Instalando dependencias"
 Push-Location $back
-npm install
+npm install npm i -D typescript
 Pop-Location
 
 Push-Location $panel
-npm install
+npm install npm i -D typescript
 Pop-Location
 
 Push-Location $demonio
-npm install
+npm install npm i -D typescript
 Pop-Location
 
 Push-Location $front
-npm install --legacy-peer-deps
+npm install --legacy-peer-deps npm i -D typescript
 Pop-Location
 
 Write-Step "Builds (front primero)"
