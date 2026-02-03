@@ -22,6 +22,17 @@ import { execFile } from "child_process";
 import fs from "fs";
 import path from "path";
 import sharp from "sharp";
+import crypto from "crypto";
+
+const safeUnlink = async (filePath: string) => {
+    try {
+        await fs.promises.unlink(filePath);
+    } catch (err: any) {
+        if (err?.code !== "ENOENT") {
+            console.log("No se pudo eliminar archivo temporal:", filePath, err?.message || err);
+        }
+    }
+};
 
 
 export async function obtenerTodos(req: Request, res: Response): Promise<void> {
@@ -921,22 +932,26 @@ export async function sincronizarPanel(req: Request, res: Response): Promise<voi
                 // Generar JPEG REAL con sharp
                 const { filePath, mime } = await saveBase64ToTemp(registro.img_usuario, employeeNo);
 
-                console.log("Subiendo foto:", { employeeNo, filePath, mime, existe: fs.existsSync(filePath) });
+                try {
+                    console.log("Subiendo foto:", { employeeNo, filePath, mime, existe: fs.existsSync(filePath) });
 
-                const faceRes = await faceUpload(
-                    direccion_ip,
-                    usuario,
-                    decrypted_pass,
-                    employeeNo,
-                    employeeNo,
-                    filePath,
-                    mime
-                );
+                    const faceRes = await faceUpload(
+                        direccion_ip,
+                        usuario,
+                        decrypted_pass,
+                        employeeNo,
+                        employeeNo,
+                        filePath,
+                        mime
+                    );
 
-                console.log("Respuesta FaceDataRecord:", faceRes);
+                    console.log("Respuesta FaceDataRecord:", faceRes);
 
-                if (typeof faceRes !== "string" && faceRes?.statusString === "OK") {
-                    img_created++;
+                    if (typeof faceRes !== "string" && faceRes?.statusString === "OK") {
+                        img_created++;
+                    }
+                } finally {
+                    await safeUnlink(filePath);
                 }
                 }
 
@@ -968,6 +983,7 @@ export async function sincronizarPanel(req: Request, res: Response): Promise<voi
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
     }
+*/
 
 /////////////////////////////////////
 
@@ -1225,8 +1241,9 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
       return;
     }
 
-    const employeeNo = String(29000 + idVisit);
-    const cardNo = employeeNo;
+    const base = 990000;
+    const employeeNo = String(base + idVisit);
+    const cardNo = String(visitante.card_code || generarCardCodeDesdeId(idVisit));
     const fpid = employeeNo;
 
     const fullName =
@@ -1273,25 +1290,29 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
     // 4) Foto (si hay)
     if (visitante.img_usuario) {
       const { filePath, mime } = await saveBase64ToTemp(visitante.img_usuario, employeeNo);
-      const faceRes = await faceUpload(ip, hvUser, hvPass, employeeNo, fpid, filePath, mime);
+      try {
+        const faceRes = await faceUpload(ip, hvUser, hvPass, employeeNo, fpid, filePath, mime);
 
-      if (faceRes.json?.statusString === "OK") {
-        face = "OK";
-      } else if (faceRes.json?.subStatusCode === "deviceUserAlreadyExistFace") {
-        face = "ALREADY_EXISTS";
-        const delRes = await faceDelete(ip, hvUser, hvPass, fpid);
-        if (delRes.json?.statusString === "OK") {
-          const faceRetry = await faceUpload(ip, hvUser, hvPass, employeeNo, fpid, filePath, mime);
-          if (faceRetry.json?.statusString === "OK") {
-            face = "OK";
-          } else {
-            face = "ERROR";
-            console.log("[SYNC-VIS] face retry resp", { status: faceRetry.status, json: faceRetry.json, body: faceRetry.body });
+        if (faceRes.json?.statusString === "OK") {
+          face = "OK";
+        } else if (faceRes.json?.subStatusCode === "deviceUserAlreadyExistFace") {
+          face = "ALREADY_EXISTS";
+          const delRes = await faceDelete(ip, hvUser, hvPass, fpid);
+          if (delRes.json?.statusString === "OK") {
+            const faceRetry = await faceUpload(ip, hvUser, hvPass, employeeNo, fpid, filePath, mime);
+            if (faceRetry.json?.statusString === "OK") {
+              face = "OK";
+            } else {
+              face = "ERROR";
+              console.log("[SYNC-VIS] face retry resp", { status: faceRetry.status, json: faceRetry.json, body: faceRetry.body });
+            }
           }
+        } else {
+          face = "ERROR";
+          console.log("[SYNC-VIS] face resp", { status: faceRes.status, json: faceRes.json, body: faceRes.body });
         }
-      } else {
-        face = "ERROR";
-        console.log("[SYNC-VIS] face resp", { status: faceRes.status, json: faceRes.json, body: faceRes.body });
+      } finally {
+        await safeUnlink(filePath);
       }
     }
 
@@ -1303,7 +1324,7 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
           _id: String(visitante._id),
           id_visitante: visitante.id_visitante,
           employeeNo,
-          cardNo,
+        cardNo,
           fpid,
           nombre: fullName,
           beginTime,
@@ -1314,14 +1335,13 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
         createdCard,
         face,
       },
-      mensaje: "Visitante sincronizado (ID numérico 29000 + id_visitante).",
+      mensaje: "Visitante sincronizado (ID numérico 990000 + id_visitante).",
     });
   } catch (e: any) {
     console.log("[SYNC-VIS] ERROR:", String(e?.message || e));
     res.status(500).json({ estado: false, mensaje: String(e?.message || e) });
   }
 }
-*/
 
 
 // Ajusta imports reales
@@ -1339,6 +1359,17 @@ const tryParseJson = (s: string) => {
   } catch {
     return null;
   }
+};
+
+const generarCardCodeDesdeId = (id_visitante: number): string => {
+  const base36 = id_visitante.toString(36).toUpperCase().padStart(6, "0");
+  const hash = crypto
+    .createHash("sha256")
+    .update(String(id_visitante))
+    .digest("hex")
+    .toUpperCase()
+    .slice(0, 10);
+  return `VST${base36}${hash}`;
 };
 
 const runCurl = (args: string[]): Promise<string> => {
@@ -1514,23 +1545,27 @@ async function syncVisitanteLikeCrear(params: {
       const urlFace = `http://${ip}/ISAPI/Intelligent/FDLib/FaceDataRecord?format=json`;
       const faceRecord = { faceLibType: "blackFD", FDID: "1", FPID: employeeNo, employeeNo };
 
-      await runCurl([
-        "--silent",
-        "--show-error",
-        "--fail-with-body",
-        "--digest",
-        "-u",
-        `${hvUser}:${hvPass}`,
-        "-H",
-        "Expect:",
-        "-X",
-        "POST",
-        urlFace,
-        "-F",
-        `FaceDataRecord=${JSON.stringify(faceRecord)}`,
-        "-F",
-        `img=@${imgPath.replace(/\\/g, "/")};type=image/jpeg`,
-      ]);
+      try {
+        await runCurl([
+          "--silent",
+          "--show-error",
+          "--fail-with-body",
+          "--digest",
+          "-u",
+          `${hvUser}:${hvPass}`,
+          "-H",
+          "Expect:",
+          "-X",
+          "POST",
+          urlFace,
+          "-F",
+          `FaceDataRecord=${JSON.stringify(faceRecord)}`,
+          "-F",
+          `img=@${imgPath.replace(/\\/g, "/")};type=image/jpeg`,
+        ]);
+      } finally {
+        await safeUnlink(imgPath);
+      }
     } catch (e: any) {
       // no hacemos fallar toda la sync si solo falla cara
       return { ok: true, step: "done", face: "ERROR", faceMsg: String(e?.message || e).slice(0, 500) };
@@ -1624,10 +1659,10 @@ function visitorIdFromEmployeeNo(emp: string) {
 // =====================================================
 /*
 export async function sincronizarPanel(req: Request, res: Response): Promise<void> {
-  console.log("[SYNC-PANEL] inicio", { panelId: req.params.id });
+  const panelId = String(req.params.id || req.params.panelId || "");
+  console.log("[SYNC-PANEL] inicio", { panelId });
 
   try {
-    const panelId = String(req.params.id || "");
     const panel = (await DispositivosHv.findById(panelId).lean()) as any;
     if (!panel) {
       res.status(200).json({ estado: false, mensaje: "Dispositivo no encontrado." });
@@ -2059,17 +2094,21 @@ export async function sincronizarPanel(req: Request, res: Response): Promise<voi
           if (registro.activo && registro.img_usuario) {
             const { filePath, mime } = await saveBase64ToTemp(normalizeBase64(registro.img_usuario), employeeNo);
 
-            console.log("[SYNC-PANEL][USUARIOS] Subiendo foto:", {
-              employeeNo,
-              filePath,
-              mime,
-              existe: fs.existsSync(filePath),
-            });
+            try {
+              console.log("[SYNC-PANEL][USUARIOS] Subiendo foto:", {
+                employeeNo,
+                filePath,
+                mime,
+                existe: fs.existsSync(filePath),
+              });
 
-            const faceRes = await faceUpload(direccion_ip, usuario, decrypted_pass, employeeNo, employeeNo, filePath, mime);
-            console.log("[SYNC-PANEL][USUARIOS] Respuesta FaceDataRecord:", faceRes);
+              const faceRes = await faceUpload(direccion_ip, usuario, decrypted_pass, employeeNo, employeeNo, filePath, mime);
+              console.log("[SYNC-PANEL][USUARIOS] Respuesta FaceDataRecord:", faceRes);
 
-            if (typeof faceRes !== "string" && faceRes?.statusString === "OK") img_created++;
+              if (typeof faceRes !== "string" && faceRes?.statusString === "OK") img_created++;
+            } finally {
+              await safeUnlink(filePath);
+            }
           }
         } else {
           // Modo simple: existe -> no actualiza

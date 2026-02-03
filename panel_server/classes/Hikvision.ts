@@ -1139,7 +1139,14 @@ private static AUTH_DIR = Hikvision.resolveAuthDir();
                 .toFormat('jpeg')
                 .toFile(tempFilePath);
 
-            return fs.createReadStream(tempFilePath);
+            const stream = fs.createReadStream(tempFilePath);
+            stream.on("close", () => {
+                fs.promises.unlink(tempFilePath).catch(() => null);
+            });
+            stream.on("error", () => {
+                fs.promises.unlink(tempFilePath).catch(() => null);
+            });
+            return stream;
         } catch (error) {
             throw error;
         }

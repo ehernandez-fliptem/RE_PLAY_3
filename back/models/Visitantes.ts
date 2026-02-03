@@ -16,6 +16,7 @@ export interface IVisitante extends Document {
     desbloqueado_hasta?: Date | null; 
     id_visitante: number,
     codigo: string;
+    card_code?: string;
     img_usuario?: string;
     correo: string;
     contrasena: string;
@@ -48,6 +49,10 @@ const visitanteSchema = new Schema<IVisitante>({
         type: String,
         required: [true, 'El código del usuario es obligatorio.'],
         default: "12345"
+    },
+    card_code: {
+        type: String,
+        default: "",
     },
     img_usuario: {
         type: String,

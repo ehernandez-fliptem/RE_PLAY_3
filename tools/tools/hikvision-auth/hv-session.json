@@ -1,8 +1,8 @@
 {
-  "ip": "172.18.0.125",
-  "baseUrl": "https://172.18.0.125/doc/index.html#/portal/login",
-  "webSession": "WebSession_9DE6343406=d2d289980aaba85210967e6bb91fc9d7af14ff5311bc4f2195b5d0ba57bb9f47",
-  "sessionTag": "H467MCE5UBDBBEDPP6VLUJVB25ZYHNDCEPRIJ9RG0B49UJ2DFSFX49743O0URWOS",
-  "tokenValue": "4IfXPZkWqt4pyhphxrFp4J4mgeiFlzXp",
-  "createdAtIso": "2026-01-15T17:18:36.041Z"
+  "ip": "192.168.100.10",
+  "baseUrl": "https://192.168.100.10/doc/index.html#/portal/login",
+  "webSession": "WebSession_C4808F995D=998b701b7a1566f0927cc4df5be7c369dcbc2d305ecb621f1f02d4e363cddfc5",
+  "sessionTag": "QKH7SLZCXH4V4C8X75PVR456H5WIE14QISWG1TZOZDHY2KTB2PLVHML37AV9QIYU",
+  "tokenValue": "PRynNXXOv59LB51ol9ZkutHlvtbSaNnL",
+  "createdAtIso": "2026-02-03T06:10:28.491Z"
 }

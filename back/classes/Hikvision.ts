@@ -565,6 +565,12 @@ export default class Hikvision {
             const base64Image = base64Data?.split(';base64,').pop() || "";
             fs.writeFileSync(tempFilePath, base64Image, { encoding: 'base64' });
             const readStream = fs.createReadStream(tempFilePath);
+            readStream.on("close", () => {
+                fs.promises.unlink(tempFilePath).catch(() => null);
+            });
+            readStream.on("error", () => {
+                fs.promises.unlink(tempFilePath).catch(() => null);
+            });
             return readStream;
         } catch (error) {
             throw error;

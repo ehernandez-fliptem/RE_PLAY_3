@@ -246,10 +246,6 @@ export default function EditarVisitante() {
                     />
                   )}
                 />
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="overline" component="h6">
-                  Correo del visitante
-                </Typography>
                 <TextFieldElement
                   name="correo"
                   label="Correo"

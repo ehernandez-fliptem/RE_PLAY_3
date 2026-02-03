@@ -8,7 +8,7 @@ import {
     modificarEstado,
     probarConexion,
     sincronizarPanel,
-    //sincronizarVisitanteEnPanel,
+    sincronizarVisitanteEnPanel,
     obtenerUnoFormEditar,
     obtenerTodosDemonio,
     obtenerFormNuevoDispositivosHV,
@@ -22,7 +22,7 @@ router.get("/demonio", validarTokenYRol([1]), obtenerTodosDemonio);
 router.get("/:id", validarTokenYRol([1]), obtenerUno);
 router.get("/form-editar/:id", validarTokenYRol([1]), obtenerUnoFormEditar);
 router.get("/sincronizar/:id", validarTokenYRol([1]), sincronizarPanel);
-//router.get("/sincronizar-visitante/:panelId/:visitanteId",validarTokenYRol([1]),sincronizarVisitanteEnPanel);
+router.get("/sincronizar-visitante/:panelId/:visitanteId", validarTokenYRol([1]), sincronizarVisitanteEnPanel);
 router.post("/", validarTokenYRol([1]), crear);
 router.post("/probar-conexion", validarTokenYRol([1]), probarConexion);
 router.post("/probar-conexion/:id", validarTokenYRol([1]), probarConexion);
