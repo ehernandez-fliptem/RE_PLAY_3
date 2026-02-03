@@ -728,9 +728,23 @@ private static readSessionsMap(): Record<string, any> {
     }
 
 
-    private static AUTH_DIR =
-    process.env.HIKVISION_AUTH_DIR ??
-    path.resolve(process.cwd(), "../tools/hikvision-auth");
+private static resolveAuthDir(): string {
+    const candidates = [
+        process.env.HIKVISION_AUTH_DIR,
+        path.resolve(process.cwd(), "../tools/hikvision-auth"),
+        path.resolve(process.cwd(), "../tools/tools/hikvision-auth"),
+        path.resolve(process.cwd(), "tools/hikvision-auth"),
+        path.resolve(process.cwd(), "tools/tools/hikvision-auth"),
+    ].filter(Boolean) as string[];
+
+    for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) return candidate;
+    }
+
+    return path.resolve(process.cwd(), "../tools/hikvision-auth");
+}
+
+private static AUTH_DIR = Hikvision.resolveAuthDir();
 
     private static SESSIONS_DIR =
     process.env.HIKVISION_SESSIONS_DIR ??
