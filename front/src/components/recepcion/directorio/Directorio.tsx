@@ -138,7 +138,9 @@ export default function Directorio() {
           noRowsLabel: "Sin registros",
         }}
         slots={{
-          toolbar: () => <DataGridToolbar tableTitle="Directorio" />,
+          toolbar: () => (
+            <DataGridToolbar tableTitle="Directorio de Empleados Activos" />
+          ),
         }}
       />
       {error && (

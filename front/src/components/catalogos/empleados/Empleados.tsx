@@ -22,6 +22,7 @@ import {
   Visibility,
 } from "@mui/icons-material";
 import { Avatar, IconButton, Tooltip } from "@mui/material";
+import CircularProgress from "@mui/material/CircularProgress";
 import { enqueueSnackbar } from "notistack";
 import { useConfirm } from "material-ui-confirm";
 import { AxiosError } from "axios";
@@ -40,6 +41,9 @@ export default function Empleados() {
     id_usuario: "",
     descargando: false,
   });
+  const [loadingRows, setLoadingRows] = useState<Record<string, boolean>>({});
+  const setRowLoading = (id: string, isLoading: boolean) =>
+    setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
 
   const dataSource: GridDataSource = useMemo(
     () => ({
@@ -113,6 +117,7 @@ export default function Empleados() {
   const cambiarEstado = async (ID: string, activo: boolean) => {
     if (!activo) {
       try {
+        setRowLoading(ID, true);
         const res = await clienteAxios.patch(`/api/empleados/${ID}`, {
           activo,
         });
@@ -124,6 +129,8 @@ export default function Empleados() {
       } catch (error) {
         const { restartSession } = handlingError(error);
         if (restartSession) navigate("/logout", { replace: true });
+      } finally {
+        setRowLoading(ID, false);
       }
     } else {
       confirm({
@@ -134,6 +141,7 @@ export default function Empleados() {
       })
         .then(async (result) => {
           if (result.confirmed) {
+            setRowLoading(ID, true);
             const res = await clienteAxios.patch(`/api/empleados/${ID}`, {
               activo,
             });
@@ -142,9 +150,11 @@ export default function Empleados() {
             } else {
               enqueueSnackbar(res.data.mensaje, { variant: "warning" });
             }
+            setRowLoading(ID, false);
           }
         })
         .catch((error) => {
+          setRowLoading(ID, false);
           const { restartSession } = handlingError(error);
           if (restartSession) navigate("/logout", { replace: true });
         });
@@ -334,6 +344,17 @@ export default function Empleados() {
             sortable: false,
             getActions: ({ row }) => {
               const gridActions = [];
+              const isLoading = !!loadingRows[row._id];
+              if (isLoading) {
+                return [
+                  <GridActionsCellItem
+                    icon={<CircularProgress size={18} />}
+                    label="Procesando"
+                    disabled
+                    onClick={() => {}}
+                  />,
+                ];
+              }
               gridActions.push(
                 <GridActionsCellItem
                   icon={<Visibility color="primary" />}

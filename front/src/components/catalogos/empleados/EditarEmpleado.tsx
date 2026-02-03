@@ -189,7 +189,23 @@ export default function EditarEmpleado() {
           setDepartamentos(empresaSeleccionada?.departamentos || []);
           setCubiculos(empresaSeleccionada?.cubiculos || []);
           setAccesos(empresaSeleccionada?.accesos || []);
-          formContext.reset(usuario);
+          const usuarioForm = {
+            ...usuario,
+            id_empresa: usuario?.id_empresa ?? "",
+            id_piso: usuario?.id_piso ?? "",
+            accesos: Array.isArray(usuario?.accesos)
+              ? usuario.accesos
+                  .map((item: any) =>
+                    typeof item === "string" ? item : item?._id
+                  )
+                  .filter(Boolean)
+              : [],
+            id_puesto: usuario?.id_puesto ?? "",
+            id_departamento: usuario?.id_departamento ?? "",
+            id_cubiculo: usuario?.id_cubiculo ?? "",
+          };
+          formContext.reset(usuarioForm);
+          formContext.trigger();
           setIsLoading(false);
         } else {
           enqueueSnackbar(res.data.mensaje, { variant: "warning" });
@@ -432,10 +448,6 @@ export default function EditarEmpleado() {
                 />
                 {!esUsuarioMaestro && (
                   <Fragment>
-                    <Divider sx={{ my: 2 }} />
-                    <Typography variant="overline" component="h6">
-                      Sistema
-                    </Typography>
                     <TextFieldElement
                       name="correo"
                       label="Correo"
@@ -473,7 +485,6 @@ export default function EditarEmpleado() {
                       Cancelar
                     </Button>
                     <Button
-                      disabled={!formContext.formState.isValid}
                       type="submit"
                       size="medium"
                       variant="contained"

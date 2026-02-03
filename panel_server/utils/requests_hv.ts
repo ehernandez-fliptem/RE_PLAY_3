@@ -198,6 +198,13 @@ export async function peticionPutPanel(
 
         // 3) Ruta final de la imagen
         const imagePath = path.join(tempDir, imageName);
+        const cleanupTemp = () => {
+        try {
+            if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
+        } catch (err: any) {
+            console.log("No se pudo eliminar archivo temporal:", imagePath, err?.message || err);
+        }
+        };
 
         // 4) Guardar imagen en disco
         try {
@@ -210,8 +217,14 @@ export async function peticionPutPanel(
         if (!url) return reject(new Error("Falta la URL del endpoint ISAPI"));
         if (!usuario) return reject(new Error("Falta el usuario"));
         if (!contrasena) return reject(new Error("Falta la contraseña"));
-        if (!employeeNo) return reject(new Error("Falta employeeNo"));
-        if (!fpid) return reject(new Error("Falta FPID"));
+        if (!employeeNo) {
+        cleanupTemp();
+        return reject(new Error("Falta employeeNo"));
+        }
+        if (!fpid) {
+        cleanupTemp();
+        return reject(new Error("Falta FPID"));
+        }
 
         // 6) Armamos el curl EXACTO que ya funciona
         const curlArgs = [
@@ -240,18 +253,24 @@ export async function peticionPutPanel(
 
             // 7.1 Error de ejecución
             if (error) {
+            cleanupTemp();
             if (errText) return reject(new Error(errText));
             return reject(new Error(error.message || "Error ejecutando curl"));
             }
 
             // 7.2 Respuesta vacía
-            if (!out) return reject(new Error("Hikvision respondió vacío"));
+            if (!out) {
+            cleanupTemp();
+            return reject(new Error("Hikvision respondió vacío"));
+            }
 
             // 7.3 Parsear JSON o devolver texto
             try {
             const parsed = JSON.parse(out);
+            cleanupTemp();
             return resolve(parsed);
             } catch {
+            cleanupTemp();
             return resolve(out);
             }
         }
@@ -362,3 +381,6 @@ function handleResponse(
         });
     }
 }
+
+
+

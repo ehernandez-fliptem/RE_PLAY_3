@@ -137,6 +137,24 @@ export default function EditarVisitante() {
     try {
       const res = await clienteAxios.put(`/api/visitantes/${ID}`, data);
       if (res.data.estado) {
+        try {
+          const pRes = await clienteAxios.get("/api/dispositivos-hikvision/demonio");
+          const paneles = pRes.data?.datos || [];
+          if (Array.isArray(paneles) && paneles.length > 0 && ID) {
+            for (const p of paneles) {
+              try {
+                const panelId = p._id;
+                await clienteAxios.get(
+                  `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${ID}`
+                );
+              } catch {
+                // no bloquea si un panel falla
+              }
+            }
+          }
+        } catch {
+          // no bloquea si no se pudieron listar paneles
+        }
         enqueueSnackbar("El visitante se modificó correctamente.", {
           variant: "success",
         });
@@ -228,10 +246,6 @@ export default function EditarVisitante() {
                     />
                   )}
                 />
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="overline" component="h6">
-                  Correo del visitante
-                </Typography>
                 <TextFieldElement
                   name="correo"
                   label="Correo"

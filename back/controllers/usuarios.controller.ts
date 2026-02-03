@@ -863,6 +863,8 @@ export async function obtenerFormEditarUsuario(req: Request, res: Response): Pro
     }
 };
 
+const habilitarSyncUsuariosPanel = false; // desactivado: solo empleados se suben a panel
+
 export async function crear(req: Request, res: Response): Promise<void> {
     try {
         const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, contrasena, rol } = req.body;
@@ -917,7 +919,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
                 const rolesString = roles.map((item) => item.nombre).join(' - ');
                 const resultEnvioUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, QR);
                 const { habilitarIntegracionHv } = await Configuracion.findOne({}, 'habilitarIntegracionHv') as IConfiguracion;
-                if (habilitarIntegracionHv) {
+                if (habilitarIntegracionHv && habilitarSyncUsuariosPanel) {
                     const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: accesos } });
                     for await (let panel of paneles) {
                         const { direccion_ip, usuario, contrasena } = panel;
@@ -1011,7 +1013,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
         }
         let correoEnviado = contrasena ? await enviarCorreoUsuarioNuevaContrasena(correo, contrasena) : false;
         const { habilitarIntegracionHv } = await Configuracion.findOne({}, 'habilitarIntegracionHv') as IConfiguracion;
-        if (habilitarIntegracionHv) {
+        if (habilitarIntegracionHv && habilitarSyncUsuariosPanel) {
             const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: accesos } });
             for await (let panel of paneles) {
                 const { direccion_ip, usuario, contrasena } = panel;
@@ -1044,7 +1046,7 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
         }
         await FaceDescriptors.updateOne({ id_usuario: req.params.id }, { $set: { activo: !activo } });
         const { habilitarIntegracionHv } = await Configuracion.findOne({}, 'habilitarIntegracionHv') as IConfiguracion;
-        if (habilitarIntegracionHv) {
+        if (habilitarIntegracionHv && habilitarSyncUsuariosPanel) {
             const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: registro.accesos } });
             for await (let panel of paneles) {
                 const { direccion_ip, usuario, contrasena } = panel;

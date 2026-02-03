@@ -436,10 +436,6 @@ export default function NuevoEmpleado() {
                   margin="normal"
                   type="text"
                 />
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="overline" component="h6">
-                  Sistema
-                </Typography>
                 <TextFieldElement
                   name="correo"
                   label="Correo"
