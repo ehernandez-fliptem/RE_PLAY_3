@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, Fragment, useRef } from "react";
 import {
   DataGrid,
   useGridApiRef,
@@ -52,6 +52,7 @@ export default function Visitantes() {
   });
 
   const [loadingRows, setLoadingRows] = useState<Record<string, boolean>>({});
+  const autoBlockedByTrashRef = useRef<Record<string, boolean>>({});
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
 
@@ -122,6 +123,21 @@ export default function Visitantes() {
         });
         if (res.data.estado) {
           apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
+          if (autoBlockedByTrashRef.current[ID]) {
+            setRowLoading(ID, true);
+            try {
+              const unlockRes = await clienteAxios.patch(`/api/visitantes/desbloquear/${ID}`);
+              if (unlockRes.data.estado) {
+                const v = unlockRes.data.data;
+                apiRef.current?.updateRows([
+                  { _id: ID, bloqueado: v.bloqueado, desbloqueado_hasta: v.desbloqueado_hasta ?? null },
+                ]);
+              }
+            } finally {
+              setRowLoading(ID, false);
+              delete autoBlockedByTrashRef.current[ID];
+            }
+          }
         } else {
           enqueueSnackbar(res.data.mensaje, { variant: "error" });
         }
@@ -151,12 +167,18 @@ export default function Visitantes() {
 
             // Si aún no está bloqueado, aplicar bloqueo automático al desactivar.
             if (rowBefore && !isBlockedNow(rowBefore)) {
-              const lockRes = await clienteAxios.patch(`/api/visitantes/bloquear/${ID}`);
-              if (lockRes.data.estado) {
-                const v = lockRes.data.data;
-                apiRef.current?.updateRows([
-                  { _id: ID, bloqueado: v.bloqueado, desbloqueado_hasta: v.desbloqueado_hasta ?? null },
-                ]);
+              setRowLoading(ID, true);
+              try {
+                const lockRes = await clienteAxios.patch(`/api/visitantes/bloquear/${ID}`);
+                if (lockRes.data.estado) {
+                  const v = lockRes.data.data;
+                  apiRef.current?.updateRows([
+                    { _id: ID, bloqueado: v.bloqueado, desbloqueado_hasta: v.desbloqueado_hasta ?? null },
+                  ]);
+                  autoBlockedByTrashRef.current[ID] = true;
+                }
+              } finally {
+                setRowLoading(ID, false);
               }
             }
           } else {
