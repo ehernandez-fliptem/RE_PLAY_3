@@ -58,15 +58,15 @@ npm run build
 Pop-Location
 
 Write-Step "Levantando PM2"
-# back
-$backServer = Join-Path $back "dist\server.js"
+# back (preferir index.js)
 $backIndex = Join-Path $back "dist\index.js"
-if (Test-Path $backServer) {
-    pm2 start $backServer --name back
-} elseif (Test-Path $backIndex) {
+$backServer = Join-Path $back "dist\server.js"
+if (Test-Path $backIndex) {
     pm2 start $backIndex --name back
+} elseif (Test-Path $backServer) {
+    pm2 start $backServer --name back
 } else {
-    Fail "No se encontro server.js ni index.js en back\\dist"
+    Fail "No se encontro index.js ni server.js en back\\dist"
 }
 
 # panel_server
