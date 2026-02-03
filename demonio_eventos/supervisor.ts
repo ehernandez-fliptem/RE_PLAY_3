@@ -69,8 +69,8 @@ const sincronizarEventos = async (paneles: IDispositivoHv[]) => {
         log(`${fecha()} 📱​ Dispositivo: ${nombre} - ${direccion_ip}\n`);
         let eventosPanel: EventInfo[] = [];
         const fechaParcial = dayjs();
-        const inicio = fechaParcial.subtract(1, "hour").format("YYYY-MM-DD")
-        const final = fechaParcial.format("YYYY-MM-DD")
+        const inicio = fechaParcial.subtract(1, "day").format("YYYY-MM-DD HH:mm:ss")
+        const final = fechaParcial.add(1, "minute").format("YYYY-MM-DD HH:mm:ss")
 
         const panelInfo = {
             direccion_ip,
@@ -91,6 +91,8 @@ const sincronizarEventos = async (paneles: IDispositivoHv[]) => {
         if (resAxiosQR.data.estado) eventosPanel = eventosPanel.concat(resAxiosQR.data.datos);
         if (resAxiosHuella.data.estado) eventosPanel = eventosPanel.concat(resAxiosHuella.data.datos);
         log(`${fecha()} 📅 Eventos totales del panel ${eventosPanel.length}.\n`);
+        console.log("[DEMONIO][EVENTOS] rango:", { inicio, final });
+        console.log("[DEMONIO][EVENTOS] total:", eventosPanel.length);
         const registros: EventProcess[] = eventosPanel
             .map((item) => {
                 if (item) {
@@ -132,9 +134,9 @@ const guardarEventos = async (registros: EventProcess[], usuario: string, contra
             const res = await axios.post(`${CONFIG.URL_HYUNDAI}/api/panel/eventos/imagen`, { uri: img_check, usuario, contrasena }, { headers: { "ngrok-skip-browser-warning": "69420" } })
             if (res.data.estado) img_base64 = res.data.datos;
         }
-        const res = await clienteAxios.post('/api/eventos/panel', { datos: { ...registros[indexEventos], img_check: img_base64 } });
+        const res = await clienteAxios.post("/api/eventos/panel", { datos: { ...registros[indexEventos], img_check: img_base64 } });
         if (res.data.estado) {
-            eventosSync++
+            eventosSync++;
         }
         indexEventos++;
         await guardarEventos(registros, usuario, contrasena);
@@ -146,3 +148,4 @@ const guardarEventos = async (registros: EventProcess[], usuario: string, contra
 function isEventProcess(obj: any): obj is EventProcess {
     return obj && typeof obj.ID === 'string';
 }
+
