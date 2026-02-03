@@ -13,6 +13,7 @@ $panel = Join-Path $BasePath "panel_server"
 $demonio = Join-Path $BasePath "demonio_eventos"
 
 Write-Step "Limpiando procesos PM2 anteriores"
+npm i -g pm2
 pm2 delete all
 pm2 save
 
