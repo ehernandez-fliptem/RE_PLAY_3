@@ -299,6 +299,7 @@ pm2 save
 
   2) Ve a la carpeta del front y copia la carpeta `dist`.
 
+
   3) Pégala dentro de `back\dist` (debe quedar `back\dist\dist`).
 
 ---

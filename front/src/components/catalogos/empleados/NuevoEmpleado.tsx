@@ -1,52 +1,20 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import {
-  Close,
-  Save,
-  Visibility,
-  VisibilityOff,
-} from "@mui/icons-material";
+import { Close, Save } from "@mui/icons-material";
 import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Divider,
-  IconButton,
-  InputAdornment,
-  Stack,
-  Typography,
-  useMediaQuery,
-  useTheme,
-} from "@mui/material";
-import {
-  AutocompleteElement,
-  CheckboxButtonGroup,
-  FormContainer,
-  TextFieldElement,
-} from "react-hook-form-mui";
+import { Box, Button, Card, CardContent, Divider, Stack, Typography } from "@mui/material";
+import { AutocompleteElement, FormContainer, TextFieldElement } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
-import {
-  HASLOWERCASE,
-  HASNUMBER,
-  HASSYMBOLE,
-  HASUPPERCASE,
-  REGEX_BASE64,
-  REGEX_NAME,
-} from "../../../app/constants/CommonRegex";
+import { REGEX_BASE64, REGEX_NAME } from "../../../app/constants/CommonRegex";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import Spinner from "../../utils/Spinner";
-import PasswordValidAdornment from "../../utils/PasswordValidAdornment";
 import ProfilePicturePreview from "../../utils/fallbackRender/ProfilePicturePreview";
 import { MuiTelInput } from "mui-tel-input";
 import { setFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
-import { useSelector } from "react-redux";
-import type { IRootState } from "../../../app/store";
 
 const ProfilePicture = lazy(() => import("../../utils/ProfilePicture"));
 
@@ -101,8 +69,6 @@ type FormValues = {
   id_departamento?: string;
   id_cubiculo?: string;
   correo: string;
-  contrasena: string;
-  rol: number[];
 };
 
 const resolver = yup.object().shape({
@@ -165,29 +131,6 @@ const resolver = yup.object().shape({
     .string()
     .required("Este campo es obligatorio.")
     .email("Formato de correo inválido."),
-  contrasena: yup
-    .string()
-    .required("Este campo es obligatorio.")
-    .min(8, "La contraseña debe contener mínimo 8 caracteres.")
-    .test("isValidPass", "", (value) => {
-      const hasUpperCase = HASUPPERCASE.test(value);
-      const hasNumber = HASNUMBER.test(value);
-      const hasLowerCase = HASLOWERCASE.test(value);
-      const hasSymbole = HASSYMBOLE.test(value);
-      let validConditions = 0;
-      const numberOfMustBeValidConditions = 4;
-      const conditions = [hasUpperCase, hasLowerCase, hasNumber, hasSymbole];
-      conditions.forEach((condition) => (condition ? validConditions++ : null));
-      if (validConditions >= numberOfMustBeValidConditions) {
-        return true;
-      }
-      return false;
-    }),
-  rol: yup
-    .array()
-    .of(yup.number().integer())
-    .required("Este campo es obligatorio")
-    .min(1, "Debe contener al menos un rol"),
 }) as yup.ObjectSchema<FormValues>;
 
 const initialValue: FormValues = {
@@ -205,22 +148,9 @@ const initialValue: FormValues = {
   telefono: "",
   extension: "",
   correo: "",
-  contrasena: "",
-  rol: [],
 };
 
 export default function NuevoEmpleado() {
-  const { roles } = useSelector((state: IRootState) => state.config.data);
-  const ROLES = Object.entries(roles)
-    .filter((item) => ![10].includes(Number(item[0])))
-    .map((item) => {
-      return {
-        id: Number(item[0]),
-        label: item[1].nombre,
-      };
-    });
-  const theme = useTheme();
-  const isTinyMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const formContext = useForm({
     defaultValues: initialValue,
     resolver: yupResolver(resolver),
@@ -242,11 +172,36 @@ export default function NuevoEmpleado() {
   useEffect(() => {
     const obtenerRegistro = async () => {
       try {
-      const res = await clienteAxios.get("/api/empleados/form-nuevo");
+        const res = await clienteAxios.get("/api/empleados/form-nuevo");
         if (res.data.estado) {
           const { usuario, empresas } = res.data.datos;
           setEmpresas(empresas);
           formContext.reset(usuario);
+          const current = formContext.getValues();
+          if (!current.id_empresa && empresas.length === 1) {
+            const empresaUnica = empresas[0];
+            formContext.setValue("id_empresa", empresaUnica._id, {
+              shouldValidate: true,
+            });
+            setPisos(empresaUnica.pisos || []);
+            setAccesos(empresaUnica.accesos || []);
+            setPuestos(empresaUnica.puestos || []);
+            setDepartamentos(empresaUnica.departamentos || []);
+            setCubiculos(empresaUnica.cubiculos || []);
+            if (!current.id_piso && (empresaUnica.pisos || []).length === 1) {
+              formContext.setValue("id_piso", empresaUnica.pisos[0]._id, {
+                shouldValidate: true,
+              });
+            }
+            if (
+              (!current.accesos || current.accesos.length === 0) &&
+              (empresaUnica.accesos || []).length === 1
+            ) {
+              formContext.setValue("accesos", [empresaUnica.accesos[0]._id], {
+                shouldValidate: true,
+              });
+            }
+          }
           setIsLoading(false);
         } else {
           enqueueSnackbar(res.data.mensaje, { variant: "warning" });
@@ -258,18 +213,6 @@ export default function NuevoEmpleado() {
     };
     obtenerRegistro();
   }, [formContext]);
-
-  const [showPassword, setShowPassword] = useState(false);
-
-  const handleClickShowPassword = () => setShowPassword((show) => !show);
-
-  const handleMouseDownPassword = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-  };
-
-  const handleMouseUpPassword = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-  };
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
@@ -404,8 +347,8 @@ export default function NuevoEmpleado() {
                   label="Puesto"
                   matchId
                   options={puestos.map((item) => ({
-                      id: item._id,
-                      label: `${item.identificador} - ${item.nombre}`,
+                    id: item._id,
+                    label: `${item.identificador} - ${item.nombre}`,
                   }))}
                   textFieldProps={{
                     margin: "normal",
@@ -419,8 +362,8 @@ export default function NuevoEmpleado() {
                   label="Departamento"
                   matchId
                   options={departamentos.map((item) => ({
-                      id: item._id,
-                      label:  `${item.identificador} - ${item.nombre}`,
+                    id: item._id,
+                    label: `${item.identificador} - ${item.nombre}`,
                   }))}
                   textFieldProps={{
                     margin: "normal",
@@ -434,8 +377,8 @@ export default function NuevoEmpleado() {
                   label="Cubiculo"
                   matchId
                   options={cubiculos.map((item) => ({
-                      id: item._id,
-                      label:  `${item.identificador} - ${item.nombre}`,
+                    id: item._id,
+                    label: `${item.identificador} - ${item.nombre}`,
                   }))}
                   textFieldProps={{
                     margin: "normal",
@@ -504,43 +447,6 @@ export default function NuevoEmpleado() {
                   fullWidth
                   margin="normal"
                   type="email"
-                />
-                <TextFieldElement
-                  name="contrasena"
-                  label="Contraseña"
-                  required
-                  fullWidth
-                  margin="normal"
-                  type={showPassword ? "text" : "password"}
-                  slotProps={{
-                    input: {
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton
-                            aria-label={
-                              showPassword
-                                ? "hide the password"
-                                : "display the password"
-                            }
-                            onClick={handleClickShowPassword}
-                            onMouseDown={handleMouseDownPassword}
-                            onMouseUp={handleMouseUpPassword}
-                            edge="end"
-                          >
-                            {showPassword ? <VisibilityOff /> : <Visibility />}
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
-                />
-                <PasswordValidAdornment name="contrasena" />
-                <CheckboxButtonGroup
-                  name="rol"
-                  label="Rol"
-                  required
-                  row={!isTinyMobile}
-                  options={ROLES}
                 />
                 <Divider sx={{ my: 2 }} />
                 <Box

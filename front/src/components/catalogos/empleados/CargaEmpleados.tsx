@@ -19,7 +19,6 @@ import {
   Card,
   CardContent,
   Checkbox,
-  Chip,
   Divider,
   FormControlLabel,
   Grid,
@@ -30,8 +29,6 @@ import {
 import InputFileUpload from "../../utils/FileUpload";
 import { closeSnackbar, enqueueSnackbar } from "notistack";
 import ModalContainer from "../../utils/ModalContainer";
-import { useSelector } from "react-redux";
-import type { IRootState } from "../../../app/store";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import { esES } from "@mui/x-data-grid/locales";
 import Spinner from "../../utils/Spinner";
@@ -40,16 +37,12 @@ type Errores = {
   nombre: string;
   correo: string;
   usuario: string;
-  contrasena: string;
-  rol: string;
 };
 
 type TEmpleados = {
   _id: string;
   usuario: string;
   correo: string;
-  contrasena: string;
-  rol: number[];
   nombre: string;
   apellido_pat: string;
   apellido_mat?: string;
@@ -70,7 +63,6 @@ const pageSizeOptions = [10, 25, 50];
 
 export default function CargaEmpleados() {
   const navigate = useNavigate();
-  const { roles } = useSelector((state: IRootState) => state.config.data);
   const [registros, setRegistros] = useState<TEmpleados[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sePuedeEnviar, setSePuedeEnviar] = useState(false);
@@ -83,8 +75,6 @@ export default function CargaEmpleados() {
     nombre: "",
     correo: "",
     usuario: "",
-    contrasena: "",
-    rol: "",
   });
   const presetDatos = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { checked } = e.target;
@@ -255,38 +245,6 @@ export default function CargaEmpleados() {
             minWidth: 200,
           },
           {
-            headerName: "Contraseña",
-            field: "contrasena",
-            flex: 1,
-            display: "flex",
-            minWidth: 120,
-            valueGetter: () => "**********",
-          },
-          {
-            headerName: "Roles",
-            field: "rol",
-            flex: 1,
-            display: "flex",
-            minWidth: 150,
-            cellClassName: "d-flex flex-wrap",
-            renderCell: ({ value }) => (
-              <Grid container spacing={1} sx={{ width: "100%", my: 1 }}>
-                {value.map((item: number) => (
-                  <Grid key={item} size={12}>
-                    <Chip
-                      label={roles[item]?.nombre}
-                      size="small"
-                      sx={{
-                        width: "100%",
-                        bgcolor: roles[item]?.color || "#C4C4C4",
-                      }}
-                    />
-                  </Grid>
-                ))}
-              </Grid>
-            ),
-          },
-          {
             headerName: "Estado",
             field: "errores",
             filterable: true,
@@ -357,7 +315,8 @@ export default function CargaEmpleados() {
           toolbar: () => (
             <Fragment>
               <DataGridToolbar
-                tableTitle="Carga masiva de empleados"
+                // [En proceso] Título de carga masiva oculto porque la funcionalidad aún no está disponible
+                // tableTitle="Carga masiva de empleados"
                 showExportButton={false}
               />
               {descargando ? (
@@ -540,3 +499,4 @@ const ModalErrores = ({ errores, setOpen }: PropsModalError) => {
     </ModalContainer>
   );
 };
+

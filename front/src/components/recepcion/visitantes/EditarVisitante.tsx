@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Close, Save, Visibility, VisibilityOff } from "@mui/icons-material";
+import { Close, Save } from "@mui/icons-material";
 import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -9,24 +9,17 @@ import {
   Card,
   CardContent,
   Divider,
-  IconButton,
-  InputAdornment,
   Stack,
   Typography,
 } from "@mui/material";
 import { FormContainer, TextFieldElement } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
 import {
-  HASLOWERCASE,
-  HASNUMBER,
-  HASSYMBOLE,
-  HASUPPERCASE,
-  REGEX_BASE64,
+    REGEX_BASE64,
   REGEX_NAME,
 } from "../../../app/constants/CommonRegex";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import Spinner from "../../utils/Spinner";
-import PasswordValidAdornment from "../../utils/PasswordValidAdornment";
 import ProfilePicturePreview from "../../utils/fallbackRender/ProfilePicturePreview";
 import { MuiTelInput } from "mui-tel-input";
 import { setFormErrors } from "../../helpers/formHelper";
@@ -44,7 +37,6 @@ type FormValues = {
   empresa?: string;
   telefono?: string;
   correo: string;
-  contrasena: string;
 };
 
 const resolver = yup.object().shape({
@@ -97,29 +89,6 @@ const resolver = yup.object().shape({
     .string()
     .required("Este campo es obligatorio.")
     .email("Formato de correo inválido."),
-  contrasena: yup
-    .string()
-    .min(8, "La contraseña debe contener mínimo 8 caracteres.")
-    .test("isValidPass", "", (value) => {
-      if (value) {
-        const hasUpperCase = HASUPPERCASE.test(value);
-        const hasNumber = HASNUMBER.test(value);
-        const hasLowerCase = HASLOWERCASE.test(value);
-        const hasSymbole = HASSYMBOLE.test(value);
-        let validConditions = 0;
-        const numberOfMustBeValidConditions = 4;
-        const conditions = [hasUpperCase, hasLowerCase, hasNumber, hasSymbole];
-        conditions.forEach((condition) =>
-          condition ? validConditions++ : null
-        );
-        if (validConditions >= numberOfMustBeValidConditions) {
-          return true;
-        }
-        return false;
-      } else {
-        return true;
-      }
-    }),
 }) as yup.ObjectSchema<FormValues>;
 
 const initialValue: FormValues = {
@@ -130,7 +99,6 @@ const initialValue: FormValues = {
   empresa: "",
   telefono: "",
   correo: "",
-  contrasena: "",
 };
 
 export default function EditarVisitante() {
@@ -165,19 +133,6 @@ export default function EditarVisitante() {
     };
     obtenerRegistro();
   }, [formContext, ID]);
-
-  const [showPassword, setShowPassword] = useState(false);
-
-  const handleClickShowPassword = () => setShowPassword((show) => !show);
-
-  const handleMouseDownPassword = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-  };
-
-  const handleMouseUpPassword = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-  };
-
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
       const res = await clienteAxios.put(`/api/visitantes/${ID}`, data);
@@ -275,7 +230,7 @@ export default function EditarVisitante() {
                 />
                 <Divider sx={{ my: 2 }} />
                 <Typography variant="overline" component="h6">
-                  Sistema
+                  Correo del visitante
                 </Typography>
                 <TextFieldElement
                   name="correo"
@@ -285,36 +240,6 @@ export default function EditarVisitante() {
                   margin="normal"
                   type="email"
                 />
-                <TextFieldElement
-                  name="contrasena"
-                  label="Nueva Contraseña"
-                  required
-                  fullWidth
-                  margin="normal"
-                  type={showPassword ? "text" : "password"}
-                  slotProps={{
-                    input: {
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton
-                            aria-label={
-                              showPassword
-                                ? "hide the password"
-                                : "display the password"
-                            }
-                            onClick={handleClickShowPassword}
-                            onMouseDown={handleMouseDownPassword}
-                            onMouseUp={handleMouseUpPassword}
-                            edge="end"
-                          >
-                            {showPassword ? <VisibilityOff /> : <Visibility />}
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
-                />
-                <PasswordValidAdornment name="contrasena" />
                 <Divider sx={{ my: 2 }} />
                 <Box
                   component="footer"
@@ -360,3 +285,5 @@ export default function EditarVisitante() {
     </ModalContainer>
   );
 }
+
+

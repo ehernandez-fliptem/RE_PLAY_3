@@ -118,9 +118,9 @@ export default function DetalleVisitante() {
                   }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, sm: 6 }} width={"100%"}>
+              <Grid size={{ xs: 12 }} width={"100%"}>
                 <Typography
-                  variant="h6"
+                  variant="h4"
                   component="h6"
                   color="primary"
                   bgcolor="#FFFFFF"
@@ -179,23 +179,6 @@ export default function DetalleVisitante() {
                     </Grid>
                   </Grid>
                 )}
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }} width={"100%"}>
-                <Typography
-                  variant="h6"
-                  component="h6"
-                  color="primary"
-                  bgcolor="#FFFFFF"
-                  sx={(theme) => ({
-                    border: `1px solid ${theme.palette.primary.main}`,
-                    borderRadius: 2,
-                  })}
-                  textAlign="center"
-                  mb={2}
-                >
-                  <b>Sistema</b>
-                </Typography>
-
                 <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
                   <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
                     <strong>Creado el:</strong>

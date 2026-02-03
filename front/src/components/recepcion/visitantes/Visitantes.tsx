@@ -252,29 +252,29 @@ const accionBloquear = (ID: string) => {
         getRowHeight={() => "auto"}
         columns={[
           {
-            headerName: "ID",
-            field: "id_visitante",
-            flex: 1,
-            display: "flex",
-          },
-          {
             headerName: "Foto",
             field: "img_usuario",
             disableExport: true,
-            flex: 1,
+            headerAlign: "center",
+            align: "center",
+            flex: 0,
+            width: 70,
+            minWidth: 70,
             display: "flex",
             renderCell: ({ row, value }) => (
-              <Avatar
-                alt={row.nombre}
-                sx={(theme) => ({
-                  backgroundColor: value
-                    ? theme.palette.success.main
-                    : theme.palette.error.main,
-                  fontSize: 15,
-                  width: 25,
-                  height: 25,
-                })}
-              />
+              <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                <Avatar
+                  alt={row.nombre}
+                  sx={(theme) => ({
+                    backgroundColor: value
+                      ? theme.palette.success.main
+                      : theme.palette.error.main,
+                    fontSize: 15,
+                    width: 25,
+                    height: 25,
+                  })}
+                />
+              </div>
             ),
           },
           {
@@ -283,6 +283,9 @@ const accionBloquear = (ID: string) => {
             flex: 1,
             display: "flex",
             minWidth: 180,
+            renderCell: ({ value }) => (
+              <span style={{ fontSize: 14, fontWeight: 600 }}>{value}</span>
+            ),
           },
           {
             headerName: "Empresa",
@@ -290,12 +293,16 @@ const accionBloquear = (ID: string) => {
             flex: 1,
             display: "flex",
             minWidth: 180,
+            renderCell: ({ value }) => value || "--",
           },
           {
             headerName: "QR",
             field: "id_usuario",
+            headerAlign: "center",
             align: "center",
-            flex: 1,
+            flex: 0,
+            width: 70,
+            minWidth: 70,
             display: "flex",
             renderCell: ({ row }) => {
               return (

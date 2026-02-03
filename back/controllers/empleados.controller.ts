@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import bcrypt from 'bcrypt';
 import Excel, { CellFormulaValue, CellHyperlinkValue, CellValue, Column } from 'exceljs';
 import fs from 'fs';
 import { Types, PipelineStage } from 'mongoose';
@@ -8,7 +7,6 @@ import { UserRequest } from '../types/express';
 import { QueryParams } from '../types/queryparams';
 import Empleados, { IEmpleado } from '../models/Empleados';
 import Usuarios, { IUsuario } from '../models/Usuarios';
-import Roles from '../models/Roles';
 import Empresas, { IEmpresa } from '../models/Empresas';
 import { IPiso } from '../models/Pisos';
 import { IAcceso } from '../models/Accesos';
@@ -17,7 +15,6 @@ import Configuracion, { IConfiguracion } from '../models/Configuracion';
 import Hikvision from '../classes/Hikvision';
 import { generarCodigoUnico, isEmptyObject, decryptPassword, resizeImage, customAggregationForDataGrids, marcarDuplicados } from '../utils/utils';
 import { validarModelo } from '../validators/validadores';
-import { enviarCorreoUsuario, enviarCorreoUsuarioNuevaContrasena } from '../utils/correos';
 import { fecha, log } from "../middlewares/log";
 
 import { CONFIG } from "../config";
@@ -45,7 +42,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
             queryFilter,
             querySort,
             queryPagination,
-            ["id_empleado", "empresa", "nombre", "correo", "puesto", "departamento", "cubiculo", "rolesNombre", "telefono", "movil"]
+            ["id_empleado", "empresa", "nombre", "correo", "puesto", "departamento", "cubiculo", "telefono", "movil"]
         );
         const aggregation: PipelineStage[] = [
             {
@@ -69,22 +66,8 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                 }
             },
             {
-                $lookup: {
-                    from: 'roles',
-                    localField: 'rol',
-                    foreignField: 'rol',
-                    as: 'roles',
-                    pipeline: [
-                        {
-                            $project: { nombre: 1 }
-                        }
-                    ]
-                }
-            },
-            {
                 $set: {
-                    empresa: { $arrayElemAt: ["$empresa", -1] },
-                    rolesNombre: "$roles.nombre"
+                    empresa: { $arrayElemAt: ["$empresa", -1] }
                 }
             },
             {
@@ -136,7 +119,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                     creado_por: 0,
                     fecha_modificacion: 0,
                     modificado_por: 0,
-                    rolesNombre: 0,
+                    
                 }
             },
         ];
@@ -327,7 +310,6 @@ export async function obtenerAnfitriones(req: Request, res: Response): Promise<v
         const esAdmin = rol.includes(1);
         const esRecep = rol.includes(2);
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
-        const rolesAnfitriones = [1, 2, 3, 4, 5, 6];
 
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
@@ -349,7 +331,7 @@ export async function obtenerAnfitriones(req: Request, res: Response): Promise<v
                 $match: {
                     $and: [
                         { activo: true },
-                        (isMaster && (esAdmin || esRecep)) ? { rol: { $in: rolesAnfitriones } } : { id_empresa, rol: { $in: rolesAnfitriones } },
+                        (isMaster && (esAdmin || esRecep)) ? {} : { id_empresa },
                     ]
                 }
             },
@@ -866,17 +848,11 @@ export async function obtenerFormEditarEmpleado(req: Request, res: Response): Pr
 
 export async function crear(req: Request, res: Response): Promise<void> {
     try {
-        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, contrasena, rol } = req.body;
+        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo } = req.body;
         const id_usuario = (req as UserRequest).userId;
         const empresa = await Empresas.findById(id_empresa, 'pisos accesos esRoot activo');
-        const hash = bcrypt.hashSync(contrasena, 10);
-        if (!hash) {
-            res.status(500).json({ estado: false, mensaje: 'Hubo un error al generar la contraseña.' });
-            return;
-        }
 
         const nuevoUsuario = new Empleados({
-            contrasena: hash,
             img_usuario: await resizeImage(img_usuario),
             nombre,
             apellido_pat,
@@ -891,7 +867,6 @@ export async function crear(req: Request, res: Response): Promise<void> {
             telefono,
             extension,
             correo,
-            rol,
             esRoot: empresa?.esRoot,
             creado_por: id_usuario
         });
@@ -908,15 +883,6 @@ export async function crear(req: Request, res: Response): Promise<void> {
         await nuevoUsuario
             .save()
             .then(async (reg_saved) => {
-                const QR = await QRCode.toDataURL(String(reg_saved.id_empleado), {
-                    errorCorrectionLevel: 'H',
-                    type: 'image/png',
-                    width: 400,
-                    margin: 2
-                });
-                let roles = await Roles.find({ rol: { $in: rol }, activo: true }, 'nombre')
-                const rolesString = roles.map((item) => item.nombre).join(' - ');
-                const resultEnvioUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, QR);
                 const { habilitarIntegracionHv } = await Configuracion.findOne({}, 'habilitarIntegracionHv') as IConfiguracion;
                 if (habilitarIntegracionHv) {
                     const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: accesos } });
@@ -929,7 +895,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
                     }
                 }
                 {
-                    res.status(200).json({ estado: true, datos: { usuario: true, correoUsuario: resultEnvioUsuario } });
+                    res.status(200).json({ estado: true, datos: { usuario: true } });
                     return;
                 }
             })
@@ -946,7 +912,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
 
 export async function modificar(req: Request, res: Response): Promise<void> {
     try {
-        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, contrasena, rol } = req.body;
+        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo } = req.body;
         const id_usuario = (req as UserRequest).userId;
         const empresa = await Empresas.findById(id_empresa, 'esRoot');
 
@@ -970,20 +936,9 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             Object.assign(updateData, {
                 id_empresa,
                 id_piso,
-
                 correo,
-                contrasena,
-                rol,
                 esRoot: empresa?.esRoot,
             })
-        }
-        if (contrasena) {
-            const hash = bcrypt.hashSync(contrasena, 10);
-            if (!hash) {
-                res.status(200).json({ estado: false, mensaje: 'Hubo un error al generar la contraseña.' });
-                return;
-            }
-            Object.assign(updateData, { contrasena: hash })
         }
         const registro = await Empleados.findByIdAndUpdate(
             req.params.id,
@@ -1010,7 +965,6 @@ export async function modificar(req: Request, res: Response): Promise<void> {
         } else {
             await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
         }
-        let correoEnviado = contrasena ? await enviarCorreoUsuarioNuevaContrasena(correo, contrasena) : false;
         const { habilitarIntegracionHv } = await Configuracion.findOne({}, 'habilitarIntegracionHv') as IConfiguracion;
         if (habilitarIntegracionHv) {
             const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: accesos } });
@@ -1022,7 +976,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                 await HVPANEL.saverUser(registro);
             }
         }
-        res.status(200).json({ estado: true, datos: { correoEnviado } });
+        res.status(200).json({ estado: true });
         return;
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -1144,20 +1098,13 @@ export async function cargarProgramacionEmpleados(req: Request, res: Response): 
         let detectoErrores = false;
         const registros: any[] = [];
         for await (const registro of datos) {
-            let errorPass = false;
-            const { contrasena } = registro;
-            const hash = bcrypt.hashSync(contrasena, 10);
-            if (!hash) {
-                errorPass = true;
-                return;
-            }
-            const nuevoUsuario = new Empleados({ ...registro });
-            const mensajes = await validarModelo(nuevoUsuario);
+            const nuevoEmpleado = new Empleados({ ...registro });
+            const mensajes = await validarModelo(nuevoEmpleado);
             if (!isEmptyObject(mensajes)) {
-                registros.push({ ...registro, errores: { contrasena: errorPass ? 'Hubo un error al generar la contraseña.' : '', ...mensajes } });
+                registros.push({ ...registro, errores: { ...mensajes } });
                 continue;
             }
-            registros.push({ ...registro, contrasena_hashed: hash });
+            registros.push({ ...registro });
         }
         const arrDuplicados = marcarDuplicados(registros);
         detectoErrores = arrDuplicados.some((item) => !!item.errores);
@@ -1170,28 +1117,14 @@ export async function cargarProgramacionEmpleados(req: Request, res: Response): 
         let empleadosCreados = 0;
         let registrosGuardados = [];
         for await (const registro of registros) {
-            let resultCorreoUsuario = false;
-            const { id_empresa, contrasena_hashed } = registro;
+            const { id_empresa } = registro;
             const { esRoot } = await Empresas.findById(id_empresa, 'esRoot') as IEmpresa;
 
-            const nuevoUsuario = new Empleados({ ...registro, contrasena: contrasena_hashed, esRoot: !!esRoot, creado_por: id_usuario });
-            await nuevoUsuario.save();
-            if (envioCorreos) {
-                const { correo, contrasena, rol } = registro;
-                const { id_empleado } = await Empleados.findById(nuevoUsuario._id, 'id_empleado') as IEmpleado;
-                const QR = await QRCode.toDataURL(String(id_empleado), {
-                    errorCorrectionLevel: 'H',
-                    type: 'image/png',
-                    width: 400,
-                    margin: 2
-                });
-                let roles = await Roles.find({ rol: { $in: rol }, activo: true }, 'nombre');
-                const rolesString = roles.map((item) => item.nombre).join(' - ');
-                resultCorreoUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, QR);
-                if (registrosGuardados) correosEnviados++;
-            }
+            const nuevoEmpleado = new Empleados({ ...registro, esRoot: !!esRoot, creado_por: id_usuario });
+            await nuevoEmpleado.save();
+
             empleadosCreados++;
-            registrosGuardados.push({ ...registro, envioHabilitado: envioCorreos, correoEnviado: resultCorreoUsuario });
+            registrosGuardados.push({ ...registro, envioHabilitado: envioCorreos, correoEnviado: false });
         }
         res.status(200).send({ estado: true, datos: { registros: registrosGuardados, empleados: empleadosCreados, correos: correosEnviados } });
     } catch (error: any) {
@@ -1209,8 +1142,6 @@ const KEYS = {
     'Piso*': 'id_piso',
     'Accesos*': 'accesos',
     'Correo*': 'correo',
-    'Contraseña*': 'contrasena',
-    'Rol*': 'rol',
     'Puesto': 'puesto',
     'Departamento': 'departamento',
     'Cubículo': 'cubiculo',
@@ -1230,8 +1161,6 @@ const HEADERS = [
     'Piso*',
     'Accesos*',
     'Correo*',
-    'Contraseña*',
-    'Rol*',
     'Puesto',
     'Departamento',
     'Cubículo',
@@ -1276,9 +1205,6 @@ export async function cargarFormato(req: Request, res: Response): Promise<void> 
                                 case "Correo*":
                                     op["correo"] = isCellHyperlinkValue(value as CellHyperlinkValue) ? (value as CellHyperlinkValue).text : String(value).trim();
                                     break;
-                                case "Rol*":
-                                    op["rol"] = value ? String(value).split(",").map((item) => Number(item.trim())) : [];
-                                    break;
                                 case "Accesos*":
                                     op["accesos"] = value ? String(value).split(",").map((item) => item.trim()) : [];
                                     break;
@@ -1295,7 +1221,7 @@ export async function cargarFormato(req: Request, res: Response): Promise<void> 
                             }
                             return op;
                         }, {});
-                        if (!data.nombre && !data.rfc && !data.id_piso && !data.accesos && !data.correo && !data.contrasena && !data.rol) return;
+                        if (!data.nombre && !data.rfc && !data.id_piso && !data.accesos && !data.correo) return;
                         datos.push(data)
                     });
                 }
@@ -1459,12 +1385,7 @@ export async function crearExcel(req: Request, res: Response): Promise<void> {
                 const Columns = [] as Column[];
                 const headersValues = HEADERS;
                 headersValues.map(header => {
-                    if (header === 'Rol*') {
-                        Columns.push({ header: header, key: header, width: 25 } as Column)
-                    }
-                    else {
-                        Columns.push({ header: header, key: header, width: 40 } as Column)
-                    }
+                    Columns.push({ header: header, key: header, width: 40 } as Column)
                 });
                 worksheet.columns = Columns;
 
@@ -1476,15 +1397,6 @@ export async function crearExcel(req: Request, res: Response): Promise<void> {
                     Columns_2.push({ header: header, key: header, width: 40 } as Column);
                 });
                 worksheet_2.columns = Columns_2;
-
-                // Hoja 3 - Rol
-                const worksheet_3 = workbook.addWorksheet('Roles');
-                const Columns_3 = [] as Column[];
-                const headersValues_3 = ['ID', 'Rol'];
-                headersValues_3.map(header => {
-                    Columns_3.push({ header: header, key: header, width: 40 } as Column);
-                });
-                worksheet_3.columns = Columns_3;
 
                 await worksheet.protect(CONFIG.SECRET_EXCELJS, {});
                 await workbook
@@ -1561,7 +1473,6 @@ const añadir = async ({ isMaster, id_empresa }: { isMaster: boolean; id_empresa
             }
         }
     ]);
-    const roles = await Roles.find({ activo: true }, 'rol nombre');
     const colorRequired = "FFC000";
     const colorNotRequired = "92D050";
     const rowLimit = 50;
@@ -1687,47 +1598,11 @@ const añadir = async ({ isMaster, id_empresa }: { isMaster: boolean; id_empresa
 
             return workbook.xlsx.writeFile(nameFileExcel);
         });
-    // Hoja 3 - Rol
-    await workbook.xlsx.readFile(nameFileExcel)
-        .then(() => {
-            const worksheet = workbook.getWorksheet(3);
-            if (!worksheet) throw new Error('Hubo un error al leer la primer hoja de Excel');
-
-            const headers = worksheet.getRow(1);
-            const columns: Column[] = [];
-            const STR = [
-                { letter: "A", required: true },
-                { letter: "B", required: true },
-            ];
-
-            STR.forEach((item) => {
-                const CLM = worksheet.getColumn(item.letter);
-                CLM.protection = { locked: false };
-                CLM.alignment = { vertical: 'middle', horizontal: 'center' };
-                headers.getCell(item.letter).protection = { locked: true };
-                headers.getCell(item.letter).fill = {
-                    type: 'pattern',
-                    pattern: 'darkTrellis',
-                    fgColor: {
-                        argb: item.required ? colorRequired : colorNotRequired
-                    },
-                    bgColor: {
-                        argb: item.required ? colorRequired : colorNotRequired
-                    }
-                };
-                columns.push(CLM)
-            });
-            roles.forEach((item, i) => {
-                const getRowInsert = worksheet.getRow(i + 2)
-                getRowInsert.getCell("A").value = item.rol;
-                getRowInsert.getCell("A").protection = { locked: true };
-                getRowInsert.getCell("B").value = item.nombre;
-                getRowInsert.getCell("B").protection = { locked: true };
-            })
-
-            return workbook.xlsx.writeFile(nameFileExcel);
-        });
 }
+
+
+
+
 
 
 

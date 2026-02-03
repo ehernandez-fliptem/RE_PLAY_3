@@ -7,7 +7,6 @@ import {
   Button,
   Card,
   CardContent,
-  Chip,
   Grid,
   ListItem,
   ListItemText,
@@ -19,8 +18,6 @@ import ModalContainer from "../../utils/ModalContainer";
 import Spinner from "../../utils/Spinner";
 import { enqueueSnackbar } from "notistack";
 import dayjs from "dayjs";
-import { useSelector } from "react-redux";
-import type { IRootState } from "../../../app/store";
 
 type IAcceso = {
   identificador: string;
@@ -40,7 +37,6 @@ type TUsuario = {
   departamento?: string;
   cubiculo?: string;
   correo: string;
-  rol: number[];
   esRoot: boolean;
   fecha_creacion: Date | string;
   creado_por: string;
@@ -50,7 +46,6 @@ type TUsuario = {
 };
 
 export default function DetalleEmpleado() {
-  const { roles } = useSelector((state: IRootState) => state.config.data);
   const { id } = useParams();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
@@ -67,7 +62,6 @@ export default function DetalleEmpleado() {
     telefono: "",
     extension: "",
     correo: "",
-    rol: [],
     esRoot: false,
     fecha_creacion: new Date(),
     creado_por: "",
@@ -88,13 +82,10 @@ export default function DetalleEmpleado() {
     telefono,
     extension,
     correo,
-    rol,
-    esRoot,
     fecha_creacion,
     creado_por,
     fecha_modificacion,
     modificado_por,
-    activo,
   } = datos;
 
   useEffect(() => {
@@ -125,22 +116,7 @@ export default function DetalleEmpleado() {
       <Card elevation={5}>
         <CardContent>
           <Typography variant="h5" component="h5" textAlign="center">
-            Empleado{" - "}
-            {!isLoading && (
-              <>
-                {esRoot ? (
-                  <Chip label="Maestro" color="primary" />
-                ) : (
-                  <>
-                    {activo ? (
-                      <Chip label="Activo" color="success" />
-                    ) : (
-                      <Chip label="Inactivo" color="error" />
-                    )}
-                  </>
-                )}
-              </>
-            )}
+            Empleado
           </Typography>
           {isLoading ? (
             <Spinner />
@@ -161,7 +137,7 @@ export default function DetalleEmpleado() {
                   }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, sm: 6 }} width={"100%"}>
+              <Grid size={{ xs: 12 }} width={"100%"}>
                 <Typography
                   variant="h6"
                   component="h6"
@@ -319,22 +295,6 @@ export default function DetalleEmpleado() {
                     </Grid>
                   </Box>
                 )}
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }} width={"100%"}>
-                <Typography
-                  variant="h6"
-                  component="h6"
-                  color="primary"
-                  bgcolor="#FFFFFF"
-                  sx={(theme) => ({
-                    border: `1px solid ${theme.palette.primary.main}`,
-                    borderRadius: 2,
-                  })}
-                  textAlign="center"
-                  mb={2}
-                >
-                  <b>Sistema</b>
-                </Typography>
                 <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
                   <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
                     <strong>Correo:</strong>
@@ -344,32 +304,6 @@ export default function DetalleEmpleado() {
                     sx={{ ml: { xs: 2, sm: 0 } }}
                   >
                     {correo}
-                  </Grid>
-                </Grid>
-                <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
-                  <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
-                    <strong>Rol:</strong>
-                  </Grid>
-                  <Grid
-                    container
-                    spacing={2}
-                    size={{ xs: 12, sm: "grow" }}
-                    sx={{ ml: { xs: 2, sm: 0 } }}
-                  >
-                    {rol.map((item) => (
-                      <Grid key={item} size="auto">
-                        <Chip
-                          label={roles[item].nombre}
-                          size="small"
-                          sx={(theme) => ({
-                            bgcolor: roles[item].color || "#C4C4C4",
-                            color: theme.palette.getContrastText(
-                              roles[item].color || "secondary.main"
-                            ),
-                          })}
-                        />
-                      </Grid>
-                    ))}
                   </Grid>
                 </Grid>
                 <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>

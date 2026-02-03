@@ -21,7 +21,7 @@ import {
   LockOpen,
   NoAccounts,
   RestoreFromTrash,
-  Upload,
+  // Upload, // [En proceso] Ocultado por funcionalidad de carga masiva no disponible
   Visibility,
 } from "@mui/icons-material";
 import { useSelector } from "react-redux";
@@ -111,9 +111,10 @@ export default function Usuarios() {
     navigate(`detalle-usuario/${ID}`);
   };
 
-  const cargaMasiva = () => {
-    navigate("carga-masiva");
-  };
+  // [En proceso] Función de carga masiva deshabilitada temporalmente
+  // const cargaMasiva = () => {
+  //   navigate("carga-masiva");
+  // };
 
   const cambiarEstado = async (ID: string, activo: boolean) => {
     if (!activo) {
@@ -490,11 +491,13 @@ export default function Usuarios() {
                       <Add fontSize="small" />
                     </IconButton>
                   </Tooltip>
+                  {/* [En proceso] Botón de carga masiva oculto porque la funcionalidad aún no está disponible
                   <Tooltip title="Carga masiva">
                     <IconButton onClick={cargaMasiva}>
                       <Upload fontSize="small" />
                     </IconButton>
                   </Tooltip>
+                  */}
                 </Fragment>
               }
             />

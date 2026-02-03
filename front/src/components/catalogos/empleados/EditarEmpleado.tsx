@@ -1,47 +1,20 @@
 import { Fragment, lazy, Suspense, useEffect, useState } from "react";
-import { Close, Save, Visibility, VisibilityOff } from "@mui/icons-material";
+import { Close, Save } from "@mui/icons-material";
 import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Divider,
-  IconButton,
-  InputAdornment,
-  Stack,
-  Typography,
-  useMediaQuery,
-  useTheme,
-} from "@mui/material";
-import {
-  AutocompleteElement,
-  CheckboxButtonGroup,
-  FormContainer,
-  TextFieldElement,
-} from "react-hook-form-mui";
+import { Box, Button, Card, CardContent, Divider, Stack, Typography } from "@mui/material";
+import { AutocompleteElement, FormContainer, TextFieldElement } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
-import {
-  HASLOWERCASE,
-  HASNUMBER,
-  HASSYMBOLE,
-  HASUPPERCASE,
-  REGEX_BASE64,
-  REGEX_NAME,
-} from "../../../app/constants/CommonRegex";
+import { REGEX_BASE64, REGEX_NAME } from "../../../app/constants/CommonRegex";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import Spinner from "../../utils/Spinner";
-import PasswordValidAdornment from "../../utils/PasswordValidAdornment";
 import ProfilePicturePreview from "../../utils/fallbackRender/ProfilePicturePreview";
 import { MuiTelInput } from "mui-tel-input";
 import { setFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
-import { useSelector } from "react-redux";
-import type { IRootState } from "../../../app/store";
 
 const ProfilePicture = lazy(() => import("../../utils/ProfilePicture"));
 
@@ -95,8 +68,6 @@ type FormValues = {
   id_departamento?: string;
   id_cubiculo?: string;
   correo: string;
-  contrasena: string;
-  rol: number[];
 };
 
 const resolver = yup.object().shape({
@@ -159,34 +130,6 @@ const resolver = yup.object().shape({
     .string()
     .required("Este campo es obligatorio.")
     .email("Formato de correo inválido."),
-  contrasena: yup
-    .string()
-    .min(8, "La contraseña debe contener mínimo 8 caracteres.")
-    .test("isValidPass", "", (value) => {
-      if (value) {
-        const hasUpperCase = HASUPPERCASE.test(value);
-        const hasNumber = HASNUMBER.test(value);
-        const hasLowerCase = HASLOWERCASE.test(value);
-        const hasSymbole = HASSYMBOLE.test(value);
-        let validConditions = 0;
-        const numberOfMustBeValidConditions = 4;
-        const conditions = [hasUpperCase, hasLowerCase, hasNumber, hasSymbole];
-        conditions.forEach((condition) =>
-          condition ? validConditions++ : null
-        );
-        if (validConditions >= numberOfMustBeValidConditions) {
-          return true;
-        }
-        return false;
-      } else {
-        return true;
-      }
-    }),
-  rol: yup
-    .array()
-    .of(yup.number().integer())
-    .required("Este campo es obligatorio")
-    .min(1, "Debe contener al menos un rol"),
 }) as yup.ObjectSchema<FormValues>;
 
 const initialValue: FormValues = {
@@ -204,23 +147,10 @@ const initialValue: FormValues = {
   telefono: "",
   extension: "",
   correo: "",
-  contrasena: "",
-  rol: [],
 };
 
 export default function EditarEmpleado() {
   const { id: ID } = useParams();
-  const { roles } = useSelector((state: IRootState) => state.config.data);
-  const ROLES = Object.entries(roles)
-    .filter((item) => ![10].includes(Number(item[0])))
-    .map((item) => {
-      return {
-        id: Number(item[0]),
-        label: item[1].nombre,
-      };
-    });
-  const theme = useTheme();
-  const isTinyMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const formContext = useForm({
     defaultValues: initialValue,
     resolver: yupResolver(resolver),
@@ -272,21 +202,7 @@ export default function EditarEmpleado() {
     obtenerRegistro();
   }, [formContext, ID]);
 
-  const [showPassword, setShowPassword] = useState(false);
-
-  const handleClickShowPassword = () => setShowPassword((show) => !show);
-
-  const handleMouseDownPassword = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-  };
-
-  const handleMouseUpPassword = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-  };
-
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
-    console.log("envio", data);
-
     try {
       const res = await clienteAxios.put(`/api/empleados/${ID}`, data);
       if (res.data.estado) {
@@ -377,7 +293,7 @@ export default function EditarEmpleado() {
                         setDepartamentos(empresaSeleccionada?.departamentos || []);
                         setCubiculos(empresaSeleccionada?.cubiculos || []);
                         formContext.setValue("id_piso", "");
-                        formContext.setValue("accesos", []); 
+                        formContext.setValue("accesos", []);
                         formContext.setValue("id_puesto", "");
                         formContext.setValue("id_departamento", "");
                         formContext.setValue("id_cubiculo", "");
@@ -527,47 +443,6 @@ export default function EditarEmpleado() {
                       fullWidth
                       margin="normal"
                       type="email"
-                    />
-                    <TextFieldElement
-                      name="contrasena"
-                      label="Nueva Contraseña"
-                      required
-                      fullWidth
-                      margin="normal"
-                      type={showPassword ? "text" : "password"}
-                      slotProps={{
-                        input: {
-                          endAdornment: (
-                            <InputAdornment position="end">
-                              <IconButton
-                                aria-label={
-                                  showPassword
-                                    ? "hide the password"
-                                    : "display the password"
-                                }
-                                onClick={handleClickShowPassword}
-                                onMouseDown={handleMouseDownPassword}
-                                onMouseUp={handleMouseUpPassword}
-                                edge="end"
-                              >
-                                {showPassword ? (
-                                  <VisibilityOff />
-                                ) : (
-                                  <Visibility />
-                                )}
-                              </IconButton>
-                            </InputAdornment>
-                          ),
-                        },
-                      }}
-                    />
-                    <PasswordValidAdornment name="contrasena" />
-                    <CheckboxButtonGroup
-                      name="rol"
-                      label="Rol"
-                      required
-                      row={!isTinyMobile}
-                      options={ROLES}
                     />
                   </Fragment>
                 )}

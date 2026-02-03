@@ -1,8 +1,8 @@
 import {
-  AccessTime,
+  // AccessTime, // FLAG: Reporte de horas oculto temporalmente - No borrar
   Devices,
   VideoLabel,
-  Apps,
+  // Apps, // FLAG: Checador oculto temporalmente - No borrar
   // Assignment, // FLAG: Bitácora oculta temporalmente - No borrar
   Business,
   Security,
@@ -13,16 +13,18 @@ import {
   EventNote,
   //ExitToApp,
   Folder,
-  HowToReg,
+  // HowToReg, // FLAG: Recepción oculta temporalmente - No borrar
+  Badge,
+  Group,
   PeopleAlt,
-  PieChart,
+  // PieChart, // FLAG: Reportes oculto temporalmente - No borrar
   Settings,
-  Help,
-  Quiz,
+  // Help, // FLAG: Ayuda oculta temporalmente - No borrar
+  // Quiz, // FLAG: Ayuda oculta temporalmente - No borrar
   LibraryBooks,
   LibraryAddCheck,
   AutoStories,
-  Duo,
+  // Duo, // FLAG: Ayuda oculta temporalmente - No borrar
   AssignmentInd,
   MeetingRoom,
   Margin,
@@ -50,8 +52,62 @@ const mainMenu = [
     id: 0.6,
     title: "Empleados",
     rol: [1],
-    icon: <PeopleAlt fontSize="small" />,
+    icon: <Badge fontSize="small" />,
     path: "/empleados",
+  },
+  // --- Catálogos movido abajo de Directorio ---
+  // FLAG: Recepción oculto temporalmente - Lo que interesa ya está afuera
+  /*
+  {
+    id: 2,
+    title: "Recepción",
+    rol: [1, 2, 4, 5, 6, 7],
+    icon: <HowToReg fontSize="small" />,
+    submenu: [
+      {
+        id: 2.1,
+        title: "Visitantes",
+        rol: [1, 2],
+        icon: <PeopleAlt fontSize="small" />,
+        path: "/visitantes",
+      },
+      {
+        id: 2.3,
+        title: "Directorio",
+        rol: [1, 2, 4, 5, 6, 7],
+        icon: <Contacts fontSize="small" />,
+        path: "/directorio",
+      },
+      {
+        id: 2.4,
+        title: "Reportes",
+        rol: [1, 2, 5],
+        icon: <PieChart fontSize="small" />,
+        path: "/reportes",
+      },
+    ],
+  },
+  */
+  {
+    id: 0.7,
+    title: "Visitantes",
+    rol: [1, 2],
+    icon: <Group fontSize="small" />,
+    path: "/visitantes",
+  },
+  {
+    id: 0.8,
+    title: "Directorio",
+    rol: [1, 2, 4, 5, 6, 7],
+    icon: <Contacts fontSize="small" />,
+    path: "/directorio",
+  },
+  {
+    id: 0.9,
+    title: "Eventos",
+    rol: [1, 2, 5, 6],
+    icon: <EventNote fontSize="small" />,
+    path: "/eventos",
   },
   {
     id: 1,
@@ -112,36 +168,6 @@ const mainMenu = [
     ],
   },
   {
-    id: 2,
-    title: "Recepción",
-    rol: [1, 2, 4, 5, 6, 7],
-    icon: <HowToReg fontSize="small" />,
-    submenu: [
-      {
-        id: 2.1,
-        title: "Visitantes",
-        rol: [1, 2],
-        icon: <PeopleAlt fontSize="small" />,
-        path: "/visitantes",
-      },
-
-      {
-        id: 2.3,
-        title: "Directorio",
-        rol: [1, 2, 4, 5, 6, 7],
-        icon: <Contacts fontSize="small" />,
-        path: "/directorio",
-      },
-      {
-        id: 2.4,
-        title: "Reportes",
-        rol: [1, 2, 5],
-        icon: <PieChart fontSize="small" />,
-        path: "/reportes",
-      },
-    ],
-  },
-  {
     id: 3,
     title: "Documentos",
     rol: [7, 10],
@@ -163,6 +189,8 @@ const mainMenu = [
       },
     ],
   },
+  // FLAG: Checador oculto temporalmente - Se sacó Eventos
+  /*
   {
     id: 4,
     title: "Checador",
@@ -191,15 +219,16 @@ const mainMenu = [
       //   icon: <ExitToApp fontSize="small" />,
       //   path: "/check",
       // },
-      /*{
-        id: 4.4,
-        title: "Bot",
-        rol: [1, 2, 4, 5, 6, 7, 8],
-        icon: <SmartToy fontSize="small" />,
-        path: "/bot",
-      },*/
+      // {
+      //   id: 4.4,
+      //   title: "Bot",
+      //   rol: [1, 2, 4, 5, 6, 7, 8],
+      //   icon: <SmartToy fontSize="small" />,
+      //   path: "/bot",
+      // },
     ],
   },
+  */
   // FLAG: Kiosco oculto temporalmente - No borrar
   // {
   //   id: 5,
@@ -208,6 +237,8 @@ const mainMenu = [
   //   icon: <WebStories fontSize="small" />,
   //   path: "/kiosco",
   // },
+  // FLAG: Ayuda oculto temporalmente
+  /*
   {
     id: 6,
     title: "Ayuda",
@@ -230,6 +261,7 @@ const mainMenu = [
       },
     ],
   },
+  */
   {
     id: 99,
     title: "Dispositivos",
@@ -264,3 +296,5 @@ const mainMenu = [
 ];
 
 export default mainMenu;
+
+

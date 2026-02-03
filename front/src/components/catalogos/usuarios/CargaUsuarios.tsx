@@ -355,7 +355,8 @@ export default function CargaUsuarios() {
           toolbar: () => (
             <Fragment>
               <DataGridToolbar
-                tableTitle="Carga masiva de usuarios"
+                // [En proceso] Título de carga masiva oculto porque la funcionalidad aún no está disponible
+                // tableTitle="Carga masiva de usuarios"
                 showExportButton={false}
               />
               {descargando ? (

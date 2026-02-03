@@ -17,16 +17,11 @@ import {
   Delete,
   Edit,
   GetApp,
-  Lock,
-  LockOpen,
-  NoAccounts,
   RestoreFromTrash,
-  Upload,
+  // Upload, // [En proceso] Ocultado por funcionalidad de carga masiva no disponible
   Visibility,
 } from "@mui/icons-material";
-import { useSelector } from "react-redux";
-import type { IRootState } from "../../../app/store";
-import { Avatar, Chip, Grid, IconButton, Tooltip } from "@mui/material";
+import { Avatar, IconButton, Tooltip } from "@mui/material";
 import { enqueueSnackbar } from "notistack";
 import { useConfirm } from "material-ui-confirm";
 import { AxiosError } from "axios";
@@ -37,7 +32,6 @@ import Spinner from "../../utils/Spinner";
 const pageSizeOptions = [10, 25, 50];
 
 export default function Empleados() {
-  const { roles } = useSelector((state: IRootState) => state.config.data);
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();
   const navigate = useNavigate();
@@ -111,9 +105,10 @@ export default function Empleados() {
     navigate(`detalle-empleado/${ID}`);
   };
 
-  const cargaMasiva = () => {
-    navigate("carga-masiva");
-  };
+  // [En proceso] Función de carga masiva deshabilitada temporalmente
+  // const cargaMasiva = () => {
+  //   navigate("carga-masiva");
+  // };
 
   const cambiarEstado = async (ID: string, activo: boolean) => {
     if (!activo) {
@@ -173,57 +168,57 @@ export default function Empleados() {
     }
   };
 
-  const desbloquear = (ID: string) => {
-    confirm({
-      title: "¿Seguro que desea desbloquear a este empleado?",
-      description:
-        "Esta acción restaura los intentos para que el empleado pueda iniciar sesión.",
-      allowClose: true,
-      confirmationText: "Continuar",
-    })
-      .then(async (result) => {
-        if (result.confirmed) {
-          const res = await clienteAxios.patch(
-            `/api/empleados/desbloquear/${ID}`
-          );
-          if (res.data.estado) {
-            apiRef.current?.updateRows([{ _id: ID, bloqueado: false }]);
-          } else {
-            enqueueSnackbar(res.data.mensaje, { variant: "warning" });
-          }
-        }
-      })
-      .catch((error) => {
-        const { restartSession } = handlingError(error);
-        if (restartSession) navigate("/logout", { replace: true });
-      });
-  };
+  // --- COLUMNAS OCULTAS TEMPORALMENTE ---
+  // Las siguientes columnas se comentan porque no se requieren en la vista actual de empleados.
+  // Si en el futuro se necesitan, solo descomentar. Motivo: simplificar la interfaz y mostrar solo lo esencial.
 
-  const anonimizar = (ID: string) => {
-    confirm({
-      title: "¿Seguro que desea anonimizar a este empleado?",
-      description:
-        "Esta acción no se puede revertir y destruye toda la información personal del empleado (nombre, correo, teléfono, etc).",
-      allowClose: true,
-      confirmationText: "Continuar",
-    })
-      .then(async (result) => {
-        if (result.confirmed) {
-          const res = await clienteAxios.patch(
-            `/api/empleados/anonimizar/${ID}`
-          );
-          if (res.data.estado) {
-            apiRef.current?.updateRows([{ _id: ID, bloqueado: false }]);
-          } else {
-            enqueueSnackbar(res.data.mensaje, { variant: "warning" });
-          }
-        }
-      })
-      .catch((error) => {
-        const { restartSession } = handlingError(error);
-        if (restartSession) navigate("/logout", { replace: true });
-      });
-  };
+  /*
+  {
+    headerName: "ID",
+    field: "id_empleado",
+    flex: 1,
+    display: "flex",
+    minWidth: 80,
+    // Ocultado porque no se necesita mostrar el ID en la gestión de empleados por ahora.
+  },
+  {
+    headerName: "Rol",
+    field: "rol",
+    flex: 1,
+    display: "flex",
+    minWidth: 120,
+    // Ocultado porque el rol no es relevante para la gestión directa de empleados en esta vista.
+  },
+  {
+    headerName: "Tipo",
+    field: "tipo",
+    flex: 1,
+    display: "flex",
+    minWidth: 100,
+    // Ocultado porque el tipo no se requiere en la gestión de empleados actualmente.
+  },
+  {
+    headerName: "Arco",
+    field: "arco",
+    type: "actions",
+    align: "center",
+    flex: 1,
+    display: "flex",
+    minWidth:100,
+    // Ocultado porque la funcionalidad de arco no es necesaria en esta etapa.
+  },
+  {
+    headerName: "Acceso",
+    field: "desbloqueo",
+    type: "actions",
+    align: "center",
+    flex: 1,
+    display: "flex",
+    minWidth:100,
+    // Ocultado porque la gestión de acceso no se requiere por ahora.
+  },
+  */
+  // --- FIN COLUMNAS OCULTAS ---
 
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
@@ -234,30 +229,29 @@ export default function Empleados() {
         getRowHeight={() => "auto"}
         columns={[
           {
-            headerName: "ID",
-            field: "id_empleado",
-            flex: 1,
-            type: "number",
-            display: "flex",
-          },
-          {
             headerName: "Foto",
             field: "img_usuario",
             disableExport: true,
-            flex: 1,
+            headerAlign: "center",
+            align: "center",
+            flex: 0,
+            width: 70,
+            minWidth: 70,
             display: "flex",
             renderCell: ({ row, value }) => (
-              <Avatar
-                alt={row.nombre}
-                sx={(theme) => ({
-                  backgroundColor: value
-                    ? theme.palette.success.main
-                    : theme.palette.error.main,
-                  fontSize: 15,
-                  width: 25,
-                  height: 25,
-                })}
-              />
+              <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                <Avatar
+                  alt={row.nombre}
+                  sx={(theme) => ({
+                    backgroundColor: value
+                      ? theme.palette.success.main
+                      : theme.palette.error.main,
+                    fontSize: 15,
+                    width: 25,
+                    height: 25,
+                  })}
+                />
+              </div>
             ),
           },
           {
@@ -274,68 +268,43 @@ export default function Empleados() {
             display: "flex",
             minWidth: 180,
           },
-          {
-            headerName: "Rol",
-            field: "rol",
-            flex: 1,
-            display: "flex",
-            minWidth: 150,
-            renderCell: ({ value }) => (
-              <Grid container spacing={1} sx={{ width: "100%", my: 1 }}>
-                {value.map((item: number) => (
-                  <Grid key={item} size={12}>
-                    <Chip
-                      label={roles[item].nombre}
-                      size="small"
-                      color="secondary"
-                      sx={(theme) => ({
-                        width: "100%",
-                        bgcolor: roles[item].color || "secondary.main",
-                        color: theme.palette.getContrastText(
-                          roles[item].color || "secondary.main"
-                        ),
-                      })}
-                    />
-                  </Grid>
-                ))}
-              </Grid>
-            ),
-            valueFormatter: (value: number[]) => {
-              return value.map((item) => roles[item]?.nombre).join(", ");
-            },
-          },
-          {
-            headerName: "Tipo",
-            field: "esRoot",
-            disableExport: true,
-            flex: 1,
-            display: "flex",
-            minWidth: 100,
-            renderCell: ({ value }) => (
-              <Fragment>
-                {value ? (
-                  <Chip
-                    label="Maestra"
-                    size="small"
-                    color="primary"
-                    sx={{ width: "100%" }}
-                  />
-                ) : (
-                  <Chip
-                    label="Esclava"
-                    size="small"
-                    color="secondary"
-                    sx={{ width: "100%" }}
-                  />
-                )}
-              </Fragment>
-            ),
-          },
+          // Tipo: oculto por ahora porque no se ocupa en esta vista y se busca mantenerla simple.
+          // Si se requiere mostrar el tipo de cuenta, descomentar este bloque.
+          // {
+          //   headerName: "Tipo",
+          //   field: "esRoot",
+          //   disableExport: true,
+          //   flex: 1,
+          //   display: "flex",
+          //   minWidth: 100,
+          //   renderCell: ({ value }) => (
+          //     <Fragment>
+          //       {value ? (
+          //         <Chip
+          //           label="Maestra"
+          //           size="small"
+          //           color="primary"
+          //           sx={{ width: "100%" }}
+          //         />
+          //       ) : (
+          //         <Chip
+          //           label="Esclava"
+          //           size="small"
+          //           color="secondary"
+          //           sx={{ width: "100%" }}
+          //         />
+          //       )}
+          //     </Fragment>
+          //   ),
+          // },
           {
             headerName: "QR",
             field: "id_usuario",
+            headerAlign: "center",
             align: "center",
-            flex: 1,
+            flex: 0,
+            width: 70,
+            minWidth: 70,
             display: "flex",
             renderCell: ({ row }) => {
               return (
@@ -404,54 +373,6 @@ export default function Empleados() {
               return gridActions;
             },
           },
-          {
-            headerName: "Arco",
-            field: "arco",
-            type: "actions",
-            align: "center",
-            flex: 1,
-            display: "flex",
-            minWidth:100,
-            getActions: ({ row }) => {
-              const gridActions = [];
-              if (!row.activo && !row.arco) {
-                gridActions.push(
-                  <GridActionsCellItem
-                    icon={<NoAccounts color="primary" />}
-                    onClick={() => anonimizar(row._id)}
-                    label="Arco"
-                    title="Arco"
-                  />
-                );
-              }
-              return gridActions;
-            },
-          },
-          {
-            headerName: "Acceso",
-            field: "desbloqueo",
-            type: "actions",
-            align: "center",
-            flex: 1,
-            display: "flex",
-            minWidth:100,
-            getActions: ({ row }) => [
-              row.bloqueado ? (
-                <GridActionsCellItem
-                  icon={<Lock color="error" />}
-                  onClick={() => desbloquear(row._id)}
-                  label="Bloqueado Temporalmente"
-                  title="Bloqueado Temporalmente"
-                />
-              ) : (
-                <GridActionsCellItem
-                  icon={<LockOpen color="success" />}
-                  label="Acceso"
-                  title="Acceso"
-                />
-              ),
-            ],
-          },
         ]}
         disableRowSelectionOnClick
         disableColumnFilter
@@ -490,11 +411,13 @@ export default function Empleados() {
                       <Add fontSize="small" />
                     </IconButton>
                   </Tooltip>
+                  {/* [En proceso] Botón de carga masiva oculto porque la funcionalidad aún no está disponible
                   <Tooltip title="Carga masiva">
                     <IconButton onClick={cargaMasiva}>
                       <Upload fontSize="small" />
                     </IconButton>
                   </Tooltip>
+                  */}
                 </Fragment>
               }
             />
@@ -508,3 +431,4 @@ export default function Empleados() {
     </div>
   );
 }
+

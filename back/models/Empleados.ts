@@ -4,7 +4,6 @@ import Contador from './plugin/Contador';
 
 import {
     REGEX_EMAIL,
-    REGEX_ROLES,
     REGEX_NAME,
     REGEX_BASE64,
 } from '../utils/commonRegex';
@@ -14,8 +13,6 @@ export interface IEmpleado extends Document {
     id_empleado: number,
     img_usuario?: string;
     correo: string;
-    contrasena: string;
-    rol: number[];
     nombre: string;
     apellido_pat: string;
     apellido_mat?: string;
@@ -69,20 +66,6 @@ const empleadoSchema = new Schema<IEmpleado>({
             validator: (v: string) => REGEX_EMAIL.test(v),
             message: (props: { value: string }) => `'${props.value}' es un correo inválido.`,
         },
-    },
-    contrasena: {
-        type: String,
-        required: [true, 'La contraseña es obligatoria.'],
-    },
-    rol: {
-        type: [Number],
-        required: [true, 'El rol es obligatorio.'],
-        validate: {
-            validator: (arr: number[]) =>
-                !arr.some((i) => !Number.isInteger(i)) && REGEX_ROLES.test(arr.toString()),
-            message: () => 'Los valores para el campo rol son incorrectos.',
-        },
-        ref: "roles"
     },
     nombre: {
         type: String,
@@ -178,4 +161,6 @@ empleadoSchema.plugin(uniqueValidator, {
 const Empleados: Model<IEmpleado> = mongoose.model<IEmpleado>('empleados', empleadoSchema);
 
 export default Empleados;
+
+
 
