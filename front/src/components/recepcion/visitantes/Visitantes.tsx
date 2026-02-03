@@ -114,10 +114,6 @@ export default function Visitantes() {
     navigate(`detalle-visitante/${ID}`);
   };
 
-  // const cargaMasiva = () => {
-  //   navigate("carga-masiva");
-  // };
-
   const cambiarEstado = async (ID: string, activo: boolean) => {
     if (!activo) {
       try {
@@ -133,31 +129,53 @@ export default function Visitantes() {
         const { restartSession } = handlingError(error);
         if (restartSession) navigate("/logout", { replace: true });
       }
-    } else {
-      confirm({
-        title: "¿Seguro que deseas desactivar a este visitante?",
-        description: "",
-        allowClose: true,
-        confirmationText: "Continuar",
-      })
-        .then(async (result) => {
-          if (result.confirmed) {
-            const res = await clienteAxios.patch(`/api/visitantes/${ID}`, {
-              activo,
-            });
-            if (res.data.estado) {
-              apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
-            } else {
-              enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+      return;
+    }
+
+    confirm({
+      title: "¿Seguro que deseas desactivar a este visitante?",
+      description: "Al desactivar, se bloqueará el acceso y no se podrá editar.",
+      allowClose: true,
+      confirmationText: "Continuar",
+    })
+      .then(async (result) => {
+        if (!result.confirmed) return;
+
+        try {
+          const res = await clienteAxios.patch(`/api/visitantes/${ID}`, {
+            activo,
+          });
+          if (res.data.estado) {
+            const rowBefore = apiRef.current?.getRow(ID) as any;
+            apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
+
+            // Si aún no está bloqueado, aplicar bloqueo automático al desactivar.
+            if (rowBefore && !isBlockedNow(rowBefore)) {
+              const lockRes = await clienteAxios.patch(`/api/visitantes/bloquear/${ID}`);
+              if (lockRes.data.estado) {
+                const v = lockRes.data.data;
+                apiRef.current?.updateRows([
+                  { _id: ID, bloqueado: v.bloqueado, desbloqueado_hasta: v.desbloqueado_hasta ?? null },
+                ]);
+              }
             }
+          } else {
+            enqueueSnackbar(res.data.mensaje, { variant: "warning" });
           }
-        })
-        .catch((error) => {
+        } catch (error) {
           const { restartSession } = handlingError(error);
           if (restartSession) navigate("/logout", { replace: true });
-        });
-    }
+        }
+      })
+      .catch((error) => {
+        const { restartSession } = handlingError(error);
+        if (restartSession) navigate("/logout", { replace: true });
+      });
   };
+
+  // const cargaMasiva = () => {
+  //   navigate("carga-masiva");
+  // };
 
   const descargarQr = async (ID: string, nombre: string) => {
     try {
@@ -177,6 +195,11 @@ export default function Visitantes() {
   };
 
 const accionDesbloquear = (ID: string) => {
+  const row = apiRef.current?.getRow(ID) as any;
+  if (row && row.activo === false) {
+    enqueueSnackbar("Debes restaurar al visitante para habilitar el acceso.", { variant: "warning" });
+    return;
+  }
   confirm({
     title: "¿Seguro que desea desbloquear a este visitante?",
     description: "Esta acción restaura los intentos y habilita el acceso SOLO por hoy.",
@@ -210,6 +233,11 @@ const accionDesbloquear = (ID: string) => {
 };
 
 const accionBloquear = (ID: string) => {
+  const row = apiRef.current?.getRow(ID) as any;
+  if (row && row.activo === false) {
+    enqueueSnackbar("Debes restaurar al visitante para cambiar el acceso.", { variant: "warning" });
+    return;
+  }
   confirm({
     title: "¿Seguro que desea bloquear a este visitante?",
     description: "Esta acción bloquea el acceso al sistema para el visitante.",
