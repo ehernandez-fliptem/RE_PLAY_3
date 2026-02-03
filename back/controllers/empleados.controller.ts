@@ -23,6 +23,7 @@ import FaceDetector from '../classes/FaceDetector';
 import FaceDescriptors from '../models/FaceDescriptors';
 const faceDetector = new FaceDetector();
 
+
 export async function obtenerTodos(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;
@@ -1013,6 +1014,8 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
             res.status(200).json({ estado: false, mensaje: 'Usuario no encontrado.' });
             return;
         }
+        const registroPanel = mapEmpleadoToPanel(registro);
+        registroPanel.activo = !activo;
         await FaceDescriptors.updateOne({ id_usuario: req.params.id }, { $set: { activo: !activo } });
         const { habilitarIntegracionHv } = await Configuracion.findOne({}, 'habilitarIntegracionHv') as IConfiguracion;
         if (habilitarIntegracionHv) {
@@ -1022,12 +1025,7 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
                     const { direccion_ip, usuario, contrasena } = panel;
                     const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
                     const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                    if (activo) {
-                        await HVPANEL.deleteUser(mapEmpleadoToPanel(registro));
-                    }
-                    else {
-                        await HVPANEL.saverUser(mapEmpleadoToPanel(registro));
-                    }
+                    await HVPANEL.saverUser(registroPanel);
                 } catch (error: any) {
                     console.warn("[EMPLEADOS][ESTADO] Sync panel falló:", error?.message || error);
                 }
