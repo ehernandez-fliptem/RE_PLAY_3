@@ -69,7 +69,7 @@ const sincronizarEventos = async (paneles: IDispositivoHv[]) => {
         log(`${fecha()} 📱​ Dispositivo: ${nombre} - ${direccion_ip}\n`);
         let eventosPanel: EventInfo[] = [];
         const fechaParcial = dayjs();
-        const inicio = fechaParcial.subtract(1, "day").format("YYYY-MM-DD HH:mm:ss")
+        const inicio = fechaParcial.subtract(5, "hour").format("YYYY-MM-DD HH:mm:ss")
         const final = fechaParcial.add(1, "minute").format("YYYY-MM-DD HH:mm:ss")
 
         const panelInfo = {
