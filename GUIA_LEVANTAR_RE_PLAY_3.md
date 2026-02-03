@@ -313,6 +313,8 @@ Desde la raiz del repo:
 PowerShell -ExecutionPolicy Bypass -File scripts\setup.ps1
 ```
 
+Nota: este script limpia procesos viejos de PM2 (pm2 delete all + pm2 save) antes de levantar los nuevos.
+
 ### Actualizacion (build + copia front + restart PM2)
 
 ```

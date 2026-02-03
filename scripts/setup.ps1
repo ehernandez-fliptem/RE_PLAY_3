@@ -12,6 +12,10 @@ $front = Join-Path $BasePath "front"
 $panel = Join-Path $BasePath "panel_server"
 $demonio = Join-Path $BasePath "demonio_eventos"
 
+Write-Step "Limpiando procesos PM2 anteriores"
+pm2 delete all
+pm2 save
+
 Write-Step "Instalando dependencias"
 Push-Location $back
 npm install
