@@ -80,20 +80,22 @@ const tryParseJson = (s: string) => {
 
 ///// bloquear y desbloquear visitantes
     function getHoyRangoLocal() {
-    const beginTime = dayjs().format("YYYY-MM-DDT00:00:00");
-    const endTime = dayjs().format("YYYY-MM-DDT23:59:59");
+    // Ventana amplia para evitar desfases de zona horaria.
+    // Abarca desde ayer 00:00 hasta dentro de 2 días 23:59:59.
+    const beginTime = dayjs().subtract(1, "day").format("YYYY-MM-DDT00:00:00");
+    const endTime = dayjs().add(2, "day").format("YYYY-MM-DDT23:59:59");
     return { beginTime, endTime };
     }
 
-    function getRangoPasado(diasAtras = 1) {
-    // endTime ayer 23:59:59 -> ya expiró
+    function getRangoPasado(diasAtras = 3) {
+    // endTime varios días atrás -> ya expiró
     const beginTime = dayjs().subtract(diasAtras + 1, "day").format("YYYY-MM-DDT00:00:00");
     const endTime = dayjs().subtract(diasAtras, "day").format("YYYY-MM-DDT23:59:59");
     return { beginTime, endTime };
     }
 
     function calcEmployeeNo(id_visitante: number) {
-    const base = 29000;
+    const base = 990000;
     return String(base + Number(id_visitante));
     }
 
@@ -1360,7 +1362,7 @@ export const bloquearBack = async (req: Request, res: Response) => {
 
         // 1) Hikvision: expirar (ayer)
         const employeeNo = calcEmployeeNo(visitante.id_visitante);
-        const { beginTime, endTime } = getRangoPasado(1);
+        const { beginTime, endTime } = getRangoPasado();
 
         await hvSetValidForEmployee(employeeNo, { enable: true, beginTime, endTime });
 
