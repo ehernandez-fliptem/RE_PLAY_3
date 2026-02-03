@@ -13,7 +13,7 @@ import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { Outlet, useNavigate } from "react-router-dom";
 import { esES } from "@mui/x-data-grid/locales";
 import DataGridToolbar from "../../utils/DataGridToolbar";
-import { Button, Chip, IconButton, Stack, Tooltip } from "@mui/material";
+import { Button, Chip, CircularProgress, IconButton, Stack, Tooltip } from "@mui/material";
 import {
   Add,
   Delete,
@@ -41,6 +41,7 @@ export default function DispositivoHV() {
   const confirm = useConfirm();
   const [isLoading, setIsLoading] = useState(false);
   const [syncAllInProgress, setSyncAllInProgress] = useState(false);
+  const [syncAllStatus, setSyncAllStatus] = useState<string | null>(null);
   const isMountedRef = useRef(true);
   const showSnackbar = (
     message: string,
@@ -244,6 +245,7 @@ export default function DispositivoHV() {
   const sincronizarTodos = () => {
     if (syncAllInProgress) return;
     setSyncAllInProgress(true);
+    setSyncAllStatus("Sincronizando...");
     showSnackbar("Sincronización iniciada", { variant: "success" });
 
     void (async () => {
@@ -277,11 +279,19 @@ export default function DispositivoHV() {
           variant: fail > 0 ? "warning" : "success",
           persist: fail > 0,
         });
+        setSyncAllStatus(
+          fail > 0 ? "Sincronizado con errores" : "Sincronizado"
+        );
       } catch (error) {
         const { restartSession } = handlingError(error);
         if (restartSession) navigate("/logout", { replace: true });
       } finally {
-        if (isMountedRef.current) setSyncAllInProgress(false);
+        if (isMountedRef.current) {
+          setSyncAllInProgress(false);
+          setTimeout(() => {
+            if (isMountedRef.current) setSyncAllStatus(null);
+          }, 2500);
+        }
       }
     })();
   };
@@ -445,11 +455,17 @@ export default function DispositivoHV() {
                   <Button
                     size="small"
                     variant="contained"
-                    startIcon={<Sync />}
+                    startIcon={
+                      syncAllInProgress ? (
+                        <CircularProgress size={16} color="inherit" />
+                      ) : (
+                        <Sync />
+                      )
+                    }
                     onClick={sincronizarTodos}
                     disabled={syncAllInProgress}
                   >
-                    Sincronizar todos
+                    {syncAllStatus ?? "Sincronizar todos"}
                   </Button>
                   <Tooltip title="Agregar">
                     <IconButton size="small" onClick={nuevoRegistro}>

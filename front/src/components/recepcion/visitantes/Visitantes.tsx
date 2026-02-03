@@ -20,7 +20,7 @@ import {
   Lock,
   LockOpen,
   RestoreFromTrash,
-  Upload,
+  // Upload, // Carga masiva oculta temporalmente
   Visibility,
 } from "@mui/icons-material";
 import { Avatar, IconButton, Tooltip } from "@mui/material";
@@ -114,9 +114,9 @@ export default function Visitantes() {
     navigate(`detalle-visitante/${ID}`);
   };
 
-  const cargaMasiva = () => {
-    navigate("carga-masiva");
-  };
+  // const cargaMasiva = () => {
+  //   navigate("carga-masiva");
+  // };
 
   const cambiarEstado = async (ID: string, activo: boolean) => {
     if (!activo) {
@@ -456,11 +456,12 @@ const accionBloquear = (ID: string) => {
                       <Add fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Carga masiva">
+                  {/* Carga masiva oculta temporalmente; mantener para uso futuro */}
+                  {/* <Tooltip title="Carga masiva">
                     <IconButton onClick={cargaMasiva}>
                       <Upload fontSize="small" />
                     </IconButton>
-                  </Tooltip>
+                  </Tooltip> */}
                 </Fragment>
               }
             />
