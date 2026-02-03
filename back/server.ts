@@ -60,6 +60,7 @@ import puestosRoutes from './routes/puestos.routes';
 import recuperacionesRoutes from './routes/recuperaciones.routes';
 import registrosRoutes from './routes/registros.routes';
 import usuariosRoutes from './routes/usuarios.routes';
+import empleadosRoutes from './routes/empleados.routes';
 import validacionRoutes from './routes/validacion.routes';
 import visitantesRoutes from './routes/visitantes.routes';
 
@@ -141,6 +142,7 @@ export default async function Server() {
         app.use('/api/recuperaciones', recuperacionesRoutes);
         app.use('/api/registros', registrosRoutes);
         app.use('/api/usuarios', usuariosRoutes);
+        app.use('/api/empleados', empleadosRoutes);
         app.use('/api/validacion', validacionRoutes);
         app.use('/api/visitantes', visitantesRoutes);
 

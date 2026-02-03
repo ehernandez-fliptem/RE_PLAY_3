@@ -7,25 +7,27 @@ import {
     REGEX_NAME,
     REGEX_BASE64,
 } from '../utils/commonRegex';
-import { generarCodigoUnico } from '../utils/utils';
 
 
-export interface IVisitante extends Document {
-    _id: any;          // o Types.ObjectId
-    bloqueado: boolean;
-    desbloqueado_hasta?: Date | null; 
-    id_visitante: number,
-    codigo: string;
+export interface IEmpleado extends Document {
+    id_empleado: number,
     img_usuario?: string;
     correo: string;
-    contrasena: string;
     nombre: string;
     apellido_pat: string;
     apellido_mat?: string;
+    movil?: string;
     telefono?: string;
-    documentos?: mongoose.Types.ObjectId[]
-    empresa?: string;
-    rol: number[]
+    extension?: string;
+    id_puesto?: mongoose.Types.ObjectId;
+    id_departamento?: mongoose.Types.ObjectId;
+    id_cubiculo?: mongoose.Types.ObjectId;
+    id_empresa: mongoose.Types.ObjectId;
+    id_piso: mongoose.Types.ObjectId;
+    id_horario?: mongoose.Types.ObjectId;
+    accesos: mongoose.Types.ObjectId[];
+    esRoot: boolean;
+    insignias: number[];
     token_web?: string;
     token_app?: string;
     token_bloqueo?: string;
@@ -38,16 +40,11 @@ export interface IVisitante extends Document {
     activo: boolean;
 }
 
-const visitanteSchema = new Schema<IVisitante>({
-    id_visitante: {
+const empleadoSchema = new Schema<IEmpleado>({
+    id_empleado: {
         type: Number,
-        required: [true, 'El id general de usuario es obligatorio.'],
+        required: [true, 'El id general de empleado es obligatorio.'],
         default: 1,
-    },
-    codigo: {
-        type: String,
-        required: [true, 'El código del usuario es obligatorio.'],
-        default: "12345"
     },
     img_usuario: {
         type: String,
@@ -57,7 +54,7 @@ const visitanteSchema = new Schema<IVisitante>({
                 if (!v) return true;
                 return REGEX_BASE64.test(v);
             },
-            message: () => `La imagen del usuario es inválida.`,
+            message: () => `La imagen del empleado es inválida.`,
         },
     },
     correo: {
@@ -69,10 +66,6 @@ const visitanteSchema = new Schema<IVisitante>({
             validator: (v: string) => REGEX_EMAIL.test(v),
             message: (props: { value: string }) => `'${props.value}' es un correo inválido.`,
         },
-    },
-    contrasena: {
-        type: String,
-        required: [true, 'La contraseña es obligatoria.'],
     },
     nombre: {
         type: String,
@@ -101,14 +94,29 @@ const visitanteSchema = new Schema<IVisitante>({
             message: (props: { value: string }) => `'${props.value}' es un apellido materno inválido.`,
         },
     },
-    telefono: { type: String, default: '' },
-    empresa: { type: String, default: '' },
-    documentos: [{ type: Schema.Types.ObjectId, default: null, ref: 'documentos' }],
-    rol: {
+    movil: {
+        type: String,
+        default: ''
+    },
+    telefono: {
+        type: String,
+        default: ''
+    },
+    extension: {
+        type: String,
+        default: ''
+    },
+    id_puesto: { type: Schema.Types.ObjectId, ref: 'puestos', default: null, set: (v: any) => (v === '' || v === undefined ? null : v), },
+    id_departamento: { type: Schema.Types.ObjectId, ref: 'departamentos', default: null, set: (v: any) => (v === '' || v === undefined ? null : v), },
+    id_cubiculo: { type: Schema.Types.ObjectId, ref: 'cubiculos', default: null, set: (v: any) => (v === '' || v === undefined ? null : v), },
+    id_empresa: { type: Schema.Types.ObjectId, required: [true, "Este campo es obligatorio"], ref: 'empresas' },
+    id_piso: { type: Schema.Types.ObjectId, required: [true, "Este campo es obligatorio"], ref: 'pisos' },
+    id_horario: { type: Schema.Types.ObjectId, default: null, ref: 'horarios' },
+    accesos: [{ type: Schema.Types.ObjectId, required: true, ref: 'accesos' }],
+    esRoot: { type: Boolean, require: true, default: false },
+    insignias: {
         type: [Number],
-        required: [true, 'El rol es obligatorio.'],
-        default: [10],
-        ref: "roles"
+        default: []
     },
     token_web: { type: String, default: '' },
     token_app: { type: String, default: '' },
@@ -120,27 +128,24 @@ const visitanteSchema = new Schema<IVisitante>({
     fecha_modificacion: { type: Date },
     modificado_por: { type: Schema.Types.ObjectId, default: null, ref: 'usuarios' },
     activo: { type: Boolean, default: true },
-    bloqueado: { type: Boolean, default: false },
-    desbloqueado_hasta: { type: Date, default: null },
 });
 
-visitanteSchema.pre<IVisitante>('save', async function (next) {
+empleadoSchema.pre<IEmpleado>('save', async function (next) {
     try {
         if (this.isNew) {
             const contador = await Contador.findOneAndUpdate(
-                { nombre: 'visitantes' },
+                { nombre: 'empleados' },
                 { $inc: { secuencia: 1 } },
                 { new: true, upsert: true }
             );
-            this.id_visitante = contador.secuencia;
-            this.codigo = generarCodigoUnico(5);
+            this.id_empleado = contador.secuencia;
         }
-        this.correo = this.correo?.trim().toLowerCase();
+        this.movil = this.movil?.trim();
+        this.telefono = this.telefono?.trim();
         this.nombre = this.nombre.trim();
         this.apellido_pat = this.apellido_pat.trim();
         this.apellido_mat = this.apellido_mat?.trim();
-        this.telefono = this.telefono?.trim();
-        this.empresa = this.empresa?.trim();
+        this.correo = this.correo?.trim().toLowerCase();
         this.fecha_creacion = new Date();
         next();
     } catch (error) {
@@ -148,11 +153,14 @@ visitanteSchema.pre<IVisitante>('save', async function (next) {
     }
 });
 
-visitanteSchema.plugin(uniqueValidator, {
+empleadoSchema.plugin(uniqueValidator, {
     type: 'mongoose-unique-validator',
     message: 'El {PATH} `{VALUE}` ya está registrado.',
 });
 
-const Usuarios: Model<IVisitante> = mongoose.model<IVisitante>('visitantes', visitanteSchema);
+const Empleados: Model<IEmpleado> = mongoose.model<IEmpleado>('empleados', empleadoSchema);
 
-export default Usuarios;
+export default Empleados;
+
+
+

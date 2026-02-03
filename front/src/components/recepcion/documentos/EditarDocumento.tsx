@@ -188,7 +188,6 @@ export default function EditarDocumento() {
         if (result?.check) {
           key = enqueueSnackbar(`Enviando correos`, {
             variant: "info",
-            persist: true,
           });
         }
         const res = await clienteAxios.put(`api/documentos/${ID}`, {

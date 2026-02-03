@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Container,
   Modal,
@@ -17,8 +18,18 @@ export default function ModalContainer({
   containerProps,
   children,
 }: Props) {
+  const navigate = useNavigate();
+  const handleClose: ModalProps["onClose"] = (event, reason) => {
+    if (reason !== "escapeKeyDown") return;
+    if (modalProps?.onClose) {
+      modalProps.onClose(event, reason);
+      return;
+    }
+    navigate(-1);
+  };
+
   return (
-    <Modal open disableEscapeKeyDown {...modalProps}>
+    <Modal open onClose={handleClose} {...modalProps}>
       <Container
         component="div"
         sx={{ overflow: "auto", height: "100%", paddingX: 0 }}

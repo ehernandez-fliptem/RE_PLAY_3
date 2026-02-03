@@ -164,7 +164,6 @@ export default function CargaUsuarios() {
       if (envioCorreos) {
         key = enqueueSnackbar(`Enviando correos`, {
           variant: "info",
-          persist: true,
         });
       }
       const res = await clienteAxios.post("/api/usuarios/programacion", {
@@ -356,7 +355,8 @@ export default function CargaUsuarios() {
           toolbar: () => (
             <Fragment>
               <DataGridToolbar
-                tableTitle="Carga masiva de usuarios"
+                // [En proceso] Título de carga masiva oculto porque la funcionalidad aún no está disponible
+                // tableTitle="Carga masiva de usuarios"
                 showExportButton={false}
               />
               {descargando ? (

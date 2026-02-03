@@ -24,6 +24,7 @@ export async function enviarCorreoUsuario(
     qr: string
 ): Promise<boolean> {
     try {
+        console.log("Entrando a enviarCorreoUsuario");
         const asunto = "Cuenta nueva";
         const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
         if (!config) throw new Error("No hay un configuración establecida.")
@@ -80,15 +81,17 @@ export async function enviarCorreoUsuario(
                     </tr>
                 </table>`,
             plusAttachments: [
-                {
-                    path: qr,
-                    cid: "qr",
-                },
+            {
+                dataUrl: qr,
+                cid: "qr",
+                filename: "qr.png",
+            },
             ],
         });
-
+        console.log("Correo enviado con respuesta:", response);
         return response;
     } catch (error) {
+        console.error("Error en enviarCorreoUsuario:", error);
         throw error;
     }
 }
@@ -150,6 +153,86 @@ export async function enviarCorreoUsuarioNuevaContrasena(
     }
 }
 
+/** Correo de nuevo visitante en la seccion de Recepcion Visitantes
+     * @function
+     * @name enviarCorreoNuevoVisitanteHV
+     * @description Envía correo al visitante con su QR de acceso.
+     * @param correo - Correo de destino.
+     * @param nombreCompleto - Nombre completo del visitante.
+     * @param qrDataUrl - QR en formato DataURL (data:image/png;base64,...)
+     */
+    export async function enviarCorreoNuevoVisitanteHV(
+    correo: string,
+    nombreCompleto: string,
+    qrDataUrl: string
+    ): Promise<boolean> {
+    try {
+        const asunto = "Registro del visitante";
+        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
+        if (!config) throw new Error("No hay una configuración establecida.");
+
+        const response = await sendEmail({
+        destinatario: correo,
+        asunto,
+        contenido: `
+            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+                <td>
+                <table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
+                    
+                    <tr>
+                    <td bgcolor="#ffffff">
+                        <h1 align="center">Registro del visitante</h1>
+                    </td>
+                    </tr>
+
+                    <tr>
+                    <td>
+                        <p><strong>Estimado, ${nombreCompleto}</strong></p>
+                    </td>
+                    </tr>
+
+                    <tr>
+                    <td>
+                        <p style="font-size:16px; text-align:center;">
+                        Presenta este código para poder ingresar a nuestras instalaciones
+                        </p>
+                    </td>
+                    </tr>
+
+                    <tr>
+                    <td>
+                        <div align="center" style="margin: 20px 0;">
+                        <img 
+                            src="cid:qr"
+                            style="width:320px; height:320px;"
+                        />
+                        </div>
+                    </td>
+                    </tr>
+
+                </table>
+                </td>
+            </tr>
+            </table>
+        `,
+        plusAttachments: [
+            {
+            dataUrl: qrDataUrl,
+            cid: "qr",
+            filename: "qr.png",
+            },
+        ],
+        });
+
+        return response;
+    } catch (error) {
+        throw error;
+    }
+    }
+
+
+
 /**
  * @function
  * @name enviarCorreoCitaVisitante
@@ -162,7 +245,8 @@ export async function enviarCorreoUsuarioNuevaContrasena(
 export async function enviarCorreoCitaVisitante(
     codigo: string,
     registros: string[] | Types.ObjectId[],
-    docs_faltantes: string
+    docs_faltantes: string,
+    qr: string
 ): Promise<number> {
     try {
         let correosEnviados = 0;
@@ -413,6 +497,7 @@ export async function enviarCorreoCitaVisitante(
                     </table>`,
                 plusAttachments: [
                     {
+                        dataUrl: qr,
                         path: QR,
                         cid: "qr",
                     },
@@ -856,6 +941,7 @@ export async function enviarCorreoModificacionCitaVisitante(
                 </table>`,
             plusAttachments: [
                 {
+                    dataUrl: qr,
                     path: qr,
                     cid: "qr",
                 },

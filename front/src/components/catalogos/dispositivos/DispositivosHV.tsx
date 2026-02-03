@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   DataGrid,
@@ -13,7 +13,7 @@ import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { Outlet, useNavigate } from "react-router-dom";
 import { esES } from "@mui/x-data-grid/locales";
 import DataGridToolbar from "../../utils/DataGridToolbar";
-import { Chip, IconButton, Tooltip } from "@mui/material";
+import { Button, Chip, IconButton, Stack, Tooltip } from "@mui/material";
 import {
   Add,
   Delete,
@@ -40,6 +40,22 @@ export default function DispositivoHV() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const [isLoading, setIsLoading] = useState(false);
+  const [syncAllInProgress, setSyncAllInProgress] = useState(false);
+  const isMountedRef = useRef(true);
+  const showSnackbar = (
+    message: string,
+    options?: Parameters<typeof enqueueSnackbar>[1]
+  ) =>
+    enqueueSnackbar(message, {
+      autoHideDuration: 4000,
+      ...options,
+    });
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const dataSource: GridDataSource = useMemo(
     () => ({
@@ -112,7 +128,7 @@ export default function DispositivoHV() {
         if (res.data.estado) {
           apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
         } else {
-          enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+            showSnackbar(res.data.mensaje, { variant: "warning" });
         }
       } catch (error) {
         const { restartSession } = handlingError(error);
@@ -136,7 +152,7 @@ export default function DispositivoHV() {
             if (res.data.estado) {
               apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
             } else {
-              enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+              showSnackbar(res.data.mensaje, { variant: "warning" });
             }
           }
         })
@@ -171,30 +187,104 @@ export default function DispositivoHV() {
   };
 */
 
-const sincronizar = async (panelId: string) => {
-  setIsLoading(true);
-  try {
-    const resUsers = await clienteAxios.get(
-      `/api/dispositivos-hikvision/sincronizar/${panelId}`
-    );
-
-    if (resUsers.data?.estado) {
-      enqueueSnackbar(
-        `Usuarios: ${resUsers.data.datos?.usuarios ?? 0} / Registros: ${resUsers.data.datos?.registros ?? 0} / Tarjetas: ${resUsers.data.datos?.tarjetas ?? 0} / Eventos: ${resUsers.data.datos?.eventos ?? 0}`,
-        { variant: "success", persist: true }
+  const sincronizar = async (panelId: string) => {
+    setIsLoading(true);
+    try {
+      const resUsers = await clienteAxios.get(
+        `/api/dispositivos-hikvision/sincronizar/${panelId}`
       );
-    } else {
-      enqueueSnackbar(resUsers.data?.mensaje || "Error al sincronizar usuarios", {
-        variant: "error",
-      });
+
+      if (resUsers.data?.estado) {
+        // enqueueSnackbar(
+        //   `Usuarios: ${resUsers.data.datos?.usuarios ?? 0} / Registros: ${resUsers.data.datos?.registros ?? 0} / Tarjetas: ${resUsers.data.datos?.tarjetas ?? 0} / Eventos: ${resUsers.data.datos?.eventos ?? 0}`,
+        //   { variant: "success", persist: true }
+        // );
+        enqueueSnackbar("Sincronización Exitosa", {
+          variant: "success",
+        });
+      } else {
+        showSnackbar(
+          resUsers.data?.mensaje || "Error al sincronizar usuarios",
+          {
+            variant: "error",
+          }
+        );
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      if (isMountedRef.current) setIsLoading(false);
     }
-  } catch (error) {
-    const { restartSession } = handlingError(error);
-    if (restartSession) navigate("/logout", { replace: true });
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
+
+  const obtenerTodosDispositivos = async () => {
+    const all: GridValidRowModel[] = [];
+    const pageSize = 100;
+    let page = 0;
+    while (true) {
+      const urlParams = new URLSearchParams({
+        filter: JSON.stringify([]),
+        pagination: JSON.stringify({ page, pageSize }),
+        sort: JSON.stringify([]),
+      });
+      const res = await clienteAxios.get(
+        "/api/dispositivos-hikvision?" + urlParams.toString()
+      );
+      const datos = res.data?.datos;
+      const rows = datos?.paginatedResults || [];
+      const total = datos?.totalCount?.[0]?.count ?? rows.length;
+      all.push(...rows);
+      if (all.length >= total || rows.length === 0) break;
+      page += 1;
+    }
+    return all;
+  };
+
+  const sincronizarTodos = () => {
+    if (syncAllInProgress) return;
+    setSyncAllInProgress(true);
+    showSnackbar("Sincronización iniciada", { variant: "success" });
+
+    void (async () => {
+      try {
+        const dispositivos = await obtenerTodosDispositivos();
+        const activos = dispositivos.filter((d: any) => d.activo);
+
+        if (activos.length === 0) {
+          enqueueSnackbar("No hay dispositivos activos para sincronizar.", {
+            variant: "warning",
+          });
+          return;
+        }
+
+        let ok = 0;
+        let fail = 0;
+
+        for (const dispositivo of activos) {
+          try {
+            const res = await clienteAxios.get(
+              `/api/dispositivos-hikvision/sincronizar/${dispositivo._id}`
+            );
+            if (res.data?.estado) ok += 1;
+            else fail += 1;
+          } catch {
+            fail += 1;
+          }
+        }
+
+        showSnackbar(`Sincronización completa. OK: ${ok} / Error: ${fail}`, {
+          variant: fail > 0 ? "warning" : "success",
+          persist: fail > 0,
+        });
+      } catch (error) {
+        const { restartSession } = handlingError(error);
+        if (restartSession) navigate("/logout", { replace: true });
+      } finally {
+        if (isMountedRef.current) setSyncAllInProgress(false);
+      }
+    })();
+  };
 
 
   return (
@@ -351,11 +441,22 @@ const sincronizar = async (panelId: string) => {
             <DataGridToolbar
               tableTitle="Gestión de Dispositivos"
               customActionButtons={
-                <Tooltip title="Agregar">
-                  <IconButton size="small" onClick={nuevoRegistro}>
-                    <Add />
-                  </IconButton>
-                </Tooltip>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={<Sync />}
+                    onClick={sincronizarTodos}
+                    disabled={syncAllInProgress}
+                  >
+                    Sincronizar todos
+                  </Button>
+                  <Tooltip title="Agregar">
+                    <IconButton size="small" onClick={nuevoRegistro}>
+                      <Add />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
               }
             />
           ),

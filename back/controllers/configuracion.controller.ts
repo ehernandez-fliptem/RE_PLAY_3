@@ -15,6 +15,7 @@ import TiposDispositivos from "../models/TiposDispositivos";
 
 export async function obtenerIntegraciones(_req: Request, res: Response): Promise<void> {
     try {
+        console.log("Obteniendo integraciones de configuración...");
         const registro = await Configuracion.findOne({}, "habilitarIntegracionHv habilitarIntegracionCdvi");
         res.status(200).send({ estado: true, datos: registro });
     } catch (error: any) {

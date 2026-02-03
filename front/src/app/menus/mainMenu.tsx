@@ -1,41 +1,113 @@
 import {
-  AccessTime,
+  // AccessTime, // FLAG: Reporte de horas oculto temporalmente - No borrar
   Devices,
   VideoLabel,
-  Apps,
-  Assignment,
+  // Apps, // FLAG: Checador oculto temporalmente - No borrar
+  // Assignment, // FLAG: Bitácora oculta temporalmente - No borrar
   Business,
   Security,
   Contacts,
-  DynamicFeed,
+  // DynamicFeed, // FLAG: Pases oculto temporalmente - No borrar
+  // DynamicFeed, // FLAG: Pases oculto temporalmente - No borrar
   AccountTree,
   EventNote,
-  ExitToApp,
+  //ExitToApp,
   Folder,
-  HowToReg,
+  // HowToReg, // FLAG: Recepción oculta temporalmente - No borrar
+  Badge,
+  Group,
   PeopleAlt,
-  PieChart,
+  // PieChart, // FLAG: Reportes oculto temporalmente - No borrar
   Settings,
-  Help,
-  Quiz,
+  // Help, // FLAG: Ayuda oculta temporalmente - No borrar
+  // Quiz, // FLAG: Ayuda oculta temporalmente - No borrar
   LibraryBooks,
   LibraryAddCheck,
   AutoStories,
-  Duo,
+  // Duo, // FLAG: Ayuda oculta temporalmente - No borrar
   AssignmentInd,
   MeetingRoom,
   Margin,
-  WebStories,
+  // WebStories, // FLAG: Kiosco oculto temporalmente - No borrar
   VideoCameraFront,
 } from "@mui/icons-material";
 
 const mainMenu = [
+  // FLAG: Bitácora oculta temporalmente - No borrar
+  // {
+  //   id: 0,
+  //   title: "Bitácora",
+  //   rol: [1, 2, 4, 5, 6, 7, 10],
+  //   icon: <Assignment fontSize="small" />,
+  //   path: "/bitacora",
+  // },
   {
-    id: 0,
-    title: "Bitácora",
-    rol: [1, 2, 4, 5, 6, 7, 10],
-    icon: <Assignment fontSize="small" />,
-    path: "/bitacora",
+    id: 0.5,
+    title: "Usuarios",
+    rol: [1],
+    icon: <PeopleAlt fontSize="small" />,
+    path: "/usuarios",
+  },
+  {
+    id: 0.6,
+    title: "Empleados",
+    rol: [1],
+    icon: <Badge fontSize="small" />,
+    path: "/empleados",
+  },
+  // --- Catálogos movido abajo de Directorio ---
+  // FLAG: Recepción oculto temporalmente - Lo que interesa ya está afuera
+  /*
+  {
+    id: 2,
+    title: "Recepción",
+    rol: [1, 2, 4, 5, 6, 7],
+    icon: <HowToReg fontSize="small" />,
+    submenu: [
+      {
+        id: 2.1,
+        title: "Visitantes",
+        rol: [1, 2],
+        icon: <PeopleAlt fontSize="small" />,
+        path: "/visitantes",
+      },
+      {
+        id: 2.3,
+        title: "Directorio",
+        rol: [1, 2, 4, 5, 6, 7],
+        icon: <Contacts fontSize="small" />,
+        path: "/directorio",
+      },
+      {
+        id: 2.4,
+        title: "Reportes",
+        rol: [1, 2, 5],
+        icon: <PieChart fontSize="small" />,
+        path: "/reportes",
+      },
+    ],
+  },
+  */
+  {
+    id: 0.7,
+    title: "Visitantes",
+    rol: [1, 2],
+    icon: <Group fontSize="small" />,
+    path: "/visitantes",
+  },
+  {
+    id: 0.8,
+    title: "Directorio",
+    rol: [1, 2, 4, 5, 6, 7],
+    icon: <Contacts fontSize="small" />,
+    path: "/directorio",
+  },
+  {
+    id: 0.9,
+    title: "Eventos",
+    rol: [1, 2, 5, 6],
+    icon: <EventNote fontSize="small" />,
+    path: "/eventos",
   },
   {
     id: 1,
@@ -85,50 +157,14 @@ const mainMenu = [
         icon: <Business fontSize="small" />,
         path: "/empresas",
       },
-      {
-        id: 1.7,
-        title: "Usuarios",
-        rol: [1],
-        icon: <PeopleAlt fontSize="small" />,
-        path: "/usuarios",
-      },
-      {
-        id: 1.8,
-        title: "Pases",
-        rol: [1, 2],
-        icon: <DynamicFeed fontSize="small" />,
-        path: "/pases",
-      },
-    ],
-  },
-  {
-    id: 2,
-    title: "Recepción",
-    rol: [1, 2, 4, 5, 6, 7],
-    icon: <HowToReg fontSize="small" />,
-    submenu: [
-      {
-        id: 2.1,
-        title: "Visitantes",
-        rol: [1, 2],
-        icon: <PeopleAlt fontSize="small" />,
-        path: "/visitantes",
-      },
-
-      {
-        id: 2.3,
-        title: "Directorio",
-        rol: [1, 2, 4, 5, 6, 7],
-        icon: <Contacts fontSize="small" />,
-        path: "/directorio",
-      },
-      {
-        id: 2.4,
-        title: "Reportes",
-        rol: [1, 2, 5],
-        icon: <PieChart fontSize="small" />,
-        path: "/reportes",
-      },
+      // FLAG: Pases oculto temporalmente - No borrar
+      // {
+      //   id: 1.8,
+      //   title: "Pases",
+      //   rol: [1, 2],
+      //   icon: <DynamicFeed fontSize="small" />,
+      //   path: "/pases",
+      // },
     ],
   },
   {
@@ -153,6 +189,8 @@ const mainMenu = [
       },
     ],
   },
+  // FLAG: Checador oculto temporalmente - Se sacó Eventos
+  /*
   {
     id: 4,
     title: "Checador",
@@ -173,29 +211,34 @@ const mainMenu = [
         icon: <AccessTime fontSize="small" />,
         path: "/reporte-horas",
       },
-      {
-        id: 4.3,
-        title: "Check",
-        rol: [1, 2, 4, 5, 6],
-        icon: <ExitToApp fontSize="small" />,
-        path: "/check",
-      },
-      /*{
-        id: 4.4,
-        title: "Bot",
-        rol: [1, 2, 4, 5, 6, 7, 8],
-        icon: <SmartToy fontSize="small" />,
-        path: "/bot",
-      },*/
+      // FLAG: Check oculto temporalmente - No borrar
+      // {
+      //   id: 4.3,
+      //   title: "Check",
+      //   rol: [1, 2, 4, 5, 6],
+      //   icon: <ExitToApp fontSize="small" />,
+      //   path: "/check",
+      // },
+      // {
+      //   id: 4.4,
+      //   title: "Bot",
+      //   rol: [1, 2, 4, 5, 6, 7, 8],
+      //   icon: <SmartToy fontSize="small" />,
+      //   path: "/bot",
+      // },
     ],
   },
-  {
-    id: 5,
-    title: "Kiosco",
-    rol: [1, 2],
-    icon: <WebStories fontSize="small" />,
-    path: "/kiosco",
-  },
+  */
+  // FLAG: Kiosco oculto temporalmente - No borrar
+  // {
+  //   id: 5,
+  //   title: "Kiosco",
+  //   rol: [1, 2],
+  //   icon: <WebStories fontSize="small" />,
+  //   path: "/kiosco",
+  // },
+  // FLAG: Ayuda oculto temporalmente
+  /*
   {
     id: 6,
     title: "Ayuda",
@@ -218,6 +261,7 @@ const mainMenu = [
       },
     ],
   },
+  */
   {
     id: 99,
     title: "Dispositivos",
@@ -252,3 +296,5 @@ const mainMenu = [
 ];
 
 export default mainMenu;
+
+

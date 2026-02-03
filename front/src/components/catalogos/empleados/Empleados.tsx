@@ -17,10 +17,8 @@ import {
   Delete,
   Edit,
   GetApp,
-  Lock,
-  LockOpen,
   RestoreFromTrash,
-  Upload,
+  // Upload, // [En proceso] Ocultado por funcionalidad de carga masiva no disponible
   Visibility,
 } from "@mui/icons-material";
 import { Avatar, IconButton, Tooltip } from "@mui/material";
@@ -31,17 +29,9 @@ import { base64ToFile } from "../../helpers/generalHelpers";
 import ErrorOverlay from "../../error/DataGridError";
 import Spinner from "../../utils/Spinner";
 
-import { isBlockedNow } from "../../../utils/bloqueo";
-
-import CircularProgress from "@mui/material/CircularProgress";
-
-
 const pageSizeOptions = [10, 25, 50];
 
-export default function Visitantes() {
-  console.log("[VISITANTES] render");
-  console.log("Prueba 01");
-
+export default function Empleados() {
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();
   const navigate = useNavigate();
@@ -50,11 +40,6 @@ export default function Visitantes() {
     id_usuario: "",
     descargando: false,
   });
-
-  const [loadingRows, setLoadingRows] = useState<Record<string, boolean>>({});
-  const setRowLoading = (id: string, isLoading: boolean) =>
-    setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
-
 
   const dataSource: GridDataSource = useMemo(
     () => ({
@@ -68,11 +53,17 @@ export default function Visitantes() {
             sort: JSON.stringify(params.sortModel),
           });
           const res = await clienteAxios.get(
-            "/api/visitantes?" + urlParams.toString()
+            "/api/empleados?" + urlParams.toString()
           );
+          //console.log("datos tabla ", res);
           if (res.data.estado) {
             setError("");
-            rows = res.data.datos.paginatedResults || [];
+            rows = (res.data.datos.paginatedResults || []).map((r: any) => ({
+              ...r,
+              id_empleado: Number(r.id_empleado),
+            }));
+            console.log("Filas", rows);
+            
             rowCount = res.data.datos.totalCount[0]?.count || 0;
           }
         } catch (error) {
@@ -103,25 +94,26 @@ export default function Visitantes() {
   );
 
   const nuevoRegistro = () => {
-    navigate("nuevo-visitante");
+    navigate("nuevo-empleado");
   };
 
   const editarRegistro = (ID: string) => {
-    navigate(`editar-visitante/${ID}`);
+    navigate(`editar-empleado/${ID}`);
   };
 
   const verRegistro = (ID: string) => {
-    navigate(`detalle-visitante/${ID}`);
+    navigate(`detalle-empleado/${ID}`);
   };
 
-  const cargaMasiva = () => {
-    navigate("carga-masiva");
-  };
+  // [En proceso] Función de carga masiva deshabilitada temporalmente
+  // const cargaMasiva = () => {
+  //   navigate("carga-masiva");
+  // };
 
   const cambiarEstado = async (ID: string, activo: boolean) => {
     if (!activo) {
       try {
-        const res = await clienteAxios.patch(`/api/visitantes/${ID}`, {
+        const res = await clienteAxios.patch(`/api/empleados/${ID}`, {
           activo,
         });
         if (res.data.estado) {
@@ -135,14 +127,14 @@ export default function Visitantes() {
       }
     } else {
       confirm({
-        title: "¿Seguro que deseas desactivar a este visitante?",
+        title: "¿Seguro que deseas desactivar a este empleado?",
         description: "",
         allowClose: true,
         confirmationText: "Continuar",
       })
         .then(async (result) => {
           if (result.confirmed) {
-            const res = await clienteAxios.patch(`/api/visitantes/${ID}`, {
+            const res = await clienteAxios.patch(`/api/empleados/${ID}`, {
               activo,
             });
             if (res.data.estado) {
@@ -162,7 +154,7 @@ export default function Visitantes() {
   const descargarQr = async (ID: string, nombre: string) => {
     try {
       setIsDownloadingQr({ id_usuario: ID, descargando: true });
-      const res = await clienteAxios.get(`/api/visitantes/qr/${ID}`);
+      const res = await clienteAxios.get(`/api/empleados/qr/${ID}`);
       if (res.data.estado) {
         base64ToFile(res.data.datos, "image/jpg", `${nombre}.jpg`);
       } else {
@@ -176,72 +168,57 @@ export default function Visitantes() {
     }
   };
 
-const accionDesbloquear = (ID: string) => {
-  confirm({
-    title: "¿Seguro que desea desbloquear a este visitante?",
-    description: "Esta acción restaura los intentos y habilita el acceso SOLO por hoy.",
-    allowClose: true,
-    confirmationText: "Continuar",
-  })
-    .then(async (result) => {
-      if (!result.confirmed) return;
+  // --- COLUMNAS OCULTAS TEMPORALMENTE ---
+  // Las siguientes columnas se comentan porque no se requieren en la vista actual de empleados.
+  // Si en el futuro se necesitan, solo descomentar. Motivo: simplificar la interfaz y mostrar solo lo esencial.
 
-      setRowLoading(ID, true);
-
-      try {
-        const res = await clienteAxios.patch(`/api/visitantes/desbloquear/${ID}`);
-
-        if (res.data.estado) {
-          const v = res.data.data;
-          apiRef.current?.updateRows([
-            { _id: ID, bloqueado: v.bloqueado, desbloqueado_hasta: v.desbloqueado_hasta ?? null },
-          ]);
-        } else {
-          enqueueSnackbar(res.data.mensaje, { variant: "warning" });
-        }
-      } catch (error: any) {
-        const { restartSession } = handlingError(error);
-        if (restartSession) navigate("/logout", { replace: true });
-      } finally {
-        setRowLoading(ID, false);
-      }
-    })
-    .catch(() => {});
-};
-
-const accionBloquear = (ID: string) => {
-  confirm({
-    title: "¿Seguro que desea bloquear a este visitante?",
-    description: "Esta acción bloquea el acceso al sistema para el visitante.",
-    allowClose: true,
-    confirmationText: "Continuar",
-  })
-    .then(async (result) => {
-      if (!result.confirmed) return;
-
-      setRowLoading(ID, true);
-
-      try {
-        const res = await clienteAxios.patch(`/api/visitantes/bloquear/${ID}`);
-
-        if (res.data.estado) {
-          const v = res.data.data;
-          apiRef.current?.updateRows([
-            { _id: ID, bloqueado: v.bloqueado, desbloqueado_hasta: v.desbloqueado_hasta ?? null },
-          ]);
-        } else {
-          enqueueSnackbar(res.data.mensaje, { variant: "warning" });
-        }
-      } catch (error: any) {
-        const { restartSession } = handlingError(error);
-        if (restartSession) navigate("/logout", { replace: true });
-      } finally {
-        setRowLoading(ID, false);
-      }
-    })
-    .catch(() => {});
-};
-
+  /*
+  {
+    headerName: "ID",
+    field: "id_empleado",
+    flex: 1,
+    display: "flex",
+    minWidth: 80,
+    // Ocultado porque no se necesita mostrar el ID en la gestión de empleados por ahora.
+  },
+  {
+    headerName: "Rol",
+    field: "rol",
+    flex: 1,
+    display: "flex",
+    minWidth: 120,
+    // Ocultado porque el rol no es relevante para la gestión directa de empleados en esta vista.
+  },
+  {
+    headerName: "Tipo",
+    field: "tipo",
+    flex: 1,
+    display: "flex",
+    minWidth: 100,
+    // Ocultado porque el tipo no se requiere en la gestión de empleados actualmente.
+  },
+  {
+    headerName: "Arco",
+    field: "arco",
+    type: "actions",
+    align: "center",
+    flex: 1,
+    display: "flex",
+    minWidth:100,
+    // Ocultado porque la funcionalidad de arco no es necesaria en esta etapa.
+  },
+  {
+    headerName: "Acceso",
+    field: "desbloqueo",
+    type: "actions",
+    align: "center",
+    flex: 1,
+    display: "flex",
+    minWidth:100,
+    // Ocultado porque la gestión de acceso no se requiere por ahora.
+  },
+  */
+  // --- FIN COLUMNAS OCULTAS ---
 
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
@@ -278,23 +255,48 @@ const accionBloquear = (ID: string) => {
             ),
           },
           {
-            headerName: "Nombre",
-            field: "nombre",
-            flex: 1,
-            display: "flex",
-            minWidth: 180,
-            renderCell: ({ value }) => (
-              <span style={{ fontSize: 14, fontWeight: 600 }}>{value}</span>
-            ),
-          },
-          {
             headerName: "Empresa",
             field: "empresa",
             flex: 1,
             display: "flex",
             minWidth: 180,
-            renderCell: ({ value }) => value || "--",
           },
+          {
+            headerName: "Nombre",
+            field: "nombre",
+            flex: 1,
+            display: "flex",
+            minWidth: 180,
+          },
+          // Tipo: oculto por ahora porque no se ocupa en esta vista y se busca mantenerla simple.
+          // Si se requiere mostrar el tipo de cuenta, descomentar este bloque.
+          // {
+          //   headerName: "Tipo",
+          //   field: "esRoot",
+          //   disableExport: true,
+          //   flex: 1,
+          //   display: "flex",
+          //   minWidth: 100,
+          //   renderCell: ({ value }) => (
+          //     <Fragment>
+          //       {value ? (
+          //         <Chip
+          //           label="Maestra"
+          //           size="small"
+          //           color="primary"
+          //           sx={{ width: "100%" }}
+          //         />
+          //       ) : (
+          //         <Chip
+          //           label="Esclava"
+          //           size="small"
+          //           color="secondary"
+          //           sx={{ width: "100%" }}
+          //         />
+          //       )}
+          //     </Fragment>
+          //   ),
+          // },
           {
             headerName: "QR",
             field: "id_usuario",
@@ -349,7 +351,7 @@ const accionBloquear = (ID: string) => {
                     title="Editar"
                   />
                 );
-              if (row.id_general !== 1) {
+              if (row.id_empleado !== 1) {
                 gridActions.push(
                   row.activo ? (
                     <GridActionsCellItem
@@ -371,53 +373,6 @@ const accionBloquear = (ID: string) => {
               return gridActions;
             },
           },
-          {
-            headerName: "Acceso",
-            field: "desbloqueo",
-            type: "actions",
-            align: "center",
-            flex: 1,
-            display: "flex",
-            minWidth: 100,
-
-            // Esto ayuda a que DataGrid recalcule el cell cuando cambie el row
-            valueGetter: (_value, row) => `${row?.bloqueado ?? false}-${row?.desbloqueado_hasta ?? ""}`,
-
-            getActions: ({ row }) => {
-              const isLoading = !!loadingRows[row._id];
-
-              if (isLoading) {
-                return [
-                  <GridActionsCellItem
-                    icon={<CircularProgress size={18} />}
-                    label="Procesando"
-                    disabled
-                    onClick={() => {}}
-                  />,
-                ];
-              }
-
-              const bloqueadoEfectivo = isBlockedNow(row);
-
-              return [
-                bloqueadoEfectivo ? (
-                  <GridActionsCellItem
-                    icon={<Lock color="error" />}
-                    onClick={() => accionDesbloquear(row._id)}
-                    label="Bloqueado"
-                    title="Desbloquear"
-                  />
-                ) : (
-                  <GridActionsCellItem
-                    icon={<LockOpen color="success" />}
-                    onClick={() => accionBloquear(row._id)}
-                    label="Acceso"
-                    title="Bloquear"
-                  />
-                ),
-              ];
-            }
-          }
         ]}
         disableRowSelectionOnClick
         disableColumnFilter
@@ -448,7 +403,7 @@ const accionBloquear = (ID: string) => {
         slots={{
           toolbar: () => (
             <DataGridToolbar
-              tableTitle="Gestión de Visitantes"
+              tableTitle="Gestión de Empleados"
               customActionButtons={
                 <Fragment>
                   <Tooltip title="Agregar">
@@ -456,11 +411,13 @@ const accionBloquear = (ID: string) => {
                       <Add fontSize="small" />
                     </IconButton>
                   </Tooltip>
+                  {/* [En proceso] Botón de carga masiva oculto porque la funcionalidad aún no está disponible
                   <Tooltip title="Carga masiva">
                     <IconButton onClick={cargaMasiva}>
                       <Upload fontSize="small" />
                     </IconButton>
                   </Tooltip>
+                  */}
                 </Fragment>
               }
             />
@@ -474,3 +431,4 @@ const accionBloquear = (ID: string) => {
     </div>
   );
 }
+

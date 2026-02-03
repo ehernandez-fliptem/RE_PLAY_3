@@ -35,22 +35,25 @@ import Spinner from "../../utils/Spinner";
 
 type Errores = {
   nombre: string;
-  apellido_pat: string;
-  apellido_mat: string;
   correo: string;
-  contrasena: string;
-  telefono: string;
+  usuario: string;
 };
 
-type TUsuarios = {
+type TEmpleados = {
   _id: string;
+  usuario: string;
   correo: string;
-  contrasena: string;
   nombre: string;
   apellido_pat: string;
   apellido_mat?: string;
+  movil?: string;
   telefono?: string;
-  empresa: string;
+  extension?: string;
+  id_empresa: string;
+  piso: string;
+  puesto?: string;
+  departamento?: string;
+  cubiculo?: string;
   envioHabilitado?: boolean;
   correoEnviado?: boolean;
   errores?: Errores;
@@ -58,23 +61,20 @@ type TUsuarios = {
 
 const pageSizeOptions = [10, 25, 50];
 
-export default function CargaVisitantes() {
+export default function CargaEmpleados() {
   const navigate = useNavigate();
-  const [registros, setRegistros] = useState<TUsuarios[]>([]);
+  const [registros, setRegistros] = useState<TEmpleados[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sePuedeEnviar, setSePuedeEnviar] = useState(false);
   const [error, setError] = useState(false);
   const [envioCorreos, setEnvioCorreos] = useState(true);
-  const [usuariosGuardados, setUsuariosGuardados] = useState(false);
+  const [empleadosGuardados, setEmpleadosGuardados] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [showError, setShowError] = useState(false);
   const [errores, setErrores] = useState<Errores>({
     nombre: "",
-    apellido_pat: "",
-    apellido_mat: "",
     correo: "",
-    contrasena: "",
-    telefono: "",
+    usuario: "",
   });
   const presetDatos = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { checked } = e.target;
@@ -100,10 +100,7 @@ export default function CargaVisitantes() {
       }
       const data = new FormData();
       data.append("document", file, file.name);
-      const res = await clienteAxios.post(
-        "/api/visitantes/cargar-formato",
-        data
-      );
+      const res = await clienteAxios.post("/api/empleados/cargar-formato", data);
 
       if (res.data.estado) {
         setRegistros(res.data.datos);
@@ -121,7 +118,7 @@ export default function CargaVisitantes() {
       if (restartSession) navigate("/logout", { replace: true });
     } finally {
       setIsLoading(false);
-      setUsuariosGuardados(false);
+      setEmpleadosGuardados(false);
     }
   };
 
@@ -129,14 +126,14 @@ export default function CargaVisitantes() {
     e.preventDefault();
     setDescargando(true);
     try {
-      const res = await clienteAxios.get("/api/visitantes/descargar-formato", {
+      const res = await clienteAxios.get("/api/empleados/descargar-formato", {
         responseType: "blob",
       });
       if (res.data) {
         const url = window.URL.createObjectURL(new Blob([res.data]));
         const link = document.createElement("a");
         link.href = url;
-        link.setAttribute("download", `Visitantes.xlsx`);
+        link.setAttribute("download", `Empleados.xlsx`);
         document.body.appendChild(link);
         link.click();
       }
@@ -153,27 +150,27 @@ export default function CargaVisitantes() {
       e.preventDefault();
       let key;
       setIsLoading(true);
-      setUsuariosGuardados(false);
+      setEmpleadosGuardados(false);
       if (envioCorreos) {
         key = enqueueSnackbar(`Enviando correos`, {
           variant: "info",
         });
       }
-      const res = await clienteAxios.post("/api/visitantes/programacion", {
+      const res = await clienteAxios.post("/api/empleados/programacion", {
         registros,
         envioCorreos,
       });
       if (envioCorreos && key) closeSnackbar(key);
       if (res.data.estado) {
-        const { visitantes, correos, registros } = res.data.datos;
-        enqueueSnackbar(`Visitante creados: ${visitantes}`, {
+        const { empleados, correos, registros } = res.data.datos;
+        enqueueSnackbar(`Empleados creados: ${empleados}`, {
           variant: "success",
         });
         if (envioCorreos)
           enqueueSnackbar(`Correo enviados: ${correos}`, {
             variant: "success",
           });
-        setUsuariosGuardados(true);
+        setEmpleadosGuardados(true);
         setRegistros(registros);
       } else {
         setError(true);
@@ -195,7 +192,7 @@ export default function CargaVisitantes() {
   };
 
   const regresar = () => {
-    navigate(`/visitantes`);
+    navigate(`/empleados`);
   };
 
   return (
@@ -218,21 +215,6 @@ export default function CargaVisitantes() {
               }`,
           },
           {
-            headerName: "Correo",
-            field: "correo",
-            flex: 1,
-            display: "flex",
-            minWidth: 250,
-          },
-          {
-            headerName: "Contraseña",
-            field: "contrasena",
-            flex: 1,
-            display: "flex",
-            minWidth: 120,
-            valueGetter: () => "**********",
-          },
-          {
             headerName: "Empresa",
             field: "empresa",
             flex: 1,
@@ -240,11 +222,27 @@ export default function CargaVisitantes() {
             minWidth: 120,
           },
           {
-            headerName: "Teléfono",
-            field: "telefono",
+            headerName: "Piso",
+            field: "piso",
             flex: 1,
             display: "flex",
             minWidth: 120,
+          },
+          {
+            headerName: "Acceso",
+            field: "accesos",
+            flex: 1,
+            display: "flex",
+            minWidth: 120,
+            valueFormatter: (value: { identificador: string }[] = []) =>
+              value.map((item) => item.identificador).join(" / "),
+          },
+          {
+            headerName: "Correo",
+            field: "correo",
+            flex: 1,
+            display: "flex",
+            minWidth: 200,
           },
           {
             headerName: "Estado",
@@ -255,7 +253,7 @@ export default function CargaVisitantes() {
             display: "flex",
             minWidth: 100,
             getActions: ({ row }) => [
-              usuariosGuardados ? (
+              empleadosGuardados ? (
                 <>
                   {row.envioHabilitado ? (
                     <>
@@ -317,7 +315,8 @@ export default function CargaVisitantes() {
           toolbar: () => (
             <Fragment>
               <DataGridToolbar
-                tableTitle="Carga masiva de visitantes"
+                // [En proceso] Título de carga masiva oculto porque la funcionalidad aún no está disponible
+                // tableTitle="Carga masiva de empleados"
                 showExportButton={false}
               />
               {descargando ? (
@@ -331,7 +330,7 @@ export default function CargaVisitantes() {
                 >
                   <Box sx={{ width: "100%" }}>
                     <FormControlLabel
-                      label="Enviar correos a visitantes"
+                      label="Enviar correos a empleados"
                       control={
                         <Checkbox
                           name="envioCorreos"
@@ -490,9 +489,8 @@ const ModalErrores = ({ errores, setOpen }: PropsModalError) => {
                 variant="contained"
                 color="secondary"
                 onClick={() => setOpen(false)}
-                startIcon={<ChevronLeft />}
               >
-                Regresar
+                <ChevronLeft /> Regresar
               </Button>
             </Stack>
           </Box>
@@ -501,3 +499,4 @@ const ModalErrores = ({ errores, setOpen }: PropsModalError) => {
     </ModalContainer>
   );
 };
+

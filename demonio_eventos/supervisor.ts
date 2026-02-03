@@ -6,6 +6,7 @@ import axios from 'axios';
 import io from 'socket.io-client';
 import { EventInfo, EventProcess, IDispositivoHv } from './types/basic';
 import dayjs from 'dayjs';
+import { ConnectionPoolClosedEvent } from 'mongodb';
 
 const regexIDGeneral = /^[\d]+$/;
 const regexCodigo = /^[A-Za-z0-9]{18}$/;
@@ -16,7 +17,12 @@ let eventosSync = 0;
 
 export async function main() {
     try {
+        console.log("Iniciando demonio de eventos...");
         const res = await clienteAxios.get('/api/configuracion/integraciones');
+
+        console.log("Integraciones obtenidas.");
+        console.log(res.data.estado + " " + JSON.stringify(res.data.datos));
+
         if (res.data.estado) {
             const { habilitarIntegracionHv } = res.data.datos;
             if (habilitarIntegracionHv) {
@@ -88,16 +94,27 @@ const sincronizarEventos = async (paneles: IDispositivoHv[]) => {
         const registros: EventProcess[] = eventosPanel
             .map((item) => {
                 if (item) {
-                    if (regexIDGeneral.test(item.employeeNoString) || regexCodigo.test(item.employeeNoString)) {
+
+                    //console.log(item);
+                    //console.log("Procesando evento de ID: " + item.employeeNoString);
+                    // console.log("+**************************************");
+                    // console.log("Resultado de regexIDGeneral test: " + regexIDGeneral.test(item.employeeNoString));
+                    // console.log("+**************************************");
+
+                    //if (regexIDGeneral.test(item.employeeNoString) || regexCodigo.test(item.employeeNoString)) {
                         const fechaCheck = new Date(item.time);
                         return { ID: item.employeeNoString, tipo_dispositivo: 3, fecha_creacion: fechaCheck, img_check: item.pictureURL || 'QR', tipo_check_panel: tipo_evento, id_panel: _id };
-                    }
+                    //}
                 }
                 return null;
             })
             .filter((item) => isEventProcess(item));
         log(`${fecha()} ⚙️ Validando eventos del panel.\n`);
         indexEventos = 0
+
+        //console.log("Registros a guardar: " + registros.length);
+        //await new Promise(resolve => setTimeout(resolve, 1000));
+
         await guardarEventos(registros, usuario, decryptPass);
         indexPaneles++;
         await sincronizarEventos(paneles);

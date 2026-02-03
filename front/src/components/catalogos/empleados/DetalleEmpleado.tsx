@@ -7,8 +7,9 @@ import {
   Button,
   Card,
   CardContent,
-  Chip,
   Grid,
+  ListItem,
+  ListItemText,
   Stack,
   Typography,
 } from "@mui/material";
@@ -18,12 +19,25 @@ import Spinner from "../../utils/Spinner";
 import { enqueueSnackbar } from "notistack";
 import dayjs from "dayjs";
 
+type IAcceso = {
+  identificador: string;
+  nombre: string;
+};
+
 type TUsuario = {
   img_usuario: string;
   nombre: string;
   empresa: string;
+  piso?: string;
+  accesos: IAcceso[];
+  movil?: string;
   telefono?: string;
+  extension?: string;
+  puesto?: string;
+  departamento?: string;
+  cubiculo?: string;
   correo: string;
+  esRoot: boolean;
   fecha_creacion: Date | string;
   creado_por: string;
   fecha_modificacion: Date | string;
@@ -31,7 +45,7 @@ type TUsuario = {
   activo: boolean;
 };
 
-export default function DetalleVisitante() {
+export default function DetalleEmpleado() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
@@ -39,8 +53,16 @@ export default function DetalleVisitante() {
     img_usuario: "",
     nombre: "",
     empresa: "",
+    piso: "",
+    accesos: [],
+    puesto: "",
+    departamento: "",
+    cubiculo: "",
+    movil: "",
     telefono: "",
+    extension: "",
     correo: "",
+    esRoot: false,
     fecha_creacion: new Date(),
     creado_por: "",
     fecha_modificacion: new Date(),
@@ -51,19 +73,25 @@ export default function DetalleVisitante() {
     img_usuario,
     nombre,
     empresa,
+    piso,
+    accesos,
+    puesto,
+    departamento,
+    cubiculo,
+    movil,
     telefono,
+    extension,
     correo,
     fecha_creacion,
     creado_por,
     fecha_modificacion,
     modificado_por,
-    activo,
   } = datos;
 
   useEffect(() => {
     const obtenerRegistro = async () => {
       try {
-        const res = await clienteAxios.get(`api/visitantes/${id}`);
+        const res = await clienteAxios.get(`api/empleados/${id}`);
         if (res.data.estado) {
           setDatos(res.data.datos);
           setIsLoading(false);
@@ -80,7 +108,7 @@ export default function DetalleVisitante() {
   }, [id]);
 
   const regresar = () => {
-    navigate(`/visitantes`);
+    navigate(`/empleados`);
   };
 
   return (
@@ -88,16 +116,7 @@ export default function DetalleVisitante() {
       <Card elevation={5}>
         <CardContent>
           <Typography variant="h5" component="h5" textAlign="center">
-            Visitante{" - "}
-            {!isLoading && (
-              <>
-                {activo ? (
-                  <Chip label="Activo" color="success" />
-                ) : (
-                  <Chip label="Inactivo" color="error" />
-                )}
-              </>
-            )}
+            Empleado
           </Typography>
           {isLoading ? (
             <Spinner />
@@ -120,7 +139,7 @@ export default function DetalleVisitante() {
               </Grid>
               <Grid size={{ xs: 12 }} width={"100%"}>
                 <Typography
-                  variant="h4"
+                  variant="h6"
                   component="h6"
                   color="primary"
                   bgcolor="#FFFFFF"
@@ -146,17 +165,6 @@ export default function DetalleVisitante() {
                 </Grid>
                 <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
                   <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
-                    <strong>Correo:</strong>
-                  </Grid>
-                  <Grid
-                    size={{ xs: 12, sm: "grow" }}
-                    sx={{ ml: { xs: 2, sm: 0 } }}
-                  >
-                    {correo}
-                  </Grid>
-                </Grid>
-                <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
-                  <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
                     <strong>Empresa:</strong>
                   </Grid>
                   <Grid
@@ -166,6 +174,70 @@ export default function DetalleVisitante() {
                     {empresa}
                   </Grid>
                 </Grid>
+                <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
+                  <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
+                    <strong>Piso:</strong>
+                  </Grid>
+                  <Grid
+                    size={{ xs: 12, sm: "grow" }}
+                    sx={{ ml: { xs: 2, sm: 0 } }}
+                  >
+                    {piso}
+                  </Grid>
+                </Grid>
+
+                {puesto && (
+                  <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
+                    <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
+                      <strong>Puesto:</strong>
+                    </Grid>
+                    <Grid
+                      size={{ xs: 12, sm: "grow" }}
+                      sx={{ ml: { xs: 2, sm: 0 } }}
+                    >
+                      {puesto}
+                    </Grid>
+                  </Grid>
+                )}
+                {departamento && (
+                  <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
+                    <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
+                      <strong>Departamento:</strong>
+                    </Grid>
+                    <Grid
+                      size={{ xs: 12, sm: "grow" }}
+                      sx={{ ml: { xs: 2, sm: 0 } }}
+                    >
+                      {departamento}
+                    </Grid>
+                  </Grid>
+                )}
+                {cubiculo && (
+                  <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
+                    <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
+                      <strong>Cubículo:</strong>
+                    </Grid>
+                    <Grid
+                      size={{ xs: 12, sm: "grow" }}
+                      sx={{ ml: { xs: 2, sm: 0 } }}
+                    >
+                      {cubiculo}
+                    </Grid>
+                  </Grid>
+                )}
+                {movil && (
+                  <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
+                    <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
+                      <strong>Móvil:</strong>
+                    </Grid>
+                    <Grid
+                      size={{ xs: 12, sm: "grow" }}
+                      sx={{ ml: { xs: 2, sm: 0 } }}
+                    >
+                      {movil}
+                    </Grid>
+                  </Grid>
+                )}
                 {telefono && (
                   <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
                     <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
@@ -179,6 +251,61 @@ export default function DetalleVisitante() {
                     </Grid>
                   </Grid>
                 )}
+                {extension && (
+                  <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
+                    <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
+                      <strong>Extensión:</strong>
+                    </Grid>
+                    <Grid
+                      size={{ xs: 12, sm: "grow" }}
+                      sx={{ ml: { xs: 2, sm: 0 } }}
+                    >
+                      {extension}
+                    </Grid>
+                  </Grid>
+                )}
+                {accesos[0] && (
+                  <Box component="div" sx={{ my: 2 }}>
+                    <Typography variant="subtitle1" component="p">
+                      <strong>Acceso(s): </strong>
+                    </Typography>
+                    <Grid
+                      container
+                      spacing={2}
+                      sx={{ my: 0, maxHeight: 250, overflowY: "auto" }}
+                    >
+                      {accesos.map((item) => (
+                        <Grid size="grow" key={item.identificador}>
+                          <ListItem sx={{ py: 0 }}>
+                            <ListItemText
+                              primary={
+                                <Typography variant="subtitle1" component="p">
+                                  <strong>{item.identificador} </strong>
+                                </Typography>
+                              }
+                              secondary={
+                                <Typography variant="caption" component="p">
+                                  {item.nombre}
+                                </Typography>
+                              }
+                            />
+                          </ListItem>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  </Box>
+                )}
+                <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
+                  <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
+                    <strong>Correo:</strong>
+                  </Grid>
+                  <Grid
+                    size={{ xs: 12, sm: "grow" }}
+                    sx={{ ml: { xs: 2, sm: 0 } }}
+                  >
+                    {correo}
+                  </Grid>
+                </Grid>
                 <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
                   <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
                     <strong>Creado el:</strong>
