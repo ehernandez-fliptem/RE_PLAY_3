@@ -334,7 +334,7 @@ const accionBloquear = (ID: string) => {
             display: "flex",
             minWidth: 180,
             renderCell: ({ value }) => (
-              <span style={{ fontSize: 14, fontWeight: 600 }}>{value}</span>
+              <span style={{ fontSize: 14, fontWeight: 400 }}>{value}</span>
             ),
           },
           {
