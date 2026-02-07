@@ -254,6 +254,16 @@ export default function Visitantes() {
 
 const accionDesbloquear = (ID: string) => {
   const row = apiRef.current?.getRow(ID) as any;
+  if (row && !row.verificado) {
+    confirm({
+      title: "Acceso no disponible",
+      description: "El visitante debe estar verificado para habilitar el acceso.",
+      allowClose: true,
+      confirmationText: "Cerrar",
+      hideCancelButton: true,
+    }).catch(() => {});
+    return;
+  }
   if (row && row.activo === false) {
     enqueueSnackbar("Debes restaurar al visitante para habilitar el acceso.", { variant: "warning" });
     return;
@@ -292,6 +302,16 @@ const accionDesbloquear = (ID: string) => {
 
 const accionBloquear = (ID: string) => {
   const row = apiRef.current?.getRow(ID) as any;
+  if (row && !row.verificado) {
+    confirm({
+      title: "Acceso no disponible",
+      description: "El visitante debe estar verificado para cambiar el acceso.",
+      allowClose: true,
+      confirmationText: "Cerrar",
+      hideCancelButton: true,
+    }).catch(() => {});
+    return;
+  }
   if (row && row.activo === false) {
     enqueueSnackbar("Debes restaurar al visitante para cambiar el acceso.", { variant: "warning" });
     return;
@@ -427,11 +447,23 @@ const accionBloquear = (ID: string) => {
             renderCell: ({ row }) => {
               const verified = Boolean(row?.verificado);
               return (
-                <Chip
-                  label={verified ? "Verificado" : "No verificado"}
-                  color={verified ? "success" : "error"}
-                  size="small"
-                />
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "6px 0",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <Chip
+                    label={verified ? "Verificado" : "No verificado"}
+                    color={verified ? "success" : "error"}
+                    size="small"
+                  />
+                </div>
               );
             },
           },
@@ -543,6 +575,27 @@ const accionBloquear = (ID: string) => {
           const ids = "ids" in model ? Array.from(model.ids) : model;
           const next = Array.isArray(ids) ? ids[0] : undefined;
           setSelectedRowId(next ? String(next) : null);
+        }}
+        onCellClick={(params) => {
+          setSelectedRowId(String(params.id));
+        }}
+        getRowClassName={(params) =>
+          params.id === selectedRowId ? "row-selected" : ""
+        }
+        sx={{
+          "& .row-selected": {
+            outline: "2px solid #7A3DF0",
+            outlineOffset: -2,
+          },
+          "& .MuiDataGrid-row.Mui-selected": {
+            backgroundColor: "rgba(122, 61, 240, 0.08)",
+          },
+          "& .MuiDataGrid-cell.MuiDataGrid-cell--focus": {
+            outline: "none",
+          },
+          "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
+            outline: "none",
+          },
         }}
         onDataSourceError={(dataSourceError) => {
           if (dataSourceError.cause instanceof AxiosError) {
