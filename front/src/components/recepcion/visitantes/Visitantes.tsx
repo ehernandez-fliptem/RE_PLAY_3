@@ -617,6 +617,7 @@ const accionBloquear = (ID: string) => {
           toolbarDensity: "",
           toolbarExport: "",
           noRowsLabel: "Sin registros",
+          footerRowSelected: () => "",
         }}
         slots={{
           toolbar: () => (
