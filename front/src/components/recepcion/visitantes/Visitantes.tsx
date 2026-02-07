@@ -36,6 +36,7 @@ import Spinner from "../../utils/Spinner";
 import { isBlockedNow } from "../../../utils/bloqueo";
 
 import CircularProgress from "@mui/material/CircularProgress";
+import { areDocumentosChecksComplete } from "./documentosChecks";
 // sin helpers de documentos en tabla
 
 
@@ -135,6 +136,17 @@ export default function Visitantes() {
       enqueueSnackbar("No se encontró el visitante seleccionado.", {
         variant: "warning",
       });
+      return;
+    }
+    if (!areDocumentosChecksComplete(row?.documentos_checks)) {
+      confirm({
+        title: "Documentos incompletos",
+        description:
+          "Para poder verificar al visitante se deben de tener todos los documentos marcados.",
+        allowClose: true,
+        confirmationText: "Cerrar",
+        hideCancelButton: true,
+      }).catch(() => {});
       return;
     }
     if (row.verificado) {
@@ -256,8 +268,8 @@ const accionDesbloquear = (ID: string) => {
   const row = apiRef.current?.getRow(ID) as any;
   if (row && !row.verificado) {
     confirm({
-      title: "Acceso no disponible",
-      description: "El visitante debe estar verificado para habilitar el acceso.",
+      title: "Acceso no permitido",
+      description: "Se deben verificar los documentos del visitante para habilitar el acceso.",
       allowClose: true,
       confirmationText: "Cerrar",
       hideCancelButton: true,
@@ -304,7 +316,7 @@ const accionBloquear = (ID: string) => {
   const row = apiRef.current?.getRow(ID) as any;
   if (row && !row.verificado) {
     confirm({
-      title: "Acceso no disponible",
+      title: "Acceso no permitido",
       description: "El visitante debe estar verificado para cambiar el acceso.",
       allowClose: true,
       confirmationText: "Cerrar",
@@ -437,7 +449,7 @@ const accionBloquear = (ID: string) => {
             },
           },
           {
-            headerName: "Verificado",
+            headerName: "Estatus",
             field: "verificado",
             headerAlign: "center",
             align: "center",
@@ -462,6 +474,7 @@ const accionBloquear = (ID: string) => {
                     label={verified ? "Verificado" : "No verificado"}
                     color={verified ? "success" : "error"}
                     size="small"
+                    sx={{ minWidth: 110, justifyContent: "center" }}
                   />
                 </div>
               );

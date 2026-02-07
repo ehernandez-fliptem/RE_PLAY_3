@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import {
   Avatar,
+  Alert,
   Box,
   Button,
   Card,
@@ -110,14 +111,10 @@ export default function VerificarVisitante() {
 
   const verificar = async () => {
     if (!docsComplete) {
-      const faltantes = DOCUMENTOS_CHECKS_LIST.filter(
-        ({ key }) => !checks[key]
-      )
-        .map((item) => item.label)
-        .join(", ");
       await confirm({
         title: "Documentos incompletos",
-        description: `No puedes verificar sin todos los documentos. Faltan: ${faltantes}.`,
+        description:
+          "Para poder verificar el visitante, se debe tener todos los documentos marcados.",
         allowClose: true,
         confirmationText: "Cerrar",
         hideCancelButton: true,
@@ -128,9 +125,9 @@ export default function VerificarVisitante() {
     try {
       const result = await confirm({
         title: "Confirmar verificación",
-        description: `Se verificará al visitante ${nombre} con documentos completos.`,
+        description: `Confirma que los documentos de ${nombre} están completos y vigentes?`,
         allowClose: true,
-        confirmationText: "Verificar",
+        confirmationText: "Continuar",
       });
       if (!result.confirmed) return;
     } catch {
@@ -199,6 +196,14 @@ export default function VerificarVisitante() {
                   }}
                 />
               </Grid>
+              {activo && !verificado && (
+                <Grid size={12}>
+                  <Alert severity="error">
+                    El visitante está activo, pero su verificación de documentos
+                    está pendiente. No cuenta con acceso a las instalaciones.
+                  </Alert>
+                </Grid>
+              )}
               <Grid size={{ xs: 12 }} width={"100%"}>
                 <Typography
                   variant="h4"
@@ -348,7 +353,7 @@ export default function VerificarVisitante() {
                   mb={2}
                   mt={3}
                 >
-                  <strong>Documentos</strong>
+                  <strong>Lista de documentos obligatorios para realizar el registro</strong>
                 </Typography>
                 <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
                   <Chip
@@ -357,18 +362,35 @@ export default function VerificarVisitante() {
                     size="medium"
                   />
                 </Box>
-                <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
+                <Grid container spacing={{ xs: 2, sm: 2 }} sx={{ my: 2 }}>
                   {DOCUMENTOS_CHECKS_LIST.map(({ key, label }) => (
                     <Grid
                       key={key}
                       size={{ xs: 12, sm: 6 }}
-                      sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.5,
+                        justifyContent: "flex-start",
+                      }}
                     >
-                      <strong>{label}:</strong>
+                      <Box sx={{ minWidth: 190 }}>
+                        <strong>{label}:</strong>
+                      </Box>
                       {checks[key] ? (
-                        <Chip label="OK" color="success" size="small" />
+                        <Chip
+                          label="OK"
+                          color="success"
+                          size="small"
+                          sx={{ minWidth: 90, justifyContent: "center" }}
+                        />
                       ) : (
-                        <Chip label="Pendiente" color="error" size="small" />
+                        <Chip
+                          label="Pendiente"
+                          color="error"
+                          size="small"
+                          sx={{ minWidth: 90, justifyContent: "center" }}
+                        />
                       )}
                     </Grid>
                   ))}

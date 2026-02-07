@@ -176,7 +176,7 @@ export default function EditarVisitante() {
           const result = await confirm({
             title: "¿Seguro que deseas modificar los documentos?",
             description:
-              "Al guardar cambios en documentos, el visitante se desactivará del panel y requerirá verificación nuevamente.",
+              "Al guardar los cambios en la lista de documentos, el visitante quedara sin acceso y se requerirá nuevamente la verificación.",
             allowClose: true,
             confirmationText: "Continuar",
           });

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import {
   Avatar,
+  Alert,
   Box,
   Button,
   Card,
@@ -140,6 +141,14 @@ export default function DetalleVisitante() {
                   }}
                 />
               </Grid>
+              {activo && !verificado && (
+                <Grid size={12}>
+                  <Alert severity="error">
+                    El visitante está activo, pero su verificación de documentos
+                    está pendiente. No cuenta con acceso a las instalaciones.
+                  </Alert>
+                </Grid>
+              )}
               <Grid size={{ xs: 12 }} width={"100%"}>
                 <Typography
                   variant="h4"
@@ -280,20 +289,37 @@ export default function DetalleVisitante() {
                   mb={2}
                   mt={3}
                 >
-                  <strong>Documentos</strong>
+                  <strong>Lista de documentos obligatorios para realizar el registro</strong>
                 </Typography>
-                <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
+                <Grid container spacing={{ xs: 2, sm: 2 }} sx={{ my: 2 }}>
                   {DOCUMENTOS_CHECKS_LIST.map(({ key, label }) => (
                     <Grid
                       key={key}
                       size={{ xs: 12, sm: 6 }}
-                      sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.5,
+                        justifyContent: "flex-start",
+                      }}
                     >
-                      <strong>{label}:</strong>
+                      <Box sx={{ minWidth: 190 }}>
+                        <strong>{label}:</strong>
+                      </Box>
                       {checks[key] ? (
-                        <Chip label="OK" color="success" size="small" />
+                        <Chip
+                          label="OK"
+                          color="success"
+                          size="small"
+                          sx={{ minWidth: 90, justifyContent: "center" }}
+                        />
                       ) : (
-                        <Chip label="Pendiente" color="error" size="small" />
+                        <Chip
+                          label="Pendiente"
+                          color="error"
+                          size="small"
+                          sx={{ minWidth: 90, justifyContent: "center" }}
+                        />
                       )}
                     </Grid>
                   ))}
