@@ -8,7 +8,9 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Divider,
+  FormControlLabel,
   Stack,
   Typography,
 } from "@mui/material";
@@ -23,6 +25,11 @@ import { setFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
+import {
+  DOCUMENTOS_CHECKS_LIST,
+  EMPTY_DOCUMENTOS_CHECKS,
+  type DocumentosChecks,
+} from "./documentosChecks";
 
 const ProfilePicture = lazy(() => import("../../utils/ProfilePicture"));
 
@@ -35,6 +42,7 @@ type FormValues = {
   telefono?: string;
   correo: string;
   contrasena?: string;
+  documentos_checks: DocumentosChecks;
 };
 
 const resolver = yup.object().shape({
@@ -88,6 +96,18 @@ const resolver = yup.object().shape({
     .required("Este campo es obligatorio.")
     .email("Formato de correo inválido."),
   contrasena: yup.string().notRequired(),
+  documentos_checks: yup.object({
+    identificacion_oficial: yup
+      .boolean()
+      .oneOf([true], "Debes marcar todos los documentos."),
+    sua: yup.boolean().oneOf([true], "Debes marcar todos los documentos."),
+    permiso_entrada: yup
+      .boolean()
+      .oneOf([true], "Debes marcar todos los documentos."),
+    lista_articulos: yup
+      .boolean()
+      .oneOf([true], "Debes marcar todos los documentos."),
+  }),
 }) as yup.ObjectSchema<FormValues>;
 
 const initialValue: FormValues = {
@@ -99,6 +119,7 @@ const initialValue: FormValues = {
   telefono: "",
   correo: "",
   contrasena: "",
+  documentos_checks: { ...EMPTY_DOCUMENTOS_CHECKS },
 };
 
 export default function NuevoVisitante() {
@@ -134,40 +155,6 @@ export default function NuevoVisitante() {
     if (!res.data.estado) {
       enqueueSnackbar(res.data.mensaje, { variant: "warning" });
       return;
-    }
-
-    const visitanteId = res.data.datos?._id;
-    if (!visitanteId) {
-      enqueueSnackbar("No llegó el _id del visitante.", { variant: "warning" });
-      return;
-    }
-
-    // 1) traer paneles activos
-    const pRes = await clienteAxios.get("/api/dispositivos-hikvision/demonio");
-    const paneles = pRes.data?.datos || [];
-
-    if (!Array.isArray(paneles) || paneles.length === 0) {
-      enqueueSnackbar("No hay paneles activos.", { variant: "warning" });
-      parentGridDataRef.fetchRows();
-      navigate("/visitantes");
-      return;
-    }
-
-    // 2) sincronizar el visitante en cada panel activo
-    let ok = 0;
-    let fail = 0;
-
-    for (const p of paneles) {
-      try {
-        const panelId = p._id;
-        const sRes = await clienteAxios.get(
-          `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${visitanteId}`
-        );
-        if (sRes.data?.estado) ok++;
-        else fail++;
-      } catch {
-        fail++;
-      }
     }
 
     enqueueSnackbar("Visitante creado con exito", {
@@ -293,6 +280,33 @@ export default function NuevoVisitante() {
                   margin="normal"
                   type="email"
                 />
+                <Typography variant="overline" component="h6" sx={{ mt: 2 }}>
+                  Documentos
+                </Typography>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  flexWrap="wrap"
+                  gap={1}
+                >
+                  {DOCUMENTOS_CHECKS_LIST.map(({ key, label }) => (
+                    <Controller
+                      key={key}
+                      name={`documentos_checks.${key}`}
+                      control={formContext.control}
+                      render={({ field }) => (
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={Boolean(field.value)}
+                              onChange={(e) => field.onChange(e.target.checked)}
+                            />
+                          }
+                          label={label}
+                        />
+                      )}
+                    />
+                  ))}
+                </Stack>
                 <Divider sx={{ my: 2 }} />
                 <Box
                   component="footer"

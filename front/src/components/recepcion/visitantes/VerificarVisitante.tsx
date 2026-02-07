@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import {
   Avatar,
@@ -13,13 +13,16 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { ChevronLeft } from "@mui/icons-material";
+import { ChevronLeft, Verified } from "@mui/icons-material";
 import ModalContainer from "../../utils/ModalContainer";
 import Spinner from "../../utils/Spinner";
 import { enqueueSnackbar } from "notistack";
 import dayjs from "dayjs";
+import { useConfirm } from "material-ui-confirm";
+import type { GridDataSourceApiBase } from "@mui/x-data-grid";
 import {
   DOCUMENTOS_CHECKS_LIST,
+  areDocumentosChecksComplete,
   normalizeDocumentosChecks,
   type DocumentosChecks,
 } from "./documentosChecks";
@@ -39,10 +42,13 @@ type TUsuario = {
   documentos_checks: DocumentosChecks;
 };
 
-export default function DetalleVisitante() {
+export default function VerificarVisitante() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
+  const confirm = useConfirm();
   const [isLoading, setIsLoading] = useState(true);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [datos, setDatos] = useState<TUsuario>({
     img_usuario: "",
     nombre: "",
@@ -62,6 +68,7 @@ export default function DetalleVisitante() {
       lista_articulos: false,
     },
   });
+
   const {
     img_usuario,
     nombre,
@@ -77,6 +84,7 @@ export default function DetalleVisitante() {
     documentos_checks,
   } = datos;
   const checks = normalizeDocumentosChecks(documentos_checks);
+  const docsComplete = areDocumentosChecksComplete(checks);
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -101,28 +109,75 @@ export default function DetalleVisitante() {
     navigate(`/visitantes`);
   };
 
+  const verificar = async () => {
+    if (!docsComplete) {
+      await confirm({
+        title: "Documentos incompletos",
+        description:
+          "Para poder verificar el visitante, se debe tener todos los documentos marcados.",
+        allowClose: true,
+        confirmationText: "Cerrar",
+        hideCancelButton: true,
+      }).catch(() => {});
+      return;
+    }
+
+    try {
+      const result = await confirm({
+        title: "Confirmar verificación",
+        description: `Confirma que los documentos de ${nombre} están completos y vigentes?`,
+        allowClose: true,
+        confirmationText: "Continuar",
+      });
+      if (!result.confirmed) return;
+    } catch {
+      return;
+    }
+
+    setIsVerifying(true);
+    try {
+      const res = await clienteAxios.patch(`/api/visitantes/verificar/${id}`);
+      if (res.data.estado) {
+        enqueueSnackbar("Visitante verificado.", { variant: "success" });
+        parentGridDataRef?.fetchRows?.();
+        navigate("/visitantes");
+      } else {
+        enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   return (
     <ModalContainer containerProps={{ maxWidth: "lg" }}>
       <Card elevation={5}>
         <CardContent>
-          <Typography variant="h5" component="h5" textAlign="center">
-            Visitante{" - "}
-            {!isLoading && (
-              <>
-                {activo ? (
-                  <Chip label="Activo" color="success" />
-                ) : (
-                  <Chip label="Inactivo" color="error" />
+          {!isVerifying && (
+            <>
+              <Typography variant="h5" component="h5" textAlign="center">
+                Verificar Visitante{" - "}
+                {!isLoading && (
+                  <>
+                    {activo ? (
+                      <Chip label="Activo" color="success" />
+                    ) : (
+                      <Chip label="Inactivo" color="error" />
+                    )}
+                    {verificado ? (
+                      <Chip label="Verificado" color="success" sx={{ ml: 1 }} />
+                    ) : (
+                      <Chip label="No verificado" color="error" sx={{ ml: 1 }} />
+                    )}
+                  </>
                 )}
-                {verificado ? (
-                  <Chip label="Verificado" color="success" sx={{ ml: 1 }} />
-                ) : (
-                  <Chip label="No verificado" color="error" sx={{ ml: 1 }} />
-                )}
-              </>
-            )}
-          </Typography>
-          {isLoading ? (
+              </Typography>
+            </>
+          )}
+          {isLoading || isVerifying ? (
             <Spinner />
           ) : (
             <Grid container spacing={2}>
@@ -199,7 +254,10 @@ export default function DetalleVisitante() {
                 </Grid>
                 {telefono && (
                   <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
-                    <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
+                    <Grid
+                      size="auto"
+                      sx={{ width: { xs: "100%", sm: "30%" } }}
+                    >
                       <strong>Teléfono:</strong>
                     </Grid>
                     <Grid
@@ -242,7 +300,10 @@ export default function DetalleVisitante() {
                 </Grid>
                 {fecha_modificacion && (
                   <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
-                    <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
+                    <Grid
+                      size="auto"
+                      sx={{ width: { xs: "100%", sm: "30%" } }}
+                    >
                       <strong>Modificado el:</strong>
                     </Grid>
                     <Grid
@@ -265,7 +326,10 @@ export default function DetalleVisitante() {
                 )}
                 {modificado_por && (
                   <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
-                    <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
+                    <Grid
+                      size="auto"
+                      sx={{ width: { xs: "100%", sm: "30%" } }}
+                    >
                       <strong>Modificado por:</strong>
                     </Grid>
                     <Grid
@@ -291,6 +355,13 @@ export default function DetalleVisitante() {
                 >
                   <strong>Lista de documentos obligatorios para realizar el registro</strong>
                 </Typography>
+                <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
+                  <Chip
+                    label={docsComplete ? "Datos completos" : "Datos incompletos"}
+                    color={docsComplete ? "success" : "error"}
+                    size="medium"
+                  />
+                </Box>
                 <Grid container spacing={{ xs: 2, sm: 2 }} sx={{ my: 2 }}>
                   {DOCUMENTOS_CHECKS_LIST.map(({ key, label }) => (
                     <Grid
@@ -327,32 +398,47 @@ export default function DetalleVisitante() {
               </Grid>
             </Grid>
           )}
-          <Box
-            component="footer"
-            sx={{
-              display: "flex",
-              justifyContent: "end",
-            }}
-          >
-            <Stack
-              spacing={2}
-              direction={{ xs: "column-reverse", sm: "row" }}
-              justifyContent="end"
-              sx={{ width: "100%" }}
+          {!isLoading && !isVerifying && (
+            <Box
+              component="footer"
+              sx={{
+                display: "flex",
+                justifyContent: "end",
+              }}
             >
-              <Button
-                sx={{ width: { xs: "100%", sm: "auto" } }}
-                type="button"
-                size="medium"
-                variant="contained"
-                color="secondary"
-                onClick={regresar}
-                startIcon={<ChevronLeft />}
+              <Stack
+                spacing={2}
+                direction={{ xs: "column-reverse", sm: "row" }}
+                justifyContent="end"
+                sx={{ width: "100%" }}
               >
-                Regresar
-              </Button>
-            </Stack>
-          </Box>
+                <Button
+                  sx={{ width: { xs: "100%", sm: "auto" } }}
+                  type="button"
+                  size="medium"
+                  variant="contained"
+                  color="secondary"
+                  onClick={regresar}
+                  startIcon={<ChevronLeft />}
+                >
+                  Regresar
+                </Button>
+                {!verificado && (
+                  <Button
+                    sx={{ width: { xs: "100%", sm: "auto" } }}
+                    type="button"
+                    size="medium"
+                    variant="contained"
+                    onClick={verificar}
+                    startIcon={<Verified />}
+                    disabled={isVerifying}
+                  >
+                    Verificar
+                  </Button>
+                )}
+              </Stack>
+            </Box>
+          )}
         </CardContent>
       </Card>
     </ModalContainer>

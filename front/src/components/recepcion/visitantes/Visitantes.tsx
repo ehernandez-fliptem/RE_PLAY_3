@@ -7,6 +7,7 @@ import {
   GridGetRowsError,
   type GridValidRowModel,
   GridActionsCellItem,
+  type GridRowSelectionModel,
 } from "@mui/x-data-grid";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { Outlet, useNavigate } from "react-router-dom";
@@ -20,10 +21,11 @@ import {
   Lock,
   LockOpen,
   RestoreFromTrash,
+  Verified,
   // Upload, // Carga masiva oculta temporalmente
   Visibility,
 } from "@mui/icons-material";
-import { Avatar, IconButton, Tooltip } from "@mui/material";
+import { Avatar, Chip, IconButton, Tooltip } from "@mui/material";
 import { enqueueSnackbar } from "notistack";
 import { useConfirm } from "material-ui-confirm";
 import { AxiosError } from "axios";
@@ -34,6 +36,8 @@ import Spinner from "../../utils/Spinner";
 import { isBlockedNow } from "../../../utils/bloqueo";
 
 import CircularProgress from "@mui/material/CircularProgress";
+import { areDocumentosChecksComplete } from "./documentosChecks";
+// sin helpers de documentos en tabla
 
 
 const pageSizeOptions = [10, 25, 50];
@@ -46,6 +50,7 @@ export default function Visitantes() {
   const [error, setError] = useState<string>();
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [isDownloadingQr, setIsDownloadingQr] = useState({
     id_usuario: "",
     descargando: false,
@@ -113,6 +118,44 @@ export default function Visitantes() {
 
   const verRegistro = (ID: string) => {
     navigate(`detalle-visitante/${ID}`);
+  };
+
+  const verificarRegistro = (ID: string) => {
+    navigate(`verificar-visitante/${ID}`);
+  };
+
+  const verificarSeleccionado = () => {
+    if (!selectedRowId) {
+      enqueueSnackbar("Selecciona un visitante para verificar.", {
+        variant: "warning",
+      });
+      return;
+    }
+    const row = apiRef.current?.getRow(selectedRowId) as any;
+    if (!row) {
+      enqueueSnackbar("No se encontró el visitante seleccionado.", {
+        variant: "warning",
+      });
+      return;
+    }
+    if (!areDocumentosChecksComplete(row?.documentos_checks)) {
+      confirm({
+        title: "Documentos incompletos",
+        description:
+          "Para poder verificar al visitante se deben de tener todos los documentos marcados.",
+        allowClose: true,
+        confirmationText: "Cerrar",
+        hideCancelButton: true,
+      }).catch(() => {});
+      return;
+    }
+    if (row.verificado) {
+      enqueueSnackbar("Este visitante ya está verificado.", {
+        variant: "info",
+      });
+      return;
+    }
+    verificarRegistro(row._id);
   };
 
   const cambiarEstado = async (ID: string, activo: boolean) => {
@@ -216,8 +259,23 @@ export default function Visitantes() {
     }
   };
 
+  const rowSelectionModel: GridRowSelectionModel = {
+    type: "include",
+    ids: new Set(selectedRowId ? [selectedRowId] : []),
+  };
+
 const accionDesbloquear = (ID: string) => {
   const row = apiRef.current?.getRow(ID) as any;
+  if (row && !row.verificado) {
+    confirm({
+      title: "Acceso no permitido",
+      description: "Se deben verificar los documentos del visitante para habilitar el acceso.",
+      allowClose: true,
+      confirmationText: "Cerrar",
+      hideCancelButton: true,
+    }).catch(() => {});
+    return;
+  }
   if (row && row.activo === false) {
     enqueueSnackbar("Debes restaurar al visitante para habilitar el acceso.", { variant: "warning" });
     return;
@@ -256,6 +314,16 @@ const accionDesbloquear = (ID: string) => {
 
 const accionBloquear = (ID: string) => {
   const row = apiRef.current?.getRow(ID) as any;
+  if (row && !row.verificado) {
+    confirm({
+      title: "Acceso no permitido",
+      description: "El visitante debe estar verificado para cambiar el acceso.",
+      allowClose: true,
+      confirmationText: "Cerrar",
+      hideCancelButton: true,
+    }).catch(() => {});
+    return;
+  }
   if (row && row.activo === false) {
     enqueueSnackbar("Debes restaurar al visitante para cambiar el acceso.", { variant: "warning" });
     return;
@@ -334,7 +402,7 @@ const accionBloquear = (ID: string) => {
             display: "flex",
             minWidth: 180,
             renderCell: ({ value }) => (
-              <span style={{ fontSize: 14, fontWeight: 600 }}>{value}</span>
+              <span style={{ fontSize: 14, fontWeight: 400 }}>{value}</span>
             ),
           },
           {
@@ -355,19 +423,60 @@ const accionBloquear = (ID: string) => {
             minWidth: 70,
             display: "flex",
             renderCell: ({ row }) => {
+              const isVerified = Boolean(row?.verificado);
               return (
                 <Fragment>
                   {isDownloadingQr.descargando &&
                   row._id === isDownloadingQr.id_usuario ? (
                     <Spinner size="small" />
-                  ) : (
+                  ) : isVerified ? (
                     <IconButton
                       onClick={() => descargarQr(row._id, row.nombre)}
                     >
                       <GetApp fontSize="small" color="success" />
                     </IconButton>
+                  ) : (
+                    <Tooltip title="Visitante no verificado">
+                      <span>
+                        <IconButton disabled>
+                          <GetApp fontSize="small" color="disabled" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                   )}
                 </Fragment>
+              );
+            },
+          },
+          {
+            headerName: "Estatus",
+            field: "verificado",
+            headerAlign: "center",
+            align: "center",
+            flex: 1,
+            minWidth: 140,
+            sortable: false,
+            renderCell: ({ row }) => {
+              const verified = Boolean(row?.verificado);
+              return (
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "6px 0",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <Chip
+                    label={verified ? "Verificado" : "No verificado"}
+                    color={verified ? "success" : "error"}
+                    size="small"
+                    sx={{ minWidth: 110, justifyContent: "center" }}
+                  />
+                </div>
               );
             },
           },
@@ -469,11 +578,38 @@ const accionBloquear = (ID: string) => {
             }
           }
         ]}
-        disableRowSelectionOnClick
+        disableRowSelectionOnClick={false}
         disableColumnFilter
         filterDebounceMs={1000}
         dataSource={dataSource}
         dataSourceCache={null}
+        rowSelectionModel={rowSelectionModel}
+        onRowSelectionModelChange={(model) => {
+          const ids = "ids" in model ? Array.from(model.ids) : model;
+          const next = Array.isArray(ids) ? ids[0] : undefined;
+          setSelectedRowId(next ? String(next) : null);
+        }}
+        onCellClick={(params) => {
+          setSelectedRowId(String(params.id));
+        }}
+        getRowClassName={(params) =>
+          params.id === selectedRowId ? "row-selected" : ""
+        }
+        sx={{
+          "& .row-selected": {
+            outline: "2px solid #7A3DF0",
+            outlineOffset: -2,
+          },
+          "& .MuiDataGrid-row.Mui-selected": {
+            backgroundColor: "rgba(122, 61, 240, 0.08)",
+          },
+          "& .MuiDataGrid-cell.MuiDataGrid-cell--focus": {
+            outline: "none",
+          },
+          "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
+            outline: "none",
+          },
+        }}
         onDataSourceError={(dataSourceError) => {
           if (dataSourceError.cause instanceof AxiosError) {
             setError(dataSourceError.cause.code);
@@ -494,6 +630,7 @@ const accionBloquear = (ID: string) => {
           toolbarDensity: "",
           toolbarExport: "",
           noRowsLabel: "Sin registros",
+          footerRowSelected: () => "",
         }}
         slots={{
           toolbar: () => (
@@ -504,6 +641,11 @@ const accionBloquear = (ID: string) => {
                   <Tooltip title="Agregar">
                     <IconButton onClick={nuevoRegistro}>
                       <Add fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Verificar">
+                    <IconButton onClick={verificarSeleccionado}>
+                      <Verified fontSize="small" />
                     </IconButton>
                   </Tooltip>
                   {/* Carga masiva oculta temporalmente; mantener para uso futuro */}

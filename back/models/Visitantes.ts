@@ -25,6 +25,12 @@ export interface IVisitante extends Document {
     apellido_mat?: string;
     telefono?: string;
     documentos?: mongoose.Types.ObjectId[]
+    documentos_checks?: {
+        identificacion_oficial: boolean;
+        sua: boolean;
+        permiso_entrada: boolean;
+        lista_articulos: boolean;
+    };
     empresa?: string;
     rol: number[]
     token_web?: string;
@@ -37,6 +43,7 @@ export interface IVisitante extends Document {
     fecha_modificacion?: Date;
     modificado_por?: mongoose.Types.ObjectId;
     activo: boolean;
+    verificado: boolean;
 }
 
 const visitanteSchema = new Schema<IVisitante>({
@@ -109,6 +116,12 @@ const visitanteSchema = new Schema<IVisitante>({
     telefono: { type: String, default: '' },
     empresa: { type: String, default: '' },
     documentos: [{ type: Schema.Types.ObjectId, default: null, ref: 'documentos' }],
+    documentos_checks: {
+        identificacion_oficial: { type: Boolean, default: false },
+        sua: { type: Boolean, default: false },
+        permiso_entrada: { type: Boolean, default: false },
+        lista_articulos: { type: Boolean, default: false },
+    },
     rol: {
         type: [Number],
         required: [true, 'El rol es obligatorio.'],
@@ -127,6 +140,7 @@ const visitanteSchema = new Schema<IVisitante>({
     activo: { type: Boolean, default: true },
     bloqueado: { type: Boolean, default: false },
     desbloqueado_hasta: { type: Date, default: null },
+    verificado: { type: Boolean, default: false },
 });
 
 visitanteSchema.pre<IVisitante>('save', async function (next) {

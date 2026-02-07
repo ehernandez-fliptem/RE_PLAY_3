@@ -900,7 +900,9 @@ export async function crear(req: Request, res: Response): Promise<void> {
                             const { direccion_ip, usuario, contrasena } = panel;
                             const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
                             const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                            if (nuevoUsuario.img_usuario) await HVPANEL.getTokenValue();
+                            // Si hay foto, dejamos que el panel_server maneje la auth internamente
+                            // (evita fallas de hikvision-auth en /api/panel/seguridad).
+                            // if (nuevoUsuario.img_usuario) await HVPANEL.getTokenValue();
                             await HVPANEL.saverUser(mapEmpleadoToPanel(reg_saved));
                         } catch (error: any) {
                             console.warn("[EMPLEADOS][CREAR] Sync panel falló:", error?.message || error);
@@ -986,7 +988,9 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                     const { direccion_ip, usuario, contrasena } = panel;
                     const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
                     const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                    if (registro.img_usuario) await HVPANEL.getTokenValue();
+                    // Si hay foto, dejamos que el panel_server maneje la auth internamente
+                    // (evita fallas de hikvision-auth en /api/panel/seguridad).
+                    // if (registro.img_usuario) await HVPANEL.getTokenValue();
                     await HVPANEL.saverUser(mapEmpleadoToPanel(registro));
                 } catch (error: any) {
                     console.warn("[EMPLEADOS][MODIFICAR] Sync panel falló:", error?.message || error);

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Close, Save } from "@mui/icons-material";
 import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -8,7 +8,9 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Divider,
+  FormControlLabel,
   Stack,
   Typography,
 } from "@mui/material";
@@ -26,6 +28,13 @@ import { setFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
+import { useConfirm } from "material-ui-confirm";
+import {
+  DOCUMENTOS_CHECKS_LIST,
+  EMPTY_DOCUMENTOS_CHECKS,
+  areDocumentosChecksEqual,
+  type DocumentosChecks,
+} from "./documentosChecks";
 
 const ProfilePicture = lazy(() => import("../../utils/ProfilePicture"));
 
@@ -37,6 +46,7 @@ type FormValues = {
   empresa?: string;
   telefono?: string;
   correo: string;
+  documentos_checks: DocumentosChecks;
 };
 
 const resolver = yup.object().shape({
@@ -89,6 +99,12 @@ const resolver = yup.object().shape({
     .string()
     .required("Este campo es obligatorio.")
     .email("Formato de correo inválido."),
+  documentos_checks: yup.object({
+    identificacion_oficial: yup.boolean(),
+    sua: yup.boolean(),
+    permiso_entrada: yup.boolean(),
+    lista_articulos: yup.boolean(),
+  }),
 }) as yup.ObjectSchema<FormValues>;
 
 const initialValue: FormValues = {
@@ -99,6 +115,7 @@ const initialValue: FormValues = {
   empresa: "",
   telefono: "",
   correo: "",
+  documentos_checks: { ...EMPTY_DOCUMENTOS_CHECKS },
 };
 
 export default function EditarVisitante() {
@@ -112,8 +129,14 @@ export default function EditarVisitante() {
     mode: "all",
   });
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
+  const [isVerificado, setIsVerificado] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const originalDocChecksRef = useRef<DocumentosChecks>({
+    ...EMPTY_DOCUMENTOS_CHECKS,
+  });
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -121,7 +144,16 @@ export default function EditarVisitante() {
         const res = await clienteAxios.get(`/api/visitantes/form-editar/${ID}`);
         if (res.data.estado) {
           const { visitante } = res.data.datos;
-          formContext.reset(visitante);
+          const normalizedChecks = {
+            ...EMPTY_DOCUMENTOS_CHECKS,
+            ...(visitante.documentos_checks || {}),
+          };
+          formContext.reset({
+            ...visitante,
+            documentos_checks: normalizedChecks,
+          });
+          originalDocChecksRef.current = normalizedChecks;
+          setIsVerificado(Boolean(visitante.verificado));
           setIsLoading(false);
         } else {
           enqueueSnackbar(res.data.mensaje, { variant: "warning" });
@@ -135,25 +167,54 @@ export default function EditarVisitante() {
   }, [formContext, ID]);
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
+      const docsChanged = !areDocumentosChecksEqual(
+        originalDocChecksRef.current,
+        data.documentos_checks
+      );
+      if (isVerificado && docsChanged) {
+        try {
+          const result = await confirm({
+            title: "¿Seguro que deseas modificar los documentos?",
+            description:
+              "Al guardar los cambios en la lista de documentos, el visitante quedara sin acceso y se requerirá nuevamente la verificación.",
+            allowClose: true,
+            confirmationText: "Continuar",
+          });
+          if (!result.confirmed) return;
+        } catch {
+          return;
+        }
+      }
+
+      setIsSaving(true);
       const res = await clienteAxios.put(`/api/visitantes/${ID}`, data);
       if (res.data.estado) {
-        try {
-          const pRes = await clienteAxios.get("/api/dispositivos-hikvision/demonio");
-          const paneles = pRes.data?.datos || [];
-          if (Array.isArray(paneles) && paneles.length > 0 && ID) {
-            for (const p of paneles) {
-              try {
-                const panelId = p._id;
-                await clienteAxios.get(
-                  `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${ID}`
-                );
-              } catch {
-                // no bloquea si un panel falla
+        if (res.data.datos?.verificado) {
+          try {
+            const pRes = await clienteAxios.get(
+              "/api/dispositivos-hikvision/demonio"
+            );
+            const paneles = pRes.data?.datos || [];
+            if (Array.isArray(paneles) && paneles.length > 0 && ID) {
+              for (const p of paneles) {
+                try {
+                  const panelId = p._id;
+                  await clienteAxios.get(
+                    `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${ID}`
+                  );
+                } catch {
+                  // no bloquea si un panel falla
+                }
               }
             }
+          } catch {
+            // no bloquea si no se pudieron listar paneles
           }
-        } catch {
-          // no bloquea si no se pudieron listar paneles
+        }
+        if (res.data.datos?.requiereReverificacion) {
+          enqueueSnackbar("Se requieren nuevas verificaciones de documentos.", {
+            variant: "warning",
+          });
         }
         enqueueSnackbar("El visitante se modificó correctamente.", {
           variant: "success",
@@ -166,6 +227,8 @@ export default function EditarVisitante() {
     } catch (error: unknown) {
       const { erroresForm } = handlingError(error);
       if (erroresForm) setFormErrors(formContext.setError, erroresForm);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -182,7 +245,7 @@ export default function EditarVisitante() {
       <Box component="section">
         <Card elevation={5}>
           <CardContent>
-            {formContext.formState.isSubmitting || isLoading ? (
+            {isLoading || isSaving ? (
               <Spinner />
             ) : (
               <FormContainer formContext={formContext} onSuccess={onSubmit}>
@@ -254,6 +317,33 @@ export default function EditarVisitante() {
                   margin="normal"
                   type="email"
                 />
+                <Typography variant="overline" component="h6" sx={{ mt: 2 }}>
+                  Documentos
+                </Typography>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  flexWrap="wrap"
+                  gap={1}
+                >
+                  {DOCUMENTOS_CHECKS_LIST.map(({ key, label }) => (
+                    <Controller
+                      key={key}
+                      name={`documentos_checks.${key}`}
+                      control={formContext.control}
+                      render={({ field }) => (
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={Boolean(field.value)}
+                              onChange={(e) => field.onChange(e.target.checked)}
+                            />
+                          }
+                          label={label}
+                        />
+                      )}
+                    />
+                  ))}
+                </Stack>
                 <Divider sx={{ my: 2 }} />
                 <Box
                   component="footer"
@@ -281,7 +371,7 @@ export default function EditarVisitante() {
                       Cancelar
                     </Button>
                     <Button
-                      disabled={!formContext.formState.isValid}
+                      disabled={!formContext.formState.isValid || isSaving}
                       type="submit"
                       size="medium"
                       variant="contained"
