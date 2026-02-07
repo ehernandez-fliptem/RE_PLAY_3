@@ -53,6 +53,7 @@ import Visitantes from "./recepcion/visitantes/Visitantes";
 import NuevoVisitante from "./recepcion/visitantes/NuevoVisitante";
 import EditarVisitante from "./recepcion/visitantes/EditarVisitante";
 import DetalleVisitante from "./recepcion/visitantes/DetalleVisitante";
+import VerificarVisitante from "./recepcion/visitantes/VerificarVisitante";
 import CargaVisitantes from "./recepcion/visitantes/CargaVisitantes";
 import ValidarDocumentos from "./recepcion/documentos/ValidarDocumentos";
 import Documentos from "./recepcion/documentos/Documentos";
@@ -394,6 +395,11 @@ export default function Routes() {
               path: "detalle-visitante/:id",
               element:
                 esAdmin || esRecep ? <DetalleVisitante /> : <Unauthorized />,
+            },
+            {
+              path: "verificar-visitante/:id",
+              element:
+                esAdmin || esRecep ? <VerificarVisitante /> : <Unauthorized />,
             },
           ],
         },

@@ -133,6 +133,7 @@ export default function EditarVisitante() {
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
   const [isVerificado, setIsVerificado] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const originalDocChecksRef = useRef<DocumentosChecks>({
     ...EMPTY_DOCUMENTOS_CHECKS,
   });
@@ -185,6 +186,7 @@ export default function EditarVisitante() {
         }
       }
 
+      setIsSaving(true);
       const res = await clienteAxios.put(`/api/visitantes/${ID}`, data);
       if (res.data.estado) {
         if (res.data.datos?.verificado) {
@@ -225,6 +227,8 @@ export default function EditarVisitante() {
     } catch (error: unknown) {
       const { erroresForm } = handlingError(error);
       if (erroresForm) setFormErrors(formContext.setError, erroresForm);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -241,7 +245,7 @@ export default function EditarVisitante() {
       <Box component="section">
         <Card elevation={5}>
           <CardContent>
-            {formContext.formState.isSubmitting || isLoading ? (
+            {isLoading || isSaving ? (
               <Spinner />
             ) : (
               <FormContainer formContext={formContext} onSuccess={onSubmit}>
@@ -367,7 +371,7 @@ export default function EditarVisitante() {
                       Cancelar
                     </Button>
                     <Button
-                      disabled={!formContext.formState.isValid}
+                      disabled={!formContext.formState.isValid || isSaving}
                       type="submit"
                       size="medium"
                       variant="contained"

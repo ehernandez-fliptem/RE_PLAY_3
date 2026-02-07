@@ -57,12 +57,9 @@ export default function Visitantes() {
   });
 
   const [loadingRows, setLoadingRows] = useState<Record<string, boolean>>({});
-  const [verifyingRows, setVerifyingRows] = useState<Record<string, boolean>>({});
   const autoBlockedByTrashRef = useRef<Record<string, boolean>>({});
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
-  const setVerifyLoading = (id: string, isLoading: boolean) =>
-    setVerifyingRows((prev) => ({ ...prev, [id]: isLoading }));
 
 
   const dataSource: GridDataSource = useMemo(
@@ -121,6 +118,10 @@ export default function Visitantes() {
 
   const verRegistro = (ID: string) => {
     navigate(`detalle-visitante/${ID}`);
+  };
+
+  const verificarRegistro = (ID: string) => {
+    navigate(`verificar-visitante/${ID}`);
   };
 
   const cambiarEstado = async (ID: string, activo: boolean) => {
@@ -224,7 +225,7 @@ export default function Visitantes() {
     }
   };
 
-  const verificarVisitante = async (row: any) => {
+  const validarDocsParaVerificacion = async (row: any) => {
     const checks = normalizeDocumentosChecks(row?.documentos_checks);
     if (!areDocumentosChecksComplete(checks)) {
       const faltantes = DOCUMENTOS_CHECKS_LIST.filter(
@@ -237,36 +238,11 @@ export default function Visitantes() {
         description: `No puedes verificar sin todos los documentos. Faltan: ${faltantes}.`,
         allowClose: true,
         confirmationText: "Cerrar",
-        cancellationText: "",
+        hideCancelButton: true,
       }).catch(() => {});
-      return;
+      return false;
     }
-
-    if (verifyingRows[row._id]) return;
-    setVerifyLoading(row._id, true);
-    try {
-      const res = await clienteAxios.patch(
-        `/api/visitantes/verificar/${row._id}`
-      );
-      if (res.data.estado) {
-        apiRef.current?.updateRows([
-          {
-            _id: row._id,
-            verificado: true,
-            bloqueado: res.data.datos?.bloqueado,
-            desbloqueado_hasta: res.data.datos?.desbloqueado_hasta ?? null,
-          },
-        ]);
-        enqueueSnackbar("Visitante verificado.", { variant: "success" });
-      } else {
-        enqueueSnackbar(res.data.mensaje, { variant: "warning" });
-      }
-    } catch (error) {
-      const { restartSession } = handlingError(error);
-      if (restartSession) navigate("/logout", { replace: true });
-    } finally {
-      setVerifyLoading(row._id, false);
-    }
+    return true;
   };
 
 const accionDesbloquear = (ID: string) => {
@@ -446,7 +422,6 @@ const accionBloquear = (ID: string) => {
               const checksOk = areDocumentosChecksComplete(
                 row?.documentos_checks
               );
-              const isVerifying = Boolean(verifyingRows[row._id]);
               return (
                 <Stack
                   direction="column"
@@ -463,10 +438,12 @@ const accionBloquear = (ID: string) => {
                     <Button
                       size="small"
                       variant="outlined"
-                      onClick={() => verificarVisitante(row)}
-                      disabled={isVerifying}
+                      onClick={async () => {
+                        const ok = await validarDocsParaVerificacion(row);
+                        if (ok) verificarRegistro(row._id);
+                      }}
                     >
-                      {isVerifying ? "Verificando..." : "Verificar"}
+                      Verificar
                     </Button>
                   )}
                   {!verified && !checksOk && (
