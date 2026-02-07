@@ -36,6 +36,7 @@ const PROD_ROUTES = [
     '/visitantes/nuevo-visitante',
     '/visitantes/editar-visitante/:id',
     '/visitantes/detalle-visitante/:id',
+    '/visitantes/verificar-visitante/:id',
     '/visitantes/carga-masiva',
     '/validacion-documentos',
     '/validacion-documentos/editar-documento/:id',
