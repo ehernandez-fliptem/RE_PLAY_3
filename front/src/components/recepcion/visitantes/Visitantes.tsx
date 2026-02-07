@@ -23,7 +23,7 @@ import {
   // Upload, // Carga masiva oculta temporalmente
   Visibility,
 } from "@mui/icons-material";
-import { Avatar, IconButton, Tooltip } from "@mui/material";
+import { Avatar, Button, Chip, IconButton, Stack, Tooltip } from "@mui/material";
 import { enqueueSnackbar } from "notistack";
 import { useConfirm } from "material-ui-confirm";
 import { AxiosError } from "axios";
@@ -34,6 +34,11 @@ import Spinner from "../../utils/Spinner";
 import { isBlockedNow } from "../../../utils/bloqueo";
 
 import CircularProgress from "@mui/material/CircularProgress";
+import {
+  DOCUMENTOS_CHECKS_LIST,
+  areDocumentosChecksComplete,
+  normalizeDocumentosChecks,
+} from "./documentosChecks";
 
 
 const pageSizeOptions = [10, 25, 50];
@@ -52,9 +57,12 @@ export default function Visitantes() {
   });
 
   const [loadingRows, setLoadingRows] = useState<Record<string, boolean>>({});
+  const [verifyingRows, setVerifyingRows] = useState<Record<string, boolean>>({});
   const autoBlockedByTrashRef = useRef<Record<string, boolean>>({});
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
+  const setVerifyLoading = (id: string, isLoading: boolean) =>
+    setVerifyingRows((prev) => ({ ...prev, [id]: isLoading }));
 
 
   const dataSource: GridDataSource = useMemo(
@@ -216,6 +224,51 @@ export default function Visitantes() {
     }
   };
 
+  const verificarVisitante = async (row: any) => {
+    const checks = normalizeDocumentosChecks(row?.documentos_checks);
+    if (!areDocumentosChecksComplete(checks)) {
+      const faltantes = DOCUMENTOS_CHECKS_LIST.filter(
+        ({ key }) => !checks[key]
+      )
+        .map((item) => item.label)
+        .join(", ");
+      await confirm({
+        title: "Documentos incompletos",
+        description: `No puedes verificar sin todos los documentos. Faltan: ${faltantes}.`,
+        allowClose: true,
+        confirmationText: "Cerrar",
+        cancellationText: "",
+      }).catch(() => {});
+      return;
+    }
+
+    if (verifyingRows[row._id]) return;
+    setVerifyLoading(row._id, true);
+    try {
+      const res = await clienteAxios.patch(
+        `/api/visitantes/verificar/${row._id}`
+      );
+      if (res.data.estado) {
+        apiRef.current?.updateRows([
+          {
+            _id: row._id,
+            verificado: true,
+            bloqueado: res.data.datos?.bloqueado,
+            desbloqueado_hasta: res.data.datos?.desbloqueado_hasta ?? null,
+          },
+        ]);
+        enqueueSnackbar("Visitante verificado.", { variant: "success" });
+      } else {
+        enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setVerifyLoading(row._id, false);
+    }
+  };
+
 const accionDesbloquear = (ID: string) => {
   const row = apiRef.current?.getRow(ID) as any;
   if (row && row.activo === false) {
@@ -355,19 +408,75 @@ const accionBloquear = (ID: string) => {
             minWidth: 70,
             display: "flex",
             renderCell: ({ row }) => {
+              const isVerified = Boolean(row?.verificado);
               return (
                 <Fragment>
                   {isDownloadingQr.descargando &&
                   row._id === isDownloadingQr.id_usuario ? (
                     <Spinner size="small" />
-                  ) : (
+                  ) : isVerified ? (
                     <IconButton
                       onClick={() => descargarQr(row._id, row.nombre)}
                     >
                       <GetApp fontSize="small" color="success" />
                     </IconButton>
+                  ) : (
+                    <Tooltip title="Visitante no verificado">
+                      <span>
+                        <IconButton disabled>
+                          <GetApp fontSize="small" color="disabled" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                   )}
                 </Fragment>
+              );
+            },
+          },
+          {
+            headerName: "Verificado",
+            field: "verificado",
+            headerAlign: "center",
+            align: "center",
+            flex: 1,
+            minWidth: 160,
+            sortable: false,
+            renderCell: ({ row }) => {
+              const verified = Boolean(row?.verificado);
+              const checksOk = areDocumentosChecksComplete(
+                row?.documentos_checks
+              );
+              const isVerifying = Boolean(verifyingRows[row._id]);
+              return (
+                <Stack
+                  direction="column"
+                  spacing={0.5}
+                  alignItems="center"
+                  sx={{ width: "100%" }}
+                >
+                  <Chip
+                    label={verified ? "Verificado" : "No verificado"}
+                    color={verified ? "success" : "error"}
+                    size="small"
+                  />
+                  {!verified && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => verificarVisitante(row)}
+                      disabled={isVerifying}
+                    >
+                      {isVerifying ? "Verificando..." : "Verificar"}
+                    </Button>
+                  )}
+                  {!verified && !checksOk && (
+                    <Chip
+                      label="Docs incompletos"
+                      color="warning"
+                      size="small"
+                    />
+                  )}
+                </Stack>
               );
             },
           },

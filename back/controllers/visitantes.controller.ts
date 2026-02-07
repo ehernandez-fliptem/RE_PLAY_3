@@ -78,6 +78,128 @@ const tryParseJson = (s: string) => {
   }
 };
 
+async function syncVisitanteEnPaneles(params: {
+  id_visitante: number;
+  fullName: string;
+  cardNo: string;
+}) {
+  const employeeNo = calcEmployeeNo(params.id_visitante);
+  const beginTime = dayjs().format("YYYY-MM-DDT00:00:00");
+  const endTime = dayjs().format("YYYY-MM-DDT23:59:59");
+
+  const paneles = await DispositivosHv.find(
+    { activo: true },
+    { direccion_ip: 1 }
+  ).lean();
+
+  const panelesOrdenados = [...paneles].sort((a: any, b: any) => {
+    const aLocal = String(a.direccion_ip).startsWith("192.168.100.");
+    const bLocal = String(b.direccion_ip).startsWith("192.168.100.");
+    return Number(bLocal) - Number(aLocal);
+  });
+
+  for (const panel of panelesOrdenados as any[]) {
+    const ip = panel.direccion_ip;
+
+    try {
+      await runCurl([
+        "--silent","--show-error","--fail-with-body",
+        "--connect-timeout","1",
+        "--max-time","2",
+        "--digest","-u", `${HV_USER}:${HV_PASS}`,
+        "-X","GET",
+        `http://${ip}/ISAPI/System/deviceInfo`,
+      ]);
+    } catch {
+      console.log("[HV] OFFLINE:", ip);
+      continue;
+    }
+
+    try {
+      const urlUser = `http://${ip}/ISAPI/AccessControl/UserInfo/Record?format=json`;
+      await runCurl([
+        "--silent","--show-error","--fail-with-body",
+        "--digest","-u", `${HV_USER}:${HV_PASS}`,
+        "-H","Content-Type: application/json",
+        "-X","POST",
+        urlUser,
+        "-d", JSON.stringify({
+          UserInfo: {
+            employeeNo,
+            name: params.fullName || `Invitado ${employeeNo}`,
+            userType: "visitor",
+            userVerifyMode: "faceOrFpOrCardOrPw",
+            Valid: { enable: true, beginTime, endTime },
+          },
+        }),
+      ]);
+
+      const urlCard = `http://${ip}/ISAPI/AccessControl/CardInfo/Record?format=json`;
+      await runCurl([
+        "--silent","--show-error","--fail-with-body",
+        "--digest","-u", `${HV_USER}:${HV_PASS}`,
+        "-H","Content-Type: application/json",
+        "-X","POST",
+        urlCard,
+        "-d", JSON.stringify({
+          CardInfo: { employeeNo, cardNo: params.cardNo, cardType: "normalCard" },
+        }),
+      ]);
+
+      const urlModify = `https://${ip}/ISAPI/AccessControl/UserInfo/Modify?format=json`;
+      await runCurl([
+        "--silent","--show-error","--fail-with-body",
+        "--insecure",
+        "--digest","-u", `${HV_USER}:${HV_PASS}`,
+        "-H","Content-Type: application/json",
+        "-X","PUT",
+        urlModify,
+        "-d", JSON.stringify({
+          UserInfo: {
+            employeeNo,
+            name: params.fullName || `Invitado ${employeeNo}`,
+            userType: "visitor",
+            Valid: { enable: true, beginTime, endTime, timeType: "local" },
+            RightPlan: [{ doorNo: 1, planTemplateNo: "1" }],
+            doorRight: "1",
+            userVerifyMode: "faceOrFpOrCardOrPw",
+          },
+        }),
+      ]);
+    } catch (e: any) {
+      console.log("[HV] ERROR panel:", ip, String(e?.message || e).slice(0, 200));
+    }
+  }
+}
+
+const DOC_CHECK_KEYS = [
+  "identificacion_oficial",
+  "sua",
+  "permiso_entrada",
+  "lista_articulos",
+] as const;
+
+type DocChecks = Record<(typeof DOC_CHECK_KEYS)[number], boolean>;
+
+const normalizeDocChecks = (value?: Partial<DocChecks> | null): DocChecks => ({
+  identificacion_oficial: Boolean(value?.identificacion_oficial),
+  sua: Boolean(value?.sua),
+  permiso_entrada: Boolean(value?.permiso_entrada),
+  lista_articulos: Boolean(value?.lista_articulos),
+});
+
+const areDocChecksComplete = (value?: Partial<DocChecks> | null): boolean =>
+  DOC_CHECK_KEYS.every((key) => Boolean(value?.[key]));
+
+const didDocChecksChange = (
+  prev?: Partial<DocChecks> | null,
+  next?: Partial<DocChecks> | null
+): boolean => {
+  const a = normalizeDocChecks(prev);
+  const b = normalizeDocChecks(next);
+  return DOC_CHECK_KEYS.some((key) => a[key] !== b[key]);
+};
+
 ///// bloquear y desbloquear visitantes
     function getHoyRangoLocal() {
     // Ventana amplia para evitar desfases de zona horaria.
@@ -643,6 +765,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
         telefono,
         correo,
         contrasena,
+        documentos_checks,
         } = req.body;
 
         const id_usuario = (req as UserRequest).userId;
@@ -663,14 +786,22 @@ export async function crear(req: Request, res: Response): Promise<void> {
         }
         lap("hash ok");
 
-        // 3) Preparar imagen UNA sola vez
+        // 3) Validar documentos
+        const normalizedDocChecks = normalizeDocChecks(documentos_checks);
+        if (!areDocChecksComplete(normalizedDocChecks)) {
+        res.status(400).json({
+            estado: false,
+            mensaje: "Debes marcar todos los documentos requeridos.",
+        });
+        return;
+        }
+
+        // 4) Preparar imagen UNA sola vez
         lap("resizeImage start");
         const imgResized = await resizeImage(img_usuario);
         lap("resizeImage done", { hasImg: !!imgResized });
 
-        const endOfTodayDate = dayjs().endOf("day").toDate(); // Date real para Mongo
-
-        // 4) Crear visitante (SIN card_code aún)
+        // 5) Crear visitante (SIN card_code aún)
         const nuevo = new Visitantes({
         contrasena: hash,
         img_usuario: imgResized,
@@ -680,185 +811,111 @@ export async function crear(req: Request, res: Response): Promise<void> {
         empresa,
         telefono,
         correo,
+        documentos_checks: normalizedDocChecks,
         creado_por: id_usuario,
-        bloqueado: false,
-        desbloqueado_hasta: endOfTodayDate,
         });
 
-        // 5) Validar modelo
+        // 6) Validar modelo
         const errores = await validarModelo(nuevo);
         if (!isEmptyObject(errores)) {
         res.status(400).json({ estado: false, mensajes: errores });
         return;
         }
 
-        // 6) Guardar en BD (aquí se genera id_visitante)
+        // 7) Guardar en BD (aquí se genera id_visitante)
         const reg_saved = await nuevo.save();
-
-        // Nombre completo (úsalo para HV y correo)
-        const fullName = `${reg_saved.nombre ?? ""} ${reg_saved.apellido_pat ?? ""} ${reg_saved.apellido_mat ?? ""}`
-        .replace(/\s+/g, " ")
-        .trim();
-
 
         lap("mongo save ok", {
         _id: String(reg_saved._id),
         id_visitante: reg_saved.id_visitante,
         });
-
-        // 7) Generar card_code DETERMINÍSTICO desde id_visitante
-        const cardNo = generarCardCodeDesdeId(reg_saved.id_visitante);
-
-        // 8) Guardar card_code
-        // await Visitantes.updateOne(
-        // { _id: reg_saved._id },
-        // { $set: { card_code: cardNo } }
-        // );
-
-        await Visitantes.updateOne(
-        { _id: reg_saved._id },
-        { $set: { card_code: cardNo, bloqueado: false, desbloqueado_hasta: endOfTodayDate } }
-        );
-
-        // 8.1) Enviar correo con QR (cardNo)
-        QRCode.toDataURL(String(cardNo), {
-        errorCorrectionLevel: "H",
-        type: "image/png",
-        width: 500,   // QR más grande desde origen
-        margin: 2,
-        })
-        .then((qrDataUrl) =>
-            enviarCorreoNuevoVisitanteHV(
-            correo,
-            fullName,
-            qrDataUrl
-            )
-        )
-        .then((okMail) => console.log("[CREAR] mail HV ok?", okMail))
-        .catch((e) => console.log("[CREAR] mail HV error:", e?.message || e));
-
-
-
-        // 9) employeeNo numérico (HV)
-        const base = 990000;
-
-        const employeeNo = String(base + Number(reg_saved.id_visitante));
-
-        // 10) Nombre completo
-        //const fullName = `${reg_saved.nombre ?? ""} ${reg_saved.apellido_pat ?? ""} ${reg_saved.apellido_mat ?? ""}`
-        //.replace(/\s+/g, " ")
-        //.trim();
-
-        console.log("[CREAR] Datos HV:", { employeeNo, cardNo, fullName });
-
-        // 11) Vigencia
-        const beginTime = dayjs().format("YYYY-MM-DDT00:00:00");
-        const endTime = dayjs().format("YYYY-MM-DDT23:59:59");
-
-        // 12) Paneles activos
-        const paneles = await DispositivosHv.find(
-        { activo: true },
-        { direccion_ip: 1 }
-        ).lean();
-
-        const panelesOrdenados = [...paneles].sort((a: any, b: any) => {
-        const aLocal = String(a.direccion_ip).startsWith("192.168.100.");
-        const bLocal = String(b.direccion_ip).startsWith("192.168.100.");
-        return Number(bLocal) - Number(aLocal);
-        });
-
-        // 13) Sincronizar con paneles
-        for (const panel of panelesOrdenados as any[]) {
-        const ip = panel.direccion_ip;
-
-        // Check rápido
-        try {
-            await runCurl([
-            "--silent","--show-error","--fail-with-body",
-            "--connect-timeout","1",
-            "--max-time","2",
-            "--digest","-u", `${HV_USER}:${HV_PASS}`,
-            "-X","GET",
-            `http://${ip}/ISAPI/System/deviceInfo`,
-            ]);
-        } catch {
-            console.log("[HV] OFFLINE:", ip);
-            continue;
-        }
-
-        try {
-            // Crear usuario
-            const urlUser = `http://${ip}/ISAPI/AccessControl/UserInfo/Record?format=json`;
-            await runCurl([
-            "--silent","--show-error","--fail-with-body",
-            "--digest","-u", `${HV_USER}:${HV_PASS}`,
-            "-H","Content-Type: application/json",
-            "-X","POST",
-            urlUser,
-            "-d", JSON.stringify({
-                UserInfo: {
-                employeeNo,
-                name: fullName || `Invitado ${employeeNo}`,
-                userType: "visitor",
-                userVerifyMode: "faceOrFpOrCardOrPw",
-                Valid: { enable: true, beginTime, endTime },
-                },
-            }),
-            ]);
-
-            // Crear tarjeta (card_code)
-            const urlCard = `http://${ip}/ISAPI/AccessControl/CardInfo/Record?format=json`;
-            await runCurl([
-            "--silent","--show-error","--fail-with-body",
-            "--digest","-u", `${HV_USER}:${HV_PASS}`,
-            "-H","Content-Type: application/json",
-            "-X","POST",
-            urlCard,
-            "-d", JSON.stringify({
-                CardInfo: { employeeNo, cardNo, cardType: "normalCard" },
-            }),
-            ]);
-
-            // Guardar / permisos
-            const urlModify = `https://${ip}/ISAPI/AccessControl/UserInfo/Modify?format=json`;
-            await runCurl([
-            "--silent","--show-error","--fail-with-body",
-            "--insecure",
-            "--digest","-u", `${HV_USER}:${HV_PASS}`,
-            "-H","Content-Type: application/json",
-            "-X","PUT",
-            urlModify,
-            "-d", JSON.stringify({
-                UserInfo: {
-                employeeNo,
-                name: fullName || `Invitado ${employeeNo}`,
-                userType: "visitor",
-                Valid: { enable: true, beginTime, endTime, timeType: "local" },
-                RightPlan: [{ doorNo: 1, planTemplateNo: "1" }],
-                doorRight: "1",
-                userVerifyMode: "faceOrFpOrCardOrPw",
-                },
-            }),
-            ]);
-
-        } catch (e: any) {
-            console.log("[HV] ERROR panel:", ip, String(e?.message || e).slice(0, 200));
-        }
-        }
-
-    // 14) Respuesta
+    // 8) Respuesta (sin verificación ni panel)
     res.status(200).json({
       estado: true,
       datos: {
         _id: String(reg_saved._id),
         id_visitante: reg_saved.id_visitante,
-        employeeNo,
-        cardNo, // <- ESTE es el valor del QR
       },
     });
 
   } catch (error: any) {
     console.log("[CREAR] ERROR:", error?.message || error);
+    res.status(500).json({ estado: false, mensaje: "Error interno." });
+  }
+}
+
+export async function verificar(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "Falta el id del visitante." });
+      return;
+    }
+
+    const visitante = await Visitantes.findById(id, "_id id_visitante nombre apellido_pat apellido_mat correo card_code documentos_checks").lean<any>();
+    if (!visitante) {
+      res.status(404).json({ estado: false, mensaje: "Visitante no encontrado." });
+      return;
+    }
+
+    if (!areDocChecksComplete(visitante.documentos_checks)) {
+      res.status(200).json({
+        estado: false,
+        mensaje: "No puedes verificar un visitante sin todos los documentos.",
+      });
+      return;
+    }
+
+    const fullName = `${visitante.nombre ?? ""} ${visitante.apellido_pat ?? ""} ${visitante.apellido_mat ?? ""}`
+      .replace(/\s+/g, " ")
+      .trim();
+
+    let cardNo = String(visitante.card_code || "").trim();
+    if (!cardNo) {
+      cardNo = generarCardCodeDesdeId(Number(visitante.id_visitante));
+    }
+
+    const endOfTodayDate = dayjs().endOf("day").toDate();
+
+    await Visitantes.updateOne(
+      { _id: visitante._id },
+      { $set: { card_code: cardNo, verificado: true, bloqueado: false, desbloqueado_hasta: endOfTodayDate } }
+    );
+
+    QRCode.toDataURL(String(cardNo), {
+      errorCorrectionLevel: "H",
+      type: "image/png",
+      width: 500,
+      margin: 2,
+    })
+      .then((qrDataUrl) =>
+        enviarCorreoNuevoVisitanteHV(
+          visitante.correo,
+          fullName,
+          qrDataUrl
+        )
+      )
+      .then((okMail) => console.log("[VERIFICAR] mail HV ok?", okMail))
+      .catch((e) => console.log("[VERIFICAR] mail HV error:", e?.message || e));
+
+    await syncVisitanteEnPaneles({
+      id_visitante: Number(visitante.id_visitante),
+      fullName,
+      cardNo,
+    });
+
+    res.status(200).json({
+      estado: true,
+      datos: {
+        _id: String(visitante._id),
+        verificado: true,
+        card_code: cardNo,
+        bloqueado: false,
+        desbloqueado_hasta: endOfTodayDate,
+      },
+    });
+  } catch (error: any) {
+    console.log("[VERIFICAR] ERROR:", error?.message || error);
     res.status(500).json({ estado: false, mensaje: "Error interno." });
   }
 }
@@ -888,7 +945,7 @@ export async function obtenerQR(req: Request, res: Response): Promise<void> {
         // Traemos solo lo necesario
         const visitante = await Visitantes.findById(
         id,
-        "id_visitante card_code"
+        "id_visitante card_code verificado"
         ).lean();
 
         if (!visitante) {
@@ -900,7 +957,15 @@ export async function obtenerQR(req: Request, res: Response): Promise<void> {
         }
 
         // ⬇️ Cast puntual para TypeScript (lean + mongoose)
-        const { card_code, id_visitante } = visitante as any;
+        const { card_code, id_visitante, verificado } = visitante as any;
+
+        if (!verificado) {
+        res.status(403).json({
+            estado: false,
+            mensaje: "El visitante no está verificado.",
+        });
+        return;
+        }
 
         let cardCode = String(card_code || "").trim();
 
@@ -944,7 +1009,7 @@ export async function obtenerQR(req: Request, res: Response): Promise<void> {
 
 export async function modificar(req: Request, res: Response): Promise<void> {
     try {
-        const { img_usuario, nombre, apellido_pat, apellido_mat, empresa, telefono, correo, contrasena } = req.body;
+        const { img_usuario, nombre, apellido_pat, apellido_mat, empresa, telefono, correo, contrasena, documentos_checks } = req.body;
         const id_usuario = (req as UserRequest).userId;
 
         const existe_usuario = await Usuarios.findOne({ correo }, '_id');
@@ -952,6 +1017,34 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             res.status(400).json({ estado: false, mensaje: 'Revisa que los datos que estás ingresando sean correctos.', mensajes: { correo: "Ya existe un usuario con este correo en el sistema." } });
             return;
         }
+
+        const registroPrev = await Visitantes.findById(
+            req.params.id,
+            "_id documentos_checks verificado id_visitante"
+        ).lean<any>();
+        if (!registroPrev) {
+            res.status(200).json({ estado: false, mensaje: 'Visitante no encontrado' });
+            return;
+        }
+
+        const docChecksProvided = documentos_checks !== undefined;
+        const normalizedDocChecks = docChecksProvided ? normalizeDocChecks(documentos_checks) : null;
+        const docChecksChanged = docChecksProvided
+            ? didDocChecksChange(registroPrev.documentos_checks, normalizedDocChecks)
+            : false;
+        const requiereReverificacion = Boolean(registroPrev.verificado) && docChecksChanged;
+
+        let bloqueadoUpdate: { bloqueado?: boolean; desbloqueado_hasta?: Date | null } = {};
+        if (requiereReverificacion) {
+            const { beginTime, endTime } = getRangoPasado();
+            bloqueadoUpdate = {
+                bloqueado: true,
+                desbloqueado_hasta: new Date(endTime),
+            };
+            const employeeNo = calcEmployeeNo(Number(registroPrev.id_visitante));
+            await hvSetValidForEmployee(employeeNo, { enable: true, beginTime, endTime });
+        }
+
         let updateData = {
             img_usuario: await resizeImage(img_usuario),
             nombre,
@@ -962,7 +1055,10 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             correo,
             contrasena,
             fecha_modificacion: Date.now(),
-            modificado_por: id_usuario
+            modificado_por: id_usuario,
+            ...(docChecksProvided ? { documentos_checks: normalizedDocChecks } : {}),
+            ...(requiereReverificacion ? { verificado: false } : {}),
+            ...bloqueadoUpdate,
         }
         if (contrasena) {
             const hash = bcrypt.hashSync(contrasena, 10);
@@ -1010,7 +1106,15 @@ export async function modificar(req: Request, res: Response): Promise<void> {
         //         await HVPANEL.saverUser(registro);
         //     }
         // }
-        res.status(200).json({ estado: true, datos: { correoEnviado } });
+        res.status(200).json({
+            estado: true,
+            datos: {
+                correoEnviado,
+                verificado: requiereReverificacion ? false : Boolean(registroPrev.verificado),
+                documentos_changed: docChecksChanged,
+                requiereReverificacion,
+            }
+        });
         return;
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);

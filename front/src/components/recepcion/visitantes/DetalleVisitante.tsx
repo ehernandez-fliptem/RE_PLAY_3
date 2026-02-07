@@ -17,6 +17,11 @@ import ModalContainer from "../../utils/ModalContainer";
 import Spinner from "../../utils/Spinner";
 import { enqueueSnackbar } from "notistack";
 import dayjs from "dayjs";
+import {
+  DOCUMENTOS_CHECKS_LIST,
+  normalizeDocumentosChecks,
+  type DocumentosChecks,
+} from "./documentosChecks";
 
 type TUsuario = {
   img_usuario: string;
@@ -29,6 +34,8 @@ type TUsuario = {
   fecha_modificacion: Date | string;
   modificado_por: string;
   activo: boolean;
+  verificado: boolean;
+  documentos_checks: DocumentosChecks;
 };
 
 export default function DetalleVisitante() {
@@ -46,6 +53,13 @@ export default function DetalleVisitante() {
     fecha_modificacion: new Date(),
     modificado_por: "",
     activo: false,
+    verificado: false,
+    documentos_checks: {
+      identificacion_oficial: false,
+      sua: false,
+      permiso_entrada: false,
+      lista_articulos: false,
+    },
   });
   const {
     img_usuario,
@@ -58,7 +72,10 @@ export default function DetalleVisitante() {
     fecha_modificacion,
     modificado_por,
     activo,
+    verificado,
+    documentos_checks,
   } = datos;
+  const checks = normalizeDocumentosChecks(documentos_checks);
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -95,6 +112,11 @@ export default function DetalleVisitante() {
                   <Chip label="Activo" color="success" />
                 ) : (
                   <Chip label="Inactivo" color="error" />
+                )}
+                {verificado ? (
+                  <Chip label="Verificado" color="success" sx={{ ml: 1 }} />
+                ) : (
+                  <Chip label="No verificado" color="error" sx={{ ml: 1 }} />
                 )}
               </>
             )}
@@ -245,6 +267,37 @@ export default function DetalleVisitante() {
                     </Grid>
                   </Grid>
                 )}
+                <Typography
+                  variant="h4"
+                  component="h6"
+                  color="primary"
+                  bgcolor="#FFFFFF"
+                  sx={(theme) => ({
+                    border: `1px solid ${theme.palette.primary.main}`,
+                    borderRadius: 2,
+                  })}
+                  textAlign="center"
+                  mb={2}
+                  mt={3}
+                >
+                  <strong>Documentos</strong>
+                </Typography>
+                <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
+                  {DOCUMENTOS_CHECKS_LIST.map(({ key, label }) => (
+                    <Grid
+                      key={key}
+                      size={{ xs: 12, sm: 6 }}
+                      sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                    >
+                      <strong>{label}:</strong>
+                      {checks[key] ? (
+                        <Chip label="OK" color="success" size="small" />
+                      ) : (
+                        <Chip label="Pendiente" color="error" size="small" />
+                      )}
+                    </Grid>
+                  ))}
+                </Grid>
               </Grid>
             </Grid>
           )}
