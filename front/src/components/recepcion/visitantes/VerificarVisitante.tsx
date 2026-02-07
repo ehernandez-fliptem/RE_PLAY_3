@@ -160,23 +160,25 @@ export default function VerificarVisitante() {
       <Card elevation={5}>
         <CardContent>
           {!isVerifying && (
-            <Typography variant="h5" component="h5" textAlign="center">
-              Verificar Visitante{" - "}
-              {!isLoading && (
-                <>
-                  {activo ? (
-                    <Chip label="Activo" color="success" />
-                  ) : (
-                    <Chip label="Inactivo" color="error" />
-                  )}
-                  {verificado ? (
-                    <Chip label="Verificado" color="success" sx={{ ml: 1 }} />
-                  ) : (
-                    <Chip label="No verificado" color="error" sx={{ ml: 1 }} />
-                  )}
-                </>
-              )}
-            </Typography>
+            <>
+              <Typography variant="h5" component="h5" textAlign="center">
+                Verificar Visitante{" - "}
+                {!isLoading && (
+                  <>
+                    {activo ? (
+                      <Chip label="Activo" color="success" />
+                    ) : (
+                      <Chip label="Inactivo" color="error" />
+                    )}
+                    {verificado ? (
+                      <Chip label="Verificado" color="success" sx={{ ml: 1 }} />
+                    ) : (
+                      <Chip label="No verificado" color="error" sx={{ ml: 1 }} />
+                    )}
+                  </>
+                )}
+              </Typography>
+            </>
           )}
           {isLoading || isVerifying ? (
             <Spinner />
@@ -348,6 +350,13 @@ export default function VerificarVisitante() {
                 >
                   <strong>Documentos</strong>
                 </Typography>
+                <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
+                  <Chip
+                    label={docsComplete ? "Datos completos" : "Datos incompletos"}
+                    color={docsComplete ? "success" : "error"}
+                    size="medium"
+                  />
+                </Box>
                 <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
                   {DOCUMENTOS_CHECKS_LIST.map(({ key, label }) => (
                     <Grid
@@ -364,13 +373,6 @@ export default function VerificarVisitante() {
                     </Grid>
                   ))}
                 </Grid>
-                {!docsComplete && (
-                  <Chip
-                    label="Documentos incompletos"
-                    color="warning"
-                    size="small"
-                  />
-                )}
               </Grid>
             </Grid>
           )}

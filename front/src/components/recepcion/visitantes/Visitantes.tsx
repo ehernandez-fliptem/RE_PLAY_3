@@ -7,6 +7,7 @@ import {
   GridGetRowsError,
   type GridValidRowModel,
   GridActionsCellItem,
+  type GridRowSelectionModel,
 } from "@mui/x-data-grid";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { Outlet, useNavigate } from "react-router-dom";
@@ -20,10 +21,11 @@ import {
   Lock,
   LockOpen,
   RestoreFromTrash,
+  Verified,
   // Upload, // Carga masiva oculta temporalmente
   Visibility,
 } from "@mui/icons-material";
-import { Avatar, Button, Chip, IconButton, Stack, Tooltip } from "@mui/material";
+import { Avatar, Chip, IconButton, Tooltip } from "@mui/material";
 import { enqueueSnackbar } from "notistack";
 import { useConfirm } from "material-ui-confirm";
 import { AxiosError } from "axios";
@@ -34,11 +36,7 @@ import Spinner from "../../utils/Spinner";
 import { isBlockedNow } from "../../../utils/bloqueo";
 
 import CircularProgress from "@mui/material/CircularProgress";
-import {
-  DOCUMENTOS_CHECKS_LIST,
-  areDocumentosChecksComplete,
-  normalizeDocumentosChecks,
-} from "./documentosChecks";
+// sin helpers de documentos en tabla
 
 
 const pageSizeOptions = [10, 25, 50];
@@ -51,6 +49,7 @@ export default function Visitantes() {
   const [error, setError] = useState<string>();
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [isDownloadingQr, setIsDownloadingQr] = useState({
     id_usuario: "",
     descargando: false,
@@ -122,6 +121,29 @@ export default function Visitantes() {
 
   const verificarRegistro = (ID: string) => {
     navigate(`verificar-visitante/${ID}`);
+  };
+
+  const verificarSeleccionado = () => {
+    if (!selectedRowId) {
+      enqueueSnackbar("Selecciona un visitante para verificar.", {
+        variant: "warning",
+      });
+      return;
+    }
+    const row = apiRef.current?.getRow(selectedRowId) as any;
+    if (!row) {
+      enqueueSnackbar("No se encontró el visitante seleccionado.", {
+        variant: "warning",
+      });
+      return;
+    }
+    if (row.verificado) {
+      enqueueSnackbar("Este visitante ya está verificado.", {
+        variant: "info",
+      });
+      return;
+    }
+    verificarRegistro(row._id);
   };
 
   const cambiarEstado = async (ID: string, activo: boolean) => {
@@ -225,24 +247,9 @@ export default function Visitantes() {
     }
   };
 
-  const validarDocsParaVerificacion = async (row: any) => {
-    const checks = normalizeDocumentosChecks(row?.documentos_checks);
-    if (!areDocumentosChecksComplete(checks)) {
-      const faltantes = DOCUMENTOS_CHECKS_LIST.filter(
-        ({ key }) => !checks[key]
-      )
-        .map((item) => item.label)
-        .join(", ");
-      await confirm({
-        title: "Documentos incompletos",
-        description: `No puedes verificar sin todos los documentos. Faltan: ${faltantes}.`,
-        allowClose: true,
-        confirmationText: "Cerrar",
-        hideCancelButton: true,
-      }).catch(() => {});
-      return false;
-    }
-    return true;
+  const rowSelectionModel: GridRowSelectionModel = {
+    type: "include",
+    ids: new Set(selectedRowId ? [selectedRowId] : []),
   };
 
 const accionDesbloquear = (ID: string) => {
@@ -415,45 +422,16 @@ const accionBloquear = (ID: string) => {
             headerAlign: "center",
             align: "center",
             flex: 1,
-            minWidth: 160,
+            minWidth: 140,
             sortable: false,
             renderCell: ({ row }) => {
               const verified = Boolean(row?.verificado);
-              const checksOk = areDocumentosChecksComplete(
-                row?.documentos_checks
-              );
               return (
-                <Stack
-                  direction="column"
-                  spacing={0.5}
-                  alignItems="center"
-                  sx={{ width: "100%" }}
-                >
-                  <Chip
-                    label={verified ? "Verificado" : "No verificado"}
-                    color={verified ? "success" : "error"}
-                    size="small"
-                  />
-                  {!verified && (
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={async () => {
-                        const ok = await validarDocsParaVerificacion(row);
-                        if (ok) verificarRegistro(row._id);
-                      }}
-                    >
-                      Verificar
-                    </Button>
-                  )}
-                  {!verified && !checksOk && (
-                    <Chip
-                      label="Docs incompletos"
-                      color="warning"
-                      size="small"
-                    />
-                  )}
-                </Stack>
+                <Chip
+                  label={verified ? "Verificado" : "No verificado"}
+                  color={verified ? "success" : "error"}
+                  size="small"
+                />
               );
             },
           },
@@ -555,11 +533,17 @@ const accionBloquear = (ID: string) => {
             }
           }
         ]}
-        disableRowSelectionOnClick
+        disableRowSelectionOnClick={false}
         disableColumnFilter
         filterDebounceMs={1000}
         dataSource={dataSource}
         dataSourceCache={null}
+        rowSelectionModel={rowSelectionModel}
+        onRowSelectionModelChange={(model) => {
+          const ids = "ids" in model ? Array.from(model.ids) : model;
+          const next = Array.isArray(ids) ? ids[0] : undefined;
+          setSelectedRowId(next ? String(next) : null);
+        }}
         onDataSourceError={(dataSourceError) => {
           if (dataSourceError.cause instanceof AxiosError) {
             setError(dataSourceError.cause.code);
@@ -590,6 +574,11 @@ const accionBloquear = (ID: string) => {
                   <Tooltip title="Agregar">
                     <IconButton onClick={nuevoRegistro}>
                       <Add fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Verificar">
+                    <IconButton onClick={verificarSeleccionado}>
+                      <Verified fontSize="small" />
                     </IconButton>
                   </Tooltip>
                   {/* Carga masiva oculta temporalmente; mantener para uso futuro */}
