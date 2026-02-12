@@ -34,6 +34,18 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
         const { usuarios, dispositivos, estatus, empresas, fecha_inicio, fecha_final } = req.body.datos;
         const entrada = dayjs(fecha_inicio).startOf("day").subtract(1, "day").toDate();
         const salida = dayjs(fecha_final).endOf("day").add(1, "day").toDate();
+        const usuariosSeleccionados: Types.ObjectId[] = Array.isArray(usuarios)
+            ? usuarios.map((item: string) => new Types.ObjectId(item))
+            : [];
+        const empleadosSeleccionados = usuariosSeleccionados.length
+            ? await Empleados.find(
+                { _id: { $in: usuariosSeleccionados } },
+                { id_empleado: 1 }
+            ).lean()
+            : [];
+        const qrsEmpleadosSeleccionados = empleadosSeleccionados
+            .map((item: any) => String(item.id_empleado))
+            .filter((item: string) => item !== "undefined" && item !== "null");
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
         const querySort = JSON.parse(sort) as QueryParams["sort"];
@@ -53,8 +65,13 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
             {
                 $match: {
                     $and: [
-                        usuarios?.length
-                            ? { id_usuario: { $in: usuarios.map((item: string) => new Types.ObjectId(item)) } }
+                        usuariosSeleccionados.length
+                            ? {
+                                $or: [
+                                    { id_usuario: { $in: usuariosSeleccionados } },
+                                    { qr: { $in: qrsEmpleadosSeleccionados } },
+                                ]
+                            }
                             : {},
                         dispositivos?.length ? { tipo_dispositivo: { $in: dispositivos.map((item: number) => Number(item)) } } : {},
                         estatus?.length ? { tipo_check: { $in: estatus.filter((item: string | number) => [5, 6, 7].includes(Number(item))).map((item: number) => Number(item)) } } : {},
@@ -120,6 +137,39 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
             },
             {
                 $lookup: {
+                    from: "empleados",
+                    let: {
+                        qrNumerico: {
+                            $convert: {
+                                input: "$qr",
+                                to: "int",
+                                onError: null,
+                                onNull: null
+                            }
+                        }
+                    },
+                    as: "usuario_por_qr",
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $eq: ["$id_empleado", "$$qrNumerico"]
+                                }
+                            }
+                        },
+                        {
+                            $project: {
+                                id_empresa: 1,
+                                nombre: {
+                                    $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"],
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                $lookup: {
                     from: "visitantes",
                     localField: "id_visitante",
                     foreignField: "_id",
@@ -140,6 +190,7 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                     creado_por: { $arrayElemAt: ["$creado_por", -1] },
                     usuario: { $arrayElemAt: ["$usuario", -1] },
                     usuario_sistema: { $arrayElemAt: ["$usuario_sistema", -1] },
+                    usuario_por_qr: { $arrayElemAt: ["$usuario_por_qr", -1] },
                     visitante: { $arrayElemAt: ["$visitante", -1] },
                 },
             },
@@ -151,9 +202,15 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                             "$usuario.id_empresa",
                             {
                                 $cond: [
-                                    { $ifNull: ["$usuario_sistema", false] },
-                                    "$usuario_sistema.id_empresa",
-                                    "$creado_por.id_empresa"
+                                    { $ifNull: ["$usuario_por_qr", false] },
+                                    "$usuario_por_qr.id_empresa",
+                                    {
+                                        $cond: [
+                                            { $ifNull: ["$usuario_sistema", false] },
+                                            "$usuario_sistema.id_empresa",
+                                            "$creado_por.id_empresa"
+                                        ]
+                                    }
                                 ]
                             }
                         ]
@@ -166,9 +223,15 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                             "$usuario.nombre",
                             {
                                 $cond: [
-                                    { $ifNull: ["$usuario_sistema", false] },
-                                    "$usuario_sistema.nombre",
-                                    "$visitante.nombre"
+                                    { $ifNull: ["$usuario_por_qr", false] },
+                                    "$usuario_por_qr.nombre",
+                                    {
+                                        $cond: [
+                                            { $ifNull: ["$usuario_sistema", false] },
+                                            "$usuario_sistema.nombre",
+                                            "$visitante.nombre"
+                                        ]
+                                    }
                                 ]
                             }
                         ]
@@ -227,7 +290,6 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 }
-
 export async function obtenerTodosKiosco(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;
