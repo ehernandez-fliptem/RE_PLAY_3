@@ -12,9 +12,7 @@ const regexCodigo = /^[A-Za-z0-9]{18}$/;
 let indexPaneles = 0;
 let indexEventos = 0;
 let eventosSync = 0;
-const INITIAL_LOOKBACK_MINUTES = 5;
-const SYNC_OVERLAP_SECONDS = 5;
-const cursorPorPanel = new Map<string, Date>();
+const QUERY_WINDOW_HOURS = 2;
 
 export async function main() {
     try {
@@ -69,13 +67,10 @@ const sincronizarEventos = async (paneles: IDispositivoHv[]) => {
         const decryptPass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO)
         log(`${fecha()} 📱​ Dispositivo: ${nombre} - ${direccion_ip}\n`);
         let eventosPanel: EventInfo[] = [];
-        const panelKey = String(_id);
         const fechaParcial = dayjs();
-        const fechaCursor = cursorPorPanel.get(panelKey);
-        const inicio = (fechaCursor
-            ? dayjs(fechaCursor).subtract(SYNC_OVERLAP_SECONDS, "second")
-            : fechaParcial.subtract(INITIAL_LOOKBACK_MINUTES, "minute")
-        ).format("YYYY-MM-DD HH:mm:ss")
+        const inicio = fechaParcial
+            .subtract(QUERY_WINDOW_HOURS, "hour")
+            .format("YYYY-MM-DD HH:mm:ss")
         const final = fechaParcial.add(1, "minute").format("YYYY-MM-DD HH:mm:ss")
 
         const panelInfo = {
@@ -117,12 +112,6 @@ const sincronizarEventos = async (paneles: IDispositivoHv[]) => {
                 return null;
             })
             .filter((item) => isEventProcess(item));
-        const fechasEventos = registros
-            .map((item) => dayjs(item.fecha_creacion))
-            .filter((item) => item.isValid())
-            .sort((a, b) => a.valueOf() - b.valueOf());
-        const ultimoEvento = fechasEventos.length > 0 ? fechasEventos[fechasEventos.length - 1] : null;
-        cursorPorPanel.set(panelKey, (ultimoEvento ?? fechaParcial).toDate());
         log(`${fecha()} ⚙️ Validando eventos del panel.\n`);
         indexEventos = 0
 
