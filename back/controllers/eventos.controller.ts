@@ -102,6 +102,24 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
             },
             {
                 $lookup: {
+                    from: "usuarios",
+                    localField: "id_usuario",
+                    foreignField: "_id",
+                    as: "usuario_sistema",
+                    pipeline: [
+                        {
+                            $project: {
+                                id_empresa: 1,
+                                nombre: {
+                                    $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"],
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                $lookup: {
                     from: "visitantes",
                     localField: "id_visitante",
                     foreignField: "_id",
@@ -121,6 +139,7 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                 $set: {
                     creado_por: { $arrayElemAt: ["$creado_por", -1] },
                     usuario: { $arrayElemAt: ["$usuario", -1] },
+                    usuario_sistema: { $arrayElemAt: ["$usuario_sistema", -1] },
                     visitante: { $arrayElemAt: ["$visitante", -1] },
                 },
             },
@@ -130,7 +149,13 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                         $cond: [
                             { $ifNull: ["$usuario", false] },
                             "$usuario.id_empresa",
-                            "$creado_por.id_empresa"
+                            {
+                                $cond: [
+                                    { $ifNull: ["$usuario_sistema", false] },
+                                    "$usuario_sistema.id_empresa",
+                                    "$creado_por.id_empresa"
+                                ]
+                            }
                         ]
                     },
                     estatus: "$tipo_check",
@@ -139,7 +164,13 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                         $cond: [
                             { $ifNull: ["$usuario", false] },
                             "$usuario.nombre",
-                            "$visitante.nombre"
+                            {
+                                $cond: [
+                                    { $ifNull: ["$usuario_sistema", false] },
+                                    "$usuario_sistema.nombre",
+                                    "$visitante.nombre"
+                                ]
+                            }
                         ]
                     },
                     ubicacion: {
@@ -1407,6 +1438,13 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
             const user = await Empleados.findOne({ $or: [{ id_empleado: Number(ID) }, { id_general: Number(ID) }] } as any, "img_usuario");
             if (user) {
                 await guardarEvento({ id_usuario: user._id, img_usuario: user.img_usuario });
+                res.status(200).json({ estado: true });
+                return;
+            }
+
+            const systemUser = await Usuarios.findOne({ id_general: Number(ID) } as any, "img_usuario");
+            if (systemUser) {
+                await guardarEvento({ id_usuario: systemUser._id, img_usuario: (systemUser as any).img_usuario || "" });
                 res.status(200).json({ estado: true });
                 return;
             }
