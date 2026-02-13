@@ -35,7 +35,7 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
         const entradaDay = dayjs(fecha_inicio);
         const salidaDay = dayjs(fecha_final);
         if (!entradaDay.isValid() || !salidaDay.isValid()) {
-            res.status(200).json({ estado: false, mensaje: "Rango de fechas inv�lido." });
+            res.status(200).json({ estado: false, mensaje: "Rango de fechas invalido." });
             return;
         }
         if (entradaDay.isAfter(salidaDay)) {
@@ -78,6 +78,7 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                         usuariosSeleccionados.length
                             ? {
                                 $or: [
+                                    { id_empleado: { $in: usuariosSeleccionados } },
                                     { id_usuario: { $in: usuariosSeleccionados } },
                                     { qr: { $in: qrsEmpleadosSeleccionados } },
                                 ]
@@ -90,6 +91,11 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                             : {},
                     ],
                 },
+            },
+            {
+                $set: {
+                    id_empleado_effective: { $ifNull: ["$id_empleado", "$id_usuario"] }
+                }
             },
             {
                 $lookup: {
@@ -112,7 +118,7 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
             {
                 $lookup: {
                     from: "empleados",
-                    localField: "id_usuario",
+                    localField: "id_empleado_effective",
                     foreignField: "_id",
                     as: "usuario",
                     pipeline: [
@@ -337,6 +343,11 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
                 }
             },
             {
+                $set: {
+                    id_empleado_effective: { $ifNull: ["$id_empleado", "$id_usuario"] }
+                }
+            },
+            {
                 $sort: {
                     id_registro: 1,
                     fecha_creacion: -1
@@ -348,7 +359,7 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
                         $cond: [
                             { $and: [{ $ifNull: ["$id_registro", false] }, { $ne: ["$id_registro", null] }] },
                             { registro: "$id_registro" },
-                            { usuario: "$id_usuario" }
+                            { usuario: "$id_empleado_effective" }
                         ]
                     },
                     doc: { $first: "$$ROOT" },
@@ -417,7 +428,7 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
             {
                 $lookup: {
                     from: "empleados",
-                    localField: "id_usuario",
+                    localField: "id_empleado_effective",
                     foreignField: "_id",
                     as: "usuario",
                     pipeline: [
@@ -672,6 +683,11 @@ export async function obtenerUno(req: Request, res: Response): Promise<void> {
                 }
             },
             {
+                $set: {
+                    id_empleado_effective: { $ifNull: ["$id_empleado", "$id_usuario"] }
+                }
+            },
+            {
                 $lookup: {
                     from: "horarios",
                     localField: "id_horario",
@@ -689,7 +705,7 @@ export async function obtenerUno(req: Request, res: Response): Promise<void> {
             {
                 $lookup: {
                     from: "empleados",
-                    localField: "id_usuario",
+                    localField: "id_empleado_effective",
                     foreignField: "_id",
                     as: "usuario",
                     pipeline: [
@@ -1509,7 +1525,7 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
         if (regexIDGeneral.test(String(ID))) {
             const empleado = await Empleados.findOne({ id_empleado: Number(ID) } as any, "img_usuario");
             if (empleado) {
-                await guardarEvento({ id_usuario: empleado._id, img_usuario: empleado.img_usuario });
+                await guardarEvento({ id_empleado: empleado._id, img_usuario: empleado.img_usuario });
                 res.status(200).json({ estado: true });
                 return;
             }
