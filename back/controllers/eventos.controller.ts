@@ -22,12 +22,17 @@ import {
 
 import { UserRequest } from "../types/express";
 import dayjs, { ManipulateType } from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { enviarCorreoNotificarCheck } from "../utils/correos";
 import { QueryParams } from "../types/queryparams";
 import { REGEX_BASE64 } from "../utils/commonRegex";
 import { socket } from '../utils/socketClient';
 import FaceDetector from "../classes/FaceDetector";
 import FaceDescriptors from "../models/FaceDescriptors";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export async function obtenerTodosPorFiltro(req: Request, res: Response): Promise<void> {
     try {
@@ -1477,7 +1482,11 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
             return;
         }
 
-        const fechaEvento = dayjs(fecha_creacion).millisecond(0);
+        const { zonaHoraria = "America/Mexico_City" } = await Configuracion
+            .findOne({}, "zonaHoraria")
+            .lean<{ zonaHoraria?: string }>() || {};
+
+        const fechaEvento = normalizarFechaEventoPanel(fecha_creacion, zonaHoraria);
         if (!fechaEvento.isValid()) {
             res.status(200).json({ estado: false, mensaje: "Fecha de evento invalida." });
             return;
@@ -1563,6 +1572,20 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
+}
+
+function normalizarFechaEventoPanel(fechaRaw: unknown, zonaHoraria: string) {
+    // Los paneles pueden enviar timestamps con offset distinto al sitio.
+    // Se prioriza la hora "de reloj" del panel para guardarla en la zona configurada.
+    if (typeof fechaRaw === "string") {
+        const match = fechaRaw.trim().match(/^(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2}:\d{2})/);
+        if (match) {
+            const fechaSinOffset = `${match[1]} ${match[2]}`;
+            const fechaZona = dayjs.tz(fechaSinOffset, zonaHoraria);
+            if (fechaZona.isValid()) return fechaZona.millisecond(0);
+        }
+    }
+    return dayjs(fechaRaw as any).millisecond(0);
 }
 // Reporte de horas 
 const obtenerReportesGeneral = async (
