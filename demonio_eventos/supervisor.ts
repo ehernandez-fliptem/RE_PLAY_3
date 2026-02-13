@@ -115,8 +115,8 @@ const sincronizarEventos = async (paneles: IDispositivoHv[]) => {
         log(`${fecha()} ⚙️ Validando eventos del panel.\n`);
         indexEventos = 0
 
-        //console.log("Registros a guardar: " + registros.length);
-        //await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log("Registros a guardar: " + registros.length);
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         await guardarEventos(registros, usuario, decryptPass);
         indexPaneles++;
