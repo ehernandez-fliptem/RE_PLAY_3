@@ -105,7 +105,11 @@ const sincronizarEventos = async (paneles: IDispositivoHv[]) => {
                     // console.log("+**************************************");
 
                     //if (regexIDGeneral.test(item.employeeNoString) || regexCodigo.test(item.employeeNoString)) {
-                        const fechaCheck = new Date(item.time);
+                        // Enviamos la fecha cruda del panel para que el backend la normalice
+                        // en la zona horaria configurada sin doble conversión por timezone.
+                        const fechaCheck = typeof item.time === "string" || typeof item.time === "number"
+                            ? item.time
+                            : String(item.time);
                         return { ID: item.employeeNoString, tipo_dispositivo: 3, fecha_creacion: fechaCheck, img_check: item.pictureURL || 'QR', tipo_check_panel: tipo_evento, id_panel: _id };
                     //}
                 }

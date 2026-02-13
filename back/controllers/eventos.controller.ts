@@ -1547,8 +1547,10 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
                 return;
             }
 
-            console.log("[EVENTOS][PANEL] No se encontro usuario ni visitante (numerico):", ID);
-            res.status(200).json({ estado: false, mensaje: "No se encontro usuario/visitante para el ID." });
+            // Fallback: no se descarta el evento, se guarda sin relación para auditoría.
+            await guardarEvento({ comentario: "ID_NUMERICO_NO_MAPEADO" });
+            console.log("[EVENTOS][PANEL] ID numerico no mapeado, guardado sin relacion:", ID);
+            res.status(200).json({ estado: true, mensaje: "Evento guardado sin mapeo de empleado/visitante." });
             return;
         }
 
@@ -1560,8 +1562,10 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
                 return;
             }
 
-            console.log("[EVENTOS][PANEL] No se encontro visitante con card_code:", ID);
-            res.status(200).json({ estado: false, mensaje: "No se encontro visitante para card_code." });
+            // Fallback: no se descarta el evento, se guarda sin relación para auditoría.
+            await guardarEvento({ comentario: "CARD_CODE_NO_MAPEADO" });
+            console.log("[EVENTOS][PANEL] Card code no mapeado, guardado sin relacion:", ID);
+            res.status(200).json({ estado: true, mensaje: "Evento guardado sin mapeo de visitante." });
             return;
         }
 
