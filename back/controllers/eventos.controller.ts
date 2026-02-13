@@ -5,6 +5,7 @@ import Horarios, { IHorario } from "../models/Horarios";
 import DispositivosHv from "../models/DispositivosHv";
 import Eventos, { IEvento } from "../models/Eventos";
 import Usuarios, { IUsuario } from "../models/Usuarios";
+import Empleados from "../models/Empleados";
 import Registros, { IRegistro } from "../models/Registros";
 import Empresas from "../models/Empresas";
 import Visitantes from "../models/Visitantes";
@@ -21,6 +22,8 @@ import {
 
 import { UserRequest } from "../types/express";
 import dayjs, { ManipulateType } from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { enviarCorreoNotificarCheck } from "../utils/correos";
 import { QueryParams } from "../types/queryparams";
 import { REGEX_BASE64 } from "../utils/commonRegex";
@@ -28,11 +31,36 @@ import { socket } from '../utils/socketClient';
 import FaceDetector from "../classes/FaceDetector";
 import FaceDescriptors from "../models/FaceDescriptors";
 
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
 export async function obtenerTodosPorFiltro(req: Request, res: Response): Promise<void> {
     try {
         const { usuarios, dispositivos, estatus, empresas, fecha_inicio, fecha_final } = req.body.datos;
-        const entrada = dayjs(fecha_inicio).startOf("day").subtract(1, "day").toDate();
-        const salida = dayjs(fecha_final).endOf("day").add(1, "day").toDate();
+        const entradaDay = dayjs(fecha_inicio);
+        const salidaDay = dayjs(fecha_final);
+        if (!entradaDay.isValid() || !salidaDay.isValid()) {
+            res.status(200).json({ estado: false, mensaje: "Rango de fechas invalido." });
+            return;
+        }
+        if (entradaDay.isAfter(salidaDay)) {
+            res.status(200).json({ estado: false, mensaje: "La fecha de inicio no puede ser mayor que la fecha final." });
+            return;
+        }
+        const entrada = entradaDay.toDate();
+        const salida = salidaDay.toDate();
+        const usuariosSeleccionados: Types.ObjectId[] = Array.isArray(usuarios)
+            ? usuarios.map((item: string) => new Types.ObjectId(item))
+            : [];
+        const empleadosSeleccionados = usuariosSeleccionados.length
+            ? await Empleados.find(
+                { _id: { $in: usuariosSeleccionados } },
+                { id_empleado: 1 }
+            ).lean()
+            : [];
+        const qrsEmpleadosSeleccionados = empleadosSeleccionados
+            .map((item: any) => String(item.id_empleado))
+            .filter((item: string) => item !== "undefined" && item !== "null");
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
         const querySort = JSON.parse(sort) as QueryParams["sort"];
@@ -52,8 +80,14 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
             {
                 $match: {
                     $and: [
-                        usuarios?.length
-                            ? { id_usuario: { $in: usuarios.map((item: string) => new Types.ObjectId(item)) } }
+                        usuariosSeleccionados.length
+                            ? {
+                                $or: [
+                                    { id_empleado: { $in: usuariosSeleccionados } },
+                                    { id_usuario: { $in: usuariosSeleccionados } },
+                                    { qr: { $in: qrsEmpleadosSeleccionados } },
+                                ]
+                            }
                             : {},
                         dispositivos?.length ? { tipo_dispositivo: { $in: dispositivos.map((item: number) => Number(item)) } } : {},
                         estatus?.length ? { tipo_check: { $in: estatus.filter((item: string | number) => [5, 6, 7].includes(Number(item))).map((item: number) => Number(item)) } } : {},
@@ -62,6 +96,11 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                             : {},
                     ],
                 },
+            },
+            {
+                $set: {
+                    id_empleado_effective: { $ifNull: ["$id_empleado", "$id_usuario"] }
+                }
             },
             {
                 $lookup: {
@@ -83,11 +122,62 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
             },
             {
                 $lookup: {
-                    from: "usuarios",
-                    localField: "id_usuario",
+                    from: "empleados",
+                    localField: "id_empleado_effective",
                     foreignField: "_id",
                     as: "usuario",
                     pipeline: [
+                        {
+                            $project: {
+                                id_empresa: 1,
+                                nombre: {
+                                    $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"],
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                $lookup: {
+                    from: "usuarios",
+                    localField: "id_usuario",
+                    foreignField: "_id",
+                    as: "usuario_sistema",
+                    pipeline: [
+                        {
+                            $project: {
+                                id_empresa: 1,
+                                nombre: {
+                                    $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"],
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                $lookup: {
+                    from: "empleados",
+                    let: {
+                        qrNumerico: {
+                            $convert: {
+                                input: "$qr",
+                                to: "int",
+                                onError: null,
+                                onNull: null
+                            }
+                        }
+                    },
+                    as: "usuario_por_qr",
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $eq: ["$id_empleado", "$$qrNumerico"]
+                                }
+                            }
+                        },
                         {
                             $project: {
                                 id_empresa: 1,
@@ -120,6 +210,8 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                 $set: {
                     creado_por: { $arrayElemAt: ["$creado_por", -1] },
                     usuario: { $arrayElemAt: ["$usuario", -1] },
+                    usuario_sistema: { $arrayElemAt: ["$usuario_sistema", -1] },
+                    usuario_por_qr: { $arrayElemAt: ["$usuario_por_qr", -1] },
                     visitante: { $arrayElemAt: ["$visitante", -1] },
                 },
             },
@@ -129,7 +221,19 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                         $cond: [
                             { $ifNull: ["$usuario", false] },
                             "$usuario.id_empresa",
-                            "$creado_por.id_empresa"
+                            {
+                                $cond: [
+                                    { $ifNull: ["$usuario_por_qr", false] },
+                                    "$usuario_por_qr.id_empresa",
+                                    {
+                                        $cond: [
+                                            { $ifNull: ["$usuario_sistema", false] },
+                                            "$usuario_sistema.id_empresa",
+                                            "$creado_por.id_empresa"
+                                        ]
+                                    }
+                                ]
+                            }
                         ]
                     },
                     estatus: "$tipo_check",
@@ -138,7 +242,19 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                         $cond: [
                             { $ifNull: ["$usuario", false] },
                             "$usuario.nombre",
-                            "$visitante.nombre"
+                            {
+                                $cond: [
+                                    { $ifNull: ["$usuario_por_qr", false] },
+                                    "$usuario_por_qr.nombre",
+                                    {
+                                        $cond: [
+                                            { $ifNull: ["$usuario_sistema", false] },
+                                            "$usuario_sistema.nombre",
+                                            "$visitante.nombre"
+                                        ]
+                                    }
+                                ]
+                            }
                         ]
                     },
                     ubicacion: {
@@ -195,7 +311,6 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 }
-
 export async function obtenerTodosKiosco(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;
@@ -233,6 +348,11 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
                 }
             },
             {
+                $set: {
+                    id_empleado_effective: { $ifNull: ["$id_empleado", "$id_usuario"] }
+                }
+            },
+            {
                 $sort: {
                     id_registro: 1,
                     fecha_creacion: -1
@@ -244,7 +364,7 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
                         $cond: [
                             { $and: [{ $ifNull: ["$id_registro", false] }, { $ne: ["$id_registro", null] }] },
                             { registro: "$id_registro" },
-                            { usuario: "$id_usuario" }
+                            { usuario: "$id_empleado_effective" }
                         ]
                     },
                     doc: { $first: "$$ROOT" },
@@ -312,8 +432,8 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
             },
             {
                 $lookup: {
-                    from: "usuarios",
-                    localField: "id_usuario",
+                    from: "empleados",
+                    localField: "id_empleado_effective",
                     foreignField: "_id",
                     as: "usuario",
                     pipeline: [
@@ -536,7 +656,7 @@ export async function obtenerFormEventos(req: Request, res: Response): Promise<v
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa rol') as IUsuario;
 
         const empresas = await Empresas.find(isMaster ? { activo: true } : { _id: id_empresa, activo: true }, 'nombre pisos activo').sort({ nombre: 1 });
-        const usuarios = await Usuarios.find(isMaster ? { activo: true } : { id_empresa: new Types.ObjectId(id_empresa), activo: true }, { nombre: { $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"] } }).sort({ nombre: 1 })
+        const usuarios = await Empleados.find(isMaster ? { activo: true } : { id_empresa: new Types.ObjectId(id_empresa), activo: true }, { nombre: { $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"] } } as any).sort({ nombre: 1 })
         res.status(200).json({ estado: true, datos: { usuarios, empresas } });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -551,7 +671,7 @@ export async function obtenerFormReporteHoras(req: Request, res: Response): Prom
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa rol') as IUsuario;
 
         const empresas = await Empresas.find(isMaster ? { activo: true } : { _id: id_empresa, activo: true }, 'nombre pisos activo').sort({ nombre: 1 });
-        const usuarios = await Usuarios.find(isMaster ? { activo: true } : { id_empresa: new Types.ObjectId(id_empresa), activo: true }, { nombre: { $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"] } }).sort({ nombre: 1 })
+        const usuarios = await Empleados.find(isMaster ? { activo: true } : { id_empresa: new Types.ObjectId(id_empresa), activo: true }, { nombre: { $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"] } } as any).sort({ nombre: 1 })
         res.status(200).json({ estado: true, datos: { usuarios, empresas } });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -565,6 +685,11 @@ export async function obtenerUno(req: Request, res: Response): Promise<void> {
             {
                 $match: {
                     _id: new Types.ObjectId(req.params.id)
+                }
+            },
+            {
+                $set: {
+                    id_empleado_effective: { $ifNull: ["$id_empleado", "$id_usuario"] }
                 }
             },
             {
@@ -584,8 +709,8 @@ export async function obtenerUno(req: Request, res: Response): Promise<void> {
             },
             {
                 $lookup: {
-                    from: "usuarios",
-                    localField: "id_usuario",
+                    from: "empleados",
+                    localField: "id_empleado_effective",
                     foreignField: "_id",
                     as: "usuario",
                     pipeline: [
@@ -758,13 +883,13 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
             res.status(200).json({ estado: false, mensaje: comentario });
             return;
         }
-        if (!regexIDGeneral.test(qr) && !regexCode.test(qr)) {
+        if (!regexIDGeneral.test(qr) && !regexCardCode.test(qr)) {
             comentario = "Formato de QR es inválido.";
             await guardarEventoNoValido("", "", comentario, id_usuario, qr);
             res.status(200).json({ estado: false, mensaje: comentario });
             return;
         }
-        if (regexCode.test(qr)) {
+        if (regexCardCode.test(qr)) {
             if (lector === 1) {
                 res.status(200).json({ estado: false, mensaje: "No puedes leer QR de visitantes en el lector del Check In / Out." });
                 return;
@@ -918,24 +1043,29 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
         }
         if (regexIDGeneral.test(qr)) {
             if (lector === 0) {
-                res.status(200).json({ estado: false, mensaje: "No puedes leer QR de usuarios en el lector de la bitácora." });
+                res.status(200).json({ estado: false, mensaje: "No puedes leer QR de empleados en el lector de la bitacora." });
                 return;
             }
-            const usuario = await Usuarios.findOne({ id_general: qr }, "rol activo id_horario");
-            if (!usuario) {
-                comentario = "El usuario no fue encontrado.";
+            const empleado = await Empleados.findOne({
+                $or: [
+                    { id_empleado: Number(qr) },
+                    { id_general: Number(qr) }
+                ]
+            } as any, "activo id_horario");
+            if (!empleado) {
+                comentario = "El empleado no fue encontrado.";
                 await guardarEventoNoValido("", "", comentario, id_usuario, qr);
                 res.status(200).json({ estado: false, mensaje: comentario });
                 return;
             }
-            if (!usuario.activo) {
-                comentario = "El usuario ya no esta disponible.";
+            if (!empleado.activo) {
+                comentario = "El empleado ya no esta disponible.";
                 await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, id_usuario);
                 res.status(200).json({ estado: false, mensaje: comentario });
                 return;
             }
             const { validarHorario, autorizacionCheck } = await Configuracion.findOne({}) as IConfiguracion;
-            const { id_horario } = usuario;
+            const { id_horario } = empleado as any;
             if (!validarHorario || !id_horario) {
                 res.status(200).json({ estado: true, datos: { comentario: "", fecha_check: new Date(), autorizacionCheck: false } });
                 return;
@@ -978,7 +1108,7 @@ export async function validarRostro(req: Request, res: Response): Promise<void> 
         }
         let registro = null;
         if (id_usuario_result) {
-            registro = await Usuarios.findById(id_usuario_result, {
+            registro = await Empleados.findById(id_usuario_result, {
                 nombre: {
                     $trim: {
                         input: { $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"] }
@@ -1035,13 +1165,23 @@ export async function crear(req: Request, res: Response): Promise<void> {
         const id_usuario = (req as UserRequest).userId;
         const id_acceso = (req as UserRequest).accessId;
         const { id_general, tipo_dispositivo, img_evento, tipo_check, fecha_check, comentario, latitud, longitud, similitud, advertencia, validado_por } = req.body;
-        const { _id: ID, img_usuario, id_horario, nombre } = await Usuarios.findOne({ id_general }, {
+        const empleado = await Empleados.findOne({
+            $or: [
+                { id_empleado: Number(id_general) },
+                { id_general: Number(id_general) }
+            ]
+        } as any, {
             img_usuario: 1, id_horario: 1, nombre: {
                 $trim: {
                     input: { $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"] }
                 }
             }
-        }) as IUsuario;
+        }) as any;
+        if (!empleado) {
+            res.status(200).json({ estado: false, mensaje: "El empleado no fue encontrado." });
+            return;
+        }
+        const { _id: ID, img_usuario, id_horario, nombre } = empleado;
         const currentDate = dayjs();
         const fecha_evento = dayjs(fecha_check);
 
@@ -1336,326 +1476,101 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
     try {
         console.log("[EVENTOS][PANEL] Guardando evento de panel...");
         const { ID, tipo_dispositivo, fecha_creacion, img_check, tipo_check_panel, id_panel } = req.body.datos;
-        console.log("[EVENTOS][PANEL] Payload:", {
-            ID,
-            tipo_dispositivo,
-            fecha_creacion,
-            tipo_check_panel,
-            id_panel,
-            img_check_type: typeof img_check,
-            img_check_len: typeof img_check === "string" ? img_check.length : null,
-        });
-        const registroExist = await Eventos.countDocuments({ fecha_creacion: new Date(fecha_creacion) });
-        console.log("[EVENTOS][PANEL] registroExist:", registroExist);
-        const regexIDGeneral = /^[\d]+$/;
-        const regexCardCode = /^VST[A-Z0-9]{16}$/;
-        if (registroExist > 0) {
-            console.log("[EVENTOS][PANEL] Evento ya existe:", ID);
-            //await new Promise(resolve => setTimeout(resolve, 1000));
-            res.status(200).json({ estado: false, mensaje: "Evento ya existe." }); 
+
+        if (!ID) {
+            res.status(200).json({ estado: false, mensaje: "ID de evento invalido." });
             return;
         }
 
-        // console.log("+**************************************");
-        //console.log(regexIDGeneral.test(ID));
-        //console.log(ID);
-        // console.log("+**************************************");
-        //await new Promise(resolve => setTimeout(resolve, 1000));
+        const { zonaHoraria = "America/Mexico_City" } = await Configuracion
+            .findOne({}, "zonaHoraria")
+            .lean<{ zonaHoraria?: string }>() || {};
 
-
-        if (regexIDGeneral.test(ID)) {
-            
-            console.log("[EVENTOS][PANEL] Buscando usuario con ID:", ID);
-
-            const user = await Usuarios.findOne({ id_general: ID }, 'img_usuario');            
-
-            if (user) {
-                const registroExist = await Eventos.countDocuments({ fecha_creacion: new Date(fecha_creacion) });
-                if (registroExist > 0) {
-                    res.status(200).json({ estado: false, mensaje: "Evento ya existe." });
-                    return;
-                }
-                if (registroExist === 0) {
-
-                    console.log("[EVENTOS][PANEL] Guardando nuevo evento para usuario:", ID);
-
-
-                    const evento = new Eventos({
-                        id_usuario: user._id,
-                        tipo_dispositivo,
-                        fecha_creacion: new Date(fecha_creacion),
-                        img_usuario: user.img_usuario,
-                        img_evento: REGEX_BASE64.test(img_check) ? await resizeImage(img_check) : img_check,
-                        id_panel,
-                        tipo_check: tipo_check_panel
-                    });
-                    await evento.save();
-                    socket.emit("eventos:nuevo-evento", {
-                        id_evento: evento._id
-                    });
-                }
-            } 
-            else 
-            { 
-
-                let numero = Number(ID);
-                let IDVisitante = numero - 990000;
-
-                console.log("[EVENTOS][PANEL] Usuario no encontrado, buscando visitante num�rico:", { ID, IDVisitante });
-
-                const visitante = await Visitantes.findOne({ id_visitante: IDVisitante });
-
-                if (visitante) {
-                    
-                    console.log("[EVENTOS][PANEL] Visitante encontrado:", visitante.nombre);
-
-                    const registroExist = await Eventos.countDocuments({ fecha_creacion: new Date(fecha_creacion) });
-                    if (registroExist > 0) {
-                        res.status(200).json({ estado: false, mensaje: "Evento ya existe." });
-                        return;
-                    }
-
-                    if (registroExist === 0) {
-                        const evento = new Eventos({
-                            id_visitante: visitante._id,
-                            tipo_dispositivo,
-                            fecha_creacion: new Date(fecha_creacion),
-                            //img_usuario: visitante.img_usuario,   // Pero el Visitante no tiene img_usuario en la tabla Visitantes
-                            img_evento: REGEX_BASE64.test(img_check) ? await resizeImage(img_check) : img_check,
-                            id_panel,
-                            tipo_check: tipo_check_panel
-                        });
-                        await evento.save();
-                        socket.emit("eventos:nuevo-evento", {
-                            id_evento: evento._id
-                        });
-                    }
-
-                }
-                else 
-                {
-                    console.log("[EVENTOS][PANEL] No se encontr� usuario ni visitante (num�rico):", ID);
-                    //await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-
-            }
-
-        } else if (regexCardCode.test(ID)) {
-            console.log("[EVENTOS][PANEL] Buscando visitante por card_code:", ID);
-
-            const visitante = await Visitantes.findOne({ card_code: ID });
-
-            if (visitante) {
-                console.log("[EVENTOS][PANEL] Visitante encontrado:", visitante.nombre);
-
-                const registroExist = await Eventos.countDocuments({ fecha_creacion: new Date(fecha_creacion) });
-                if (registroExist > 0) {
-                    res.status(200).json({ estado: false, mensaje: "Evento ya existe." });
-                    return;
-                }
-
-                const evento = new Eventos({
-                    id_visitante: visitante._id,
-                    tipo_dispositivo,
-                    fecha_creacion: new Date(fecha_creacion),
-                    img_usuario: visitante.img_usuario,
-                    img_evento: REGEX_BASE64.test(img_check) ? await resizeImage(img_check) : img_check,
-                    id_panel,
-                    tipo_check: tipo_check_panel
-                });
-                await evento.save();
-                socket.emit("eventos:nuevo-evento", {
-                    id_evento: evento._id
-                });
-            } else {
-                console.log("[EVENTOS][PANEL] No se encontr� visitante con card_code:", ID);
-            }
-        } else {
-            console.log("[EVENTOS][PANEL] ID no reconocido:", ID);
+        const fechaEvento = normalizarFechaEventoPanel(fecha_creacion, zonaHoraria);
+        if (!fechaEvento.isValid()) {
+            res.status(200).json({ estado: false, mensaje: "Fecha de evento invalida." });
+            return;
         }
 
-        /*
-        else {
+        const fechaEventoDate = fechaEvento.toDate();
+        const panelEventKey = {
+            id_panel: id_panel || null,
+            qr: String(ID),
+            tipo_dispositivo: Number(tipo_dispositivo),
+            tipo_check: Number(tipo_check_panel),
+            fecha_creacion: fechaEventoDate,
+        };
 
-            // 99,990,116
+        const eventoExistente = await Eventos.exists(panelEventKey);
+        if (eventoExistente) {
+            console.log("[EVENTOS][PANEL] Evento duplicado omitido:", panelEventKey);
+            res.status(200).json({ estado: false, mensaje: "Evento ya existe." });
+            return;
+        }
 
-            //const visitante = await Visitantes.findOne({ id_visitante: ID }, 'img_usuario');
+        const regexIDGeneral = /^[\d]+$/;
+        const regexCardCode = /^VST[A-Z0-9]{16}$/;
+        const imgRaw = typeof img_check === "string" ? img_check : "";
+        const imgEvento = REGEX_BASE64.test(imgRaw) ? await resizeImage(imgRaw) : imgRaw;
 
-            console.log("Buscando visitante con ID: " + ID);
+        const guardarEvento = async (datosEvento: Partial<IEvento>) => {
+            const evento = new Eventos({
+                ...datosEvento,
+                qr: String(ID),
+                tipo_dispositivo: Number(tipo_dispositivo),
+                fecha_creacion: fechaEventoDate,
+                img_evento: imgEvento,
+                id_panel: id_panel || null,
+                tipo_check: Number(tipo_check_panel),
+            });
 
-            const visitante = await Visitantes.findOne({ id_visitante: ID });
-            
+            await evento.save();
+            socket.emit("eventos:nuevo-evento", {
+                id_evento: evento._id,
+            });
+            return evento;
+        };
+
+        if (regexIDGeneral.test(String(ID))) {
+            const empleado = await Empleados.findOne({ id_empleado: Number(ID) } as any, "img_usuario");
+            if (empleado) {
+                await guardarEvento({ id_empleado: empleado._id, img_usuario: empleado.img_usuario });
+                res.status(200).json({ estado: true });
+                return;
+            }
+
+            const idVisitante = Number(ID) - 990000;
+            const visitante = await Visitantes.findOne({ id_visitante: idVisitante });
             if (visitante) {
-                    
-                console.log("[EVENTOS][PANEL] Visitante encontrado:", visitante.nombre);
+                await guardarEvento({ id_visitante: visitante._id, img_usuario: (visitante as any).img_usuario || "" });
+                res.status(200).json({ estado: true });
+                return;
+            }
 
-                const registroExist = await Eventos.countDocuments({ fecha_creacion: new Date(fecha_creacion) });
-                    if (registroExist > 0) {
-                        res.status(200).json({ estado: false, mensaje: "Evento ya existe." });
-                        return;
-                    }
-                    if (registroExist === 0) {
-                        const evento = new Eventos({
-                            id_visitante: visitante._id,
-                            //id_visitante: '693afc3d8641a874c5b21e14', // ID de visitante por defecto
-                            // "697ec159d4e1d5f025a44c3b"
-                            // ObjectId("697ec159d4e1d5f025a44c3b")
-                            tipo_dispositivo,
-                            fecha_creacion: new Date(fecha_creacion),
-                            //img_usuario: user.img_usuario,
-                            img_evento: REGEX_BASE64.test(img_check) ? await resizeImage(img_check) : img_check,
-                            id_panel,
-                            tipo_check: tipo_check_panel
-                        });
-                        await evento.save();
-                        socket.emit("eventos:nuevo-evento", {
-                            id_evento: evento._id
-                        });
-                    }
-                }
+            // Fallback: no se descarta el evento, se guarda sin relación para auditoría.
+            await guardarEvento({ comentario: "ID_NUMERICO_NO_MAPEADO" });
+            console.log("[EVENTOS][PANEL] ID numerico no mapeado, guardado sin relacion:", ID);
+            res.status(200).json({ estado: true, mensaje: "Evento guardado sin mapeo de empleado/visitante." });
+            return;
+        }
 
-            }   
-            */
+        if (regexCardCode.test(String(ID))) {
+            const visitante = await Visitantes.findOne({ card_code: ID });
+            if (visitante) {
+                await guardarEvento({ id_visitante: visitante._id, img_usuario: (visitante as any).img_usuario || "" });
+                res.status(200).json({ estado: true });
+                return;
+            }
 
+            // Fallback: no se descarta el evento, se guarda sin relación para auditoría.
+            await guardarEvento({ comentario: "CARD_CODE_NO_MAPEADO" });
+            console.log("[EVENTOS][PANEL] Card code no mapeado, guardado sin relacion:", ID);
+            res.status(200).json({ estado: true, mensaje: "Evento guardado sin mapeo de visitante." });
+            return;
+        }
 
-        //else
-        //{
-
-        // if (regexCode.test(ID)) {
-            
-        //     console.log("El ID es un código de registro de visita 01.");
-        //     await new Promise(resolve => setTimeout(resolve, 1000));
-
-        //     const panel = await DispositivosHv.findById(id_panel, 'id_acceso');
-        //     const objCheck = {
-        //         id_acceso: panel?.id_acceso || null,
-        //         tipo_dispositivo,
-        //         fecha_creacion,
-        //         img_perfil: "",
-        //         img_evento: REGEX_BASE64.test(img_check) ? await resizeImage(img_check) : img_check,
-        //         id_panel,
-        //     };
-
-        //     const registrosVisita = await Registros.aggregate([
-        //         {
-        //             $match: {
-        //                 $and: [
-        //                     {
-        //                         codigo: ID,
-        //                         activo: true,
-        //                     },
-        //                 ],
-        //             },
-        //         },
-        //         {
-        //             $lookup: {
-        //                 from: "eventos",
-        //                 localField: "estatus",
-        //                 foreignField: "_id",
-        //                 as: "eventos",
-        //                 pipeline: [
-        //                     { $project: { tipo_check: 1, fecha_creacion: 1 } },
-        //                     { $sort: { fecha_creacion: 1 } },
-        //                 ],
-        //             },
-        //         },
-        //         {
-        //             $lookup: {
-        //                 from: "visitantes",
-        //                 localField: "correo",
-        //                 foreignField: "correo",
-        //                 as: "visitante",
-        //                 pipeline: [
-        //                     {
-        //                         $project: {
-        //                             _id: 1
-        //                         },
-        //                     },
-        //                 ],
-        //             },
-        //         },
-        //         {
-        //             $set: {
-        //                 estatus: { $arrayElemAt: ["$eventos", -1] },
-        //                 visitante: { $arrayElemAt: ["$visitante", -1] },
-        //             },
-        //         },
-        //         {
-        //             $set: {
-        //                 tipo_check: "$estatus.tipo_check",
-        //                 fecha_creacion_ultimo_evento: "$estatus.fecha_creacion",
-        //                 id_visitante: "$visitante._id"
-        //             },
-        //         },
-        //         {
-        //             $sort: {
-        //                 fecha_entrada: 1,
-        //             },
-        //         },
-        //         {
-        //             $project: {
-        //                 id_visitante: 1,
-        //                 tipo_registro: 1,
-        //                 eventos: 1,
-        //                 estatus: 1,
-        //                 fecha_salida: 1,
-        //                 fecha_entrada: 1,
-        //                 tipo_check: 1,
-        //                 fecha_creacion_ultimo_evento: 1,
-        //             },
-        //         },
-        //     ]);
-
-        //     if (registrosVisita[0]) {
-        //         const { _id: id_registro, id_visitante } = registrosVisita[0];
-        //         let { tipo_check } = registrosVisita[0];
-
-        //         const [esValido, comentario] = await validacionRegistroActivo(registrosVisita[0]);
-
-        //         if (!esValido && comentario) {
-        //             await guardarEventoNoValido("", "", comentario, null, "", id_registro, fecha_creacion);
-        //             res.status(200).json({ estado: false, mensaje: "Evento no válido." });
-        //             return;
-        //         }
-
-        //         switch (Number(tipo_check_panel)) {
-        //             case 5:
-        //                 tipo_check = tipo_check === 6 ? 5 : 0;
-        //                 break;
-        //             case 6:
-        //                 tipo_check = tipo_check === 5 ? 6 : 0;
-        //                 break;
-        //             case 7:
-        //                 tipo_check = tipo_check === 5 ? 6 : tipo_check === 6 ? 5 : 0;
-        //                 break;
-        //             default:
-        //                 tipo_check = 0;
-        //                 break;
-        //         }
-
-        //         if (tipo_check === 0) {
-        //             await guardarEventoNoValido("", "", comentario, null, "", id_registro, fecha_creacion);
-        //             res.status(200).json({ estado: false, mensaje: "Evento no válido." });
-        //             return;
-        //         }
-
-        //         await cambiarEventoRegistro({
-        //             ...objCheck,
-        //             tipo_check: tipo_check,
-        //             id_registro: id_registro,
-        //             id_visitante: id_visitante,
-        //         }, { _id: 1 }) as IRegistro;
-
-        //         socket.emit("registros:modificar-estado", {
-        //             id_registro: id_registro
-        //         });
-
-        //         res.status(200).json({ estado: true });
-        //         return;
-        //     }
-        // }
-
-        res.status(200).json({ estado: false, mensaje: "Hubo un problema al guardar el panel" });
+        console.log("[EVENTOS][PANEL] ID no reconocido:", ID);
+        res.status(200).json({ estado: false, mensaje: "ID no reconocido." });
     } catch (error: any) {
         console.error(error);
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -1663,6 +1578,19 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
     }
 }
 
+function normalizarFechaEventoPanel(fechaRaw: unknown, zonaHoraria: string) {
+    // Los paneles pueden enviar timestamps con offset distinto al sitio.
+    // Se prioriza la hora "de reloj" del panel para guardarla en la zona configurada.
+    if (typeof fechaRaw === "string") {
+        const match = fechaRaw.trim().match(/^(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2}:\d{2})/);
+        if (match) {
+            const fechaSinOffset = `${match[1]} ${match[2]}`;
+            const fechaZona = dayjs.tz(fechaSinOffset, zonaHoraria);
+            if (fechaZona.isValid()) return fechaZona.millisecond(0);
+        }
+    }
+    return dayjs(fechaRaw as any).millisecond(0);
+}
 // Reporte de horas 
 const obtenerReportesGeneral = async (
     registros: IEvento[],

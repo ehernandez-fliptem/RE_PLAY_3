@@ -3,10 +3,8 @@ import { fecha, log } from "./middlewares/log";
 import { decryptPassword } from './utils/utils';
 import { clienteAxios } from './axios';
 import axios from 'axios';
-import io from 'socket.io-client';
 import { EventInfo, EventProcess, IDispositivoHv } from './types/basic';
 import dayjs from 'dayjs';
-import { ConnectionPoolClosedEvent } from 'mongodb';
 
 const regexIDGeneral = /^[\d]+$/;
 const regexCodigo = /^[A-Za-z0-9]{18}$/;
@@ -14,6 +12,7 @@ const regexCodigo = /^[A-Za-z0-9]{18}$/;
 let indexPaneles = 0;
 let indexEventos = 0;
 let eventosSync = 0;
+const QUERY_WINDOW_HOURS = 24;
 
 export async function main() {
     try {
@@ -69,7 +68,9 @@ const sincronizarEventos = async (paneles: IDispositivoHv[]) => {
         log(`${fecha()} 📱​ Dispositivo: ${nombre} - ${direccion_ip}\n`);
         let eventosPanel: EventInfo[] = [];
         const fechaParcial = dayjs();
-        const inicio = fechaParcial.subtract(6, "hour").format("YYYY-MM-DD HH:mm:ss")
+        const inicio = fechaParcial
+            .subtract(QUERY_WINDOW_HOURS, "hour")
+            .format("YYYY-MM-DD HH:mm:ss")
         const final = fechaParcial.add(1, "minute").format("YYYY-MM-DD HH:mm:ss")
 
         const panelInfo = {
@@ -104,7 +105,11 @@ const sincronizarEventos = async (paneles: IDispositivoHv[]) => {
                     // console.log("+**************************************");
 
                     //if (regexIDGeneral.test(item.employeeNoString) || regexCodigo.test(item.employeeNoString)) {
-                        const fechaCheck = new Date(item.time);
+                        // Enviamos la fecha cruda del panel para que el backend la normalice
+                        // en la zona horaria configurada sin doble conversión por timezone.
+                        const fechaCheck = typeof item.time === "string" || typeof item.time === "number"
+                            ? item.time
+                            : String(item.time);
                         return { ID: item.employeeNoString, tipo_dispositivo: 3, fecha_creacion: fechaCheck, img_check: item.pictureURL || 'QR', tipo_check_panel: tipo_evento, id_panel: _id };
                     //}
                 }

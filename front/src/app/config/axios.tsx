@@ -3,7 +3,7 @@ import { enqueueSnackbar } from "notistack";
 
 export const clienteAxios = axios.create({
   //baseURL:  "https://recepcionelectronica.tailf96b8e.ts.net/", 
-  baseURL: "http://localhost/"
+  baseURL: "/"
 });
 
 clienteAxios.defaults.headers.common["ngrok-skip-browser-warning"] = "69420"

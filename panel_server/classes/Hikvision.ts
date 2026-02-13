@@ -682,8 +682,14 @@ async getTokenValue() {
             let bandera = "";
             let eventosPanel: any[] = [];
             const urlEventos = `http://${this.ip}/ISAPI/AccessControl/AcsEvent?format=json`;
-            const startTime = dayjs(inicio).startOf("day").format("YYYY-MM-DDTHH:mm:ssZ");
-            const endTime = dayjs(final).endOf("day").format("YYYY-MM-DDTHH:mm:ssZ");
+            const start = dayjs(inicio);
+            const end = dayjs(final);
+            if (!start.isValid() || !end.isValid()) {
+                throw new Error("Rango de fechas inválido para consultar eventos del panel.");
+            }
+            const safeEnd = end.isBefore(start) ? start.add(1, "minute") : end;
+            const startTime = start.format("YYYY-MM-DDTHH:mm:ssZ");
+            const endTime = safeEnd.format("YYYY-MM-DDTHH:mm:ssZ");
             const major = 5;
             const minor = tipo_evento;
             let dataEventos = {

@@ -9,6 +9,7 @@ export interface IEvento extends Document {
     id_registro?: mongoose.Types.ObjectId;
     id_horario?: mongoose.Types.ObjectId;
     id_acceso?: mongoose.Types.ObjectId;
+    id_empleado?: mongoose.Types.ObjectId;
     id_usuario?: mongoose.Types.ObjectId;
     id_visitante?: mongoose.Types.ObjectId;
     id_panel?: mongoose.Types.ObjectId;
@@ -33,7 +34,8 @@ const eventoSchema = new Schema<IEvento>({
     id_registro: { type: Schema.Types.ObjectId, default: null, ref: 'registros' },
     id_horario: { type: Schema.Types.ObjectId, default: null, ref: 'horarios' },
     id_acceso: { type: Schema.Types.ObjectId, default: null, ref: 'accesos' },
-    id_usuario: { type: Schema.Types.ObjectId, default: null, ref: 'usuarios' },
+    id_empleado: { type: Schema.Types.ObjectId, default: null, ref: 'empleados' },
+    id_usuario: { type: Schema.Types.ObjectId, default: null, ref: 'usuarios' }, // legacy
     id_visitante: { type: Schema.Types.ObjectId, default: null, ref: 'visitantes' },
     id_panel: { type: Schema.Types.ObjectId, default: null, ref: 'hikvision_dispositivos' },
     validado_por: { type: Schema.Types.ObjectId, default: null, ref: 'usuarios' },

@@ -7,6 +7,7 @@ import QRCode from 'qrcode';
 import { UserRequest } from '../types/express';
 import { QueryParams } from '../types/queryparams';
 import Usuarios, { IUsuario } from '../models/Usuarios';
+import Empleados from '../models/Empleados';
 import Roles from '../models/Roles';
 import Empresas, { IEmpresa } from '../models/Empresas';
 import { IPiso } from '../models/Pisos';
@@ -275,13 +276,33 @@ export async function obtenerTodosDirectorio(req: Request, res: Response): Promi
                 }
             },
             {
+                $lookup: {
+                    from: "puestos",
+                    localField: "id_puesto",
+                    foreignField: "_id",
+                    as: "puesto",
+                    pipeline: [
+                        {
+                            $project: {
+                                nombre: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $set: {
+                    puesto: { $arrayElemAt: ["$puesto", -1] }
+                }
+            },
+            {
                 $project: {
                     nombre: {
                         $trim: {
                             input: { $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"] }
                         }
                     },
-                    puesto: 1,
+                    puesto: "$puesto.nombre",
                     correo: 1,
                     telefono: 1,
                     movil: 1
@@ -297,7 +318,7 @@ export async function obtenerTodosDirectorio(req: Request, res: Response): Promi
         }
         aggregation.push(
             {
-                $sort: sortMDB ? sortMDB : { id_general: 1 }
+                $sort: sortMDB ? sortMDB : { nombre: 1 }
             },
             {
                 $facet: {
@@ -310,7 +331,7 @@ export async function obtenerTodosDirectorio(req: Request, res: Response): Promi
                 }
             }
         )
-        const registros = await Usuarios.aggregate(aggregation)
+        const registros = await Empleados.aggregate(aggregation)
         res.status(200).json({ estado: true, datos: registros[0] });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
