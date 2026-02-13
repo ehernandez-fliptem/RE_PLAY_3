@@ -12,7 +12,7 @@ const regexCodigo = /^[A-Za-z0-9]{18}$/;
 let indexPaneles = 0;
 let indexEventos = 0;
 let eventosSync = 0;
-const QUERY_WINDOW_HOURS = 2;
+const QUERY_WINDOW_HOURS = 24;
 
 export async function main() {
     try {
