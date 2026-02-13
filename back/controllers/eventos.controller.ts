@@ -32,8 +32,18 @@ import FaceDescriptors from "../models/FaceDescriptors";
 export async function obtenerTodosPorFiltro(req: Request, res: Response): Promise<void> {
     try {
         const { usuarios, dispositivos, estatus, empresas, fecha_inicio, fecha_final } = req.body.datos;
-        const entrada = dayjs(fecha_inicio).startOf("day").subtract(1, "day").toDate();
-        const salida = dayjs(fecha_final).endOf("day").add(1, "day").toDate();
+        const entradaDay = dayjs(fecha_inicio);
+        const salidaDay = dayjs(fecha_final);
+        if (!entradaDay.isValid() || !salidaDay.isValid()) {
+            res.status(200).json({ estado: false, mensaje: "Rango de fechas invï¿½lido." });
+            return;
+        }
+        if (entradaDay.isAfter(salidaDay)) {
+            res.status(200).json({ estado: false, mensaje: "La fecha de inicio no puede ser mayor que la fecha final." });
+            return;
+        }
+        const entrada = entradaDay.toDate();
+        const salida = salidaDay.toDate();
         const usuariosSeleccionados: Types.ObjectId[] = Array.isArray(usuarios)
             ? usuarios.map((item: string) => new Types.ObjectId(item))
             : [];
@@ -1012,7 +1022,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
         }
         if (regexIDGeneral.test(qr)) {
             if (lector === 0) {
-                res.status(200).json({ estado: false, mensaje: "No puedes leer QR de empleados en el lector de la bitácora." });
+                res.status(200).json({ estado: false, mensaje: "No puedes leer QR de empleados en el lector de la bitacora." });
                 return;
             }
             const empleado = await Empleados.findOne({
@@ -1497,16 +1507,9 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
         };
 
         if (regexIDGeneral.test(String(ID))) {
-            const user = await Empleados.findOne({ $or: [{ id_empleado: Number(ID) }, { id_general: Number(ID) }] } as any, "img_usuario");
-            if (user) {
-                await guardarEvento({ id_usuario: user._id, img_usuario: user.img_usuario });
-                res.status(200).json({ estado: true });
-                return;
-            }
-
-            const systemUser = await Usuarios.findOne({ id_general: Number(ID) } as any, "img_usuario");
-            if (systemUser) {
-                await guardarEvento({ id_usuario: systemUser._id, img_usuario: (systemUser as any).img_usuario || "" });
+            const empleado = await Empleados.findOne({ id_empleado: Number(ID) } as any, "img_usuario");
+            if (empleado) {
+                await guardarEvento({ id_usuario: empleado._id, img_usuario: empleado.img_usuario });
                 res.status(200).json({ estado: true });
                 return;
             }
