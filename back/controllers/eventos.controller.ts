@@ -21,7 +21,7 @@ import {
 } from "../utils/utils";
 
 import { UserRequest } from "../types/express";
-import dayjs, { ManipulateType } from "dayjs";
+import dayjs, { Dayjs, ManipulateType } from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { enviarCorreoNotificarCheck } from "../utils/correos";
@@ -61,7 +61,12 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
         const qrsEmpleadosSeleccionados = empleadosSeleccionados
             .map((item: any) => String(item.id_empleado))
             .filter((item: string) => item !== "undefined" && item !== "null");
-        const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
+        const { filter, pagination, sort, panel } = req.query as { filter: string; pagination: string; sort: string; panel?: string; };
+        const queryPanel = panel && panel !== "all" ? String(panel) : "";
+        if (queryPanel && !Types.ObjectId.isValid(queryPanel)) {
+            res.status(200).json({ estado: false, mensaje: "Panel de busqueda invalido." });
+            return;
+        }
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
         const querySort = JSON.parse(sort) as QueryParams["sort"];
         const queryPagination = JSON.parse(pagination) as QueryParams["pagination"];
@@ -91,6 +96,7 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                             : {},
                         dispositivos?.length ? { tipo_dispositivo: { $in: dispositivos.map((item: number) => Number(item)) } } : {},
                         estatus?.length ? { tipo_check: { $in: estatus.filter((item: string | number) => [5, 6, 7].includes(Number(item))).map((item: number) => Number(item)) } } : {},
+                        queryPanel ? { id_panel: new Types.ObjectId(queryPanel) } : {},
                         fecha_inicio && fecha_final
                             ? { fecha_creacion: { $gte: entrada, $lte: salida } }
                             : {},
@@ -317,13 +323,24 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
         const isMaster = (req as UserRequest).isMaster;
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario
 
-        const { filter, pagination, sort, date } = req.query as { filter: string; pagination: string; sort: string; date: string; };
+        const { filter, pagination, sort, date, panel } = req.query as {
+            filter: string;
+            pagination: string;
+            sort: string;
+            date: string;
+            panel?: string;
+        };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
         const querySort = JSON.parse(sort) as QueryParams["sort"];
         const queryPagination = JSON.parse(pagination) as QueryParams["pagination"];
         const queryDate = date as QueryParams["date"];
+        const queryPanel = panel && panel !== "all" ? String(panel) : "";
 
         const fecha_busqueda = dayjs(queryDate);
+        if (queryPanel && !Types.ObjectId.isValid(queryPanel)) {
+            res.status(200).json({ estado: false, mensaje: "Panel de busqueda invalido." });
+            return;
+        }
         if (!dayjs.isDayjs(fecha_busqueda)) {
             res.status(200).json({ estado: false, mensaje: 'Revisa que la fecha de búsqueda sea válida.' })
             return;
@@ -343,7 +360,8 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
                 $match: {
                     $and: [
                         date ? { fecha_creacion: { $gte: entrada, $lte: salida } } : {},
-                        { tipo_check: { $in: [5, 6, 7] } }
+                        { tipo_check: { $in: [5, 6, 7] } },
+                        queryPanel ? { id_panel: new Types.ObjectId(queryPanel) } : {}
                     ],
                 }
             },
@@ -529,7 +547,8 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
                     panel: 1,
                     acceso: 1,
                     id_registro: 1,
-                    id_usuario: 1
+                    id_usuario: 1,
+                    id_empleado: "$id_empleado_effective"
                 }
             }
         ];
@@ -643,6 +662,19 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
         const registros = await Eventos.aggregate(aggregation);
 
         res.status(200).json({ estado: true, datos: registros[0] });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function obtenerPanelesKiosco(_req: Request, res: Response): Promise<void> {
+    try {
+        const paneles = await DispositivosHv.find(
+            { activo: true },
+            { nombre: 1, direccion_ip: 1 }
+        ).sort({ nombre: 1 });
+        res.status(200).json({ estado: true, datos: paneles });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
@@ -1486,15 +1518,63 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
             .findOne({}, "zonaHoraria")
             .lean<{ zonaHoraria?: string }>() || {};
 
-        const fechaEvento = normalizarFechaEventoPanel(fecha_creacion, zonaHoraria);
-        if (!fechaEvento.isValid()) {
+        const fechaPanel = normalizarFechaEventoPanel(fecha_creacion, zonaHoraria);
+        if (!fechaPanel.isValid()) {
             res.status(200).json({ estado: false, mensaje: "Fecha de evento invalida." });
             return;
         }
 
-        const fechaEventoDate = fechaEvento.toDate();
+        const fechaServidorRecepcion = dayjs().tz(zonaHoraria).millisecond(0);
+        const panelObjectId = id_panel && Types.ObjectId.isValid(String(id_panel))
+            ? new Types.ObjectId(String(id_panel))
+            : null;
+        const panel = panelObjectId
+            ? await DispositivosHv.findById(
+                panelObjectId,
+                "id_acceso reloj_offset_segundos reloj_alerta_activa reloj_ultimo_desfase_segundos reloj_ultima_muestra"
+            ).lean<{
+                _id: Types.ObjectId;
+                id_acceso?: Types.ObjectId;
+                reloj_offset_segundos?: number;
+                reloj_alerta_activa?: boolean;
+                reloj_ultimo_desfase_segundos?: number;
+                reloj_ultima_muestra?: Date;
+            }>()
+            : null;
+
+        const offsetActualSegundos = Number(panel?.reloj_offset_segundos || 0);
+        const offsetDetectadoSegundos = detectarOffsetAutomatico(
+            fechaPanel,
+            fechaServidorRecepcion,
+            offsetActualSegundos
+        );
+        const offsetAplicadoSegundos =
+            offsetDetectadoSegundos !== null ? offsetDetectadoSegundos : offsetActualSegundos;
+        const fechaEventoCorregida = fechaPanel
+            .subtract(offsetAplicadoSegundos, "second")
+            .millisecond(0);
+        const fechaEventoDate = fechaEventoCorregida.toDate();
+        const desfaseRawSegundos = fechaPanel.diff(fechaServidorRecepcion, "second");
+        const alertaRelojPanel = Math.abs(offsetAplicadoSegundos) >= PANEL_CLOCK_ALERT_THRESHOLD_SECONDS;
+
+        if (panelObjectId) {
+            const updatePanel: Record<string, unknown> = {
+                reloj_alerta_activa: alertaRelojPanel,
+                reloj_ultimo_desfase_segundos: desfaseRawSegundos,
+                reloj_ultima_muestra: fechaServidorRecepcion.toDate(),
+            };
+            if (offsetDetectadoSegundos !== null && offsetDetectadoSegundos !== offsetActualSegundos) {
+                updatePanel.reloj_offset_segundos = offsetDetectadoSegundos;
+                console.warn("[EVENTOS][PANEL] Offset de reloj detectado automaticamente:", {
+                    id_panel: String(panelObjectId),
+                    offset_segundos: offsetDetectadoSegundos,
+                });
+            }
+            await DispositivosHv.updateOne({ _id: panelObjectId }, { $set: updatePanel });
+        }
+
         const panelEventKey = {
-            id_panel: id_panel || null,
+            id_panel: panelObjectId,
             qr: String(ID),
             tipo_dispositivo: Number(tipo_dispositivo),
             tipo_check: Number(tipo_check_panel),
@@ -1519,8 +1599,13 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
                 qr: String(ID),
                 tipo_dispositivo: Number(tipo_dispositivo),
                 fecha_creacion: fechaEventoDate,
+                fecha_panel_raw: String(fecha_creacion ?? ""),
+                fecha_servidor_recepcion: fechaServidorRecepcion.toDate(),
+                desfase_reloj_segundos: desfaseRawSegundos,
+                desfase_reloj_alerta: alertaRelojPanel,
                 img_evento: imgEvento,
-                id_panel: id_panel || null,
+                id_panel: panelObjectId,
+                id_acceso: panel?.id_acceso || null,
                 tipo_check: Number(tipo_check_panel),
             });
 
@@ -1531,10 +1616,100 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
             return evento;
         };
 
+        const appendComentario = (base: string | undefined, extra: string | undefined) => {
+            if (!extra) return base;
+            if (!base) return extra;
+            const partes = new Set(
+                `${base};${extra}`
+                    .split(";")
+                    .map((item) => item.trim())
+                    .filter(Boolean)
+            );
+            return Array.from(partes).join(";");
+        };
+
+        const validarSecuenciaEvento = async (params: {
+            id_empleado?: Types.ObjectId | null;
+            id_visitante?: Types.ObjectId | null;
+            tipo_check: number;
+            fechaEventoDate: Date;
+            id_panel?: Types.ObjectId | null;
+        }): Promise<{ omitir: boolean; comentario?: string }> => {
+            const { id_empleado, id_visitante, tipo_check, fechaEventoDate, id_panel } = params;
+            if (![5, 6].includes(tipo_check)) return { omitir: false };
+
+            const personaMatch: Record<string, unknown> =
+                id_empleado
+                    ? { id_empleado }
+                    : id_visitante
+                        ? { id_visitante }
+                        : {};
+            if (!Object.keys(personaMatch).length) return { omitir: false };
+
+            const scopeMatch: Record<string, unknown> = {
+                ...personaMatch,
+                ...(id_panel ? { id_panel } : {}),
+                tipo_check: { $in: [5, 6] },
+                fecha_creacion: { $lte: fechaEventoDate },
+            };
+
+            const ultimo = await Eventos.findOne(scopeMatch, "tipo_check fecha_creacion")
+                .sort({ fecha_creacion: -1 })
+                .lean<{ tipo_check?: number; fecha_creacion?: Date }>();
+
+            let comentario: string | undefined;
+            if (ultimo?.tipo_check && ultimo?.fecha_creacion) {
+                const diffSeg = Math.abs(dayjs(fechaEventoDate).diff(dayjs(ultimo.fecha_creacion), "second"));
+                if (ultimo.tipo_check === tipo_check && diffSeg <= LOGICAL_DUPLICATE_WINDOW_SECONDS) {
+                    return { omitir: true, comentario: "DUPLICADO_LOGICO_VENTANA_CORTA" };
+                }
+                if (ultimo.tipo_check === tipo_check) {
+                    comentario = appendComentario(
+                        comentario,
+                        tipo_check === 5 ? "SECUENCIA_REPETIDA_IN" : "SECUENCIA_REPETIDA_OUT"
+                    );
+                }
+            }
+
+            if (tipo_check === 6) {
+                const inicioDia = dayjs(fechaEventoDate).startOf("day").toDate();
+                const existeInDia = await Eventos.exists({
+                    ...personaMatch,
+                    ...(id_panel ? { id_panel } : {}),
+                    tipo_check: 5,
+                    fecha_creacion: { $gte: inicioDia, $lte: fechaEventoDate },
+                });
+                if (!existeInDia) {
+                    comentario = appendComentario(comentario, "OUT_SIN_IN_DIA");
+                }
+            }
+
+            return { omitir: false, comentario };
+        };
+
         if (regexIDGeneral.test(String(ID))) {
             const empleado = await Empleados.findOne({ id_empleado: Number(ID) } as any, "img_usuario");
             if (empleado) {
-                await guardarEvento({ id_empleado: empleado._id, img_usuario: empleado.img_usuario });
+                const analisis = await validarSecuenciaEvento({
+                    id_empleado: empleado._id,
+                    tipo_check: Number(tipo_check_panel),
+                    fechaEventoDate,
+                    id_panel: panelObjectId,
+                });
+                if (analisis.omitir) {
+                    console.log("[EVENTOS][PANEL] Evento omitido por deduplicacion logica:", {
+                        ID,
+                        id_panel: panelObjectId ? String(panelObjectId) : null,
+                        motivo: analisis.comentario,
+                    });
+                    res.status(200).json({ estado: false, mensaje: "Evento duplicado logico omitido." });
+                    return;
+                }
+                await guardarEvento({
+                    id_empleado: empleado._id,
+                    img_usuario: empleado.img_usuario,
+                    comentario: analisis.comentario,
+                });
                 res.status(200).json({ estado: true });
                 return;
             }
@@ -1542,7 +1717,26 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
             const idVisitante = Number(ID) - 990000;
             const visitante = await Visitantes.findOne({ id_visitante: idVisitante });
             if (visitante) {
-                await guardarEvento({ id_visitante: visitante._id, img_usuario: (visitante as any).img_usuario || "" });
+                const analisis = await validarSecuenciaEvento({
+                    id_visitante: visitante._id,
+                    tipo_check: Number(tipo_check_panel),
+                    fechaEventoDate,
+                    id_panel: panelObjectId,
+                });
+                if (analisis.omitir) {
+                    console.log("[EVENTOS][PANEL] Evento omitido por deduplicacion logica:", {
+                        ID,
+                        id_panel: panelObjectId ? String(panelObjectId) : null,
+                        motivo: analisis.comentario,
+                    });
+                    res.status(200).json({ estado: false, mensaje: "Evento duplicado logico omitido." });
+                    return;
+                }
+                await guardarEvento({
+                    id_visitante: visitante._id,
+                    img_usuario: (visitante as any).img_usuario || "",
+                    comentario: analisis.comentario,
+                });
                 res.status(200).json({ estado: true });
                 return;
             }
@@ -1557,7 +1751,26 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
         if (regexCardCode.test(String(ID))) {
             const visitante = await Visitantes.findOne({ card_code: ID });
             if (visitante) {
-                await guardarEvento({ id_visitante: visitante._id, img_usuario: (visitante as any).img_usuario || "" });
+                const analisis = await validarSecuenciaEvento({
+                    id_visitante: visitante._id,
+                    tipo_check: Number(tipo_check_panel),
+                    fechaEventoDate,
+                    id_panel: panelObjectId,
+                });
+                if (analisis.omitir) {
+                    console.log("[EVENTOS][PANEL] Evento omitido por deduplicacion logica:", {
+                        ID,
+                        id_panel: panelObjectId ? String(panelObjectId) : null,
+                        motivo: analisis.comentario,
+                    });
+                    res.status(200).json({ estado: false, mensaje: "Evento duplicado logico omitido." });
+                    return;
+                }
+                await guardarEvento({
+                    id_visitante: visitante._id,
+                    img_usuario: (visitante as any).img_usuario || "",
+                    comentario: analisis.comentario,
+                });
                 res.status(200).json({ estado: true });
                 return;
             }
@@ -1590,6 +1803,36 @@ function normalizarFechaEventoPanel(fechaRaw: unknown, zonaHoraria: string) {
         }
     }
     return dayjs(fechaRaw as any).millisecond(0);
+}
+
+const PANEL_CLOCK_AUTO_OFFSET_MIN_SECONDS = 4 * 60 * 60; // 4h
+const PANEL_CLOCK_AUTO_OFFSET_MAX_SECONDS = 12 * 60 * 60; // 12h
+const PANEL_CLOCK_AUTO_OFFSET_HOUR_TOLERANCE_SECONDS = 5 * 60; // 5 min
+const PANEL_CLOCK_ALERT_THRESHOLD_SECONDS = 30 * 60; // 30 min
+const LOGICAL_DUPLICATE_WINDOW_SECONDS = 20; // 20s
+
+function detectarOffsetAutomatico(
+    fechaPanel: Dayjs,
+    fechaServidor: Dayjs,
+    offsetActualSegundos: number
+): number | null {
+    if (Math.abs(offsetActualSegundos) > 0) return null;
+
+    const diffSegundos = fechaPanel.diff(fechaServidor, "second");
+    const horasRedondeadas = Math.round(diffSegundos / 3600);
+    const offsetCandidato = horasRedondeadas * 3600;
+
+    if (!horasRedondeadas) return null;
+    if (
+        Math.abs(offsetCandidato) < PANEL_CLOCK_AUTO_OFFSET_MIN_SECONDS ||
+        Math.abs(offsetCandidato) > PANEL_CLOCK_AUTO_OFFSET_MAX_SECONDS
+    ) {
+        return null;
+    }
+    if (Math.abs(diffSegundos - offsetCandidato) > PANEL_CLOCK_AUTO_OFFSET_HOUR_TOLERANCE_SECONDS) {
+        return null;
+    }
+    return offsetCandidato;
 }
 // Reporte de horas 
 const obtenerReportesGeneral = async (

@@ -48,6 +48,11 @@ type Empresas = {
   nombre?: string;
 };
 
+type Panel = {
+  _id?: string;
+  nombre?: string;
+};
+
 type FormValues = {
   fecha_inicio: Dayjs;
   fecha_final: Dayjs;
@@ -55,6 +60,7 @@ type FormValues = {
   dispositivos?: string[];
   empresas?: string[];
   estatus: number[];
+  panel?: string;
 };
 
 const resolver = yup.object().shape({
@@ -82,6 +88,7 @@ const resolver = yup.object().shape({
   dispositivos: yup.array().of(yup.string()),
   empresas: yup.array().of(yup.string()),
   estatus: yup.array().of(yup.number()),
+  panel: yup.string().optional(),
 }) as yup.ObjectSchema<FormValues>;
 
 const initialValue: FormValues = {
@@ -91,6 +98,7 @@ const initialValue: FormValues = {
   dispositivos: [],
   empresas: [],
   estatus: [],
+  panel: "all",
 };
 
 export default function Eventos() {
@@ -128,6 +136,7 @@ export default function Eventos() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [empresas, setEmpresas] = useState<Empresas[]>([]);
+  const [paneles, setPaneles] = useState<Panel[]>([]);
   const [canSearch, setCanSearch] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
 
@@ -137,6 +146,12 @@ export default function Eventos() {
         const res = await clienteAxios.get("/api/eventos/form-reportes");
         if (res.data.estado) {
           setEmpresas(res.data.datos.empresas);
+          const resPaneles = await clienteAxios.get("/api/eventos/kiosco/paneles");
+          if (resPaneles.data.estado) {
+            setPaneles(resPaneles.data.datos || []);
+          } else {
+            setPaneles([]);
+          }
           setIsLoading(false);
         } else {
           enqueueSnackbar(res.data.mensaje, { variant: "warning" });
@@ -159,6 +174,7 @@ export default function Eventos() {
               filter: JSON.stringify(params.filterModel.quickFilterValues),
               pagination: JSON.stringify(params.paginationModel),
               sort: JSON.stringify(params.sortModel),
+              panel: String(formContext.getValues().panel || "all"),
             });
             const res = await clienteAxios.post(
               "/api/eventos/reportes?" + urlParams.toString(),
@@ -350,6 +366,26 @@ export default function Eventos() {
                       autocompleteProps={{
                         noOptionsText: "No hay opciones.",
                         limitTags: 2,
+                      }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <AutocompleteElement
+                      name="panel"
+                      label="Panel"
+                      matchId
+                      options={[
+                        { id: "all", label: "Todos los paneles" },
+                        ...paneles.map((item) => ({
+                          id: item._id,
+                          label: item.nombre,
+                        })),
+                      ]}
+                      textFieldProps={{
+                        margin: "normal",
+                      }}
+                      autocompleteProps={{
+                        noOptionsText: "No hay opciones.",
                       }}
                     />
                   </Grid>
