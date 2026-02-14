@@ -681,6 +681,25 @@ export async function obtenerPanelesKiosco(_req: Request, res: Response): Promis
     }
 }
 
+export async function obtenerAlertasRelojPaneles(_req: Request, res: Response): Promise<void> {
+    try {
+        const alertas = await DispositivosHv.find(
+            { activo: true, reloj_alerta_activa: true },
+            {
+                nombre: 1,
+                direccion_ip: 1,
+                reloj_offset_segundos: 1,
+                reloj_ultimo_desfase_segundos: 1,
+                reloj_ultima_muestra: 1,
+            }
+        ).sort({ nombre: 1 });
+        res.status(200).json({ estado: true, datos: alertas });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
 export async function obtenerFormEventos(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;

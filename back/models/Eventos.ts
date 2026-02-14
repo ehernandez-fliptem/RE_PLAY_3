@@ -58,6 +58,11 @@ const eventoSchema = new Schema<IEvento>({
     activo: { type: Boolean, default: true },
 });
 
+// Optimizan deduplicación/líneas de tiempo por panel/persona.
+eventoSchema.index({ id_panel: 1, qr: 1, tipo_check: 1, fecha_creacion: 1 });
+eventoSchema.index({ id_empleado: 1, fecha_creacion: -1 });
+eventoSchema.index({ id_visitante: 1, fecha_creacion: -1 });
+
 eventoSchema.pre<IEvento>('save', async function (next) {
     try {
         this.fecha_creacion = this.fecha_creacion || new Date();

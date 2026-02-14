@@ -28,7 +28,7 @@ import type { IRootState } from "../../app/store";
 import type { GridSortModel } from "@mui/x-data-grid";
 import type { AxiosError } from "axios";
 import Spinner from "../utils/Spinner";
-import { ArrowDownward, ArrowUpward } from "@mui/icons-material";
+import { ArrowDownward, ArrowUpward, WarningAmber } from "@mui/icons-material";
 import ErrorOverlay from "../error/DataGridError";
 import SearchInput from "../recepcion/bitacora/utils/SearchInput";
 
@@ -64,6 +64,14 @@ type ARGS = {
   datos: IRegistro;
 };
 
+type IPanelAlerta = {
+  _id: string;
+  nombre: string;
+  direccion_ip?: string;
+  reloj_offset_segundos?: number;
+  reloj_ultimo_desfase_segundos?: number;
+};
+
 const pageSizeOptions = [12, 24, 48];
 const KIOSCO_PANEL_STORAGE_KEY = "SELECTED_KIOSCO_PANEL";
 
@@ -96,6 +104,7 @@ export default function Kiosco() {
   const [panelFilter, setPanelFilter] = useState<string>(
     localStorage.getItem(KIOSCO_PANEL_STORAGE_KEY) || "all"
   );
+  const [alertasReloj, setAlertasReloj] = useState<IPanelAlerta[]>([]);
   const [sort, setSort] = useState<GridSortModel>([
     { field: "fecha_creacion", sort: "desc" },
   ]);
@@ -152,6 +161,22 @@ export default function Kiosco() {
   useEffect(() => {
     obtenerRegistros();
   }, [obtenerRegistros]);
+
+  useEffect(() => {
+    const obtenerAlertasReloj = async () => {
+      try {
+        const res = await clienteAxios.get("/api/eventos/paneles-alerta-reloj");
+        if (res.data?.estado) {
+          setAlertasReloj(res.data.datos || []);
+        } else {
+          setAlertasReloj([]);
+        }
+      } catch {
+        setAlertasReloj([]);
+      }
+    };
+    obtenerAlertasReloj();
+  }, []);
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
@@ -372,6 +397,38 @@ export default function Kiosco() {
 
   return (
     <Fragment>
+      {alertasReloj.length > 0 && (
+        <Box component="section" sx={{ mb: 2 }}>
+          <Card
+            elevation={0}
+            sx={(theme) => ({
+              border: `1px solid ${lighten(alpha(theme.palette.warning.main, 0.4), 0.35)}`,
+              backgroundColor: alpha(theme.palette.warning.light, 0.18),
+            })}
+          >
+            <CardContent sx={{ py: 1.5 }}>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                <WarningAmber color="warning" fontSize="small" />
+                <Typography variant="subtitle2" fontWeight={700}>
+                  Alertas de reloj en paneles
+                </Typography>
+              </Stack>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {alertasReloj.map((item) => (
+                  <Chip
+                    key={item._id}
+                    color="warning"
+                    size="small"
+                    label={`${item.nombre} (${Math.round(
+                      Number(item.reloj_offset_segundos || item.reloj_ultimo_desfase_segundos || 0) / 60
+                    )} min)`}
+                  />
+                ))}
+              </Stack>
+            </CardContent>
+          </Card>
+        </Box>
+      )}
       <Box
         component="section"
         position="relative"
