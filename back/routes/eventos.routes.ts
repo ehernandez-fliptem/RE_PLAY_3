@@ -31,7 +31,7 @@ router.post("/", validarTokenYRol([1, 2, 4, 5, 6, 7]), crear);
 router.post("/reporte-horas/individual/:id", validarTokenYRol([1, 2, 4, 5, 6, 7]), obtenerReporteIndividual);
 router.post("/reportes-horas", validarTokenYRol([1, 2, 4, 5, 6, 7]), obtenerReporteHoras);
 router.post("/autorizar", validarTokenYRol([1, 2, 4, 5, 6, 7]), autorizarCheck);
-router.post("/reportes", validarTokenYRol([2, 5, 6]), obtenerTodosPorFiltro);
+router.post("/reportes", validarTokenYRol([1, 2, 5, 6]), obtenerTodosPorFiltro);
 router.post("/panel", validarTokenYRol([1]), guardarEventoPanel);
 router.post("/validar-qr", validarTokenYRol([1, 2, 4, 5, 6, 7]), validarQr);
 router.post("/validar-rostro", validarTokenYRol([1, 2, 4, 5, 6, 7]), validarRostro);
