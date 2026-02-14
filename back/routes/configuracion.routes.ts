@@ -4,9 +4,9 @@ import { obtener, modificar, obtenerIntegraciones, modificarColecciones } from "
 
 const router = Router();
 
-router.get("/", validarTokenYRol([1, 2, 4, 5, 6, 7]), obtener);
-router.get("/integraciones", validarTokenYRol([1, 2, 4, 5, 6, 7]), obtenerIntegraciones);
-router.put("/", validarTokenYRol([1]), modificar);
-router.put("/colecciones", validarTokenYRol([1]), modificarColecciones);
+router.get("/", validarTokenYRol([1], true), obtener);
+router.get("/integraciones", validarTokenYRol([1], true), obtenerIntegraciones);
+router.put("/", validarTokenYRol([1], true), modificar);
+router.put("/colecciones", validarTokenYRol([1], true), modificarColecciones);
 
 export default router;

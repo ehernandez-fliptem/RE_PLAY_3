@@ -413,9 +413,12 @@ export default function MenuApplication({ children }: MenuProps) {
         >
           {mainMenu.map((item) => {
             let seeItem = obtenerDuplicados(rol, item.rol);
-            if (item.id === 100 && esRoot && rol.includes(1)) seeItem = true;
-            if (item.id === 99 && esRoot && rol.includes(1))
-              seeItem = habilitarIntegracionHv || habilitarCamaras;
+            if (item.id === 100) seeItem = esRoot && rol.includes(1);
+            if (item.id === 99)
+              seeItem =
+                esRoot &&
+                rol.includes(1) &&
+                (habilitarIntegracionHv || habilitarCamaras);
             return !item.submenu && seeItem ? (
               <RouterLink
                 key={item.id}

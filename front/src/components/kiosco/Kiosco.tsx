@@ -83,9 +83,11 @@ const TYPE = {
 
 export default function Kiosco() {
   const socket = useSelector((state: IRootState) => state.ws.data);
+  const { rol, esRoot } = useSelector((state: IRootState) => state.auth.data);
   const { tipos_eventos } = useSelector(
     (state: IRootState) => state.config.data
   );
+  const puedeVerAlertasReloj = esRoot && rol.includes(1);
   const [error, setError] = useState<string>();
   const [cargando, setCargando] = useState(false);
   const [ROWS, setRows] = useState<IRegistro[]>([]);
@@ -163,6 +165,10 @@ export default function Kiosco() {
   }, [obtenerRegistros]);
 
   useEffect(() => {
+    if (!puedeVerAlertasReloj) {
+      setAlertasReloj([]);
+      return;
+    }
     const obtenerAlertasReloj = async () => {
       try {
         const res = await clienteAxios.get("/api/eventos/paneles-alerta-reloj");
@@ -176,7 +182,7 @@ export default function Kiosco() {
       }
     };
     obtenerAlertasReloj();
-  }, []);
+  }, [puedeVerAlertasReloj]);
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
@@ -397,7 +403,7 @@ export default function Kiosco() {
 
   return (
     <Fragment>
-      {alertasReloj.length > 0 && (
+      {puedeVerAlertasReloj && alertasReloj.length > 0 && (
         <Box component="section" sx={{ mb: 2 }}>
           <Card
             elevation={0}

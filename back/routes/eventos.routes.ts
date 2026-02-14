@@ -23,7 +23,7 @@ const router = Router();
 router.get("/form-reportes", validarTokenYRol([1, 2, 4, 5, 6, 7]), obtenerFormEventos);
 router.get("/form-reporte-horas", validarTokenYRol([1, 2, 4, 5, 6, 7]), obtenerFormReporteHoras);
 router.get("/kiosco/paneles", validarTokenYRol([1, 2, 5, 6]), obtenerPanelesKiosco);
-router.get("/paneles-alerta-reloj", validarTokenYRol([1, 2, 5, 6]), obtenerAlertasRelojPaneles);
+router.get("/paneles-alerta-reloj", validarTokenYRol([1], true), obtenerAlertasRelojPaneles);
 router.get("/kiosco", validarTokenYRol([1, 2]), obtenerTodosKiosco);
 router.get("/imagen/:id", validarTokenYRol([1, 2, 4, 5, 6, 7]), obtenerImagen);
 router.get("/:id", validarTokenYRol([1, 2, 4, 5, 6, 7]), obtenerUno);

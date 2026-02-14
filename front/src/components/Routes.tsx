@@ -84,7 +84,7 @@ import DetalleCamara from "./catalogos/camaras/DetalleCamara";
 import EditarCamara from "./catalogos/camaras/EditarCamara";
 
 export default function Routes() {
-  const { rol } = useSelector((state: IRootState) => state.auth.data);
+  const { rol, esRoot } = useSelector((state: IRootState) => state.auth.data);
   const { habilitarCamaras, habilitarIntegracionHv } = useSelector(
     (state: IRootState) => state.config.data
   );
@@ -632,12 +632,17 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esAdmin && habilitarCamaras ? <Camaras /> : <Unauthorized />,
+          element:
+            esAdmin && esRoot && habilitarCamaras ? (
+              <Camaras />
+            ) : (
+              <Unauthorized />
+            ),
           children: [
             {
               path: "nueva-camara",
               element:
-                esAdmin && habilitarCamaras ? (
+                esAdmin && esRoot && habilitarCamaras ? (
                   <NuevaCamara />
                 ) : (
                   <Unauthorized />
@@ -646,7 +651,7 @@ export default function Routes() {
             {
               path: "detalle-camara/:id",
               element:
-                esAdmin && habilitarCamaras ? (
+                esAdmin && esRoot && habilitarCamaras ? (
                   <DetalleCamara />
                 ) : (
                   <Unauthorized />
@@ -655,7 +660,7 @@ export default function Routes() {
             {
               path: "editar-camara/:id",
               element:
-                esAdmin && habilitarCamaras ? (
+                esAdmin && esRoot && habilitarCamaras ? (
                   <EditarCamara />
                 ) : (
                   <Unauthorized />
@@ -675,7 +680,7 @@ export default function Routes() {
         {
           path: "",
           element:
-            esAdmin && habilitarIntegracionHv ? (
+            esAdmin && esRoot && habilitarIntegracionHv ? (
               <DispositivosHV />
             ) : (
               <Unauthorized />
@@ -684,7 +689,7 @@ export default function Routes() {
             {
               path: "nuevo-dispositivo",
               element:
-                esAdmin && habilitarIntegracionHv ? (
+                esAdmin && esRoot && habilitarIntegracionHv ? (
                   <NuevoDispositivoHV />
                 ) : (
                   <Unauthorized />
@@ -693,7 +698,7 @@ export default function Routes() {
             {
               path: "detalle-dispositivo/:id",
               element:
-                esAdmin && habilitarIntegracionHv ? (
+                esAdmin && esRoot && habilitarIntegracionHv ? (
                   <DetalleDispositivoHV />
                 ) : (
                   <Unauthorized />
@@ -702,7 +707,7 @@ export default function Routes() {
             {
               path: "editar-dispositivo/:id",
               element:
-                esAdmin && habilitarIntegracionHv ? (
+                esAdmin && esRoot && habilitarIntegracionHv ? (
                   <EditarDispositivoHV />
                 ) : (
                   <Unauthorized />
@@ -729,7 +734,7 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esAdmin ? <Configuracion /> : <Unauthorized />,
+          element: esAdmin && esRoot ? <Configuracion /> : <Unauthorized />,
         },
       ],
     },
