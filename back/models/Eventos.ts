@@ -4,6 +4,10 @@ export interface IEvento extends Document {
     tipo_dispositivo: number;
     img_evento?: string;
     img_usuario?: string;
+    fecha_panel_raw?: string;
+    fecha_servidor_recepcion?: Date;
+    desfase_reloj_segundos?: number;
+    desfase_reloj_alerta?: boolean;
     qr?: string;
     tipo_check?: number;
     id_registro?: mongoose.Types.ObjectId;
@@ -29,6 +33,10 @@ const eventoSchema = new Schema<IEvento>({
     tipo_dispositivo: { type: Number, default: 1, ref: 'tipos_dispositivos' },
     img_evento: { type: String, default: '' },
     img_usuario: { type: String, default: '' },
+    fecha_panel_raw: { type: String, default: '' },
+    fecha_servidor_recepcion: { type: Date, default: null },
+    desfase_reloj_segundos: { type: Number, default: 0 },
+    desfase_reloj_alerta: { type: Boolean, default: false },
     qr: { type: String, default: '' },
     tipo_check: { type: Number, default: 0,  ref: 'tipos_eventos' },
     id_registro: { type: Schema.Types.ObjectId, default: null, ref: 'registros' },

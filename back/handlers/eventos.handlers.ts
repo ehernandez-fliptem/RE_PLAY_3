@@ -15,6 +15,7 @@ type IEvento = {
     fecha_creacion: string;
     tipo_origen: 1 | 2;
     id_registro?: string;
+    id_empleado?: string;
     id_usuario?: string;
 }
 
@@ -72,6 +73,11 @@ const obtenerEventos = async (registrosNuevos: string[]): Promise<any[]> => {
                 },
             },
             {
+                $set: {
+                    id_empleado_effective: { $ifNull: ["$id_empleado", "$id_usuario"] }
+                }
+            },
+            {
                 $sort: {
                     id_registro: 1,
                     fecha_creacion: -1
@@ -83,7 +89,7 @@ const obtenerEventos = async (registrosNuevos: string[]): Promise<any[]> => {
                         $cond: [
                             { $and: [{ $ifNull: ["$id_registro", false] }, { $ne: ["$id_registro", null] }] },
                             { registro: "$id_registro" },
-                            { usuario: "$id_usuario" }
+                            { usuario: "$id_empleado_effective" }
                         ]
                     },
                     doc: { $first: "$$ROOT" },
@@ -151,8 +157,8 @@ const obtenerEventos = async (registrosNuevos: string[]): Promise<any[]> => {
             },
             {
                 $lookup: {
-                    from: "usuarios",
-                    localField: "id_usuario",
+                    from: "empleados",
+                    localField: "id_empleado_effective",
                     foreignField: "_id",
                     as: "usuario",
                     pipeline: [
@@ -253,6 +259,7 @@ const obtenerEventos = async (registrosNuevos: string[]): Promise<any[]> => {
                     panel: 1,
                     acceso: 1,
                     id_registro: 1,
+                    id_empleado: "$id_empleado_effective",
                     id_usuario: 1
                 }
             }

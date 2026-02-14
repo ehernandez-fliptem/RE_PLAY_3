@@ -28,7 +28,7 @@ import {
   AssignmentInd,
   MeetingRoom,
   Margin,
-  // WebStories, // FLAG: Kiosco oculto temporalmente - No borrar
+  WebStories,
   VideoCameraFront,
 } from "@mui/icons-material";
 
@@ -48,6 +48,13 @@ const mainMenu = [
   //   icon: <PeopleAlt fontSize="small" />,
   //   path: "/usuarios",
   // },
+  {
+    id: 0.95,
+    title: "Kiosco",
+    rol: [1, 2],
+    icon: <WebStories fontSize="small" />,
+    path: "/kiosco",
+  },
   {
     id: 0.6,
     title: "Empleados",

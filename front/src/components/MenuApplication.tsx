@@ -41,6 +41,7 @@ import Copyright from "./utils/Copyright";
 import ThemeButton from "../themes/ThemeButton";
 import type { IRootState } from "../app/store";
 import useNetworkStatus from "./NetworkStatus";
+import KioscoPanel from "./utils/KioscoPanel";
 // import Access from "./utils/Access"; // FLAG: Selector de acceso oculto temporalmente - No borrar
 
 const drawerWidth = 200;
@@ -127,6 +128,7 @@ export default function MenuApplication({ children }: MenuProps) {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const isKioscoRoute = location.pathname.startsWith("/kiosco");
   const isMobileSize = useMediaQuery(theme.breakpoints.down("sm"));
   const [open, setOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(
@@ -263,6 +265,7 @@ export default function MenuApplication({ children }: MenuProps) {
               alignItems: "center",
             }}
           >
+            {isKioscoRoute && <KioscoPanel />}
             {/* FLAG: Selector de acceso oculto temporalmente - No borrar */}
             {/* {esRecep && <Access />} */}
           </Box>

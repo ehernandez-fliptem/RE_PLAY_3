@@ -55,6 +55,7 @@ type IRegistro = {
   panel?: string;
   acceso?: string;
   id_registro?: string;
+  id_empleado?: string;
   id_usuario?: string;
 };
 
@@ -64,6 +65,7 @@ type ARGS = {
 };
 
 const pageSizeOptions = [12, 24, 48];
+const KIOSCO_PANEL_STORAGE_KEY = "SELECTED_KIOSCO_PANEL";
 
 const TYPE = {
   1: "Usuario",
@@ -91,12 +93,19 @@ export default function Kiosco() {
   const [totalCountUsersOut, setTotalCountUsersOut] = useState(0);
   const [totalCountVisitsOut, setTotalCountVisitsOut] = useState(0);
   const [quickFilter, setQuickFilter] = useState<string>("");
+  const [panelFilter, setPanelFilter] = useState<string>(
+    localStorage.getItem(KIOSCO_PANEL_STORAGE_KEY) || "all"
+  );
   const [sort, setSort] = useState<GridSortModel>([
     { field: "fecha_creacion", sort: "desc" },
   ]);
   const [searchDate] = useState<Dayjs | null>(dayjs());
   //   const [dateFilter, setDateFilter] = useState<"now" | null>("now");
   const [sorting, setSorting] = useState<"asc" | "desc">("desc");
+  const getTipoEvento = (tipo: number) =>
+    tipos_eventos?.[tipo] || { nombre: "Sin tipo", color: "#9e9e9e" };
+  const colorIn = getTipoEvento(5).color || "#2e7d32";
+  const colorOut = getTipoEvento(6).color || "#ef6c00";
 
   const obtenerRegistros = useCallback(async () => {
     setCargando(true);
@@ -104,6 +113,7 @@ export default function Kiosco() {
       const dateFilter = searchDate?.toISOString() || "";
       const urlParams = new URLSearchParams({
         date: dateFilter,
+        panel: panelFilter,
         filter: JSON.stringify(quickFilter ? [quickFilter] : []),
         pagination: JSON.stringify({ page, pageSize: pageSize }),
         sort: JSON.stringify(sort),
@@ -127,7 +137,7 @@ export default function Kiosco() {
       setError((error as Error | AxiosError)?.message || "Error desconocido");
       handlingError(error);
       setPage(0);
-      setPageSize(5);
+      setPageSize(12);
       setRows([]);
       setTotalCount(0);
       setTotalCountUsersIn(0);
@@ -137,11 +147,21 @@ export default function Kiosco() {
     } finally {
       setCargando(false);
     }
-  }, [searchDate, quickFilter, sort, page, pageSize]);
+  }, [searchDate, panelFilter, quickFilter, sort, page, pageSize]);
 
   useEffect(() => {
     obtenerRegistros();
   }, [obtenerRegistros]);
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== KIOSCO_PANEL_STORAGE_KEY) return;
+      setPanelFilter(event.newValue || "all");
+      setPage(0);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const handleErrorFunctions = (error: unknown, functionName: string) => {
     console.error(functionName, error);
@@ -178,8 +198,10 @@ export default function Kiosco() {
         }
 
         const updatedRows = ROWS.map((item) => {
+          const eventoIdEmpleado = datos.id_empleado || datos.id_usuario;
+          const rowIdEmpleado = item.id_empleado || item.id_usuario;
           if (item.tipo_origen === 1) {
-            if (item.id_usuario === datos.id_usuario) {
+            if (rowIdEmpleado === eventoIdEmpleado) {
               return { ...datos };
             }
           }
@@ -191,8 +213,10 @@ export default function Kiosco() {
           return item;
         });
         const rowExists = updatedRows.some((row) => {
+          const eventoIdEmpleado = datos.id_empleado || datos.id_usuario;
+          const rowIdEmpleado = row.id_empleado || row.id_usuario;
           if (row.tipo_origen === 1) {
-            return row.id_usuario === datos.id_usuario;
+            return rowIdEmpleado === eventoIdEmpleado;
           }
           if (row.tipo_origen === 2) {
             return row.id_registro === datos.id_registro;
@@ -235,11 +259,15 @@ export default function Kiosco() {
 
         let paginatedRows: IRegistro[] = [];
         if (IS_USER) {
-          if (String(datos?.id_usuario) === String(firstRecord?.id_usuario)) {
+          const eventoIdEmpleado = datos.id_empleado || datos.id_usuario;
+          const firstIdEmpleado = firstRecord?.id_empleado || firstRecord?.id_usuario;
+          if (String(eventoIdEmpleado) === String(firstIdEmpleado)) {
             paginatedRows = sortedRows
               .slice(0, pageSize || 12)
               .filter(
-                (item) => String(item.id_usuario) !== String(datos.id_usuario)
+                (item) =>
+                  String(item.id_empleado || item.id_usuario) !==
+                  String(eventoIdEmpleado)
               );
           } else {
             paginatedRows = (
@@ -247,7 +275,9 @@ export default function Kiosco() {
             )
               .slice(0, pageSize || 12)
               .filter(
-                (item) => String(item.id_usuario) !== String(datos.id_usuario)
+                (item) =>
+                  String(item.id_empleado || item.id_usuario) !==
+                  String(eventoIdEmpleado)
               );
           }
         }
@@ -397,20 +427,15 @@ export default function Kiosco() {
                           </CardActionArea>
                           <CardContent>
                             <Chip
-                              label={
-                                tipos_eventos[firstRecord.tipo_check].nombre
-                              }
+                              label={getTipoEvento(firstRecord.tipo_check).nombre}
                               size="medium"
                               color="secondary"
                               sx={(theme) => ({
                                 mb: 1,
                                 width: "100%",
-                                bgcolor:
-                                  tipos_eventos[firstRecord.tipo_check].color ||
-                                  "secondary.main",
+                                bgcolor: getTipoEvento(firstRecord.tipo_check).color || "secondary.main",
                                 color: theme.palette.getContrastText(
-                                  tipos_eventos[firstRecord.tipo_check].color ||
-                                    "secondary.main"
+                                  getTipoEvento(firstRecord.tipo_check).color || "secondary.main"
                                 ),
                                 fontSize: 18,
                               })}
@@ -497,7 +522,7 @@ export default function Kiosco() {
                               width: "100%",
                               height: "100%",
                               p: 0,
-                              border: `2px solid ${tipos_eventos[5].color}`,
+                              border: `2px solid ${colorIn}`,
                             }}
                           >
                             <CardContent
@@ -529,7 +554,7 @@ export default function Kiosco() {
                               width: "100%",
                               height: "100%",
                               p: 0,
-                              border: `2px solid ${tipos_eventos[6].color}`,
+                              border: `2px solid ${colorOut}`,
                             }}
                           >
                             <CardContent
@@ -561,7 +586,7 @@ export default function Kiosco() {
                               width: "100%",
                               height: "100%",
                               p: 0,
-                              border: `2px solid ${tipos_eventos[5].color}`,
+                              border: `2px solid ${colorIn}`,
                             }}
                           >
                             <CardContent
@@ -593,7 +618,7 @@ export default function Kiosco() {
                               width: "100%",
                               height: "100%",
                               p: 0,
-                              border: `2px solid ${tipos_eventos[6].color}`,
+                              border: `2px solid ${colorOut}`,
                             }}
                           >
                             <CardContent
@@ -713,13 +738,13 @@ export default function Kiosco() {
                             justifyContent="center"
                             alignItems="center"
                           >
-                            <Typography
-                              component="span"
-                              variant="h6"
-                              textAlign="center"
-                            >
-                              No hay registros disponibles.
-                            </Typography>
+                              <Typography
+                                component="span"
+                                variant="h6"
+                                textAlign="center"
+                              >
+                              Sin registros del d&iacute;a.
+                              </Typography>
                           </Box>
                         )}
                         {ROWS.map((item) => (
@@ -744,18 +769,15 @@ export default function Kiosco() {
                               </CardActionArea>
                               <CardContent>
                                 <Chip
-                                  label={tipos_eventos[item.tipo_check].nombre}
+                                  label={getTipoEvento(item.tipo_check).nombre}
                                   size="small"
                                   color="secondary"
                                   sx={(theme) => ({
                                     mb: 1,
                                     width: "100%",
-                                    bgcolor:
-                                      tipos_eventos[item.tipo_check].color ||
-                                      "secondary.main",
+                                    bgcolor: getTipoEvento(item.tipo_check).color || "secondary.main",
                                     color: theme.palette.getContrastText(
-                                      tipos_eventos[item.tipo_check].color ||
-                                        "secondary.main"
+                                      getTipoEvento(item.tipo_check).color || "secondary.main"
                                     ),
                                   })}
                                 />
