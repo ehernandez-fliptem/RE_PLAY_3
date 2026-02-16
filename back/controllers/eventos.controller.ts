@@ -1809,13 +1809,21 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
 }
 
 function normalizarFechaEventoPanel(fechaRaw: unknown, zonaHoraria: string) {
-    // Los paneles pueden enviar timestamps con offset distinto al sitio.
-    // Se prioriza la hora "de reloj" del panel para guardarla en la zona configurada.
+    // Los paneles pueden enviar "YYYY-MM-DD HH:mm:ss" o "MM-DD-YYYY HH:mm:ss".
+    // Se prioriza la hora de reloj del panel en la zona configurada.
     if (typeof fechaRaw === "string") {
-        const match = fechaRaw.trim().match(/^(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2}:\d{2})/);
-        if (match) {
-            const fechaSinOffset = `${match[1]} ${match[2]}`;
-            const fechaZona = dayjs.tz(fechaSinOffset, zonaHoraria);
+        const raw = fechaRaw.trim();
+        const matchYMD = raw.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}:\d{2}:\d{2})/);
+        if (matchYMD) {
+            const fechaBase = `${matchYMD[1]}-${matchYMD[2]}-${matchYMD[3]} ${matchYMD[4]}`;
+            const fechaZona = dayjs.tz(fechaBase, zonaHoraria);
+            if (fechaZona.isValid()) return fechaZona.millisecond(0);
+        }
+
+        const matchMDY = raw.match(/^(\d{2})-(\d{2})-(\d{4})[T\s](\d{2}:\d{2}:\d{2})/);
+        if (matchMDY) {
+            const fechaBase = `${matchMDY[3]}-${matchMDY[1]}-${matchMDY[2]} ${matchMDY[4]}`;
+            const fechaZona = dayjs.tz(fechaBase, zonaHoraria);
             if (fechaZona.isValid()) return fechaZona.millisecond(0);
         }
     }
