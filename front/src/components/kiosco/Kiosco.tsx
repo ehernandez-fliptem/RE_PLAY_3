@@ -550,7 +550,7 @@ export default function Kiosco() {
                               fontSize={12}
                             >
                               {dayjs(firstRecord.fecha_creacion).format(
-                                "DD/MM/YYYY, HH:mm:ss a"
+                                "DD/MM/YYYY, hh:mm:ss a"
                               )}
                               <br />
                             </Typography>
@@ -561,9 +561,7 @@ export default function Kiosco() {
                               fontSize={12}
                               fontWeight={700}
                             >
-                              {" hace "}
-                              {dayjs(firstRecord.fecha_creacion).fromNow(true)}
-                              {" aprox."}
+                              {dayjs(firstRecord.fecha_creacion).fromNow()}
                             </Typography>
                           </CardContent>
                         </Card>
@@ -901,7 +899,7 @@ export default function Kiosco() {
                                   fontSize={11}
                                 >
                                   {dayjs(item.fecha_creacion).format(
-                                    "DD/MM/YYYY, HH:mm:ss a"
+                                    "DD/MM/YYYY, hh:mm:ss a"
                                   )}
                                 </Typography>
                                 <Typography
@@ -911,9 +909,7 @@ export default function Kiosco() {
                                   fontSize={11}
                                   fontWeight={700}
                                 >
-                                  {" hace "}
-                                  {dayjs(item.fecha_creacion).fromNow(true)}
-                                  {" aprox."}
+                                  {dayjs(item.fecha_creacion).fromNow()}
                                 </Typography>
                                 {/* <Box
                                   component="div"
