@@ -1809,23 +1809,40 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
 }
 
 function normalizarFechaEventoPanel(fechaRaw: unknown, zonaHoraria: string) {
-    // Los paneles pueden enviar "YYYY-MM-DD HH:mm:ss" o "MM-DD-YYYY HH:mm:ss".
-    // Se prioriza la hora de reloj del panel en la zona configurada.
+    // Se usa la hora del panel TAL CUAL (wall-clock), ignorando offsets embebidos (+08:00/-06:00).
+    // Evita desfases mixtos entre paneles con distintos formatos/zonas.
     if (typeof fechaRaw === "string") {
         const raw = fechaRaw.trim();
-        const matchYMD = raw.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}:\d{2}:\d{2})/);
-        if (matchYMD) {
-            const fechaBase = `${matchYMD[1]}-${matchYMD[2]}-${matchYMD[3]} ${matchYMD[4]}`;
+        const parseWallClock = (year: string, month: string, day: string, time: string, meridiem?: string | null) => {
+            let [hh, mm, ss] = time.split(":").map((v) => Number(v));
+            if (meridiem) {
+                const mer = meridiem.toUpperCase();
+                if (mer === "PM" && hh < 12) hh += 12;
+                if (mer === "AM" && hh === 12) hh = 0;
+            }
+            const hhStr = String(hh).padStart(2, "0");
+            const fechaBase = `${year}-${month}-${day} ${hhStr}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
             const fechaZona = dayjs.tz(fechaBase, zonaHoraria);
-            if (fechaZona.isValid()) return fechaZona.millisecond(0);
+            return fechaZona.isValid() ? fechaZona.millisecond(0) : null;
+        };
+
+        // YYYY-MM-DD HH:mm:ss [AM|PM]
+        const ymd = raw.match(/^(\d{4})[-/](\d{2})[-/](\d{2})[T\s](\d{2}:\d{2}:\d{2})(?:\s*([AaPp][Mm]))?/);
+        if (ymd) {
+            const parsed = parseWallClock(ymd[1], ymd[2], ymd[3], ymd[4], ymd[5]);
+            if (parsed) return parsed;
         }
 
-        const matchMDY = raw.match(/^(\d{2})-(\d{2})-(\d{4})[T\s](\d{2}:\d{2}:\d{2})/);
-        if (matchMDY) {
-            const fechaBase = `${matchMDY[3]}-${matchMDY[1]}-${matchMDY[2]} ${matchMDY[4]}`;
-            const fechaZona = dayjs.tz(fechaBase, zonaHoraria);
-            if (fechaZona.isValid()) return fechaZona.millisecond(0);
+        // MM-DD-YYYY HH:mm:ss [AM|PM]
+        const mdy = raw.match(/^(\d{2})[-/](\d{2})[-/](\d{4})[T\s](\d{2}:\d{2}:\d{2})(?:\s*([AaPp][Mm]))?/);
+        if (mdy) {
+            const parsed = parseWallClock(mdy[3], mdy[1], mdy[2], mdy[4], mdy[5]);
+            if (parsed) return parsed;
         }
+
+        // Si es string y no coincide, mejor no reinterpretar offsets: usar fallback local sin plugins.
+        const simple = dayjs(raw);
+        if (simple.isValid()) return simple.millisecond(0);
     }
     return dayjs(fechaRaw as any).millisecond(0);
 }
