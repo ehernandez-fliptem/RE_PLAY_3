@@ -1567,14 +1567,12 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
             fechaServidorRecepcion,
             offsetActualSegundos
         );
-        const offsetAplicadoSegundos =
-            offsetDetectadoSegundos !== null ? offsetDetectadoSegundos : offsetActualSegundos;
-        const fechaEventoCorregida = fechaPanel
-            .subtract(offsetAplicadoSegundos, "second")
-            .millisecond(0);
+        // No corregimos la hora del evento con offset automático/persistido.
+        // Se guarda la hora del panel normalizada a la zona configurada.
+        const fechaEventoCorregida = fechaPanel.millisecond(0);
         const fechaEventoDate = fechaEventoCorregida.toDate();
         const desfaseRawSegundos = fechaPanel.diff(fechaServidorRecepcion, "second");
-        const alertaRelojPanel = Math.abs(offsetAplicadoSegundos) >= PANEL_CLOCK_ALERT_THRESHOLD_SECONDS;
+        const alertaRelojPanel = Math.abs(desfaseRawSegundos) >= PANEL_CLOCK_ALERT_THRESHOLD_SECONDS;
 
         if (panelObjectId) {
             const updatePanel: Record<string, unknown> = {
