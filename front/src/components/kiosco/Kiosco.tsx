@@ -11,6 +11,7 @@ import {
   DialogTitle,
   Divider,
   Grid,
+  IconButton,
   lighten,
   Stack,
   styled,
@@ -28,9 +29,16 @@ import type { IRootState } from "../../app/store";
 import type { GridSortModel } from "@mui/x-data-grid";
 import type { AxiosError } from "axios";
 import Spinner from "../utils/Spinner";
-import { ArrowDownward, ArrowUpward, WarningAmber } from "@mui/icons-material";
+import {
+  ArrowDownward,
+  ArrowUpward,
+  ChevronLeft,
+  ChevronRight,
+  WarningAmber,
+} from "@mui/icons-material";
 import ErrorOverlay from "../error/DataGridError";
 import SearchInput from "../recepcion/bitacora/utils/SearchInput";
+import { DatePicker } from "@mui/x-date-pickers";
 
 const StyledStack = styled(Stack)(({ theme }) => ({
   width: "100%",
@@ -110,7 +118,9 @@ export default function Kiosco() {
   const [sort, setSort] = useState<GridSortModel>([
     { field: "fecha_creacion", sort: "desc" },
   ]);
-  const [searchDate] = useState<Dayjs | null>(dayjs());
+  const [searchDate, setSearchDate] = useState<Dayjs | null>(
+    dayjs().startOf("day")
+  );
   //   const [dateFilter, setDateFilter] = useState<"now" | null>("now");
   const [sorting, setSorting] = useState<"asc" | "desc">("desc");
   const getTipoEvento = (tipo: number) =>
@@ -375,6 +385,11 @@ export default function Kiosco() {
     if (newAlignment === "desc") {
       setSort([{ field: "fecha_creacion", sort: newAlignment }]);
     }
+  };
+
+  const handleChangeDate = (value: Dayjs | null) => {
+    setSearchDate(value || dayjs().startOf("day"));
+    setPage(0);
   };
 
   const handleChangePage = (
@@ -734,6 +749,47 @@ export default function Kiosco() {
                         divider={<Divider orientation="vertical" flexItem />}
                         sx={{ width: "100%", height: "100%" }}
                       >
+                        <Grid container spacing={1} sx={{ width: "100%" }}>
+                          <Grid size={2}>
+                            <IconButton
+                              size="small"
+                              disabled={cargando}
+                              onClick={() =>
+                                handleChangeDate(searchDate?.subtract(1, "day") || null)
+                              }
+                            >
+                              <ChevronLeft fontSize="small" />
+                            </IconButton>
+                          </Grid>
+                          <Grid size={8}>
+                            <DatePicker
+                              disabled={cargando}
+                              value={searchDate}
+                              onChange={(value) => handleChangeDate(value)}
+                              slotProps={{
+                                field: {
+                                  clearable: false,
+                                },
+                                textField: {
+                                  fullWidth: true,
+                                  margin: "none",
+                                  size: "small",
+                                },
+                              }}
+                            />
+                          </Grid>
+                          <Grid size={2}>
+                            <IconButton
+                              size="small"
+                              disabled={cargando}
+                              onClick={() =>
+                                handleChangeDate(searchDate?.add(1, "day") || null)
+                              }
+                            >
+                              <ChevronRight fontSize="small" />
+                            </IconButton>
+                          </Grid>
+                        </Grid>
                         <ToggleButtonGroup
                           id="sorting"
                           color="primary"
