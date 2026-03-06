@@ -26,9 +26,9 @@ export interface IUsuario extends Document {
     id_departamento?: mongoose.Types.ObjectId;
     id_cubiculo?: mongoose.Types.ObjectId;
     id_empresa: mongoose.Types.ObjectId;
-    id_piso: mongoose.Types.ObjectId;
+    id_piso?: mongoose.Types.ObjectId;
     id_horario?: mongoose.Types.ObjectId;
-    accesos: mongoose.Types.ObjectId[];
+    accesos?: mongoose.Types.ObjectId[];
     esRoot: boolean;
     insignias: number[];
     token_web?: string;
@@ -127,9 +127,9 @@ const usuarioSchema = new Schema<IUsuario>({
     id_departamento: { type: Schema.Types.ObjectId, ref: 'departamentos', default: null, set: (v: any) => (v === '' || v === undefined ? null : v), },
     id_cubiculo: { type: Schema.Types.ObjectId, ref: 'cubiculos', default: null, set: (v: any) => (v === '' || v === undefined ? null : v), },
     id_empresa: { type: Schema.Types.ObjectId, required: [true, "Este campo es obligatorio"], ref: 'empresas' },
-    id_piso: { type: Schema.Types.ObjectId, required: [true, "Este campo es obligatorio"], ref: 'pisos' },
+    id_piso: { type: Schema.Types.ObjectId, default: null, ref: 'pisos' },
     id_horario: { type: Schema.Types.ObjectId, default: null, ref: 'horarios' },
-    accesos: [{ type: Schema.Types.ObjectId, required: true, ref: 'accesos' }],
+    accesos: [{ type: Schema.Types.ObjectId, ref: 'accesos' }],
     esRoot: { type: Boolean, require: true, default: false },
     insignias: {
         type: [Number],

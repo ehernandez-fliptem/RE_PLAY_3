@@ -4,15 +4,17 @@ import { validarTokenYRol } from "../middlewares/validarToken";
 
 const router = Router();
 
-router.get("/usuario", validarTokenYRol([10]), obtenerTodosPorUsuario);
-router.get("/form-nuevo", validarTokenYRol([10]), obtenerFormNuevoDocumento);
-router.get("/:id", validarTokenYRol([7, 10]), obtenerUno);
-router.get("/form-editar/:id", validarTokenYRol([7]), obtenerFormEditarDocumento);
-router.get("/solo-documento/:id", validarTokenYRol([1, 2, 4, 5, 6, 7, 10]), obtenerUnoSolodocumento);
+router.get("/usuario", validarTokenYRol([1, 2, 10]), obtenerTodosPorUsuario);
+router.get("/form-nuevo", validarTokenYRol([1, 2, 10]), obtenerFormNuevoDocumento);
+router.get("/:id", validarTokenYRol([1, 2, 10]), obtenerUno);
+router.get("/form-editar/:id", validarTokenYRol([1, 2]), obtenerFormEditarDocumento);
+router.get("/solo-documento/:id", validarTokenYRol([1, 2, 4, 5, 10]), obtenerUnoSolodocumento);
 
-router.post("/reportes", validarTokenYRol([7, 10]), obtenerTodosReportes);
-router.post("/", validarTokenYRol([7, 10]), crear);
+router.post("/reportes", validarTokenYRol([1, 2, 10]), obtenerTodosReportes);
+router.post("/", validarTokenYRol([1, 2, 10]), crear);
 
-router.put("/:id", validarTokenYRol([7]), modificar);
+router.put("/:id", validarTokenYRol([1, 2]), modificar);
 
 export default router;
+
+

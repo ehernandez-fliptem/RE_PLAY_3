@@ -4,8 +4,8 @@ import { obtenerTodos, obtenerTodosActivos, obtenerUno, crear, modificar, modifi
 
 const router = Router();
 
-router.get('/', validarTokenYRol([1, 2, 4, 5, 6, 7]), obtenerTodos);
-router.get('/activos', validarTokenYRol([1, 2, 4, 5, 6, 7]), obtenerTodosActivos);
+router.get('/', validarTokenYRol([1, 2]), obtenerTodos);
+router.get('/activos', validarTokenYRol([1, 2]), obtenerTodosActivos);
 router.get('/:id', validarTokenYRol([1], true), obtenerUno);
 router.put('/:id', validarTokenYRol([1], true), modificar);
 router.post('/', validarTokenYRol([1], true), crear);

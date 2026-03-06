@@ -9,8 +9,6 @@ import {
   CardContent,
   Chip,
   Grid,
-  ListItem,
-  ListItemText,
   Stack,
   Typography,
 } from "@mui/material";
@@ -21,24 +19,14 @@ import { enqueueSnackbar } from "notistack";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
-
-type IAcceso = {
-  identificador: string;
-  nombre: string;
-};
+import { getRoleLabel } from "../../../app/utils/roleLabels";
 
 type TUsuario = {
   img_usuario: string;
   nombre: string;
   empresa: string;
-  piso?: string;
-  accesos: IAcceso[];
   movil?: string;
   telefono?: string;
-  extension?: string;
-  puesto?: string;
-  departamento?: string;
-  cubiculo?: string;
   correo: string;
   rol: number[];
   esRoot: boolean;
@@ -58,14 +46,8 @@ export default function DetalleUsuario() {
     img_usuario: "",
     nombre: "",
     empresa: "",
-    piso: "",
-    accesos: [],
-    puesto: "",
-    departamento: "",
-    cubiculo: "",
     movil: "",
     telefono: "",
-    extension: "",
     correo: "",
     rol: [],
     esRoot: false,
@@ -79,14 +61,8 @@ export default function DetalleUsuario() {
     img_usuario,
     nombre,
     empresa,
-    piso,
-    accesos,
-    puesto,
-    departamento,
-    cubiculo,
     movil,
     telefono,
-    extension,
     correo,
     rol,
     esRoot,
@@ -174,7 +150,7 @@ export default function DetalleUsuario() {
                   textAlign="center"
                   mb={2}
                 >
-                  <strong>Generales</strong>
+                  <strong>Datos Generales</strong>
                 </Typography>
                 <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
                   <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
@@ -198,71 +174,7 @@ export default function DetalleUsuario() {
                     {empresa}
                   </Grid>
                 </Grid>
-                <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
-                  <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
-                    <strong>Piso:</strong>
-                  </Grid>
-                  <Grid
-                    size={{ xs: 12, sm: "grow" }}
-                    sx={{ ml: { xs: 2, sm: 0 } }}
-                  >
-                    {piso}
-                  </Grid>
-                </Grid>
-
-                {puesto && (
-                  <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
-                    <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
-                      <strong>Puesto:</strong>
-                    </Grid>
-                    <Grid
-                      size={{ xs: 12, sm: "grow" }}
-                      sx={{ ml: { xs: 2, sm: 0 } }}
-                    >
-                      {puesto}
-                    </Grid>
-                  </Grid>
-                )}
-                {departamento && (
-                  <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
-                    <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
-                      <strong>Departamento:</strong>
-                    </Grid>
-                    <Grid
-                      size={{ xs: 12, sm: "grow" }}
-                      sx={{ ml: { xs: 2, sm: 0 } }}
-                    >
-                      {departamento}
-                    </Grid>
-                  </Grid>
-                )}
-                {cubiculo && (
-                  <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
-                    <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
-                      <strong>Cubículo:</strong>
-                    </Grid>
-                    <Grid
-                      size={{ xs: 12, sm: "grow" }}
-                      sx={{ ml: { xs: 2, sm: 0 } }}
-                    >
-                      {cubiculo}
-                    </Grid>
-                  </Grid>
-                )}
-                {movil && (
-                  <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
-                    <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
-                      <strong>Móvil:</strong>
-                    </Grid>
-                    <Grid
-                      size={{ xs: 12, sm: "grow" }}
-                      sx={{ ml: { xs: 2, sm: 0 } }}
-                    >
-                      {movil}
-                    </Grid>
-                  </Grid>
-                )}
-                {telefono && (
+                {(telefono || movil) && (
                   <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
                     <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
                       <strong>Teléfono:</strong>
@@ -271,53 +183,9 @@ export default function DetalleUsuario() {
                       size={{ xs: 12, sm: "grow" }}
                       sx={{ ml: { xs: 2, sm: 0 } }}
                     >
-                      {telefono}
+                      {telefono || movil}
                     </Grid>
                   </Grid>
-                )}
-                {extension && (
-                  <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
-                    <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
-                      <strong>Extensión:</strong>
-                    </Grid>
-                    <Grid
-                      size={{ xs: 12, sm: "grow" }}
-                      sx={{ ml: { xs: 2, sm: 0 } }}
-                    >
-                      {extension}
-                    </Grid>
-                  </Grid>
-                )}
-                {accesos[0] && (
-                  <Box component="div" sx={{ my: 2 }}>
-                    <Typography variant="subtitle1" component="p">
-                      <strong>Acceso(s): </strong>
-                    </Typography>
-                    <Grid
-                      container
-                      spacing={2}
-                      sx={{ my: 0, maxHeight: 250, overflowY: "auto" }}
-                    >
-                      {accesos.map((item) => (
-                        <Grid size="grow" key={item.identificador}>
-                          <ListItem sx={{ py: 0 }}>
-                            <ListItemText
-                              primary={
-                                <Typography variant="subtitle1" component="p">
-                                  <strong>{item.identificador} </strong>
-                                </Typography>
-                              }
-                              secondary={
-                                <Typography variant="caption" component="p">
-                                  {item.nombre}
-                                </Typography>
-                              }
-                            />
-                          </ListItem>
-                        </Grid>
-                      ))}
-                    </Grid>
-                  </Box>
                 )}
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }} width={"100%"}>
@@ -333,7 +201,7 @@ export default function DetalleUsuario() {
                   textAlign="center"
                   mb={2}
                 >
-                  <b>Sistema</b>
+                  <b>Acceso al sistema</b>
                 </Typography>
                 <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
                   <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
@@ -348,7 +216,7 @@ export default function DetalleUsuario() {
                 </Grid>
                 <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
                   <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
-                    <strong>Rol:</strong>
+                    <strong>Perfil de acceso:</strong>
                   </Grid>
                   <Grid
                     container
@@ -359,7 +227,7 @@ export default function DetalleUsuario() {
                     {rol.map((item) => (
                       <Grid key={item} size="auto">
                         <Chip
-                          label={roles[item].nombre}
+                          label={getRoleLabel(item, roles[item]?.nombre)}
                           size="small"
                           sx={(theme) => ({
                             bgcolor: roles[item].color || "#C4C4C4",
@@ -472,3 +340,9 @@ export default function DetalleUsuario() {
     </ModalContainer>
   );
 }
+
+
+
+
+
+

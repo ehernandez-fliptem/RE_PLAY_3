@@ -88,15 +88,15 @@ export default function Routes() {
   const { habilitarCamaras, habilitarIntegracionHv } = useSelector(
     (state: IRootState) => state.config.data
   );
-  const esAdmin = rol.includes(1);
-  const esRecep = rol.includes(2);
-  const esInter = rol.includes(4);
-  const esRepor = rol.includes(5);
-  const esAsist = rol.includes(6);
-  const esValid = rol.includes(7);
+  const esSuper = rol.includes(1);
+  const esAdmin = rol.includes(2);
+  const esAnfitrion = rol.includes(4);
+  const esRecep = rol.includes(5);
   const esVisit = rol.includes(10);
-  const usuarioSistema =
-    esAdmin || esRecep || esInter || esRepor || esAsist || esValid;
+  const puedeAdmin = esSuper || esAdmin;
+  const puedeKiosco = esSuper || esAdmin || esRecep;
+  const puedeVisitantes = esSuper || esAdmin || esAnfitrion || esRecep;
+  const usuarioSistema = esSuper || esAdmin || esAnfitrion || esRecep;
 
   return useRoutes([
     {
@@ -113,34 +113,34 @@ export default function Routes() {
     },
     {
       path: "/check",
-      element: usuarioSistema ? <Check /> : <Unauthorized />,
+      element: puedeAdmin ? <Check /> : <Unauthorized />,
     },
     {
       path: "/kiosco",
-      element: usuarioSistema ? <Kiosco /> : <Unauthorized />,
+      element: puedeKiosco ? <Kiosco /> : <Unauthorized />,
     },
     {
       path: "/bot",
-      element: usuarioSistema ? <Bot /> : <Unauthorized />,
+      element: puedeAdmin ? <Bot /> : <Unauthorized />,
     },
     {
       path: "/pisos",
       children: [
         {
           path: "",
-          element: esAdmin ? <Pisos /> : <Unauthorized />,
+          element: puedeAdmin ? <Pisos /> : <Unauthorized />,
           children: [
             {
               path: "nuevo-piso",
-              element: esAdmin ? <NuevoPiso /> : <Unauthorized />,
+              element: puedeAdmin ? <NuevoPiso /> : <Unauthorized />,
             },
             {
               path: "editar-piso/:id",
-              element: esAdmin ? <EditarPiso /> : <Unauthorized />,
+              element: puedeAdmin ? <EditarPiso /> : <Unauthorized />,
             },
             {
               path: "detalle-piso/:id",
-              element: esAdmin ? <DetallePiso /> : <Unauthorized />,
+              element: puedeAdmin ? <DetallePiso /> : <Unauthorized />,
             },
           ],
         },
@@ -155,19 +155,19 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esAdmin ? <Accesos /> : <Unauthorized />,
+          element: puedeAdmin ? <Accesos /> : <Unauthorized />,
           children: [
             {
               path: "nuevo-acceso",
-              element: esAdmin ? <NuevoAcceso /> : <Unauthorized />,
+              element: puedeAdmin ? <NuevoAcceso /> : <Unauthorized />,
             },
             {
               path: "editar-acceso/:id",
-              element: esAdmin ? <EditarAcceso /> : <Unauthorized />,
+              element: puedeAdmin ? <EditarAcceso /> : <Unauthorized />,
             },
             {
               path: "detalle-acceso/:id",
-              element: esAdmin ? <DetalleAcceso /> : <Unauthorized />,
+              element: puedeAdmin ? <DetalleAcceso /> : <Unauthorized />,
             },
           ],
         },
@@ -182,19 +182,19 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esAdmin ? <Empresas /> : <Unauthorized />,
+          element: puedeAdmin ? <Empresas /> : <Unauthorized />,
           children: [
             {
               path: "nueva-empresa",
-              element: esAdmin ? <NuevaEmpresa /> : <Unauthorized />,
+              element: puedeAdmin ? <NuevaEmpresa /> : <Unauthorized />,
             },
             {
               path: "editar-empresa/:id",
-              element: esAdmin ? <EditarEmpresa /> : <Unauthorized />,
+              element: puedeAdmin ? <EditarEmpresa /> : <Unauthorized />,
             },
             {
               path: "detalle-empresa/:id",
-              element: esAdmin ? <DetalleEmpresa /> : <Unauthorized />,
+              element: puedeAdmin ? <DetalleEmpresa /> : <Unauthorized />,
             },
           ],
         },
@@ -209,19 +209,19 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esAdmin ? <Puestos /> : <Unauthorized />,
+          element: puedeAdmin ? <Puestos /> : <Unauthorized />,
           children: [
             {
               path: "nuevo-puesto",
-              element: esAdmin ? <NuevoPuesto /> : <Unauthorized />,
+              element: puedeAdmin ? <NuevoPuesto /> : <Unauthorized />,
             },
             {
               path: "editar-puesto/:id",
-              element: esAdmin ? <EditarPuesto /> : <Unauthorized />,
+              element: puedeAdmin ? <EditarPuesto /> : <Unauthorized />,
             },
             {
               path: "detalle-puesto/:id",
-              element: esAdmin ? <DetallePuesto /> : <Unauthorized />,
+              element: puedeAdmin ? <DetallePuesto /> : <Unauthorized />,
             },
           ],
         },
@@ -236,19 +236,19 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esAdmin ? <Departamentos /> : <Unauthorized />,
+          element: puedeAdmin ? <Departamentos /> : <Unauthorized />,
           children: [
             {
               path: "nuevo-departamento",
-              element: esAdmin ? <NuevoDepartamento /> : <Unauthorized />,
+              element: puedeAdmin ? <NuevoDepartamento /> : <Unauthorized />,
             },
             {
               path: "editar-departamento/:id",
-              element: esAdmin ? <EditarDepartamento /> : <Unauthorized />,
+              element: puedeAdmin ? <EditarDepartamento /> : <Unauthorized />,
             },
             {
               path: "detalle-departamento/:id",
-              element: esAdmin ? <DetalleDepartamento /> : <Unauthorized />,
+              element: puedeAdmin ? <DetalleDepartamento /> : <Unauthorized />,
             },
           ],
         },
@@ -263,19 +263,19 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esAdmin ? <Cubiculos /> : <Unauthorized />,
+          element: puedeAdmin ? <Cubiculos /> : <Unauthorized />,
           children: [
             {
               path: "nuevo-cubiculo",
-              element: esAdmin ? <NuevoCubiculo /> : <Unauthorized />,
+              element: puedeAdmin ? <NuevoCubiculo /> : <Unauthorized />,
             },
             {
               path: "editar-cubiculo/:id",
-              element: esAdmin ? <EditarCubiculo /> : <Unauthorized />,
+              element: puedeAdmin ? <EditarCubiculo /> : <Unauthorized />,
             },
             {
               path: "detalle-cubiculo/:id",
-              element: esAdmin ? <DetalleCubiculo /> : <Unauthorized />,
+              element: puedeAdmin ? <DetalleCubiculo /> : <Unauthorized />,
             },
           ],
         },
@@ -290,25 +290,25 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esAdmin ? <Usuarios /> : <Unauthorized />,
+          element: esSuper ? <Usuarios /> : <Unauthorized />,
           children: [
             {
               path: "nuevo-usuario",
-              element: esAdmin ? <NuevoUsuario /> : <Unauthorized />,
+              element: esSuper ? <NuevoUsuario /> : <Unauthorized />,
             },
             {
               path: "editar-usuario/:id",
-              element: esAdmin ? <EditarUsuario /> : <Unauthorized />,
+              element: esSuper ? <EditarUsuario /> : <Unauthorized />,
             },
             {
               path: "detalle-usuario/:id",
-              element: esAdmin ? <DetalleUsuario /> : <Unauthorized />,
+              element: esSuper ? <DetalleUsuario /> : <Unauthorized />,
             },
           ],
         },
         {
           path: "carga-masiva",
-          element: esAdmin ? <CargaUsuarios /> : <Unauthorized />,
+          element: esSuper ? <CargaUsuarios /> : <Unauthorized />,
         },
         {
           path: "*",
@@ -321,25 +321,25 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esAdmin ? <Empleados /> : <Unauthorized />,
+          element: puedeAdmin ? <Empleados /> : <Unauthorized />,
           children: [
             {
               path: "nuevo-empleado",
-              element: esAdmin ? <NuevoEmpleado /> : <Unauthorized />,
+              element: puedeAdmin ? <NuevoEmpleado /> : <Unauthorized />,
             },
             {
               path: "editar-empleado/:id",
-              element: esAdmin ? <EditarEmpleado /> : <Unauthorized />,
+              element: puedeAdmin ? <EditarEmpleado /> : <Unauthorized />,
             },
             {
               path: "detalle-empleado/:id",
-              element: esAdmin ? <DetalleEmpleado /> : <Unauthorized />,
+              element: puedeAdmin ? <DetalleEmpleado /> : <Unauthorized />,
             },
           ],
         },
         {
           path: "carga-masiva",
-          element: esAdmin ? <CargaEmpleados /> : <Unauthorized />,
+          element: puedeAdmin ? <CargaEmpleados /> : <Unauthorized />,
         },
         {
           path: "*",
@@ -352,19 +352,19 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esAdmin || esRecep ? <Pases /> : <Unauthorized />,
+          element: puedeAdmin ? <Pases /> : <Unauthorized />,
           children: [
             {
               path: "nuevo-pase",
-              element: esAdmin || esRecep ? <NuevoPase /> : <Unauthorized />,
+              element: puedeAdmin ? <NuevoPase /> : <Unauthorized />,
             },
             {
               path: "editar-pase/:id",
-              element: esAdmin || esRecep ? <EditarPase /> : <Unauthorized />,
+              element: puedeAdmin ? <EditarPase /> : <Unauthorized />,
             },
             {
               path: "detalle-pase/:id",
-              element: esAdmin || esRecep ? <DetallePase /> : <Unauthorized />,
+              element: puedeAdmin ? <DetallePase /> : <Unauthorized />,
             },
           ],
         },
@@ -379,33 +379,29 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esAdmin || esRecep ? <Visitantes /> : <Unauthorized />,
+          element: puedeVisitantes ? <Visitantes /> : <Unauthorized />,
           children: [
             {
               path: "nuevo-visitante",
-              element:
-                esAdmin || esRecep ? <NuevoVisitante /> : <Unauthorized />,
+              element: puedeVisitantes ? <NuevoVisitante /> : <Unauthorized />,
             },
             {
               path: "editar-visitante/:id",
-              element:
-                esAdmin || esRecep ? <EditarVisitante /> : <Unauthorized />,
+              element: puedeVisitantes ? <EditarVisitante /> : <Unauthorized />,
             },
             {
               path: "detalle-visitante/:id",
-              element:
-                esAdmin || esRecep ? <DetalleVisitante /> : <Unauthorized />,
+              element: puedeVisitantes ? <DetalleVisitante /> : <Unauthorized />,
             },
             {
               path: "verificar-visitante/:id",
-              element:
-                esAdmin || esRecep ? <VerificarVisitante /> : <Unauthorized />,
+              element: puedeVisitantes ? <VerificarVisitante /> : <Unauthorized />,
             },
           ],
         },
         {
           path: "carga-masiva",
-          element: esAdmin ? <CargaVisitantes /> : <Unauthorized />,
+          element: puedeAdmin ? <CargaVisitantes /> : <Unauthorized />,
         },
         {
           path: "*",
@@ -418,15 +414,15 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esValid ? <ValidarDocumentos /> : <Unauthorized />,
+          element: puedeAdmin ? <ValidarDocumentos /> : <Unauthorized />,
           children: [
             {
               path: "editar-documento/:id",
-              element: esValid ? <EditarDocumento /> : <Unauthorized />,
+              element: puedeAdmin ? <EditarDocumento /> : <Unauthorized />,
             },
             {
               path: "detalle-documento/:id",
-              element: esValid ? <DetalleDocumento /> : <Unauthorized />,
+              element: puedeAdmin ? <DetalleDocumento /> : <Unauthorized />,
             },
           ],
         },
@@ -441,16 +437,16 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esVisit ? <Documentos /> : <Unauthorized />,
+          element: esVisit || puedeAdmin ? <Documentos /> : <Unauthorized />,
           children: [
             {
               path: "nuevo-documento",
-              element: esVisit ? <NuevoDocumento /> : <Unauthorized />,
+              element: esVisit || puedeAdmin ? <NuevoDocumento /> : <Unauthorized />,
             },
             {
               path: "detalle-documento/:id",
               element:
-                esValid || esVisit ? <DetalleDocumento /> : <Unauthorized />,
+                esVisit || puedeAdmin ? <DetalleDocumento /> : <Unauthorized />,
             },
           ],
         },
@@ -465,7 +461,7 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: usuarioSistema ? (
+          element: puedeAdmin ? (
             <Bitacora />
           ) : esVisit ? (
             <BitacoraVisit />
@@ -475,11 +471,11 @@ export default function Routes() {
           children: [
             {
               path: "nuevo-registro",
-              element: usuarioSistema ? <NuevoRegistro /> : <Unauthorized />,
+              element: puedeAdmin ? <NuevoRegistro /> : <Unauthorized />,
             },
             {
               path: "enviar-liga-cita",
-              element: usuarioSistema ? (
+              element: puedeAdmin ? (
                 <EnviarCorreoVisit />
               ) : (
                 <Unauthorized />
@@ -487,16 +483,16 @@ export default function Routes() {
             },
             {
               path: "permitir-entrada/:id",
-              element: esRecep ? <EditarRegistro /> : <Unauthorized />,
+              element: puedeAdmin ? <EditarRegistro /> : <Unauthorized />,
             },
             {
               path: "editar-registro/:id",
-              element: esRecep ? <EditarRegistro /> : <Unauthorized />,
+              element: puedeAdmin ? <EditarRegistro /> : <Unauthorized />,
             },
             {
               path: "detalle-registro/:id",
               element:
-                usuarioSistema || esVisit ? (
+                puedeAdmin || esVisit ? (
                   <DetalleRegistro />
                 ) : (
                   <Unauthorized />
@@ -516,7 +512,7 @@ export default function Routes() {
         {
           path: "",
           element:
-            esAdmin || esRecep || esRepor || esAsist ? (
+            puedeKiosco ? (
               <Eventos />
             ) : (
               <Unauthorized />
@@ -525,7 +521,7 @@ export default function Routes() {
             {
               path: "detalle-evento/:id",
               element:
-                esAdmin || esRecep || esRepor || esAsist ? (
+                puedeKiosco ? (
                   <DetalleEvento />
                 ) : (
                   <Unauthorized />
@@ -540,21 +536,21 @@ export default function Routes() {
     //   children: [
     //     {
     //       path: "",
-    //       element: esAdmin || esRecep ? <Horarios /> : <Unauthorized />,
+    //       element: puedeAdmin ? <Horarios /> : <Unauthorized />,
     //       children: [
     //         {
     //           path: "nuevo-horario",
-    //           element: esAdmin || esRecep ? <NuevoHorario /> : <Unauthorized />,
+    //           element: puedeAdmin ? <NuevoHorario /> : <Unauthorized />,
     //         },
     //         {
     //           path: "editar-horario/:id",
     //           element:
-    //             esAdmin || esRecep ? <EditarHorario /> : <Unauthorized />,
+    //             puedeAdmin ? <EditarHorario /> : <Unauthorized />,
     //         },
     //         {
     //           path: "detalle-horario/:id",
     //           element:
-    //             esAdmin || esRecep ? <DetalleHorario /> : <Unauthorized />,
+    //             puedeAdmin ? <DetalleHorario /> : <Unauthorized />,
     //         },
     //       ],
     //     },
@@ -569,22 +565,22 @@ export default function Routes() {
     //   children: [
     //     {
     //       path: "",
-    //       element: esAdmin || esRecep ? <Asignaciones /> : <Unauthorized />,
+    //       element: puedeAdmin ? <Asignaciones /> : <Unauthorized />,
     //       children: [
     //         {
     //           path: "nueva-asignacion",
     //           element:
-    //             esAdmin || esRecep ? <NuevaAsignacion /> : <Unauthorized />,
+    //             puedeAdmin ? <NuevaAsignacion /> : <Unauthorized />,
     //         },
     //         {
     //           path: "editar-asignacion/:id",
     //           element:
-    //             esAdmin || esRecep ? <EditarAsignacion /> : <Unauthorized />,
+    //             puedeAdmin ? <EditarAsignacion /> : <Unauthorized />,
     //         },
     //         {
     //           path: "detalle-asignacion/:id",
     //           element:
-    //             esAdmin || esRecep ? <DetalleAsignacion /> : <Unauthorized />,
+    //             puedeAdmin ? <DetalleAsignacion /> : <Unauthorized />,
     //         },
     //       ],
     //     },
@@ -600,7 +596,7 @@ export default function Routes() {
         {
           path: "",
           element:
-            esAdmin || esRecep || esRepor || esAsist ? (
+            puedeKiosco ? (
               <ReporteHoras />
             ) : (
               <Unauthorized />
@@ -609,7 +605,7 @@ export default function Routes() {
             {
               path: "detalle-reporte/:id",
               element:
-                esAdmin || esRecep || esRepor || esAsist ? (
+                puedeKiosco ? (
                   <DetalleReporteHoras />
                 ) : (
                   <Unauthorized />
@@ -621,11 +617,11 @@ export default function Routes() {
     },
     {
       path: "/reportes",
-      element: esAdmin || esRecep || esRepor ? <Reportes /> : <Unauthorized />,
+      element: puedeAdmin ? <Reportes /> : <Unauthorized />,
     },
     {
       path: "/directorio/*",
-      element: usuarioSistema ? <Directorio /> : <Unauthorized />,
+      element: puedeAdmin ? <Directorio /> : <Unauthorized />,
     },
     {
       path: "/camaras/*",
@@ -633,7 +629,7 @@ export default function Routes() {
         {
           path: "",
           element:
-            esAdmin && esRoot && habilitarCamaras ? (
+            esSuper && esRoot && habilitarCamaras ? (
               <Camaras />
             ) : (
               <Unauthorized />
@@ -642,7 +638,7 @@ export default function Routes() {
             {
               path: "nueva-camara",
               element:
-                esAdmin && esRoot && habilitarCamaras ? (
+                esSuper && esRoot && habilitarCamaras ? (
                   <NuevaCamara />
                 ) : (
                   <Unauthorized />
@@ -651,7 +647,7 @@ export default function Routes() {
             {
               path: "detalle-camara/:id",
               element:
-                esAdmin && esRoot && habilitarCamaras ? (
+                esSuper && esRoot && habilitarCamaras ? (
                   <DetalleCamara />
                 ) : (
                   <Unauthorized />
@@ -660,7 +656,7 @@ export default function Routes() {
             {
               path: "editar-camara/:id",
               element:
-                esAdmin && esRoot && habilitarCamaras ? (
+                esSuper && esRoot && habilitarCamaras ? (
                   <EditarCamara />
                 ) : (
                   <Unauthorized />
@@ -680,7 +676,7 @@ export default function Routes() {
         {
           path: "",
           element:
-            esAdmin && esRoot && habilitarIntegracionHv ? (
+            esSuper && esRoot && habilitarIntegracionHv ? (
               <DispositivosHV />
             ) : (
               <Unauthorized />
@@ -689,7 +685,7 @@ export default function Routes() {
             {
               path: "nuevo-dispositivo",
               element:
-                esAdmin && esRoot && habilitarIntegracionHv ? (
+                esSuper && esRoot && habilitarIntegracionHv ? (
                   <NuevoDispositivoHV />
                 ) : (
                   <Unauthorized />
@@ -698,7 +694,7 @@ export default function Routes() {
             {
               path: "detalle-dispositivo/:id",
               element:
-                esAdmin && esRoot && habilitarIntegracionHv ? (
+                esSuper && esRoot && habilitarIntegracionHv ? (
                   <DetalleDispositivoHV />
                 ) : (
                   <Unauthorized />
@@ -707,7 +703,7 @@ export default function Routes() {
             {
               path: "editar-dispositivo/:id",
               element:
-                esAdmin && esRoot && habilitarIntegracionHv ? (
+                esSuper && esRoot && habilitarIntegracionHv ? (
                   <EditarDispositivoHV />
                 ) : (
                   <Unauthorized />
@@ -734,7 +730,7 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esAdmin && esRoot ? <Configuracion /> : <Unauthorized />,
+          element: esSuper && esRoot ? <Configuracion /> : <Unauthorized />,
         },
       ],
     },
@@ -744,3 +740,17 @@ export default function Routes() {
     },
   ]);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

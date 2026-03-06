@@ -160,8 +160,8 @@ export async function obtenerTodosActivos(req: Request, res: Response): Promise<
         const id_usuario = (req as UserRequest).userId;
         const isMaster = (req as UserRequest).isMaster;
         const rol = (req as UserRequest).role;
-        const esAdmin = rol.includes(1);
-        const esRecep = rol.includes(2);
+        const esAdmin = rol.includes(1) || rol.includes(2);
+        const esRecep = rol.includes(5);
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa rol') as IUsuario;
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
@@ -232,8 +232,8 @@ export async function obtenerTodosDirectorio(req: Request, res: Response): Promi
         const id_usuario = (req as UserRequest).userId;
         const isMaster = (req as UserRequest).isMaster;
         const rol = (req as UserRequest).role;
-        const esAdmin = rol.includes(1);
-        const esRecep = rol.includes(2);
+        const esAdmin = rol.includes(1) || rol.includes(2);
+        const esRecep = rol.includes(5);
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa rol') as IUsuario;
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
@@ -308,8 +308,8 @@ export async function obtenerAnfitriones(req: Request, res: Response): Promise<v
         const id_usuario = (req as UserRequest).userId;
         const isMaster = (req as UserRequest).isMaster;
         const rol = (req as UserRequest).role;
-        const esAdmin = rol.includes(1);
-        const esRecep = rol.includes(2);
+        const esAdmin = rol.includes(1) || rol.includes(2);
+        const esRecep = rol.includes(5);
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
 
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
@@ -1621,6 +1621,7 @@ const añadir = async ({ isMaster, id_empresa }: { isMaster: boolean; id_empresa
             return workbook.xlsx.writeFile(nameFileExcel);
         });
 }
+
 
 
 

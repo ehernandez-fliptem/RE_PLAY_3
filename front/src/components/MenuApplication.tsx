@@ -42,6 +42,7 @@ import ThemeButton from "../themes/ThemeButton";
 import type { IRootState } from "../app/store";
 import useNetworkStatus from "./NetworkStatus";
 import KioscoPanel from "./utils/KioscoPanel";
+import { getRoleLabel } from "../app/utils/roleLabels";
 // import Access from "./utils/Access"; // FLAG: Selector de acceso oculto temporalmente - No borrar
 
 const drawerWidth = 200;
@@ -123,7 +124,8 @@ export default function MenuApplication({ children }: MenuProps) {
   const { rol, nombre, img_usuario, esRoot, empresa } = useSelector(
     (state: IRootState) => state.auth.data
   );
-  // const esRecep = rol.includes(2); // FLAG: Selector de acceso oculto temporalmente - No borrar
+  const esAnfitrion = rol.includes(4);
+  const esRecep = rol.includes(5);
   const esVisit = rol.includes(10);
   const theme = useTheme();
   const navigate = useNavigate();
@@ -143,6 +145,16 @@ export default function MenuApplication({ children }: MenuProps) {
   const { isOnline, NetworkBadge } = useNetworkStatus();
 
   useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  useEffect(() => {
     if (location) {
       const { pathname } = location;
       const path = pathname.split("/")[1];
@@ -152,7 +164,15 @@ export default function MenuApplication({ children }: MenuProps) {
       }
       // FLAG: Bitácora oculta temporalmente - No borrar
       // if (!path) navigate("/bitacora");
-      if (!path) navigate("/eventos");
+      if (!path) {
+        if (esAnfitrion) {
+          navigate("/visitantes");
+        } else if (esRecep) {
+          navigate("/eventos");
+        } else {
+          navigate("/eventos");
+        }
+      }
       for (const menu of mainMenu) {
         if (menu.submenu) {
           const foundSubMenu = menu.submenu.find(
@@ -395,7 +415,7 @@ export default function MenuApplication({ children }: MenuProps) {
                       component="small"
                       color="gray"
                     >
-                      {roles[item]?.nombre}
+                      {getRoleLabel(item, roles[item]?.nombre)}
                     </Typography>
                   ))}
                 </Stack>
@@ -565,3 +585,4 @@ function obtenerDuplicados(array1: number[], array2: number[]): boolean {
   const duplicados = [...set1].filter((x) => set2.has(x));
   return duplicados.length > 0;
 }
+

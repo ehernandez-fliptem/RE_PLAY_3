@@ -176,8 +176,8 @@ export async function obtenerTodosActivos(req: Request, res: Response): Promise<
         const id_usuario = (req as UserRequest).userId;
         const isMaster = (req as UserRequest).isMaster;
         const rol = (req as UserRequest).role;
-        const esAdmin = rol.includes(1);
-        const esRecep = rol.includes(2);
+        const esAdmin = rol.includes(1) || rol.includes(2);
+        const esRecep = rol.includes(5);
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa rol') as IUsuario;
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
@@ -248,8 +248,8 @@ export async function obtenerTodosDirectorio(req: Request, res: Response): Promi
         const id_usuario = (req as UserRequest).userId;
         const isMaster = (req as UserRequest).isMaster;
         const rol = (req as UserRequest).role;
-        const esAdmin = rol.includes(1);
-        const esRecep = rol.includes(2);
+        const esAdmin = rol.includes(1) || rol.includes(2);
+        const esRecep = rol.includes(5);
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa rol') as IUsuario;
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
@@ -344,10 +344,10 @@ export async function obtenerAnfitriones(req: Request, res: Response): Promise<v
         const id_usuario = (req as UserRequest).userId;
         const isMaster = (req as UserRequest).isMaster;
         const rol = (req as UserRequest).role;
-        const esAdmin = rol.includes(1);
-        const esRecep = rol.includes(2);
+        const esAdmin = rol.includes(1) || rol.includes(2);
+        const esRecep = rol.includes(5);
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
-        const rolesAnfitriones = [1, 2, 3, 4, 5, 6];
+        const rolesAnfitriones = [4];
 
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
@@ -904,11 +904,6 @@ export async function crear(req: Request, res: Response): Promise<void> {
             apellido_pat,
             apellido_mat,
             id_empresa,
-            id_piso,
-            accesos,
-            id_puesto,
-            id_departamento,
-            id_cubiculo,
             movil,
             telefono,
             extension,
@@ -917,6 +912,11 @@ export async function crear(req: Request, res: Response): Promise<void> {
             esRoot: empresa?.esRoot,
             creado_por: id_usuario
         });
+        if (id_piso !== undefined) Object.assign(nuevoUsuario, { id_piso });
+        if (Array.isArray(accesos)) Object.assign(nuevoUsuario, { accesos });
+        if (id_puesto !== undefined) Object.assign(nuevoUsuario, { id_puesto });
+        if (id_departamento !== undefined) Object.assign(nuevoUsuario, { id_departamento });
+        if (id_cubiculo !== undefined) Object.assign(nuevoUsuario, { id_cubiculo });
         const mensajes = await validarModelo(nuevoUsuario);
         if (!isEmptyObject(mensajes)) {
             res.status(400).json({ estado: false, mensaje: 'Revisa que los datos que estás ingresando sean correctos.', mensajes });
@@ -981,23 +981,25 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             movil,
             telefono,
             extension,
-            accesos,
-            id_puesto,
-            id_departamento,
-            id_cubiculo,
             fecha_modificacion: Date.now(),
             modificado_por: id_usuario
         }
+        if (Array.isArray(accesos)) Object.assign(updateData, { accesos });
+        if (id_puesto !== undefined) Object.assign(updateData, { id_puesto });
+        if (id_departamento !== undefined) Object.assign(updateData, { id_departamento });
+        if (id_cubiculo !== undefined) Object.assign(updateData, { id_cubiculo });
         if (!esUsuarioMaestro[0]) {
             Object.assign(updateData, {
                 id_empresa,
-                id_piso,
 
                 correo,
                 contrasena,
                 rol,
                 esRoot: empresa?.esRoot,
             })
+        }
+        if (id_piso !== undefined && !esUsuarioMaestro[0]) {
+            Object.assign(updateData, { id_piso });
         }
         if (contrasena) {
             const hash = bcrypt.hashSync(contrasena, 10);
@@ -1750,3 +1752,4 @@ const añadir = async ({ isMaster, id_empresa }: { isMaster: boolean; id_empresa
             return workbook.xlsx.writeFile(nameFileExcel);
         });
 }
+

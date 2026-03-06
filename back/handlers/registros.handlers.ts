@@ -10,7 +10,7 @@ const sala_bitacora = `bitacora_${sala_token}`;
 
 export default async function registrosHandlers(io: Server, socket: Socket): Promise<void> {
     const rol: number[] = socket?.data?.rol || [];
-    const accesoBitacora: boolean = rol.includes(1) || rol.includes(2) || rol.includes(4) || rol.includes(5) || rol.includes(6) || rol.includes(7) || rol.includes(10);
+    const accesoBitacora: boolean = rol.includes(1) || rol.includes(2) || rol.includes(10);
     const visitante_access = socket?.data.visitante_access || false;
     // if (!accesoBitacora && !visitante_access) {
     //     socket.disconnect();
@@ -324,8 +324,8 @@ const filtrarDatos = (
         }
 ) => {
     try {
-        const esAdmin = rol.includes(1);
-        const esRecep = rol.includes(2);
+        const esAdmin = rol.includes(1) || rol.includes(2);
+        const esRecep = rol.includes(5);
         const esVisit = rol.includes(10);
         const filtrados = registros
             .filter(registro => {

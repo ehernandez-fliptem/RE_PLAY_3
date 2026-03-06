@@ -146,7 +146,7 @@ function getFormConfig<T extends 1 | 2>(tipo: T) {
 export default function NuevoRegistro() {
   const socket = useSelector((state: IRootState) => state.ws.data);
   const { rol } = useSelector((state: IRootState) => state.auth.data);
-  const esRecep = rol.includes(2);
+  const esRecep = rol.includes(5);
   const { tipos_registros } = useSelector(
     (state: IRootState) => state.config.data
   );
@@ -677,3 +677,4 @@ const ModalCorreos = ({ correos, setOpen }: PropsModalCorreos) => {
     </ModalContainer>
   );
 };
+

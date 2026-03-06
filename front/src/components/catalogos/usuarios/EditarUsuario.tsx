@@ -9,8 +9,14 @@ import {
   Card,
   CardContent,
   Divider,
+  FormControl,
+  FormControlLabel,
+  FormHelperText,
+  FormLabel,
   IconButton,
   InputAdornment,
+  Radio,
+  RadioGroup,
   Stack,
   Typography,
   useMediaQuery,
@@ -18,7 +24,6 @@ import {
 } from "@mui/material";
 import {
   AutocompleteElement,
-  CheckboxButtonGroup,
   FormContainer,
   TextFieldElement,
 } from "react-hook-form-mui";
@@ -42,43 +47,15 @@ import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
+import { getRoleLabel } from "../../../app/utils/roleLabels";
 
 const ProfilePicture = lazy(() => import("../../utils/ProfilePicture"));
-
-type TAccesos = {
-  _id?: string;
-  nombre?: string;
-};
-
-type TPuestos = {
-  _id?: string;
-  identificador: string;
-  nombre?: string;
-};
-
-type TDepartamentos = {
-  _id?: string;
-  identificador: string;
-  nombre?: string;
-};
-
-type TCubiculos = {
-  _id?: string;
-  identificador: string;
-  nombre?: string;
-};
 
 type TEmpresas = {
   _id: string;
   nombre: string;
   activo: boolean;
-  pisos: TPisos[];
-  puestos: TPuestos[];
-  departamentos: TDepartamentos[];
-  cubiculos: TCubiculos[];
-  accesos: TAccesos[];
 };
-type TPisos = { _id: string; identificador: string; nombre: string };
 
 type FormValues = {
   img_usuario: string;
@@ -86,14 +63,7 @@ type FormValues = {
   apellido_pat: string;
   apellido_mat?: string;
   id_empresa: string;
-  id_piso: string;
-  accesos: string[];
-  movil?: string;
   telefono?: string;
-  extension?: string;
-  id_puesto?: string;
-  id_departamento?: string;
-  id_cubiculo?: string;
   correo: string;
   contrasena: string;
   rol: number[];
@@ -144,17 +114,7 @@ const resolver = yup.object().shape({
       }
     ),
   id_empresa: yup.string().required("Este campo es obligatorio."),
-  id_piso: yup.string().required("Este campo es obligatorio."),
-  accesos: yup
-    .array()
-    .of(yup.string())
-    .min(1, "Debes seleccionar al menos un acceso"),
-  id_puesto: yup.string(),
-  id_departamento: yup.string(),
-  id_cubiculo: yup.string(),
-  movil: yup.string(),
   telefono: yup.string(),
-  extension: yup.string(),
   correo: yup
     .string()
     .required("Este campo es obligatorio.")
@@ -195,14 +155,7 @@ const initialValue: FormValues = {
   apellido_pat: "",
   apellido_mat: "",
   id_empresa: "",
-  id_piso: "",
-  accesos: [],
-  id_puesto: "",
-  id_departamento: "",
-  id_cubiculo: "",
-  movil: "",
   telefono: "",
-  extension: "",
   correo: "",
   contrasena: "",
   rol: [],
@@ -212,11 +165,11 @@ export default function EditarUsuario() {
   const { id: ID } = useParams();
   const { roles } = useSelector((state: IRootState) => state.config.data);
   const ROLES = Object.entries(roles)
-    .filter((item) => ![10].includes(Number(item[0])))
+    .filter((item) => [1, 2, 4, 5].includes(Number(item[0])))
     .map((item) => {
       return {
         id: Number(item[0]),
-        label: item[1].nombre,
+        label: getRoleLabel(Number(item[0]), item[1].nombre),
       };
     });
   const theme = useTheme();
@@ -233,11 +186,6 @@ export default function EditarUsuario() {
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
   const [empresas, setEmpresas] = useState<TEmpresas[]>([]);
-  const [pisos, setPisos] = useState<TPisos[]>([]);
-  const [accesos, setAccesos] = useState<TAccesos[]>([]);
-  const [puestos, setPuestos] = useState<TPuestos[]>([]);
-  const [departamentos, setDepartamentos] = useState<TDepartamentos[]>([]);
-  const [cubiculos, setCubiculos] = useState<TCubiculos[]>([]);
   const [esUsuarioMaestro, setEsUsuarioMaestro] = useState(false);
 
   useEffect(() => {
@@ -248,17 +196,6 @@ export default function EditarUsuario() {
           const { usuario, empresas } = res.data.datos;
           setEsUsuarioMaestro(usuario.id_general === 1);
           setEmpresas(empresas);
-          setPuestos(puestos);
-          setDepartamentos(departamentos);
-          setCubiculos(cubiculos);
-          const empresaSeleccionada = (empresas as TEmpresas[]).find(
-            (e) => e._id === usuario?.id_empresa
-          );
-          setPisos(empresaSeleccionada?.pisos || []);
-          setPuestos(empresaSeleccionada?.puestos || []);
-          setDepartamentos(empresaSeleccionada?.departamentos || []);
-          setCubiculos(empresaSeleccionada?.cubiculos || []);
-          setAccesos(empresaSeleccionada?.accesos || []);
           formContext.reset(usuario);
           setIsLoading(false);
         } else {
@@ -304,7 +241,7 @@ export default function EditarUsuario() {
     }
   };
 
-  const handleChange = async (value: string, name: "telefono" | "movil") => {
+  const handleChange = async (value: string, name: "telefono") => {
     formContext.setValue(name, value, { shouldValidate: true });
   };
 
@@ -322,7 +259,7 @@ export default function EditarUsuario() {
             ) : (
               <FormContainer formContext={formContext} onSuccess={onSubmit}>
                 <Typography variant="h4" component="h2" textAlign="center">
-                  Editar Usuario
+                  Editar usuario del sistema
                 </Typography>
                 <Suspense fallback={<ProfilePicturePreview />}>
                   <ProfilePicture
@@ -331,7 +268,7 @@ export default function EditarUsuario() {
                   />
                 </Suspense>
                 <Typography variant="overline" component="h6">
-                  Generales
+                  Datos Generales
                 </Typography>
                 <TextFieldElement
                   name="nombre"
@@ -368,130 +305,18 @@ export default function EditarUsuario() {
                       noOptionsText: "No hay opciones.",
                       onChange: (_, value) => {
                         formContext.setValue("id_empresa", value?.id || "");
-                        const empresaSeleccionada = empresas.find(
-                          (e) => e._id === value?.id
-                        );
-                        setPisos(empresaSeleccionada?.pisos || []);
-                        setAccesos(empresaSeleccionada?.accesos || []);
-                        setPuestos(empresaSeleccionada?.puestos || []);
-                        setDepartamentos(empresaSeleccionada?.departamentos || []);
-                        setCubiculos(empresaSeleccionada?.cubiculos || []);
-                        formContext.setValue("id_piso", "");
-                        formContext.setValue("accesos", []); 
-                        formContext.setValue("id_puesto", "");
-                        formContext.setValue("id_departamento", "");
-                        formContext.setValue("id_cubiculo", "");
                       },
                     }}
                   />
                 )}
-                <AutocompleteElement
-                  name="id_piso"
-                  label="Piso"
-                  required
-                  matchId
-                  options={pisos.map((item) => ({
-                    id: item._id,
-                    label: `${item.identificador} - ${item.nombre}`,
-                  }))}
-                  textFieldProps={{
-                    margin: "normal",
-                  }}
-                  autocompleteProps={{
-                    noOptionsText: "No hay opciones.",
-                  }}
-                />
-                <AutocompleteElement
-                  name="accesos"
-                  label="Acceso"
-                  required
-                  matchId
-                  multiple
-                  options={accesos.map((item) => {
-                    return {
-                      id: item._id,
-                      label: item.nombre,
-                    };
-                  })}
-                  textFieldProps={{
-                    margin: "normal",
-                  }}
-                  autocompleteProps={{
-                    noOptionsText: "No hay opciones.",
-                  }}
-                />
-                <AutocompleteElement
-                  name="id_puesto"
-                  label="Puesto"
-                  matchId
-                  options={puestos.map((item) => ({
-                    id: item._id,
-                    label: `${item.identificador} - ${item.nombre}`,
-                  }))}
-                  textFieldProps={{
-                    margin: "normal",
-                  }}
-                  autocompleteProps={{
-                    noOptionsText: "No hay opciones.",
-                  }}
-                />
-                <AutocompleteElement
-                  name="id_departamento"
-                  label="Departamento"
-                  matchId
-                  options={departamentos.map((item) => ({
-                    id: item._id,
-                    label: `${item.identificador} - ${item.nombre}`,
-                  }))}
-                  textFieldProps={{
-                    margin: "normal",
-                  }}
-                  autocompleteProps={{
-                    noOptionsText: "No hay opciones.",
-                  }}
-                />
-                <AutocompleteElement
-                  name="id_cubiculo"
-                  label="Cubículo"
-                  matchId
-                  options={cubiculos.map((item) => ({
-                    id: item._id,
-                    label: `${item.identificador} - ${item.nombre}`,
-                  }))}
-                  textFieldProps={{
-                    margin: "normal",
-                  }}
-                  autocompleteProps={{
-                    noOptionsText: "No hay opciones.",
-                  }}
-                />
-                <Controller
-                  name="movil"
-                  control={formContext.control}
-                  render={({ field, fieldState }) => (
-                    <MuiTelInput
-                      name="movil"
-                      label="Teléfono Móvil"
-                      fullWidth
-                      margin="normal"
-                      value={field.value}
-                      onChange={(value: string) => handleChange(value, "movil")}
-                      defaultCountry="MX"
-                      continents={["SA", "NA"]}
-                      langOfCountryName="es"
-                      error={!!fieldState.error}
-                      helperText={fieldState.error?.message}
-                      disableFormatting
-                    />
-                  )}
-                />
+
                 <Controller
                   name="telefono"
                   control={formContext.control}
                   render={({ field, fieldState }) => (
                     <MuiTelInput
                       name="telefono"
-                      label="Teléfono de Casa/Oficina"
+                      label="Teléfono"
                       fullWidth
                       margin="normal"
                       value={field.value}
@@ -507,18 +332,11 @@ export default function EditarUsuario() {
                     />
                   )}
                 />
-                <TextFieldElement
-                  name="extension"
-                  label="Extensión"
-                  fullWidth
-                  margin="normal"
-                  type="text"
-                />
                 {!esUsuarioMaestro && (
                   <Fragment>
                     <Divider sx={{ my: 2 }} />
                     <Typography variant="overline" component="h6">
-                      Sistema
+                      Acceso al sistema
                     </Typography>
                     <TextFieldElement
                       name="correo"
@@ -562,12 +380,41 @@ export default function EditarUsuario() {
                       }}
                     />
                     <PasswordValidAdornment name="contrasena" />
-                    <CheckboxButtonGroup
+                    <Controller
                       name="rol"
-                      label="Rol"
-                      required
-                      row={!isTinyMobile}
-                      options={ROLES}
+                      control={formContext.control}
+                      render={({ field, fieldState }) => (
+                        <FormControl
+                          component="fieldset"
+                          error={!!fieldState.error}
+                          sx={{ mt: 1 }}
+                        >
+                          <FormLabel component="legend">
+                            Perfil de acceso *
+                          </FormLabel>
+                          <RadioGroup
+                            row={!isTinyMobile}
+                            value={field.value?.[0] ?? ""}
+                            onChange={(_, value) =>
+                              field.onChange(value ? [Number(value)] : [])
+                            }
+                          >
+                            {ROLES.map((item) => (
+                              <FormControlLabel
+                                key={item.id}
+                                value={item.id}
+                                control={<Radio />}
+                                label={item.label}
+                              />
+                            ))}
+                          </RadioGroup>
+                          {fieldState.error?.message && (
+                            <FormHelperText>
+                              {fieldState.error.message}
+                            </FormHelperText>
+                          )}
+                        </FormControl>
+                      )}
                     />
                   </Fragment>
                 )}
@@ -616,3 +463,10 @@ export default function EditarUsuario() {
     </ModalContainer>
   );
 }
+
+
+
+
+
+
+

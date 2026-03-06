@@ -16,25 +16,20 @@ import {
   Add,
   Delete,
   Edit,
-  GetApp,
-  Lock,
-  LockOpen,
-  NoAccounts,
   RestoreFromTrash,
   // Upload, // [En proceso] Ocultado por funcionalidad de carga masiva no disponible
   Visibility,
 } from "@mui/icons-material";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
+import { getRoleLabel } from "../../../app/utils/roleLabels";
 import { Avatar, Chip, Grid, IconButton, Tooltip } from "@mui/material";
 import { enqueueSnackbar } from "notistack";
 import { useConfirm } from "material-ui-confirm";
 import { AxiosError } from "axios";
-import { base64ToFile } from "../../helpers/generalHelpers";
 import ErrorOverlay from "../../error/DataGridError";
-import Spinner from "../../utils/Spinner";
 
-const pageSizeOptions = [10, 25, 50];
+const pageSizeOptions = [25, 50, 100];
 
 export default function Usuarios() {
   const { roles } = useSelector((state: IRootState) => state.config.data);
@@ -42,10 +37,8 @@ export default function Usuarios() {
   const [error, setError] = useState<string>();
   const navigate = useNavigate();
   const confirm = useConfirm();
-  const [isDownloadingQr, setIsDownloadingQr] = useState({
-    id_usuario: "",
-    descargando: false,
-  });
+  // QR y desbloqueo deshabilitados temporalmente junto con columnas ocultas
+
 
   const dataSource: GridDataSource = useMemo(
     () => ({
@@ -91,7 +84,7 @@ export default function Usuarios() {
     () => ({
       pagination: {
         paginationModel: {
-          pageSize: 10,
+          pageSize: 25,
         },
         rowCount: 0,
       },
@@ -156,75 +149,10 @@ export default function Usuarios() {
         });
     }
   };
+  // const descargarQr = async (ID: string, nombre: string) => { ... }
 
-  const descargarQr = async (ID: string, nombre: string) => {
-    try {
-      setIsDownloadingQr({ id_usuario: ID, descargando: true });
-      const res = await clienteAxios.get(`/api/usuarios/qr/${ID}`);
-      if (res.data.estado) {
-        base64ToFile(res.data.datos, "image/jpg", `${nombre}.jpg`);
-      } else {
-        enqueueSnackbar(res.data.mensaje, { variant: "warning" });
-      }
-    } catch (error) {
-      const { restartSession } = handlingError(error);
-      if (restartSession) navigate("/logout", { replace: true });
-    } finally {
-      setIsDownloadingQr({ id_usuario: ID, descargando: false });
-    }
-  };
-
-  const desbloquear = (ID: string) => {
-    confirm({
-      title: "¿Seguro que desea desbloquear a este usuario?",
-      description:
-        "Esta acción restaura los intentos para que el usuario pueda iniciar sesión.",
-      allowClose: true,
-      confirmationText: "Continuar",
-    })
-      .then(async (result) => {
-        if (result.confirmed) {
-          const res = await clienteAxios.patch(
-            `/api/usuarios/desbloquear/${ID}`
-          );
-          if (res.data.estado) {
-            apiRef.current?.updateRows([{ _id: ID, bloqueado: false }]);
-          } else {
-            enqueueSnackbar(res.data.mensaje, { variant: "warning" });
-          }
-        }
-      })
-      .catch((error) => {
-        const { restartSession } = handlingError(error);
-        if (restartSession) navigate("/logout", { replace: true });
-      });
-  };
-
-  const anonimizar = (ID: string) => {
-    confirm({
-      title: "¿Seguro que desea anonimizar a este usuario?",
-      description:
-        "Esta acción no se puede revertir y destruye toda la información personal del usuario (nombre, correo, teléfono, etc).",
-      allowClose: true,
-      confirmationText: "Continuar",
-    })
-      .then(async (result) => {
-        if (result.confirmed) {
-          const res = await clienteAxios.patch(
-            `/api/usuarios/anonimizar/${ID}`
-          );
-          if (res.data.estado) {
-            apiRef.current?.updateRows([{ _id: ID, bloqueado: false }]);
-          } else {
-            enqueueSnackbar(res.data.mensaje, { variant: "warning" });
-          }
-        }
-      })
-      .catch((error) => {
-        const { restartSession } = handlingError(error);
-        if (restartSession) navigate("/logout", { replace: true });
-      });
-  };
+  // const desbloquear = (ID: string) => { ... }
+  // const anonimizar = (ID: string) => { ... }
 
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
@@ -234,13 +162,13 @@ export default function Usuarios() {
         getRowId={(row) => row._id}
         getRowHeight={() => "auto"}
         columns={[
-          {
-            headerName: "ID",
-            field: "id_general",
-            flex: 1,
-            type: "number",
-            display: "flex",
-          },
+          // {
+          //   headerName: "ID",
+          //   field: "id_general",
+          //   flex: 1,
+          //   type: "number",
+          //   display: "flex",
+          // },
           {
             headerName: "Foto",
             field: "img_usuario",
@@ -261,13 +189,13 @@ export default function Usuarios() {
               />
             ),
           },
-          {
-            headerName: "Empresa",
-            field: "empresa",
-            flex: 1,
-            display: "flex",
-            minWidth: 180,
-          },
+          // {
+          //   headerName: "Empresa",
+          //   field: "empresa",
+          //   flex: 1,
+          //   display: "flex",
+          //   minWidth: 180,
+          // },
           {
             headerName: "Nombre",
             field: "nombre",
@@ -286,7 +214,7 @@ export default function Usuarios() {
                 {value.map((item: number) => (
                   <Grid key={item} size={12}>
                     <Chip
-                      label={roles[item].nombre}
+                      label={getRoleLabel(item, roles[item]?.nombre)}
                       size="small"
                       color="secondary"
                       sx={(theme) => ({
@@ -302,59 +230,34 @@ export default function Usuarios() {
               </Grid>
             ),
             valueFormatter: (value: number[]) => {
-              return value.map((item) => roles[item]?.nombre).join(", ");
+              return value
+                .map((item) => getRoleLabel(item, roles[item]?.nombre))
+                .join(", ");
             },
           },
-          {
-            headerName: "Tipo",
-            field: "esRoot",
-            disableExport: true,
-            flex: 1,
-            display: "flex",
-            minWidth: 100,
-            renderCell: ({ value }) => (
-              <Fragment>
-                {value ? (
-                  <Chip
-                    label="Maestra"
-                    size="small"
-                    color="primary"
-                    sx={{ width: "100%" }}
-                  />
-                ) : (
-                  <Chip
-                    label="Esclava"
-                    size="small"
-                    color="secondary"
-                    sx={{ width: "100%" }}
-                  />
-                )}
-              </Fragment>
-            ),
-          },
-          {
-            headerName: "QR",
-            field: "id_usuario",
-            align: "center",
-            flex: 1,
-            display: "flex",
-            renderCell: ({ row }) => {
-              return (
-                <Fragment>
-                  {isDownloadingQr.descargando &&
-                  row._id === isDownloadingQr.id_usuario ? (
-                    <Spinner size="small" />
-                  ) : (
-                    <IconButton
-                      onClick={() => descargarQr(row._id, row.nombre)}
-                    >
-                      <GetApp fontSize="small" color="success" />
-                    </IconButton>
-                  )}
-                </Fragment>
-              );
-            },
-          },
+          // {
+          //   headerName: "QR",
+          //   field: "id_usuario",
+          //   align: "center",
+          //   flex: 1,
+          //   display: "flex",
+          //   renderCell: ({ row }) => {
+          //     return (
+          //       <Fragment>
+          //         {isDownloadingQr.descargando &&
+          //         row._id === isDownloadingQr.id_usuario ? (
+          //           <Spinner size="small" />
+          //         ) : (
+          //           <IconButton
+          //             onClick={() => descargarQr(row._id, row.nombre)}
+          //           >
+          //             <GetApp fontSize="small" color="success" />
+          //           </IconButton>
+          //         )}
+          //       </Fragment>
+          //     );
+          //   },
+          // },
           {
             headerName: "Acciones",
             field: "activo",
@@ -405,54 +308,31 @@ export default function Usuarios() {
               return gridActions;
             },
           },
-          {
-            headerName: "Arco",
-            field: "arco",
-            type: "actions",
-            align: "center",
-            flex: 1,
-            display: "flex",
-            minWidth:100,
-            getActions: ({ row }) => {
-              const gridActions = [];
-              if (!row.activo && !row.arco) {
-                gridActions.push(
-                  <GridActionsCellItem
-                    icon={<NoAccounts color="primary" />}
-                    onClick={() => anonimizar(row._id)}
-                    label="Arco"
-                    title="Arco"
-                  />
-                );
-              }
-              return gridActions;
-            },
-          },
-          {
-            headerName: "Acceso",
-            field: "desbloqueo",
-            type: "actions",
-            align: "center",
-            flex: 1,
-            display: "flex",
-            minWidth:100,
-            getActions: ({ row }) => [
-              row.bloqueado ? (
-                <GridActionsCellItem
-                  icon={<Lock color="error" />}
-                  onClick={() => desbloquear(row._id)}
-                  label="Bloqueado Temporalmente"
-                  title="Bloqueado Temporalmente"
-                />
-              ) : (
-                <GridActionsCellItem
-                  icon={<LockOpen color="success" />}
-                  label="Acceso"
-                  title="Acceso"
-                />
-              ),
-            ],
-          },
+          // {
+          //   headerName: "Acceso",
+          //   field: "desbloqueo",
+          //   type: "actions",
+          //   align: "center",
+          //   flex: 1,
+          //   display: "flex",
+          //   minWidth:100,
+          //   getActions: ({ row }) => [
+          //     row.bloqueado ? (
+          //       <GridActionsCellItem
+          //         icon={<Lock color="error" />}
+          //         onClick={() => desbloquear(row._id)}
+          //         label="Bloqueado Temporalmente"
+          //         title="Bloqueado Temporalmente"
+          //       />
+          //     ) : (
+          //       <GridActionsCellItem
+          //         icon={<LockOpen color="success" />}
+          //         label="Acceso"
+          //         title="Acceso"
+          //       />
+          //     ),
+          //   ],
+          // },
         ]}
         disableRowSelectionOnClick
         disableColumnFilter
@@ -483,7 +363,7 @@ export default function Usuarios() {
         slots={{
           toolbar: () => (
             <DataGridToolbar
-              tableTitle="Gestión de Usuarios"
+              tableTitle="Roles y Permisos"
               customActionButtons={
                 <Fragment>
                   <Tooltip title="Agregar">
@@ -511,3 +391,7 @@ export default function Usuarios() {
     </div>
   );
 }
+
+
+
+

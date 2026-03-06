@@ -5,13 +5,13 @@ import { obtenerTodos, obtenerTodosActivos, obtenerUno, crear, modificar, modifi
 
 const router = Router();
 
-router.get('/', validarTokenYRol([1, 2, 4, 5, 6, 7]), obtenerTodos);
-router.get('/activos', validarTokenYRol([1, 2, 4, 5, 6, 7]), obtenerTodosActivos);
+router.get('/', validarTokenYRol([1, 2]), obtenerTodos);
+router.get('/activos', validarTokenYRol([1, 2]), obtenerTodosActivos);
 router.get("/form-nuevo", validarTokenYRol([1, 2]), obtenerFormNuevoEmpresa);
 router.get("/form-editar/:id", validarTokenYRol([1, 2]), obtenerFormEditarEmpresa);
-router.get('/:id', validarTokenYRol([1]), obtenerUno);
-router.put('/:id', validarTokenYRol([1]), modificarEmpValidador, modificar);
-router.post('/', validarTokenYRol([1]), crear);
-router.patch('/:id', validarTokenYRol([1]), modificarEstado);
+router.get('/:id', validarTokenYRol([1, 2]), obtenerUno);
+router.put('/:id', validarTokenYRol([1, 2]), modificarEmpValidador, modificar);
+router.post('/', validarTokenYRol([1, 2]), crear);
+router.patch('/:id', validarTokenYRol([1, 2]), modificarEstado);
 
 export default router;

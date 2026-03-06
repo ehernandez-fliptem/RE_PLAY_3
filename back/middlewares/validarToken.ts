@@ -52,16 +52,18 @@ export function validarTokenYRol(rolesPermitidos: number[] = [], isRoot: boolean
             }
 
             if (!registro.rol.includes(10)) {
-                const acceso_existe = await Accesos.findById(id_acceso, 'activo');
-                if (!acceso_existe) {
-                    log(`${fecha()} ERROR: Acceso no existe o inactivo. \n\n`);
-                    res.status(419).json({ estado: false, mensaje: "No se encontró información del acceso asignado." });
-                    return;
-                }
-                if (!acceso_existe.activo) {
-                    log(`${fecha()} ERROR: Usuario no  inactivo. \n\n`);
-                    res.status(419).json({ estado: false, mensaje: "Actualmente el se encuentra inactivo, debes reiniciar sesión para validar la información." });
-                    return;
+                if (id_acceso) {
+                    const acceso_existe = await Accesos.findById(id_acceso, 'activo');
+                    if (!acceso_existe) {
+                        log(`${fecha()} ERROR: Acceso no existe o inactivo. \n\n`);
+                        res.status(419).json({ estado: false, mensaje: "No se encontró información del acceso asignado." });
+                        return;
+                    }
+                    if (!acceso_existe.activo) {
+                        log(`${fecha()} ERROR: Usuario no  inactivo. \n\n`);
+                        res.status(419).json({ estado: false, mensaje: "Actualmente el se encuentra inactivo, debes reiniciar sesión para validar la información." });
+                        return;
+                    }
                 }
                 if (!(registro as IUsuario)?.esRoot && isRoot) {
                     log(`${fecha()} ERROR: Usuario no maestro. \n\n`);
@@ -85,3 +87,6 @@ export function validarTokenYRol(rolesPermitidos: number[] = [], isRoot: boolean
         }
     };
 }
+
+
+

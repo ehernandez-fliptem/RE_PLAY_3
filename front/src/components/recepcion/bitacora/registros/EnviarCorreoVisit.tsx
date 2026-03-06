@@ -95,7 +95,7 @@ const initialValue: FormValues = {
 
 export default function EnviarCorreoVisit() {
   const { rol } = useSelector((state: IRootState) => state.auth.data);
-  const esRecep = rol.includes(2);
+  const esRecep = rol.includes(5);
   const formContext = useForm({
     defaultValues: initialValue,
     resolver: yupResolver(resolver),
@@ -259,3 +259,4 @@ export default function EnviarCorreoVisit() {
     </ModalContainer>
   );
 }
+

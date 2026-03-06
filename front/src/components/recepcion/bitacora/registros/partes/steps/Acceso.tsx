@@ -34,7 +34,7 @@ const endDay = dayjs().endOf("day");
 
 export default function Acceso({ type }: Props) {
   const { rol } = useSelector((state: IRootState) => state.auth.data);
-  const esRecep = rol.includes(2);
+  const esRecep = rol.includes(5);
   const esVisit = rol.includes(10);
   const formContext = useFormContext();
   const [isLoading, setIsLoading] = useState(true);
@@ -131,3 +131,4 @@ export default function Acceso({ type }: Props) {
     </Fragment>
   );
 }
+

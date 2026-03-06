@@ -16,7 +16,7 @@ import {
   // HowToReg, // FLAG: Recepción oculta temporalmente - No borrar
   Badge,
   Group,
-  // PeopleAlt,
+  PeopleAlt,
   // PieChart, // FLAG: Reportes oculto temporalmente - No borrar
   Settings,
   // Help, // FLAG: Ayuda oculta temporalmente - No borrar
@@ -41,24 +41,24 @@ const mainMenu = [
   //   icon: <Assignment fontSize="small" />,
   //   path: "/bitacora",
   // },
-  // {
-  //   id: 0.5,
-  //   title: "Usuarios",
-  //   rol: [1],
-  //   icon: <PeopleAlt fontSize="small" />,
-  //   path: "/usuarios",
-  // },
+  {
+    id: 0.5,
+    title: "Roles y Permisos",
+    rol: [1],
+    icon: <PeopleAlt fontSize="small" />,
+    path: "/usuarios",
+  },
   {
     id: 0.95,
     title: "Kiosco",
-    rol: [1, 2],
+    rol: [1, 2, 5],
     icon: <WebStories fontSize="small" />,
     path: "/kiosco",
   },
   {
     id: 0.6,
     title: "Empleados",
-    rol: [1],
+    rol: [1, 2],
     icon: <Badge fontSize="small" />,
     path: "/empleados",
   },
@@ -74,14 +74,14 @@ const mainMenu = [
       {
         id: 2.1,
         title: "Visitantes",
-        rol: [1, 2],
+    rol: [1, 2, 4, 5],
         icon: <PeopleAlt fontSize="small" />,
         path: "/visitantes",
       },
       {
         id: 2.3,
         title: "Directorio",
-        rol: [1, 2, 4, 5, 6, 7],
+    rol: [1, 2],
         icon: <Contacts fontSize="small" />,
         path: "/directorio",
       },
@@ -98,28 +98,28 @@ const mainMenu = [
   {
     id: 0.7,
     title: "Visitantes",
-    rol: [1, 2],
+    rol: [1, 2, 4, 5],
     icon: <Group fontSize="small" />,
     path: "/visitantes",
   },
   {
     id: 0.8,
     title: "Directorio",
-    rol: [1, 2, 4, 5, 6, 7],
+    rol: [1, 2],
     icon: <Contacts fontSize="small" />,
     path: "/directorio",
   },
   {
     id: 0.9,
     title: "Eventos",
-    rol: [1, 2, 5, 6],
+    rol: [1, 2, 5],
     icon: <EventNote fontSize="small" />,
     path: "/eventos",
   },
   {
     id: 1,
     title: "Catálogos",
-    rol: [1],
+    rol: [1, 2],
     icon: <Folder fontSize="small" />,
     submenu: [
       {
@@ -160,7 +160,7 @@ const mainMenu = [
       {
         id: 1.6,
         title: "Empresas",
-        rol: [1],
+        rol: [1, 2],
         icon: <Business fontSize="small" />,
         path: "/empresas",
       },
@@ -177,20 +177,20 @@ const mainMenu = [
   {
     id: 3,
     title: "Documentos",
-    rol: [7, 10],
+    rol: [1, 2, 10],
     icon: <LibraryBooks fontSize="small" />,
     submenu: [
       {
         id: 3.1,
         title: "Validación",
-        rol: [7],
+        rol: [1, 2],
         icon: <LibraryAddCheck fontSize="small" />,
         path: "/validacion-documentos",
       },
       {
         id: 3.2,
         title: "Documentos",
-        rol: [10],
+        rol: [1, 2, 10],
         icon: <AutoStories fontSize="small" />,
         path: "/documentos",
       },
@@ -207,7 +207,7 @@ const mainMenu = [
       {
         id: 4.1,
         title: "Eventos",
-        rol: [1, 2, 5, 6],
+    rol: [1, 2, 5],
         icon: <EventNote fontSize="small" />,
         path: "/eventos",
       },
@@ -303,5 +303,9 @@ const mainMenu = [
 ];
 
 export default mainMenu;
+
+
+
+
 
 

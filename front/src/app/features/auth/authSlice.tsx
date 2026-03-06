@@ -41,13 +41,16 @@ export const authSlice = createSlice({
         state.data = session;
         if (Object.entries(session).length > 0) {
           const esVisit = session.rol.includes(10);
-          if (!esVisit && session?.accesos) {
+          if (!esVisit && session?.accesos?.length) {
             localStorage.setItem(
               "SELECTED_ACCESS",
-              acceso || session?.accesos[0]._id || null
+              acceso || session.accesos[0]?._id || null
             );
             clienteAxios.defaults.headers.common["x-access-default-entrance"] =
-              acceso || session?.accesos[0]._id || null;
+              acceso || session.accesos[0]?._id || null;
+          } else {
+            localStorage.removeItem("SELECTED_ACCESS");
+            delete clienteAxios.defaults.headers.common["x-access-default-entrance"];
           }
         }
         clienteAxios.defaults.headers.common["x-access-token"] = session.token;
@@ -72,10 +75,13 @@ export const authSlice = createSlice({
       state.data.empresa = empresa;
       localStorage.setItem("SESSION", JSON.stringify(session));
       const esVisit = session.rol.includes(10);
-      if (!esVisit && accesos) {
-        localStorage.setItem("SELECTED_ACCESS", acceso || accesos[0]._id);
+      if (!esVisit && accesos?.length) {
+        localStorage.setItem("SELECTED_ACCESS", acceso || accesos[0]?._id || null);
         clienteAxios.defaults.headers.common["x-access-default-entrance"] =
-          acceso || session?.accesos[0]._id || null;
+          acceso || accesos[0]?._id || null;
+      } else {
+        localStorage.removeItem("SELECTED_ACCESS");
+        delete clienteAxios.defaults.headers.common["x-access-default-entrance"];
       }
     },
     deleteAuth: (state) => {

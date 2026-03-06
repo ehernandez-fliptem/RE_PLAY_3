@@ -32,6 +32,8 @@ import { AxiosError } from "axios";
 import { base64ToFile } from "../../helpers/generalHelpers";
 import ErrorOverlay from "../../error/DataGridError";
 import Spinner from "../../utils/Spinner";
+import { useSelector } from "react-redux";
+import type { IRootState } from "../../../app/store";
 
 import { isBlockedNow } from "../../../utils/bloqueo";
 
@@ -50,6 +52,8 @@ export default function Visitantes() {
   const [error, setError] = useState<string>();
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const { rol } = useSelector((state: IRootState) => state.auth.data);
+  const esRecep = rol.includes(5);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [isDownloadingQr, setIsDownloadingQr] = useState({
     id_usuario: "",
@@ -499,39 +503,42 @@ const accionBloquear = (ID: string) => {
                   title="Ver"
                 />
               );
-              if (row.activo)
-                gridActions.push(
-                  <GridActionsCellItem
-                    icon={<Edit color="primary" />}
-                    onClick={() => editarRegistro(row._id)}
-                    label="Editar"
-                    title="Editar"
-                  />
-                );
-              if (row.id_general !== 1) {
-                gridActions.push(
-                  row.activo ? (
+              if (!esRecep) {
+                if (row.activo) {
+                  gridActions.push(
                     <GridActionsCellItem
-                      icon={<Delete color="success" />}
-                      onClick={() => cambiarEstado(row._id, row.activo)}
-                      label="Desactivar"
-                      title="Desactivar"
+                      icon={<Edit color="primary" />}
+                      onClick={() => editarRegistro(row._id)}
+                      label="Editar"
+                      title="Editar"
                     />
-                  ) : (
-                    <GridActionsCellItem
-                      icon={<RestoreFromTrash color="error" />}
-                      onClick={() => cambiarEstado(row._id, row.activo)}
-                      label="Restaurar"
-                      title="Restaurar"
-                    />
-                  )
-                );
+                  );
+                }
+                if (row.id_general !== 1) {
+                  gridActions.push(
+                    row.activo ? (
+                      <GridActionsCellItem
+                        icon={<Delete color="success" />}
+                        onClick={() => cambiarEstado(row._id, row.activo)}
+                        label="Desactivar"
+                        title="Desactivar"
+                      />
+                    ) : (
+                      <GridActionsCellItem
+                        icon={<RestoreFromTrash color="error" />}
+                        onClick={() => cambiarEstado(row._id, row.activo)}
+                        label="Restaurar"
+                        title="Restaurar"
+                      />
+                    )
+                  );
+                }
               }
               return gridActions;
             },
           },
           {
-            headerName: "Acceso",
+                        headerName: "Acceso",
             field: "desbloqueo",
             type: "actions",
             align: "center",
@@ -543,6 +550,28 @@ const accionBloquear = (ID: string) => {
             valueGetter: (_value, row) => `${row?.bloqueado ?? false}-${row?.desbloqueado_hasta ?? ""}`,
 
             getActions: ({ row }) => {
+              if (esRecep) {
+                const bloqueadoEfectivo = isBlockedNow(row);
+                return [
+                  bloqueadoEfectivo ? (
+                    <GridActionsCellItem
+                      icon={<Lock color="error" />}
+                      label="Bloqueado"
+                      title="Bloqueado"
+                      disabled
+                      onClick={() => {}}
+                    />
+                  ) : (
+                    <GridActionsCellItem
+                      icon={<LockOpen color="success" />}
+                      label="Acceso"
+                      title="Acceso"
+                      disabled
+                      onClick={() => {}}
+                    />
+                  ),
+                ];
+              }
               const isLoading = !!loadingRows[row._id];
 
               if (isLoading) {
@@ -637,24 +666,26 @@ const accionBloquear = (ID: string) => {
             <DataGridToolbar
               tableTitle="Gestión de Visitantes"
               customActionButtons={
-                <Fragment>
-                  <Tooltip title="Agregar">
-                    <IconButton onClick={nuevoRegistro}>
-                      <Add fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Verificar">
-                    <IconButton onClick={verificarSeleccionado}>
-                      <Verified fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  {/* Carga masiva oculta temporalmente; mantener para uso futuro */}
-                  {/* <Tooltip title="Carga masiva">
-                    <IconButton onClick={cargaMasiva}>
-                      <Upload fontSize="small" />
-                    </IconButton>
-                  </Tooltip> */}
-                </Fragment>
+                !esRecep && (
+                  <Fragment>
+                    <Tooltip title="Agregar">
+                      <IconButton onClick={nuevoRegistro}>
+                        <Add fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Verificar">
+                      <IconButton onClick={verificarSeleccionado}>
+                        <Verified fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    {/* Carga masiva oculta temporalmente; mantener para uso futuro */}
+                    {/* <Tooltip title="Carga masiva">
+                      <IconButton onClick={cargaMasiva}>
+                        <Upload fontSize="small" />
+                      </IconButton>
+                    </Tooltip> */}
+                  </Fragment>
+                )
               }
             />
           ),
@@ -667,3 +698,5 @@ const accionBloquear = (ID: string) => {
     </div>
   );
 }
+
+

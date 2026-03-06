@@ -14,8 +14,14 @@ import {
   Card,
   CardContent,
   Divider,
+  FormControl,
+  FormControlLabel,
+  FormHelperText,
+  FormLabel,
   IconButton,
   InputAdornment,
+  Radio,
+  RadioGroup,
   Stack,
   Typography,
   useMediaQuery,
@@ -23,7 +29,6 @@ import {
 } from "@mui/material";
 import {
   AutocompleteElement,
-  CheckboxButtonGroup,
   FormContainer,
   TextFieldElement,
 } from "react-hook-form-mui";
@@ -47,44 +52,15 @@ import { useNavigate, useOutletContext } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
+import { getRoleLabel } from "../../../app/utils/roleLabels";
 
 const ProfilePicture = lazy(() => import("../../utils/ProfilePicture"));
-
-type TAccesos = {
-  _id?: string;
-  nombre?: string;
-};
-
-type TPuestos = {
-  _id?: string;
-  identificador: string;
-  nombre?: string;
-};
-
-type TDepartamentos = {
-  _id?: string;
-  identificador: string;
-  nombre?: string;
-};
-
-type TCubiculos = {
-  _id?: string;
-  identificador: string;
-  nombre?: string;
-};
 
 type TEmpresas = {
   _id: string;
   nombre: string;
   activo: boolean;
-  pisos: TPisos[];
-  accesos: TAccesos[];
-  puestos: TPuestos[];
-  departamentos: TDepartamentos[];
-  cubiculos: TCubiculos[];
 };
-
-type TPisos = { _id: string; identificador: string; nombre: string };
 
 type FormValues = {
   img_usuario: string;
@@ -92,14 +68,7 @@ type FormValues = {
   apellido_pat: string;
   apellido_mat?: string;
   id_empresa: string;
-  id_piso: string;
-  accesos: string[];
-  movil?: string;
   telefono?: string;
-  extension?: string;
-  id_puesto?: string;
-  id_departamento?: string;
-  id_cubiculo?: string;
   correo: string;
   contrasena: string;
   rol: number[];
@@ -150,17 +119,7 @@ const resolver = yup.object().shape({
       }
     ),
   id_empresa: yup.string().required("Este campo es obligatorio."),
-  id_piso: yup.string().required("Este campo es obligatorio."),
-  accesos: yup
-    .array()
-    .of(yup.string())
-    .min(1, "Debes seleccionar al menos un acceso"),
-  id_puesto: yup.string(),
-  id_departamento: yup.string(),
-  id_cubiculo: yup.string(),
-  movil: yup.string(),
   telefono: yup.string(),
-  extension: yup.string(),
   correo: yup
     .string()
     .required("Este campo es obligatorio.")
@@ -196,14 +155,7 @@ const initialValue: FormValues = {
   apellido_pat: "",
   apellido_mat: "",
   id_empresa: "",
-  id_piso: "",
-  accesos: [],
-  id_puesto: "",
-  id_departamento: "",
-  id_cubiculo: "",
-  movil: "",
   telefono: "",
-  extension: "",
   correo: "",
   contrasena: "",
   rol: [],
@@ -212,11 +164,11 @@ const initialValue: FormValues = {
 export default function NuevoUsuario() {
   const { roles } = useSelector((state: IRootState) => state.config.data);
   const ROLES = Object.entries(roles)
-    .filter((item) => ![10].includes(Number(item[0])))
+    .filter((item) => [1, 2, 4, 5].includes(Number(item[0])))
     .map((item) => {
       return {
         id: Number(item[0]),
-        label: item[1].nombre,
+        label: getRoleLabel(Number(item[0]), item[1].nombre),
       };
     });
   const theme = useTheme();
@@ -233,11 +185,6 @@ export default function NuevoUsuario() {
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
   const [empresas, setEmpresas] = useState<TEmpresas[]>([]);
-  const [pisos, setPisos] = useState<TPisos[]>([]);
-  const [accesos, setAccesos] = useState<TAccesos[]>([]);
-  const [puestos, setPuestos] = useState<TPuestos[]>([]);
-  const [departamentos, setDepartamentos] = useState<TDepartamentos[]>([]);
-  const [cubiculos, setCubiculos] = useState<TCubiculos[]>([]);
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -289,7 +236,7 @@ export default function NuevoUsuario() {
     }
   };
 
-  const handleChange = async (value: string, name: "telefono" | "movil") => {
+  const handleChange = async (value: string, name: "telefono") => {
     formContext.setValue(name, value, { shouldValidate: true });
   };
 
@@ -307,7 +254,7 @@ export default function NuevoUsuario() {
             ) : (
               <FormContainer formContext={formContext} onSuccess={onSubmit}>
                 <Typography variant="h4" component="h2" textAlign="center">
-                  Nuevo Usuario
+                  Crear usuario del sistema
                 </Typography>
                 <Suspense fallback={<ProfilePicturePreview />}>
                   <ProfilePicture
@@ -316,7 +263,7 @@ export default function NuevoUsuario() {
                   />
                 </Suspense>
                 <Typography variant="overline" component="h6">
-                  Generales
+                  Datos Generales
                 </Typography>
                 <TextFieldElement
                   name="nombre"
@@ -352,117 +299,8 @@ export default function NuevoUsuario() {
                     noOptionsText: "No hay opciones.",
                     onChange: (_, value) => {
                       formContext.setValue("id_empresa", value?.id || "");
-                      const empresaSeleccionada = empresas.find(
-                        (e) => e._id === value?.id
-                      );
-                      setPisos(empresaSeleccionada?.pisos || []);
-                      setAccesos(empresaSeleccionada?.accesos || []);
-                      setPuestos(empresaSeleccionada?.puestos || []);
-                      setDepartamentos(empresaSeleccionada?.departamentos || []);
-                      setCubiculos(empresaSeleccionada?.cubiculos || []);
-                      formContext.setValue("id_piso", ""); // Reinicia el piso seleccionado
                     },
                   }}
-                />
-                <AutocompleteElement
-                  name="id_piso"
-                  label="Piso"
-                  required
-                  matchId
-                  options={pisos.map((item) => ({
-                    id: item._id,
-                    label: `${item.identificador} - ${item.nombre}`,
-                  }))}
-                  textFieldProps={{
-                    margin: "normal",
-                  }}
-                  autocompleteProps={{
-                    noOptionsText: "No hay opciones.",
-                  }}
-                />
-                <AutocompleteElement
-                  name="accesos"
-                  label="Acceso"
-                  required
-                  matchId
-                  multiple
-                  options={accesos.map((item) => {
-                    return {
-                      id: item._id,
-                      label: item.nombre,
-                    };
-                  })}
-                  textFieldProps={{
-                    margin: "normal",
-                  }}
-                  autocompleteProps={{
-                    noOptionsText: "No hay opciones.",
-                  }}
-                />
-                <AutocompleteElement
-                  name="id_puesto"
-                  label="Puesto"
-                  matchId
-                  options={puestos.map((item) => ({
-                      id: item._id,
-                      label: `${item.identificador} - ${item.nombre}`,
-                  }))}
-                  textFieldProps={{
-                    margin: "normal",
-                  }}
-                  autocompleteProps={{
-                    noOptionsText: "No hay opciones.",
-                  }}
-                />
-                <AutocompleteElement
-                  name="id_departamento"
-                  label="Departamento"
-                  matchId
-                  options={departamentos.map((item) => ({
-                      id: item._id,
-                      label:  `${item.identificador} - ${item.nombre}`,
-                  }))}
-                  textFieldProps={{
-                    margin: "normal",
-                  }}
-                  autocompleteProps={{
-                    noOptionsText: "No hay opciones.",
-                  }}
-                />
-                <AutocompleteElement
-                  name="id_cubiculo"
-                  label="Cubiculo"
-                  matchId
-                  options={cubiculos.map((item) => ({
-                      id: item._id,
-                      label:  `${item.identificador} - ${item.nombre}`,
-                  }))}
-                  textFieldProps={{
-                    margin: "normal",
-                  }}
-                  autocompleteProps={{
-                    noOptionsText: "No hay opciones.",
-                  }}
-                />
-                <Controller
-                  name="movil"
-                  control={formContext.control}
-                  render={({ field, fieldState }) => (
-                    <MuiTelInput
-                      name="movil"
-                      label="Teléfono Móvil"
-                      fullWidth
-                      margin="normal"
-                      value={field.value}
-                      onChange={(value: string) => handleChange(value, "movil")}
-                      defaultCountry="MX"
-                      continents={["SA", "NA"]}
-                      langOfCountryName="es"
-                      error={!!fieldState.error}
-                      helperText={fieldState.error?.message}
-                      disableFormatting
-                    />
-                  )}
                 />
                 <Controller
                   name="telefono"
@@ -470,7 +308,7 @@ export default function NuevoUsuario() {
                   render={({ field, fieldState }) => (
                     <MuiTelInput
                       name="telefono"
-                      label="Teléfono de Casa/Oficina"
+                      label="Teléfono"
                       fullWidth
                       margin="normal"
                       value={field.value}
@@ -486,16 +324,9 @@ export default function NuevoUsuario() {
                     />
                   )}
                 />
-                <TextFieldElement
-                  name="extension"
-                  label="Extensión"
-                  fullWidth
-                  margin="normal"
-                  type="text"
-                />
                 <Divider sx={{ my: 2 }} />
                 <Typography variant="overline" component="h6">
-                  Sistema
+                  Acceso al sistema
                 </Typography>
                 <TextFieldElement
                   name="correo"
@@ -535,12 +366,37 @@ export default function NuevoUsuario() {
                   }}
                 />
                 <PasswordValidAdornment name="contrasena" />
-                <CheckboxButtonGroup
+                <Controller
                   name="rol"
-                  label="Rol"
-                  required
-                  row={!isTinyMobile}
-                  options={ROLES}
+                  control={formContext.control}
+                  render={({ field, fieldState }) => (
+                    <FormControl
+                      component="fieldset"
+                      error={!!fieldState.error}
+                      sx={{ mt: 1 }}
+                    >
+                      <FormLabel component="legend">Perfil de acceso *</FormLabel>
+                      <RadioGroup
+                        row={!isTinyMobile}
+                        value={field.value?.[0] ?? ""}
+                        onChange={(_, value) =>
+                          field.onChange(value ? [Number(value)] : [])
+                        }
+                      >
+                        {ROLES.map((item) => (
+                          <FormControlLabel
+                            key={item.id}
+                            value={item.id}
+                            control={<Radio />}
+                            label={item.label}
+                          />
+                        ))}
+                      </RadioGroup>
+                      {fieldState.error?.message && (
+                        <FormHelperText>{fieldState.error.message}</FormHelperText>
+                      )}
+                    </FormControl>
+                  )}
                 />
                 <Divider sx={{ my: 2 }} />
                 <Box
@@ -587,3 +443,9 @@ export default function NuevoUsuario() {
     </ModalContainer>
   );
 }
+
+
+
+
+
+

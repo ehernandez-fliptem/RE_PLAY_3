@@ -89,7 +89,7 @@ export default function Bitacora() {
   const ACCESS = localStorage.getItem("SELECTED_ACCESS");
   const socket = useSelector((state: IRootState) => state.ws.data);
   const { rol } = useSelector((state: IRootState) => state.auth.data);
-  const esRecep = rol.includes(2);
+  const esRecep = rol.includes(5);
   const esVisit = rol.includes(10);
   const { tipos_registros, tipos_eventos } = useSelector(
     (state: IRootState) => state.config.data
@@ -890,3 +890,4 @@ export default function Bitacora() {
     </div>
   );
 }
+

@@ -51,8 +51,8 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
         const isMaster = (req as UserRequest).isMaster;
         const id_acceso = (req as UserRequest).accessId;
         const rol = (req as UserRequest).role;
-        const esAdmin = rol.includes(1);
-        const esRecep = rol.includes(2);
+        const esAdmin = rol.includes(1) || rol.includes(2);
+        const esRecep = rol.includes(5);
         const esVisit = rol.includes(10);
 
         const { filter, pagination, sort, date, qr } = req.query as { filter: string; pagination: string; sort: string; date: string; qr: string; };
@@ -777,7 +777,7 @@ export async function obtenerFormNuevoRegistro(req: Request, res: Response): Pro
         const id_usuario = (req as UserRequest).userId;
         const isMaster = (req as UserRequest).isMaster;
         const rol = (req as UserRequest).role;
-        const esRecep = rol.includes(2);
+        const esRecep = rol.includes(5);
         const esVisit = rol.includes(10);
         let anfitriones = [];
         if (esVisit) {
@@ -1115,7 +1115,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
 
         const id_usuario = (req as UserRequest).userId;
         const rol = (req as UserRequest).role;
-        const esRecep = rol.includes(2);
+        const esRecep = rol.includes(5);
         const esVisit = rol.includes(10);
         const id_anfitrion = (esRecep || esVisit) ? (anfitrion ? anfitrion : null) : id_usuario;
 
@@ -1661,7 +1661,7 @@ export async function enviarCorreoCita(req: Request, res: Response): Promise<voi
         const { correo, fecha_entrada, id_anfitrion, accesos } = req.body;
         const id_usuario = (req as UserRequest).userId;
         const rol = (req as UserRequest).role;
-        const esRecep = rol.includes(2);
+        const esRecep = rol.includes(5);
 
         const validar_anfitrion = await Usuarios.findById(id_anfitrion || id_usuario, 'activo');
         if (!validar_anfitrion) {
@@ -1933,3 +1933,4 @@ export async function crearRegistroVisitante(req: Request, res: Response): Promi
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 }
+

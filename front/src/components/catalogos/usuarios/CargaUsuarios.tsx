@@ -32,6 +32,7 @@ import { closeSnackbar, enqueueSnackbar } from "notistack";
 import ModalContainer from "../../utils/ModalContainer";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
+import { getRoleLabel } from "../../../app/utils/roleLabels";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import { esES } from "@mui/x-data-grid/locales";
 import Spinner from "../../utils/Spinner";
@@ -272,7 +273,7 @@ export default function CargaUsuarios() {
                 {value.map((item: number) => (
                   <Grid key={item} size={12}>
                     <Chip
-                      label={roles[item]?.nombre}
+                      label={getRoleLabel(item, roles[item]?.nombre)}
                       size="small"
                       sx={{
                         width: "100%",
