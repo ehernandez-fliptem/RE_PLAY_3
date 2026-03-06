@@ -213,12 +213,28 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                 },
             },
             {
+                $lookup: {
+                    from: "hikvision_dispositivos",
+                    localField: "id_panel",
+                    foreignField: "_id",
+                    as: "panel",
+                    pipeline: [
+                        {
+                            $project: {
+                                nombre: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
                 $set: {
                     creado_por: { $arrayElemAt: ["$creado_por", -1] },
                     usuario: { $arrayElemAt: ["$usuario", -1] },
                     usuario_sistema: { $arrayElemAt: ["$usuario_sistema", -1] },
                     usuario_por_qr: { $arrayElemAt: ["$usuario_por_qr", -1] },
                     visitante: { $arrayElemAt: ["$visitante", -1] },
+                    panel: { $arrayElemAt: ["$panel", -1] },
                 },
             },
             {
@@ -244,6 +260,7 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                     },
                     estatus: "$tipo_check",
                     creado_por: "$creado_por.nombre",
+                    panel: "$panel.nombre",
                     usuario: {
                         $cond: [
                             { $ifNull: ["$usuario", false] },
@@ -285,6 +302,7 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                     ubicacion: 1,
                     creado_por: 1,
                     fecha_creacion: 1,
+                    panel: 1,
                 },
             },
         ];

@@ -67,30 +67,26 @@ export default function InfiniteAutocomplete({
           setError("");
           const newProducts = res.data.datos.paginatedResults || [];
 
+          const mapped = newProducts.map((item: { [key: string]: string }) => {
+            return { id: item._id, label: item.nombre };
+          });
+
           if (page === 0) {
-            setOptions((prev) => [
-              ...prev,
-              ...newProducts
-                .filter(
-                  (itemA: { [key: string]: string }) =>
-                    !prev.some((itemB) => itemB.id === itemA._id)
-                )
-                .map((item: { [key: string]: string }) => {
-                  return { id: item._id, label: item.nombre };
-                }),
-            ]);
+            setOptions(mapped);
           } else {
             setOptions((prev) => [
               ...prev,
-              ...newProducts.map((item: { [key: string]: string }) => {
-                return { id: item._id, label: item.nombre };
-              }),
+              ...mapped.filter(
+                (itemA: Options) => !prev.some((itemB) => itemB.id === itemA.id)
+              ),
             ]);
           }
 
-          setHasMore(res.data.datos.paginatedResults.length > options.length);
+          setHasMore(mapped.length === limit);
         } else {
           setError(res.data.mensaje);
+          setOptions([]);
+          setHasMore(false);
         }
       } catch (error) {
         console.error(error)
@@ -105,7 +101,12 @@ export default function InfiniteAutocomplete({
 
   useEffect(() => {
     setPage(0);
-    setHasMore(false);
+    if (debouncedValue.length < 2) {
+      setOptions([]);
+      setHasMore(false);
+      setError("");
+      return;
+    }
     fetchProducts(debouncedValue, 0, 10);
   }, [debouncedValue, fetchProducts]);
 

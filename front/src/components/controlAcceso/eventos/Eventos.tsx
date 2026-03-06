@@ -33,7 +33,11 @@ import {
   Typography,
 } from "@mui/material";
 import Spinner from "../../utils/Spinner";
-import { AutocompleteElement, FormContainer } from "react-hook-form-mui";
+import {
+  AutocompleteElement,
+  FormContainer,
+  SelectElement,
+} from "react-hook-form-mui";
 import { ClearAll, LocationOn, Search, Visibility } from "@mui/icons-material";
 import { enqueueSnackbar } from "notistack";
 import { DateTimePicker } from "@mui/x-date-pickers";
@@ -59,7 +63,7 @@ type FormValues = {
   usuarios?: string[];
   dispositivos?: string[];
   empresas?: string[];
-  estatus: number[];
+  tipo_acceso?: number | string | null;
   panel?: string;
 };
 
@@ -87,7 +91,7 @@ const resolver = yup.object().shape({
   usuarios: yup.array().of(yup.string()),
   dispositivos: yup.array().of(yup.string()),
   empresas: yup.array().of(yup.string()),
-  estatus: yup.array().of(yup.number()),
+  tipo_acceso: yup.mixed().nullable().optional(),
   panel: yup.string().optional(),
 }) as yup.ObjectSchema<FormValues>;
 
@@ -97,7 +101,7 @@ const initialValue: FormValues = {
   usuarios: [],
   dispositivos: [],
   empresas: [],
-  estatus: [],
+  tipo_acceso: "all",
   panel: "all",
 };
 
@@ -107,7 +111,7 @@ export default function Eventos() {
   );
 
   const TIPOS_EVENTOS = Object.entries(tipos_eventos)
-    .filter((item) => [5, 6, 7].includes(Number(item[0])))
+    .filter((item) => [5, 6].includes(Number(item[0])))
     .map((item) => {
       return {
         id: item[0],
@@ -176,10 +180,18 @@ export default function Eventos() {
               sort: JSON.stringify(params.sortModel),
               panel: String(formContext.getValues().panel || "all"),
             });
+            const { tipo_acceso, ...restValues } = formContext.getValues();
+            const tipoAccesoValue =
+              tipo_acceso === "all" || tipo_acceso === null
+                ? null
+                : Number(tipo_acceso);
             const res = await clienteAxios.post(
               "/api/eventos/reportes?" + urlParams.toString(),
               {
-                datos: formContext.getValues(),
+                datos: {
+                  ...restValues,
+                  estatus: tipoAccesoValue ? [tipoAccesoValue] : [],
+                },
               }
             );
             if (res.data.estado) {
@@ -226,6 +238,23 @@ export default function Eventos() {
     }
     setCanSearch(true);
   };
+
+  useEffect(() => {
+    const debounceRef = { current: 0 as unknown as ReturnType<typeof setTimeout> };
+    const subscription = formContext.watch(() => {
+      if (!formContext.formState.isValid) return;
+      setIsLoadingData(true);
+      setCanSearch(true);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        apiRef.current?.dataSource.fetchRows();
+      }, 400);
+    });
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      subscription.unsubscribe();
+    };
+  }, [formContext, apiRef]);
 
   useEffect(() => {
     if (canSearch) {
@@ -354,19 +383,15 @@ export default function Eventos() {
                     />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <AutocompleteElement
-                      name="estatus"
-                      label="Estatus"
-                      multiple
-                      matchId
-                      options={TIPOS_EVENTOS}
-                      textFieldProps={{
-                        margin: "normal",
-                      }}
-                      autocompleteProps={{
-                        noOptionsText: "No hay opciones.",
-                        limitTags: 2,
-                      }}
+                    <SelectElement
+                      name="tipo_acceso"
+                      label="Tipo de acceso"
+                      fullWidth
+                      margin="normal"
+                      options={[
+                        { id: "all", label: "Todos" },
+                        ...TIPOS_EVENTOS,
+                      ]}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
@@ -525,20 +550,25 @@ export default function Eventos() {
               display: "flex",
               align: "center",
               minWidth: 120,
-              renderCell: ({ value }) => (
-                <Chip
-                  label={tipos_dispositivos[value].nombre}
-                  size="small"
-                  sx={(theme) => ({
-                    width: "100%",
-                    bgcolor:
-                      tipos_dispositivos[value].color || "secondary.main",
-                    color: theme.palette.getContrastText(
-                      tipos_dispositivos[value].color || "secondary.main"
-                    ),
-                  })}
-                />
-              ),
+              renderCell: ({ row, value }) => {
+                const panelLabel = row.panel;
+                const dispositivoLabel = tipos_dispositivos[value]?.nombre || "";
+                const label = panelLabel || dispositivoLabel;
+                return (
+                  <Chip
+                    label={label}
+                    size="small"
+                    sx={(theme) => ({
+                      width: "100%",
+                      bgcolor:
+                        tipos_dispositivos[value]?.color || "secondary.main",
+                      color: theme.palette.getContrastText(
+                        tipos_dispositivos[value]?.color || "secondary.main"
+                      ),
+                    })}
+                  />
+                );
+              },
               valueFormatter: (value) => {
                 return tipos_dispositivos[value].nombre;
               },
