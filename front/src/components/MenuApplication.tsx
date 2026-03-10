@@ -434,7 +434,9 @@ export default function MenuApplication({ children }: MenuProps) {
           {mainMenu.map((item) => {
             let seeItem = obtenerDuplicados(rol, item.rol);
             if (item.id === 100) seeItem = rol.includes(1);
-            if (item.id === 99)\n              seeItem =\n                rol.includes(1) &&
+            if (item.id === 99)
+              seeItem =
+                rol.includes(1) &&
                 (habilitarIntegracionHv || habilitarCamaras);
             return !item.submenu && seeItem ? (
               <RouterLink
@@ -503,9 +505,12 @@ export default function MenuApplication({ children }: MenuProps) {
                     </ListItem>
                     {item.submenu?.map((subItem) => {
                       let seeSubItem = obtenerDuplicados(rol, subItem.rol);
-                      if (subItem.id === 99.1 && rol.includes(1))\n                        seeSubItem = habilitarIntegracionHv;
-                      if (subItem.id === 99.2 && rol.includes(1))\n                        seeSubItem = habilitarCamaras;
-                      if (rol.includes(1) && subItem.rol.includes(0))\n                        seeSubItem = true;
+                      if (subItem.id === 99.1 && rol.includes(1))
+                        seeSubItem = habilitarIntegracionHv;
+                      if (subItem.id === 99.2 && rol.includes(1))
+                        seeSubItem = habilitarCamaras;
+                      if (rol.includes(1) && subItem.rol.includes(0))
+                        seeSubItem = true;
                       return (
                         <Fragment key={subItem.id}>
                           {seeSubItem && (
