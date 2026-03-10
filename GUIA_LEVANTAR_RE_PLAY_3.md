@@ -20,6 +20,8 @@ Desde la raiz del repo:
 
 ### Instalacion desde 0
 
+Instalar Node.js antes usar los comandos
+
 ```
 PowerShell -ExecutionPolicy Bypass -File scripts\setup.ps1
 ```
