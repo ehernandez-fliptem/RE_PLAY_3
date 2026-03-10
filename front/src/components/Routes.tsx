@@ -629,7 +629,7 @@ export default function Routes() {
         {
           path: "",
           element:
-            esSuper && esRoot && habilitarCamaras ? (
+            esSuper && habilitarCamaras ? (
               <Camaras />
             ) : (
               <Unauthorized />
@@ -638,7 +638,7 @@ export default function Routes() {
             {
               path: "nueva-camara",
               element:
-                esSuper && esRoot && habilitarCamaras ? (
+                esSuper && habilitarCamaras ? (
                   <NuevaCamara />
                 ) : (
                   <Unauthorized />
@@ -647,7 +647,7 @@ export default function Routes() {
             {
               path: "detalle-camara/:id",
               element:
-                esSuper && esRoot && habilitarCamaras ? (
+                esSuper && habilitarCamaras ? (
                   <DetalleCamara />
                 ) : (
                   <Unauthorized />
@@ -656,7 +656,7 @@ export default function Routes() {
             {
               path: "editar-camara/:id",
               element:
-                esSuper && esRoot && habilitarCamaras ? (
+                esSuper && habilitarCamaras ? (
                   <EditarCamara />
                 ) : (
                   <Unauthorized />
@@ -676,7 +676,7 @@ export default function Routes() {
         {
           path: "",
           element:
-            esSuper && esRoot && habilitarIntegracionHv ? (
+            esSuper && habilitarIntegracionHv ? (
               <DispositivosHV />
             ) : (
               <Unauthorized />
@@ -685,7 +685,7 @@ export default function Routes() {
             {
               path: "nuevo-dispositivo",
               element:
-                esSuper && esRoot && habilitarIntegracionHv ? (
+                esSuper && habilitarIntegracionHv ? (
                   <NuevoDispositivoHV />
                 ) : (
                   <Unauthorized />
@@ -694,7 +694,7 @@ export default function Routes() {
             {
               path: "detalle-dispositivo/:id",
               element:
-                esSuper && esRoot && habilitarIntegracionHv ? (
+                esSuper && habilitarIntegracionHv ? (
                   <DetalleDispositivoHV />
                 ) : (
                   <Unauthorized />
@@ -703,7 +703,7 @@ export default function Routes() {
             {
               path: "editar-dispositivo/:id",
               element:
-                esSuper && esRoot && habilitarIntegracionHv ? (
+                esSuper && habilitarIntegracionHv ? (
                   <EditarDispositivoHV />
                 ) : (
                   <Unauthorized />
@@ -730,7 +730,7 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esSuper && esRoot ? <Configuracion /> : <Unauthorized />,
+          element: esSuper ? <Configuracion /> : <Unauthorized />,
         },
       ],
     },
