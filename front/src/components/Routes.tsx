@@ -84,7 +84,7 @@ import DetalleCamara from "./catalogos/camaras/DetalleCamara";
 import EditarCamara from "./catalogos/camaras/EditarCamara";
 
 export default function Routes() {
-  const { rol, esRoot } = useSelector((state: IRootState) => state.auth.data);
+  const { rol } = useSelector((state: IRootState) => state.auth.data);
   const { habilitarCamaras, habilitarIntegracionHv } = useSelector(
     (state: IRootState) => state.config.data
   );

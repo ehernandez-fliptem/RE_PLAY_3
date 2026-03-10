@@ -121,7 +121,7 @@ export default function MenuApplication({ children }: MenuProps) {
   const { habilitarIntegracionHv, habilitarCamaras, roles } = useSelector(
     (state: IRootState) => state.config.data
   );
-  const { rol, nombre, img_usuario, esRoot, empresa } = useSelector(
+  const { rol, nombre, img_usuario, empresa } = useSelector(
     (state: IRootState) => state.auth.data
   );
   const esAnfitrion = rol.includes(4);
