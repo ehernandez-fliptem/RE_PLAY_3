@@ -1113,7 +1113,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     }
                 }
             }
-            if (accesos.length === 0) { {
+            if (accesos.length === 0) {
                 comentario = "Se deben definir los accesos a los cuales el visitante tendrá acceso.";
                 await guardarEventoNoValido("", "", comentario, id_usuario, qr, id_registro);
                 res.status(200).json({ estado: false, mensaje: comentario });
@@ -2045,6 +2045,7 @@ const getDaysArray = function (start: string | number | Date, end: string | numb
     }
     return arr;
 };
+
 
 
 
