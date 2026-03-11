@@ -102,8 +102,8 @@ export default function Visitantes() {
           return { ok: false, message };
         }
         const message = nombre
-          ? `Acceso registrado para ${nombre}.`
-          : "Acceso registrado correctamente.";
+          ? `Acceso a ${nombre}. Bienvenido.`
+          : "Acceso permitido. Bienvenido.";
         enqueueSnackbar(message, { variant: "success" });
         return { ok: true, message };
       }

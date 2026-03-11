@@ -130,11 +130,13 @@ export default function LectorQrVisitantes({
                 <Cancel color="error" sx={{ fontSize: 64 }} />
               )}
               <Typography variant="h6" textAlign="center">
-                {result.ok ? "Acceso permitido" : "Acceso denegado"}
+                {result.ok ? result.message || "Acceso permitido" : "Acceso denegado"}
               </Typography>
-              <Typography variant="body2" textAlign="center">
-                {result.message}
-              </Typography>
+              {!result.ok && (
+                <Typography variant="body2" textAlign="center">
+                  {result.message}
+                </Typography>
+              )}
             </Stack>
           )}
         </CardContent>
