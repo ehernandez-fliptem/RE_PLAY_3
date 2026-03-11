@@ -1039,9 +1039,60 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                 }
             ]);
             if (!registro[0]) {
-                comentario = "El registro no fue encontrado o ya no se encuentra disponible.";
-                await guardarEventoNoValido("", "", comentario, id_usuario, qr);
-                res.status(200).json({ estado: false, mensaje: comentario });
+                // Fallback: validar directamente contra visitante (QR de panel en Gestion de Visitantes)
+                const visitante = await Visitantes.findOne(
+                    { card_code: String(qr) },
+                    "_id bloqueado desbloqueado_hasta activo verificado"
+                ).lean<any>();
+                if (!visitante) {
+                    comentario = "El registro no fue encontrado o ya no se encuentra disponible.";
+                    await guardarEventoNoValido("", "", comentario, id_usuario, qr);
+                    res.status(200).json({ estado: false, mensaje: comentario });
+                    return;
+                }
+                if (!id_acceso) {
+                    comentario = "No se encontró acceso asignado.";
+                    await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, visitante._id);
+                    res.status(200).json({ estado: false, mensaje: comentario });
+                    return;
+                }
+                if (visitante.activo === false || visitante.bloqueado === true) {
+                    if (visitante.desbloqueado_hasta && dayjs().isBefore(dayjs(visitante.desbloqueado_hasta))) {
+                        comentario = `Visitante bloqueado hasta ${dayjs(visitante.desbloqueado_hasta).format("DD/MM/YYYY HH:mm")}.`;
+                    } else {
+                        comentario = "Visitante bloqueado.";
+                    }
+                    await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, visitante._id);
+                    res.status(200).json({ estado: false, mensaje: comentario });
+                    return;
+                }
+                if (visitante.verificado === false) {
+                    comentario = "El visitante no está verificado.";
+                    await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, visitante._id);
+                    res.status(200).json({ estado: false, mensaje: comentario });
+                    return;
+                }
+
+                const ultimo = await Eventos.findOne({
+                    id_visitante: visitante._id,
+                    id_acceso: id_acceso,
+                    tipo_check: { $in: [5, 6] }
+                }).sort({ fecha_creacion: -1 }).lean<any>();
+
+                const tipo_evento = ultimo?.tipo_check === 5 ? 6 : 5;
+                const evento = new Eventos({
+                    tipo_dispositivo: 2,
+                    tipo_check: tipo_evento,
+                    qr,
+                    id_visitante: visitante._id,
+                    id_acceso,
+                    creado_por: id_usuario,
+                    comentario: "Acceso por QR visitante (sin registro)",
+                    fecha_creacion: Date.now(),
+                });
+                await evento.save();
+
+                res.status(200).json({ estado: true, datos: { id_visitante: visitante._id, puedeAcceder: true } });
                 return;
             }
             const { _id: id_registro, tipo_registro, fecha_entrada, nombre, accesos, canAccess, id_visitante, activo } = registro[0];
