@@ -13,7 +13,7 @@ function Resolve-Pm2Cmd {
 }
 
 function Invoke-Pm2 {
-    param([Parameter(Mandatory=$true)][string[]]$Args)
+    param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Args)
     $pm2Cmd = Resolve-Pm2Cmd
     if (Test-Path $pm2Cmd) {
         & $pm2Cmd @Args
@@ -92,6 +92,8 @@ Invoke-Pm2 save
 
 Write-Step "9) Estado PM2"
 Invoke-Pm2 list
+
+
 
 
 

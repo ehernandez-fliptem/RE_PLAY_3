@@ -120,13 +120,15 @@ export default function LectorQrVisitantes({
             justifyContent="end"
             sx={{ width: "100%" }}
           >
-            <Button
-              variant="contained"
-              color="secondary"
-              onClick={() => setShow(false)}
-            >
-              Cerrar
-            </Button>
+            {result && (
+              <Button
+                variant="contained"
+                color="secondary"
+                onClick={() => setShow(false)}
+              >
+                Cancelar
+              </Button>
+            )}
             <Button
               variant="outlined"
               startIcon={<Replay />}
