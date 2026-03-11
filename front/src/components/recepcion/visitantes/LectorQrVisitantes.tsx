@@ -92,7 +92,6 @@ export default function LectorQrVisitantes({
                 isScan
                 handleScan={handleScan}
                 name={name}
-                setShow={setShow}
               />
             </Box>
           )}
@@ -120,15 +119,13 @@ export default function LectorQrVisitantes({
             justifyContent="end"
             sx={{ width: "100%" }}
           >
-            {result && (
-              <Button
-                variant="contained"
-                color="secondary"
-                onClick={() => setShow(false)}
-              >
-                Cancelar
-              </Button>
-            )}
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={() => setShow(false)}
+            >
+              Cerrar
+            </Button>
             <Button
               variant="outlined"
               startIcon={<Replay />}
