@@ -52,7 +52,12 @@ function formatCameraError(error: unknown) {
     return "Este navegador no permite usar la camara. En iPhone usa HTTPS o un navegador compatible.";
   }
 
-  if (lower.includes("notfound") || lower.includes("overconstrained")) {
+  if (
+    lower.includes("notfound") ||
+    lower.includes("not found") ||
+    lower.includes("requested device not found") ||
+    lower.includes("overconstrained")
+  ) {
     return "No se encontro ninguna camara disponible en este dispositivo.";
   }
 
