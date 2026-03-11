@@ -80,13 +80,39 @@ export default function Visitantes() {
   ): Promise<{ ok: boolean; message: string }> => {
     const regexCardCode = /^VST[A-Z0-9]{16}$/;
     const isValid = regexCardCode.test(qr);
-    const message = isValid
-      ? "QR válido. Puedes continuar."
-      : "QR inválido o no corresponde a un visitante.";
-    enqueueSnackbar(message, {
-      variant: isValid ? "success" : "error",
-    });
-    return { ok: isValid, message };
+    if (!isValid) {
+      const message = "QR inválido o no corresponde a un visitante.";
+      enqueueSnackbar(message, { variant: "error" });
+      return { ok: false, message };
+    }
+
+    try {
+      const res = await clienteAxios.post("/api/eventos/validar-qr", {
+        qr,
+        lector: 0,
+      });
+      if (res.data.estado) {
+        const puedeAcceder = res.data.datos?.puedeAcceder;
+        if (puedeAcceder === false) {
+          const message =
+            "Acceso pendiente de autorización. Requiere validación.";
+          enqueueSnackbar(message, { variant: "warning" });
+          return { ok: false, message };
+        }
+        const message = "Acceso registrado correctamente.";
+        enqueueSnackbar(message, { variant: "success" });
+        return { ok: true, message };
+      }
+      const message = res.data.mensaje || "No se pudo validar el QR.";
+      enqueueSnackbar(message, { variant: "error" });
+      return { ok: false, message };
+    } catch (error) {
+      handlingError(error);
+      return {
+        ok: false,
+        message: "Error al validar el QR. Intenta de nuevo.",
+      };
+    }
   };
 
 
