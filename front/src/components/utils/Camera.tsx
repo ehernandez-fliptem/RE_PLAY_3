@@ -69,7 +69,7 @@ function formatCameraError(error: unknown) {
     return "Permiso de camara denegado. Habilitalo en el navegador y vuelve a intentar.";
   }
 
-  return message || "Error desconocido al acceder a la camara.";
+  return message || "Error al acceder a la camara. 401";
 }
 
 type Props = {
@@ -163,7 +163,7 @@ export default function Camera({
         setWebcamError({
           estado: true,
           mensaje:
-            "Tu navegador no soporta acceso a la camara. Usa un navegador compatible.",
+            "El navegador no soporta acceso a la camara. Usa un navegador compatible.",
         });
       } else {
         try {

@@ -18,7 +18,7 @@ function Invoke-Pm2 {
     if (Test-Path $pm2Cmd) {
         & $pm2Cmd @Args
     } else {
-        Fail "No se encontró pm2 en PATH ni en $env:APPDATA\\npm. Usa: npm -g i pm2"
+        Fail "No se encontro pm2 en PATH ni en $env:APPDATA\\npm. Usa: npm -g i pm2"
     }
 }
 $ErrorActionPreference = "Stop"
@@ -44,7 +44,7 @@ Pop-Location
 Write-Step "4) Copiar dist del front al back"
 $src = Join-Path $front "dist"
 $dest = Join-Path $back "dist\dist"
-if (!(Test-Path $src)) { Fail "No se encontró $src" }
+if (!(Test-Path $src)) { Fail "No se encontro $src" }
 if (!(Test-Path $dest)) { New-Item -ItemType Directory -Force $dest | Out-Null }
 Copy-Item -Path (Join-Path $src "*") -Destination $dest -Recurse -Force
 

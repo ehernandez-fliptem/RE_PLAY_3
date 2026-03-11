@@ -48,8 +48,9 @@ import { areDocumentosChecksComplete } from "./documentosChecks";
 const pageSizeOptions = [10, 25, 50];
 
 export default function Visitantes() {
-  console.log("[VISITANTES] render");
-  console.log("Prueba 01");
+  //Pruebas para catalogo de visitantes
+  // console.log("[VISITANTES] render");
+  // console.log("Prueba 01");
 
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();

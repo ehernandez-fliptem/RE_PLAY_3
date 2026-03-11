@@ -11,14 +11,16 @@ Esta guia sirve para activar HTTPS en la workstation y permitir que la camara fu
 
 Desde la raiz del repo:
 
+Cambiar el ip por la del equipo
+
 ```
-PowerShell -ExecutionPolicy Bypass -File scripts\https_setup.ps1 -IP 192.168.100.118
+PowerShell -ExecutionPolicy Bypass -File scripts\https_setup.ps1 -IP  172.18.0.82
 ```
 
 Opcional:
 
 ```
-PowerShell -ExecutionPolicy Bypass -File scripts\https_setup.ps1 -IP 192.168.100.118 -BackendPort 80 -HttpsPort 8443
+PowerShell -ExecutionPolicy Bypass -File scripts\https_setup.ps1 -IP  172.18.0.82 -BackendPort 80 -HttpsPort 8443
 ```
 
 ## Que hace el script
@@ -41,7 +43,7 @@ https://<IP_WORKSTATION>:8443
 Ejemplo:
 
 ```
-https://192.168.100.118:8443
+https://172.18.0.82:8443
 ```
 <!-- 
 ## Paso obligatorio en iPhone/iPad
