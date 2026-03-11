@@ -93,13 +93,17 @@ export default function Visitantes() {
       });
       if (res.data.estado) {
         const puedeAcceder = res.data.datos?.puedeAcceder;
+        const nombre = res.data.datos?.nombre;
         if (puedeAcceder === false) {
-          const message =
-            "Acceso pendiente de autorización. Requiere validación.";
+          const message = nombre
+            ? `Acceso pendiente para ${nombre}. Requiere validación.`
+            : "Acceso pendiente de autorización. Requiere validación.";
           enqueueSnackbar(message, { variant: "warning" });
           return { ok: false, message };
         }
-        const message = "Acceso registrado correctamente.";
+        const message = nombre
+          ? `Acceso registrado para ${nombre}.`
+          : "Acceso registrado correctamente.";
         enqueueSnackbar(message, { variant: "success" });
         return { ok: true, message };
       }

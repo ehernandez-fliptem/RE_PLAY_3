@@ -795,6 +795,23 @@ export async function obtenerUno(req: Request, res: Response): Promise<void> {
             },
             {
                 $lookup: {
+                    from: "visitantes",
+                    localField: "id_visitante",
+                    foreignField: "_id",
+                    as: "visitante",
+                    pipeline: [
+                        {
+                            $project: {
+                                nombre: {
+                                    $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"],
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                $lookup: {
                     from: "usuarios",
                     localField: "validado_por",
                     foreignField: "_id",
@@ -865,6 +882,7 @@ export async function obtenerUno(req: Request, res: Response): Promise<void> {
                     acceso: { $arrayElemAt: ["$acceso", -1] },
                     horario: { $arrayElemAt: ["$horario", -1] },
                     usuario: { $arrayElemAt: ["$usuario", -1] },
+                    visitante: { $arrayElemAt: ["$visitante", -1] },
                     validado_por: { $arrayElemAt: ["$validado_por", -1] },
                     creado_por: { $arrayElemAt: ["$creado_por", -1] },
                     modificado_por: { $arrayElemAt: ["$modificado_por", -1] },
@@ -872,7 +890,7 @@ export async function obtenerUno(req: Request, res: Response): Promise<void> {
             },
             {
                 $set: {
-                    usuario: "$usuario.nombre",
+                    usuario: { $ifNull: ["$usuario.nombre", "$visitante.nombre"] },
                     validado_por: "$validado_por.nombre",
                     creado_por: "$creado_por.nombre",
                     modificado_por: "$modificado_por.nombre",
@@ -1068,6 +1086,8 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     return;
                 }
 
+                const nombreCompleto = `${visitante.nombre ?? ""} ${visitante.apellido_pat ?? ""} ${visitante.apellido_mat ?? ""}`.trim();
+
                 const ultimo = await Eventos.findOne({
                     id_visitante: visitante._id,
                     tipo_check: { $in: [5, 6] }
@@ -1085,7 +1105,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                 });
                 await evento.save();
 
-                res.status(200).json({ estado: true, datos: { id_visitante: visitante._id, puedeAcceder: true } });
+                res.status(200).json({ estado: true, datos: { id_visitante: visitante._id, puedeAcceder: true, nombre: nombreCompleto } });
                 return;
             }
             const { _id: id_registro, tipo_registro, fecha_entrada, nombre, accesos, canAccess, id_visitante, activo } = registro[0];
@@ -1149,7 +1169,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                 }
             }
             if (tipo_registro === 1 && !canAccess) {
-                res.status(200).json({ estado: true, datos: { id_registro, puedeAcceder: canAccess } });
+                res.status(200).json({ estado: true, datos: { id_registro, puedeAcceder: canAccess, nombre } });
                 return;
             } else {
                 const { estado, datos: ulitmo_evento, mensaje } = await obtenerUltimoEvento(id_registro, [5, 6], id_acceso);
@@ -1168,7 +1188,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     id_acceso,
                     id_visitante
                 }, { _id: 1 }) as IRegistro;
-                res.status(200).json({ estado: true, datos: { id_registro, puedeAcceder: canAccess } });
+                res.status(200).json({ estado: true, datos: { id_registro, puedeAcceder: canAccess, nombre } });
                 return;
             }
         }
@@ -2045,6 +2065,8 @@ const getDaysArray = function (start: string | number | Date, end: string | numb
     }
     return arr;
 };
+
+
 
 
 
