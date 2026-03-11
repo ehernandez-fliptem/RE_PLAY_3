@@ -24,12 +24,14 @@ type Props = {
   name: string;
   setShow: React.Dispatch<React.SetStateAction<boolean>>;
   onQrValidate: (value: string) => Promise<ResultState>;
+  testQr?: string;
 };
 
 export default function LectorQrVisitantes({
   name,
   setShow,
   onQrValidate,
+  testQr,
 }: Props) {
   const formContext = useFormContext();
   const [isLoading, setIsLoading] = useState(false);
@@ -51,6 +53,18 @@ export default function LectorQrVisitantes({
   const handleRetry = () => {
     setResult(null);
     formContext.setValue(name, "");
+  };
+
+  const handleTestQr = async () => {
+    if (!testQr) return;
+    setIsLoading(true);
+    formContext.setValue(name, testQr);
+    try {
+      const next = await onQrValidate(testQr);
+      setResult(next);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -126,6 +140,16 @@ export default function LectorQrVisitantes({
             >
               Cerrar
             </Button>
+            {testQr && !result && (
+              <Button
+                variant="outlined"
+                color="info"
+                onClick={handleTestQr}
+                disabled={isLoading}
+              >
+                Validar prueba
+              </Button>
+            )}
             <Button
               variant="outlined"
               startIcon={<Replay />}

@@ -763,6 +763,7 @@ const accionBloquear = (ID: string) => {
             name="qr"
             setShow={setShowQRScanner}
             onQrValidate={onQrValidate}
+            testQr="VST0000016B86B273FF"
           />
         </FormProvider>
       )}
