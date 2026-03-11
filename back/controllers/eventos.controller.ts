@@ -1040,8 +1040,9 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
             ]);
             if (!registro[0]) {
                 // Fallback: validar directamente contra visitante (QR de panel en Gestion de Visitantes)
+                const qrValue = String(qr || "").trim();
                 const visitante = await Visitantes.findOne(
-                    { card_code: String(qr) },
+                    { card_code: qrValue },
                     "_id bloqueado desbloqueado_hasta activo verificado"
                 ).lean<any>();
                 if (!visitante) {
@@ -1056,7 +1057,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     accessId = usuario?.accesos?.[0] ? String(usuario.accesos[0]) : null;
                 }
                 if (!accessId) {
-                    comentario = "No se encontrÃ³ acceso asignado.";
+                    comentario = "No se encontró acceso asignado al usuario. Selecciona un acceso en la parte superior.";
                     await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, visitante._id);
                     res.status(200).json({ estado: false, mensaje: comentario });
                     return;
@@ -1088,7 +1089,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                 const evento = new Eventos({
                     tipo_dispositivo: 2,
                     tipo_check: tipo_evento,
-                    qr,
+                    qr: qrValue,
                     id_visitante: visitante._id,
                     id_acceso: accessId,
                     creado_por: id_usuario,
@@ -2057,6 +2058,8 @@ const getDaysArray = function (start: string | number | Date, end: string | numb
     }
     return arr;
 };
+
+
 
 
 
