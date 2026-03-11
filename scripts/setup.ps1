@@ -1,10 +1,26 @@
-ï»¿param(
+param(
     [string]$BasePath = (Resolve-Path (Join-Path $PSScriptRoot ".."))
 )
 
 function Write-Step($msg) { Write-Host "`n==> $msg" }
 function Fail($msg) { Write-Error $msg; exit 1 }
+function Resolve-Pm2Cmd {
+    $cmd = (Get-Command pm2 -ErrorAction SilentlyContinue).Path
+    if (-not $cmd) {
+        $cmd = Join-Path $env:APPDATA "npm\pm2.cmd"
+    }
+    return $cmd
+}
 
+function Invoke-Pm2 {
+    param([Parameter(Mandatory=$true)][string[]]$Args)
+    $pm2Cmd = Resolve-Pm2Cmd
+    if (Test-Path $pm2Cmd) {
+        & $pm2Cmd @Args
+    } else {
+        Fail "No se encontró pm2 en PATH ni en $env:APPDATA\\npm. Usa: npm -g i pm2"
+    }
+}
 $ErrorActionPreference = "Stop"
 
 $back = Join-Path $BasePath "back"
@@ -16,7 +32,7 @@ Write-Step "1) PM2 global"
 npm i -g pm2
 
 Write-Step "2) Limpiar procesos PM2 anteriores"
-pm2 delete all
+Invoke-Pm2 delete all
 
 Write-Step "3) FRONT (install + typescript + build)"
 Push-Location $front
@@ -28,7 +44,7 @@ Pop-Location
 Write-Step "4) Copiar dist del front al back"
 $src = Join-Path $front "dist"
 $dest = Join-Path $back "dist\dist"
-if (!(Test-Path $src)) { Fail "No se encontrÃ³ $src" }
+if (!(Test-Path $src)) { Fail "No se encontró $src" }
 if (!(Test-Path $dest)) { New-Item -ItemType Directory -Force $dest | Out-Null }
 Copy-Item -Path (Join-Path $src "*") -Destination $dest -Recurse -Force
 
@@ -39,7 +55,7 @@ npm i -D typescript
 npm run build
 $backIndex = Join-Path $back "dist\index.js"
 if (Test-Path $backIndex) {
-    pm2 start $backIndex --name back
+    Invoke-Pm2 start $backIndex --name back
 } else {
     Fail "No se encontro index.js en back\\dist"
 }
@@ -52,7 +68,7 @@ npm i -D typescript
 npm run build
 $panelIndex = Join-Path $panel "dist\index.js"
 if (Test-Path $panelIndex) {
-    pm2 start $panelIndex --name panel_server
+    Invoke-Pm2 start $panelIndex --name panel_server
 } else {
     Fail "No se encontro index.js en panel_server\\dist"
 }
@@ -65,14 +81,18 @@ npm i -D typescript
 npm run build
 $demonioIndex = Join-Path $demonio "dist\index.js"
 if (Test-Path $demonioIndex) {
-    pm2 start $demonioIndex --name demonio_eventos
+    Invoke-Pm2 start $demonioIndex --name demonio_eventos
 } else {
     Fail "No se encontro index.js en demonio_eventos\\dist"
 }
 Pop-Location
 
 Write-Step "8) Guardar PM2"
-pm2 save
+Invoke-Pm2 save
 
 Write-Step "9) Estado PM2"
-pm2 list
+Invoke-Pm2 list
+
+
+
+

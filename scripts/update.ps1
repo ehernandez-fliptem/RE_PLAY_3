@@ -75,5 +75,16 @@ switch ($Target) {
 }
 
 Write-Step "Reiniciando PM2"
-pm2 restart all
-pm2 list
+$pm2Cmd = (Get-Command pm2 -ErrorAction SilentlyContinue).Path
+if (-not $pm2Cmd) {
+    $pm2Cmd = Join-Path $env:APPDATA "npm\pm2.cmd"
+}
+if (Test-Path $pm2Cmd) {
+    & $pm2Cmd restart all
+    & $pm2Cmd list
+} else {
+    Write-Host "No se encontró pm2 en PATH ni en $env:APPDATA\\npm. Usa: npm -g i pm2" -ForegroundColor Red
+    exit 1
+}
+
+

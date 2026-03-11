@@ -20,12 +20,13 @@ import {
   GetApp,
   Lock,
   LockOpen,
+  QrCodeScanner,
   RestoreFromTrash,
   Verified,
   // Upload, // Carga masiva oculta temporalmente
   Visibility,
 } from "@mui/icons-material";
-import { Avatar, Chip, IconButton, Tooltip } from "@mui/material";
+import { Avatar, Button, Chip, IconButton, Tooltip } from "@mui/material";
 import { enqueueSnackbar } from "notistack";
 import { useConfirm } from "material-ui-confirm";
 import { AxiosError } from "axios";
@@ -34,6 +35,8 @@ import ErrorOverlay from "../../error/DataGridError";
 import Spinner from "../../utils/Spinner";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
+import { FormProvider, useForm } from "react-hook-form";
+import LectorQr from "../bitacora/lector/LectorQr";
 
 import { isBlockedNow } from "../../../utils/bloqueo";
 
@@ -54,6 +57,8 @@ export default function Visitantes() {
   const confirm = useConfirm();
   const { rol } = useSelector((state: IRootState) => state.auth.data);
   const esRecep = rol.includes(5);
+  const formContext = useForm({ defaultValues: { qr: "" } });
+  const [showQRScanner, setShowQRScanner] = useState(false);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [isDownloadingQr, setIsDownloadingQr] = useState({
     id_usuario: "",
@@ -64,6 +69,20 @@ export default function Visitantes() {
   const autoBlockedByTrashRef = useRef<Record<string, boolean>>({});
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
+
+  const handleOpenScanner = () => {
+    setShowQRScanner(true);
+  };
+
+  const onQrChange = async (qr: string): Promise<boolean> => {
+    const regexCardCode = /^VST[A-Z0-9]{16}$/;
+    const isValid = regexCardCode.test(qr);
+    enqueueSnackbar(isValid ? "QR válido." : "QR inválido.", {
+      variant: isValid ? "success" : "error",
+    });
+    setShowQRScanner(false);
+    return isValid;
+  };
 
 
   const dataSource: GridDataSource = useMemo(
@@ -666,26 +685,39 @@ const accionBloquear = (ID: string) => {
             <DataGridToolbar
               tableTitle="Gestión de Visitantes"
               customActionButtons={
-                !esRecep && (
-                  <Fragment>
-                    <Tooltip title="Agregar">
-                      <IconButton onClick={nuevoRegistro}>
-                        <Add fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Verificar">
-                      <IconButton onClick={verificarSeleccionado}>
-                        <Verified fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    {/* Carga masiva oculta temporalmente; mantener para uso futuro */}
-                    {/* <Tooltip title="Carga masiva">
-                      <IconButton onClick={cargaMasiva}>
-                        <Upload fontSize="small" />
-                      </IconButton>
-                    </Tooltip> */}
-                  </Fragment>
-                )
+                <Fragment>
+                  <Tooltip title="Escanear QR">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={handleOpenScanner}
+                      startIcon={<QrCodeScanner fontSize="small" />}
+                      sx={{ textTransform: "none" }}
+                    >
+                      Escanear QR
+                    </Button>
+                  </Tooltip>
+                  {!esRecep && (
+                    <Fragment>
+                      <Tooltip title="Agregar">
+                        <IconButton onClick={nuevoRegistro}>
+                          <Add fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Verificar">
+                        <IconButton onClick={verificarSeleccionado}>
+                          <Verified fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      {/* Carga masiva oculta temporalmente; mantener para uso futuro */}
+                      {/* <Tooltip title="Carga masiva">
+                        <IconButton onClick={cargaMasiva}>
+                          <Upload fontSize="small" />
+                        </IconButton>
+                      </Tooltip> */}
+                    </Fragment>
+                  )}
+                </Fragment>
               }
             />
           ),
@@ -693,6 +725,15 @@ const accionBloquear = (ID: string) => {
       />
       {error && (
         <ErrorOverlay error={error} gridDataRef={apiRef.current?.dataSource} />
+      )}
+      {showQRScanner && (
+        <FormProvider {...formContext}>
+          <LectorQr
+            name="qr"
+            setShow={setShowQRScanner}
+            onQrChange={onQrChange}
+          />
+        </FormProvider>
       )}
       <Outlet context={apiRef.current?.dataSource} />
     </div>
