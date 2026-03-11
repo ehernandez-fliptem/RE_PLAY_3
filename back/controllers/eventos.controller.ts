@@ -1050,7 +1050,12 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     res.status(200).json({ estado: false, mensaje: comentario });
                     return;
                 }
-                if (!id_acceso) {
+                let accessId: any = id_acceso;
+                if (!accessId) {
+                    const usuario = await Usuarios.findById(id_usuario, "accesos").lean<any>();
+                    accessId = usuario?.accesos?.[0] ? String(usuario.accesos[0]) : null;
+                }
+                if (!accessId) {
                     comentario = "No se encontró acceso asignado.";
                     await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, visitante._id);
                     res.status(200).json({ estado: false, mensaje: comentario });
@@ -1075,7 +1080,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
 
                 const ultimo = await Eventos.findOne({
                     id_visitante: visitante._id,
-                    id_acceso: id_acceso,
+                    id_acceso: accessId,
                     tipo_check: { $in: [5, 6] }
                 }).sort({ fecha_creacion: -1 }).lean<any>();
 
@@ -1085,7 +1090,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     tipo_check: tipo_evento,
                     qr,
                     id_visitante: visitante._id,
-                    id_acceso,
+                    id_acceso: accessId,
                     creado_por: id_usuario,
                     comentario: "Acceso por QR visitante (sin registro)",
                     fecha_creacion: Date.now(),
