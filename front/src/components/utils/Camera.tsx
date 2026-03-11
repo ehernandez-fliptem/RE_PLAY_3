@@ -37,6 +37,32 @@ import { handlingError } from "../../app/config/axios";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../app/store";
 
+function formatCameraError(error: unknown) {
+  const message =
+    error && typeof error === "object" && "message" in error
+      ? String((error as { message?: unknown }).message)
+      : String(error || "");
+  const lower = message.toLowerCase();
+
+  if (!window.isSecureContext) {
+    return "La camara solo funciona en HTTPS o localhost. Abre la version https o usa una PC local.";
+  }
+
+  if (lower.includes("getusermedia") || lower.includes("not implemented")) {
+    return "Este navegador no permite usar la camara. En iPhone usa HTTPS o un navegador compatible.";
+  }
+
+  if (
+    lower.includes("notallowed") ||
+    lower.includes("permission") ||
+    lower.includes("denied")
+  ) {
+    return "Permiso de camara denegado. Habilitalo en el navegador y vuelve a intentar.";
+  }
+
+  return message || "Error desconocido al acceder a la camara.";
+}
+
 type Props = {
   camRef?: RefObject<Webcam | null>;
   name: string;
@@ -128,7 +154,7 @@ export default function Camera({
         setWebcamError({
           estado: true,
           mensaje:
-            "Tu navegador no soporta acceso a la cámara. Por favor, utiliza un navegador compatible como Chrome o Firefox.",
+            "Tu navegador no soporta acceso a la camara. Usa un navegador compatible.",
         });
       } else {
         try {
@@ -140,11 +166,7 @@ export default function Camera({
           setPermissionsGranted(true);
           setWebcamReady(true);
         } catch (error) {
-          const mensaje =
-            error && typeof error === "object" && "message" in error
-              ? String((error as { message?: unknown }).message)
-              : "Error desconocido al acceder a la cámara";
-          setWebcamError({ estado: true, mensaje });
+          setWebcamError({ estado: true, mensaje: formatCameraError(error) });
         }
       }
     };
@@ -159,11 +181,7 @@ export default function Camera({
         .enumerateDevices()
         .then(handleDevices)
         .catch((error) => {
-          const mensaje =
-            error && typeof error === "object" && "message" in error
-              ? String((error as { message?: unknown }).message)
-              : "Error desconocido al acceder a la cámara";
-          setWebcamError({ estado: true, mensaje });
+          setWebcamError({ estado: true, mensaje: formatCameraError(error) });
         });
     }
   }, [permissionsGranted, handleDevices, showBoundary]);
@@ -393,14 +411,7 @@ export default function Camera({
                 onUserMediaError={(error) =>
                   setWebcamError({
                     estado: true,
-                    mensaje:
-                      typeof error === "string"
-                        ? error
-                        : error &&
-                          typeof error === "object" &&
-                          "message" in error
-                        ? String((error as { message?: unknown }).message)
-                        : String(error),
+                    mensaje: formatCameraError(error),
                   })
                 }
                 screenshotFormat="image/jpeg"
@@ -421,12 +432,7 @@ export default function Camera({
               onUserMediaError={(error) =>
                 setWebcamError({
                   estado: true,
-                  mensaje:
-                    typeof error === "string"
-                      ? error
-                      : error && typeof error === "object" && "message" in error
-                      ? String((error as { message?: unknown }).message)
-                      : String(error),
+                  mensaje: formatCameraError(error),
                 })
               }
               screenshotFormat="image/jpeg"

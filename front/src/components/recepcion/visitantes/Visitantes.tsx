@@ -36,7 +36,7 @@ import Spinner from "../../utils/Spinner";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
 import { FormProvider, useForm } from "react-hook-form";
-import LectorQr from "../bitacora/lector/LectorQr";
+import LectorQrVisitantes from "./LectorQrVisitantes";
 
 import { isBlockedNow } from "../../../utils/bloqueo";
 
@@ -74,14 +74,18 @@ export default function Visitantes() {
     setShowQRScanner(true);
   };
 
-  const onQrChange = async (qr: string): Promise<boolean> => {
+  const onQrValidate = async (
+    qr: string
+  ): Promise<{ ok: boolean; message: string }> => {
     const regexCardCode = /^VST[A-Z0-9]{16}$/;
     const isValid = regexCardCode.test(qr);
-    enqueueSnackbar(isValid ? "QR válido." : "QR inválido.", {
+    const message = isValid
+      ? "QR válido. Puedes continuar."
+      : "QR inválido o no corresponde a un visitante.";
+    enqueueSnackbar(message, {
       variant: isValid ? "success" : "error",
     });
-    setShowQRScanner(false);
-    return isValid;
+    return { ok: isValid, message };
   };
 
 
@@ -728,10 +732,10 @@ const accionBloquear = (ID: string) => {
       )}
       {showQRScanner && (
         <FormProvider {...formContext}>
-          <LectorQr
+          <LectorQrVisitantes
             name="qr"
             setShow={setShowQRScanner}
-            onQrChange={onQrChange}
+            onQrValidate={onQrValidate}
           />
         </FormProvider>
       )}
