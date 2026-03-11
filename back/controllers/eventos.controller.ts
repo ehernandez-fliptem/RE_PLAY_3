@@ -1061,7 +1061,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                 const qrValue = String(qr || "").trim();
                 const visitante = await Visitantes.findOne(
                     { card_code: qrValue },
-                    "_id bloqueado desbloqueado_hasta activo verificado"
+                    "_id nombre apellido_pat apellido_mat bloqueado desbloqueado_hasta activo verificado"
                 ).lean<any>();
                 if (!visitante) {
                     comentario = "El registro no fue encontrado o ya no se encuentra disponible.";
