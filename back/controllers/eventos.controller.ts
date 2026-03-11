@@ -1051,17 +1051,6 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     res.status(200).json({ estado: false, mensaje: comentario });
                     return;
                 }
-                let accessId: any = id_acceso;
-                if (!accessId) {
-                    const usuario = await Usuarios.findById(id_usuario, "accesos").lean<any>();
-                    accessId = usuario?.accesos?.[0] ? String(usuario.accesos[0]) : null;
-                }
-                if (!accessId) {
-                    comentario = "No se encontró acceso asignado al usuario. Selecciona un acceso en la parte superior.";
-                    await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, visitante._id);
-                    res.status(200).json({ estado: false, mensaje: comentario });
-                    return;
-                }
                 if (visitante.activo === false || visitante.bloqueado === true) {
                     if (visitante.desbloqueado_hasta && dayjs().isBefore(dayjs(visitante.desbloqueado_hasta))) {
                         comentario = `Visitante bloqueado hasta ${dayjs(visitante.desbloqueado_hasta).format("DD/MM/YYYY HH:mm")}.`;
@@ -1081,7 +1070,6 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
 
                 const ultimo = await Eventos.findOne({
                     id_visitante: visitante._id,
-                    id_acceso: accessId,
                     tipo_check: { $in: [5, 6] }
                 }).sort({ fecha_creacion: -1 }).lean<any>();
 
@@ -1091,7 +1079,6 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     tipo_check: tipo_evento,
                     qr: qrValue,
                     id_visitante: visitante._id,
-                    id_acceso: accessId,
                     creado_por: id_usuario,
                     comentario: "Acceso por QR visitante (sin registro)",
                     fecha_creacion: Date.now(),
@@ -1103,30 +1090,30 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
             }
             const { _id: id_registro, tipo_registro, fecha_entrada, nombre, accesos, canAccess, id_visitante, activo } = registro[0];
             if (!activo) {
-    comentario = "El registro ya no esta disponible.";
-    await guardarEventoNoValido("", "", comentario, id_usuario, qr, id_registro);
-    res.status(200).json({ estado: false, mensaje: comentario });
-    return;
-}
-if (id_visitante) {
-    const visitante = await Visitantes.findById(
-        id_visitante,
-        "bloqueado desbloqueado_hasta activo"
-    ).lean<any>();
-    if (visitante) {
-        if (visitante.activo === false || visitante.bloqueado === true) {
-            if (visitante.desbloqueado_hasta && dayjs().isBefore(dayjs(visitante.desbloqueado_hasta))) {
-                comentario = `Visitante bloqueado hasta ${dayjs(visitante.desbloqueado_hasta).format("DD/MM/YYYY HH:mm")}.`;
-            } else {
-                comentario = "Visitante bloqueado.";
+                comentario = "El registro ya no esta disponible.";
+                await guardarEventoNoValido("", "", comentario, id_usuario, qr, id_registro);
+                res.status(200).json({ estado: false, mensaje: comentario });
+                return;
             }
-            await guardarEventoNoValido("", "", comentario, id_usuario, qr, id_registro, null, id_visitante);
-            res.status(200).json({ estado: false, mensaje: comentario });
-            return;
-        }
-    }
-}
-            if (accesos.length === 0) {
+            if (id_visitante) {
+                const visitante = await Visitantes.findById(
+                    id_visitante,
+                    "bloqueado desbloqueado_hasta activo"
+                ).lean<any>();
+                if (visitante) {
+                    if (visitante.activo === false || visitante.bloqueado === true) {
+                        if (visitante.desbloqueado_hasta && dayjs().isBefore(dayjs(visitante.desbloqueado_hasta))) {
+                            comentario = `Visitante bloqueado hasta ${dayjs(visitante.desbloqueado_hasta).format("DD/MM/YYYY HH:mm")}.`;
+                        } else {
+                            comentario = "Visitante bloqueado.";
+                        }
+                        await guardarEventoNoValido("", "", comentario, id_usuario, qr, id_registro, null, id_visitante);
+                        res.status(200).json({ estado: false, mensaje: comentario });
+                        return;
+                    }
+                }
+            }
+            if (accesos.length === 0) { {
                 comentario = "Se deben definir los accesos a los cuales el visitante tendrÃ¡ acceso.";
                 await guardarEventoNoValido("", "", comentario, id_usuario, qr, id_registro);
                 res.status(200).json({ estado: false, mensaje: comentario });
@@ -2058,6 +2045,10 @@ const getDaysArray = function (start: string | number | Date, end: string | numb
     }
     return arr;
 };
+
+
+
+
 
 
 
