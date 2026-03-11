@@ -1046,11 +1046,29 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
             }
             const { _id: id_registro, tipo_registro, fecha_entrada, nombre, accesos, canAccess, id_visitante, activo } = registro[0];
             if (!activo) {
-                comentario = "El registro ya no esta disponible.";
-                await guardarEventoNoValido("", "", comentario, id_usuario, qr, id_registro);
-                res.status(200).json({ estado: false, mensaje: comentario });
-                return;
+    comentario = "El registro ya no esta disponible.";
+    await guardarEventoNoValido("", "", comentario, id_usuario, qr, id_registro);
+    res.status(200).json({ estado: false, mensaje: comentario });
+    return;
+}
+if (id_visitante) {
+    const visitante = await Visitantes.findById(
+        id_visitante,
+        "bloqueado desbloqueado_hasta activo"
+    ).lean<any>();
+    if (visitante) {
+        if (visitante.activo === false || visitante.bloqueado === true) {
+            if (visitante.desbloqueado_hasta && dayjs().isBefore(dayjs(visitante.desbloqueado_hasta))) {
+                comentario = `Visitante bloqueado hasta ${dayjs(visitante.desbloqueado_hasta).format("DD/MM/YYYY HH:mm")}.`;
+            } else {
+                comentario = "Visitante bloqueado.";
             }
+            await guardarEventoNoValido("", "", comentario, id_usuario, qr, id_registro, null, id_visitante);
+            res.status(200).json({ estado: false, mensaje: comentario });
+            return;
+        }
+    }
+}
             if (accesos.length === 0) {
                 comentario = "Se deben definir los accesos a los cuales el visitante tendrá acceso.";
                 await guardarEventoNoValido("", "", comentario, id_usuario, qr, id_registro);
@@ -1983,6 +2001,7 @@ const getDaysArray = function (start: string | number | Date, end: string | numb
     }
     return arr;
 };
+
 
 
 
