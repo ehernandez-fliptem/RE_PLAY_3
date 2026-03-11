@@ -24,6 +24,30 @@ export async function obtenerIntegraciones(_req: Request, res: Response): Promis
     }
 }
 
+export async function modificarIntegraciones(req: Request, res: Response): Promise<void> {
+    try {
+        const { habilitarIntegracionHv, habilitarIntegracionCdvi, habilitarCamaras } = req.body;
+        const { id: id_usuario } = jwt.verify(req.headers["x-access-token"] as string, CONFIG.SECRET) as DecodedTokenUser;
+
+        const update: Record<string, unknown> = {
+            habilitarIntegracionHv: !!habilitarIntegracionHv,
+            habilitarCamaras: !!habilitarCamaras,
+            modificado_por: id_usuario,
+            fecha_modificacion: Date.now(),
+        };
+        if (typeof habilitarIntegracionCdvi === "boolean") {
+            update.habilitarIntegracionCdvi = habilitarIntegracionCdvi;
+        }
+
+        await Configuracion.updateOne({}, { $set: update }, { upsert: true, runValidators: false });
+
+        res.status(200).json({ estado: true, datos: update });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
 export async function obtener(_req: Request, res: Response): Promise<void> {
     try {
         const configuracion = await Configuracion.findOne(
