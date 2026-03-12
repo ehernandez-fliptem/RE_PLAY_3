@@ -94,23 +94,27 @@ const sincronizarEventos = async (paneles: IDispositivoHv[]) => {
         log(`${fecha()} 📅 Eventos totales del panel ${eventosPanel.length}.\n`);
         console.log("[DEMONIO][EVENTOS] rango:", { inicio, final });
         console.log("[DEMONIO][EVENTOS] total:", eventosPanel.length);
-        const registros: EventProcess[] = eventosPanel
+                const registros: EventProcess[] = eventosPanel
             .map((item) => {
                 if (item) {
+                    const rawId = String(
+                        item.employeeNoString || item.cardNo || item.employeeNo || ""
+                    ).trim();
+                    if (!rawId) return null;
 
                     //console.log(item);
-                    //console.log("Procesando evento de ID: " + item.employeeNoString);
+                    //console.log("Procesando evento de ID: " + rawId);
                     // console.log("+**************************************");
                     // console.log("Resultado de regexIDGeneral test: " + regexIDGeneral.test(item.employeeNoString));
                     // console.log("+**************************************");
 
-                    //if (regexIDGeneral.test(item.employeeNoString) || regexCodigo.test(item.employeeNoString)) {
+                    //if (regexIDGeneral.test(rawId) || regexCodigo.test(rawId)) {
                         // Enviamos la fecha cruda del panel para que el backend la normalice
                         // en la zona horaria configurada sin doble conversión por timezone.
                         const fechaCheck = typeof item.time === "string" || typeof item.time === "number"
                             ? item.time
                             : String(item.time);
-                        return { ID: item.employeeNoString, tipo_dispositivo: 3, fecha_creacion: fechaCheck, img_check: item.pictureURL || 'QR', tipo_check_panel: tipo_evento, id_panel: _id };
+                        return { ID: rawId, tipo_dispositivo: 3, fecha_creacion: fechaCheck, img_check: item.pictureURL || 'QR', tipo_check_panel: tipo_evento, id_panel: _id };
                     //}
                 }
                 return null;
