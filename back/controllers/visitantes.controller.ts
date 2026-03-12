@@ -81,6 +81,8 @@ async function syncVisitanteEnPaneles(params: {
   cardNo: string;
 }) {
   const employeeNo = calcEmployeeNo(params.id_visitante);
+  const cardNoPrimary = String(params.cardNo || "").trim();
+  const cardNoFallback = String(employeeNo || "").trim();
   const beginTime = dayjs().format("YYYY-MM-DDT00:00:00");
   const endTime = dayjs().format("YYYY-MM-DDT23:59:59");
 
@@ -136,16 +138,33 @@ async function syncVisitanteEnPaneles(params: {
       ]);
 
       const urlCard = `http://${ip}/ISAPI/AccessControl/CardInfo/Record?format=json`;
-      await runCurl([
-        "--silent","--show-error","--fail-with-body",
-        "--digest","-u", `${hvUser}:${hvPass}`,
-        "-H","Content-Type: application/json",
-        "-X","POST",
-        urlCard,
-        "-d", JSON.stringify({
-          CardInfo: { employeeNo, cardNo: params.cardNo, cardType: "normalCard" },
-        }),
-      ]);
+      const tryAddCard = async (cardNoValue: string) => {
+        if (!cardNoValue) return;
+        await runCurl([
+          "--silent","--show-error","--fail-with-body",
+          "--digest","-u", `${hvUser}:${hvPass}`,
+          "-H","Content-Type: application/json",
+          "-X","POST",
+          urlCard,
+          "-d", JSON.stringify({
+            CardInfo: { employeeNo, cardNo: cardNoValue, cardType: "normalCard" },
+          }),
+        ]);
+      };
+
+      try {
+        await tryAddCard(cardNoPrimary);
+      } catch (e: any) {
+        console.log("[HV] WARN card primary:", ip, String(e?.message || e).slice(0, 120));
+      }
+
+      if (cardNoFallback && cardNoFallback !== cardNoPrimary) {
+        try {
+          await tryAddCard(cardNoFallback);
+        } catch (e: any) {
+          console.log("[HV] WARN card fallback:", ip, String(e?.message || e).slice(0, 120));
+        }
+      }
 
       const urlModify = `https://${ip}/ISAPI/AccessControl/UserInfo/Modify?format=json`;
       await runCurl([
