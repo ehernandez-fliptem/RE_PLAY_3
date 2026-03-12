@@ -613,10 +613,19 @@ export async function obtenerFormNuevoEmpleado(req: Request, res: Response): Pro
             {
                 $lookup: {
                     from: "puestos",
-                    localField: "puestos",
-                    foreignField: "_id",
                     as: "puestos",
+                    let: { empresaId: "$_id", empresaPuestos: "$puestos" },
                     pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $or: [
+                                        { $in: ["$$empresaId", "$empresas"] },
+                                        { $in: ["$_id", "$$empresaPuestos"] }
+                                    ]
+                                }
+                            }
+                        },
                         {
                             $project: {
                                 nombre: 1,
@@ -629,10 +638,19 @@ export async function obtenerFormNuevoEmpleado(req: Request, res: Response): Pro
             {
                 $lookup: {
                     from: "departamentos",
-                    localField: "departamentos",
-                    foreignField: "_id",
                     as: "departamentos",
+                    let: { empresaId: "$_id", empresaDepartamentos: "$departamentos" },
                     pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $or: [
+                                        { $in: ["$$empresaId", "$empresas"] },
+                                        { $in: ["$_id", "$$empresaDepartamentos"] }
+                                    ]
+                                }
+                            }
+                        },
                         {
                             $project: {
                                 nombre: 1,
@@ -645,10 +663,19 @@ export async function obtenerFormNuevoEmpleado(req: Request, res: Response): Pro
             {
                 $lookup: {
                     from: "cubiculos",
-                    localField: "cubiculos",
-                    foreignField: "_id",
                     as: "cubiculos",
+                    let: { empresaId: "$_id", empresaCubiculos: "$cubiculos" },
                     pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $or: [
+                                        { $in: ["$$empresaId", "$empresas"] },
+                                        { $in: ["$_id", "$$empresaCubiculos"] }
+                                    ]
+                                }
+                            }
+                        },
                         {
                             $project: {
                                 nombre: 1,
@@ -759,10 +786,19 @@ export async function obtenerFormEditarEmpleado(req: Request, res: Response): Pr
             {
                 $lookup: {
                     from: "puestos",
-                    localField: "puestos",
-                    foreignField: "_id",
                     as: "puestos",
+                    let: { empresaId: "$_id", empresaPuestos: "$puestos" },
                     pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $or: [
+                                        { $in: ["$$empresaId", "$empresas"] },
+                                        { $in: ["$_id", "$$empresaPuestos"] }
+                                    ]
+                                }
+                            }
+                        },
                         {
                             $project: {
                                 nombre: 1,
@@ -775,10 +811,19 @@ export async function obtenerFormEditarEmpleado(req: Request, res: Response): Pr
             {
                 $lookup: {
                     from: "departamentos",
-                    localField: "departamentos",
-                    foreignField: "_id",
                     as: "departamentos",
+                    let: { empresaId: "$_id", empresaDepartamentos: "$departamentos" },
                     pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $or: [
+                                        { $in: ["$$empresaId", "$empresas"] },
+                                        { $in: ["$_id", "$$empresaDepartamentos"] }
+                                    ]
+                                }
+                            }
+                        },
                         {
                             $project: {
                                 nombre: 1,
@@ -791,10 +836,19 @@ export async function obtenerFormEditarEmpleado(req: Request, res: Response): Pr
             {
                 $lookup: {
                     from: "cubiculos",
-                    localField: "cubiculos",
-                    foreignField: "_id",
                     as: "cubiculos",
+                    let: { empresaId: "$_id", empresaCubiculos: "$cubiculos" },
                     pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $or: [
+                                        { $in: ["$$empresaId", "$empresas"] },
+                                        { $in: ["$_id", "$$empresaCubiculos"] }
+                                    ]
+                                }
+                            }
+                        },
                         {
                             $project: {
                                 nombre: 1,
