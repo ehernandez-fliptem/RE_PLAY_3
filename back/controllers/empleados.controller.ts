@@ -630,7 +630,8 @@ export async function obtenerFormNuevoEmpleado(req: Request, res: Response): Pro
                                 $expr: {
                                     $or: [
                                         { $in: ["$$empresaId", "$empresas"] },
-                                        { $in: ["$_id", "$$empresaPuestos"] }
+                                        { $in: ["$_id", "$$empresaPuestos"] },
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
                                     ]
                                 }
                             }
@@ -655,7 +656,8 @@ export async function obtenerFormNuevoEmpleado(req: Request, res: Response): Pro
                                 $expr: {
                                     $or: [
                                         { $in: ["$$empresaId", "$empresas"] },
-                                        { $in: ["$_id", "$$empresaDepartamentos"] }
+                                        { $in: ["$_id", "$$empresaDepartamentos"] },
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
                                     ]
                                 }
                             }
@@ -680,7 +682,8 @@ export async function obtenerFormNuevoEmpleado(req: Request, res: Response): Pro
                                 $expr: {
                                     $or: [
                                         { $in: ["$$empresaId", "$empresas"] },
-                                        { $in: ["$_id", "$$empresaCubiculos"] }
+                                        { $in: ["$_id", "$$empresaCubiculos"] },
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
                                     ]
                                 }
                             }
@@ -705,7 +708,8 @@ export async function obtenerFormNuevoEmpleado(req: Request, res: Response): Pro
                                 $expr: {
                                     $or: [
                                         { $in: ["$$empresaId", "$empresas"] },
-                                        { $in: ["$_id", "$$empresaAccesos"] }
+                                        { $in: ["$_id", "$$empresaAccesos"] },
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
                                     ]
                                 }
                             }
@@ -812,7 +816,8 @@ export async function obtenerFormEditarEmpleado(req: Request, res: Response): Pr
                                 $expr: {
                                     $or: [
                                         { $in: ["$$empresaId", "$empresas"] },
-                                        { $in: ["$_id", "$$empresaPuestos"] }
+                                        { $in: ["$_id", "$$empresaPuestos"] },
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
                                     ]
                                 }
                             }
@@ -837,7 +842,8 @@ export async function obtenerFormEditarEmpleado(req: Request, res: Response): Pr
                                 $expr: {
                                     $or: [
                                         { $in: ["$$empresaId", "$empresas"] },
-                                        { $in: ["$_id", "$$empresaDepartamentos"] }
+                                        { $in: ["$_id", "$$empresaDepartamentos"] },
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
                                     ]
                                 }
                             }
@@ -862,7 +868,8 @@ export async function obtenerFormEditarEmpleado(req: Request, res: Response): Pr
                                 $expr: {
                                     $or: [
                                         { $in: ["$$empresaId", "$empresas"] },
-                                        { $in: ["$_id", "$$empresaCubiculos"] }
+                                        { $in: ["$_id", "$$empresaCubiculos"] },
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
                                     ]
                                 }
                             }
@@ -879,10 +886,20 @@ export async function obtenerFormEditarEmpleado(req: Request, res: Response): Pr
             {
                 $lookup: {
                     from: "accesos",
-                    localField: "accesos",
-                    foreignField: "_id",
                     as: "accesos",
+                    let: { empresaId: "$_id", empresaAccesos: "$accesos" },
                     pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $or: [
+                                        { $in: ["$$empresaId", "$empresas"] },
+                                        { $in: ["$_id", "$$empresaAccesos"] },
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
+                                    ]
+                                }
+                            }
+                        },
                         {
                             $project: {
                                 nombre: 1,
@@ -1693,6 +1710,8 @@ const añadir = async ({ isMaster, id_empresa }: { isMaster: boolean; id_empresa
             return workbook.xlsx.writeFile(nameFileExcel);
         });
 }
+
+
 
 
 
