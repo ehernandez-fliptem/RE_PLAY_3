@@ -507,10 +507,19 @@ export async function obtenerUno(req: Request, res: Response): Promise<void> {
             {
                 $lookup: {
                     from: "accesos",
-                    localField: "accesos",
-                    foreignField: "_id",
                     as: "accesos",
+                    let: { empresaId: "$_id", empresaAccesos: "$accesos" },
                     pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $or: [
+                                        { $in: ["$$empresaId", "$empresas"] },
+                                        { $in: ["$_id", "$$empresaAccesos"] }
+                                    ]
+                                }
+                            }
+                        },
                         {
                             $project: {
                                 nombre: 1,
@@ -688,10 +697,19 @@ export async function obtenerFormNuevoEmpleado(req: Request, res: Response): Pro
             {
                 $lookup: {
                     from: "accesos",
-                    localField: "accesos",
-                    foreignField: "_id",
                     as: "accesos",
+                    let: { empresaId: "$_id", empresaAccesos: "$accesos" },
                     pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $or: [
+                                        { $in: ["$$empresaId", "$empresas"] },
+                                        { $in: ["$_id", "$$empresaAccesos"] }
+                                    ]
+                                }
+                            }
+                        },
                         {
                             $project: {
                                 nombre: 1,
