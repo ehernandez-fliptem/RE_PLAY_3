@@ -1076,7 +1076,10 @@ export default function Kiosco() {
           },
         }}
       >
-        <DialogTitle textAlign="center">{selectedReg?.nombre}</DialogTitle>
+        <DialogTitle textAlign="center">
+          {selectedReg?.tipo_origen === 2 ? "Visitante" : "Usuario"}
+          {selectedReg?.nombre ? `: ${selectedReg.nombre}` : ""}
+        </DialogTitle>
         <DialogContent>
           {hasImage(selectedReg?.img_usuario) ? (
             <Box component="img" width={"100%"} src={selectedReg?.img_usuario} />
