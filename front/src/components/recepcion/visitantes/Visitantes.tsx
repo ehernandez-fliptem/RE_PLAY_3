@@ -111,7 +111,6 @@ export default function Visitantes() {
         enqueueSnackbar(message, { variant: "success" });
         return { ok: true, message };
       }
-      }
       const message = res.data.mensaje || "No se pudo validar el QR.";
       enqueueSnackbar(message, { variant: "error" });
       return { ok: false, message };
