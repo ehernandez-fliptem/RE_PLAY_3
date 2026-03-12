@@ -1108,9 +1108,29 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     res.status(200).json({ estado: false, mensaje: comentario });
                     return;
                 }
-                if (visitante.activo === false || visitante.bloqueado === true) {
-                    if (visitante.desbloqueado_hasta && dayjs().isBefore(dayjs(visitante.desbloqueado_hasta))) {
-                        comentario = `Visitante bloqueado hasta ${dayjs(visitante.desbloqueado_hasta).format("DD/MM/YYYY HH:mm")}.`;
+                const ahora = dayjs();
+                const desbloqueadoHasta = visitante.desbloqueado_hasta ? dayjs(visitante.desbloqueado_hasta) : null;
+                const desbloqueadoVigente = desbloqueadoHasta ? ahora.isBefore(desbloqueadoHasta) : false;
+
+                if (visitante.activo === false) {
+                    comentario = "Visitante inactivo.";
+                    await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, visitante._id);
+                    res.status(200).json({ estado: false, mensaje: comentario });
+                    return;
+                }
+
+                if (desbloqueadoHasta && ahora.isAfter(desbloqueadoHasta)) {
+                    comentario = "El acceso del visitante ha expirado.";
+                    await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, visitante._id);
+                    res.status(200).json({ estado: false, mensaje: comentario });
+                    return;
+                }
+
+                if (visitante.bloqueado === true && !desbloqueadoVigente) {
+                    if (desbloqueadoHasta && ahora.isAfter(desbloqueadoHasta)) {
+                        comentario = "El acceso del visitante ha expirado.";
+                    } else if (desbloqueadoHasta) {
+                        comentario = `Visitante bloqueado hasta ${desbloqueadoHasta.format("DD/MM/YYYY HH:mm")}.`;
                     } else {
                         comentario = "Visitante bloqueado.";
                     }
@@ -1168,9 +1188,29 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     "bloqueado desbloqueado_hasta activo"
                 ).lean<any>();
                 if (visitante) {
-                    if (visitante.activo === false || visitante.bloqueado === true) {
-                        if (visitante.desbloqueado_hasta && dayjs().isBefore(dayjs(visitante.desbloqueado_hasta))) {
-                            comentario = `Visitante bloqueado hasta ${dayjs(visitante.desbloqueado_hasta).format("DD/MM/YYYY HH:mm")}.`;
+                    const ahora = dayjs();
+                    const desbloqueadoHasta = visitante.desbloqueado_hasta ? dayjs(visitante.desbloqueado_hasta) : null;
+                    const desbloqueadoVigente = desbloqueadoHasta ? ahora.isBefore(desbloqueadoHasta) : false;
+
+                    if (visitante.activo === false) {
+                        comentario = "Visitante inactivo.";
+                        await guardarEventoNoValido("", "", comentario, id_usuario, qr, id_registro, null, id_visitante);
+                        res.status(200).json({ estado: false, mensaje: comentario });
+                        return;
+                    }
+
+                    if (desbloqueadoHasta && ahora.isAfter(desbloqueadoHasta)) {
+                        comentario = "El acceso del visitante ha expirado.";
+                        await guardarEventoNoValido("", "", comentario, id_usuario, qr, id_registro, null, id_visitante);
+                        res.status(200).json({ estado: false, mensaje: comentario });
+                        return;
+                    }
+
+                    if (visitante.bloqueado === true && !desbloqueadoVigente) {
+                        if (desbloqueadoHasta && ahora.isAfter(desbloqueadoHasta)) {
+                            comentario = "El acceso del visitante ha expirado.";
+                        } else if (desbloqueadoHasta) {
+                            comentario = `Visitante bloqueado hasta ${desbloqueadoHasta.format("DD/MM/YYYY HH:mm")}.`;
                         } else {
                             comentario = "Visitante bloqueado.";
                         }
