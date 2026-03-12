@@ -9,7 +9,7 @@ import { QueryParams } from '../types/queryparams';
 import Visitantes, { IVisitante } from '../models/Visitantes';
 import Roles from '../models/Roles';
 import Usuarios from '../models/Usuarios';
-import { generarCodigoUnico, isEmptyObject, resizeImage, customAggregationForDataGrids, columnToLetter, marcarDuplicados } from '../utils/utils';
+import { generarCodigoUnico, isEmptyObject, resizeImage, customAggregationForDataGrids, columnToLetter, marcarDuplicados, decryptPassword } from '../utils/utils';
 import { validarModelo } from '../validators/validadores';
 import { enviarCorreoNuevoVisitanteHV, enviarCorreoUsuario, enviarCorreoUsuarioNuevaContrasena } from '../utils/correos';
 import { fecha, log } from "../middlewares/log";
@@ -32,9 +32,6 @@ import crypto from "crypto";
 // ===============================
 // Helper CURL simple
 // ===============================
-const HV_USER = "admin";
-const HV_PASS = "Bardahl2025.";
-
 function generarCardCodeDesdeId(id_visitante: number): string {
   // ID en base36 (letras + números)
   const base36 = id_visitante
@@ -89,7 +86,7 @@ async function syncVisitanteEnPaneles(params: {
 
   const paneles = await DispositivosHv.find(
     { activo: true },
-    { direccion_ip: 1 }
+    { direccion_ip: 1, usuario: 1, contrasena: 1 }
   ).lean();
 
   const panelesOrdenados = [...paneles].sort((a: any, b: any) => {
@@ -100,13 +97,17 @@ async function syncVisitanteEnPaneles(params: {
 
   for (const panel of panelesOrdenados as any[]) {
     const ip = panel.direccion_ip;
+    const hvUser = panel.usuario || "admin";
+    const hvPass = panel.contrasena
+      ? decryptPassword(panel.contrasena, CONFIG.SECRET_CRYPTO)
+      : "";
 
     try {
       await runCurl([
         "--silent","--show-error","--fail-with-body",
         "--connect-timeout","1",
         "--max-time","2",
-        "--digest","-u", `${HV_USER}:${HV_PASS}`,
+        "--digest","-u", `${hvUser}:${hvPass}`,
         "-X","GET",
         `http://${ip}/ISAPI/System/deviceInfo`,
       ]);
@@ -119,7 +120,7 @@ async function syncVisitanteEnPaneles(params: {
       const urlUser = `http://${ip}/ISAPI/AccessControl/UserInfo/Record?format=json`;
       await runCurl([
         "--silent","--show-error","--fail-with-body",
-        "--digest","-u", `${HV_USER}:${HV_PASS}`,
+        "--digest","-u", `${hvUser}:${hvPass}`,
         "-H","Content-Type: application/json",
         "-X","POST",
         urlUser,
@@ -137,7 +138,7 @@ async function syncVisitanteEnPaneles(params: {
       const urlCard = `http://${ip}/ISAPI/AccessControl/CardInfo/Record?format=json`;
       await runCurl([
         "--silent","--show-error","--fail-with-body",
-        "--digest","-u", `${HV_USER}:${HV_PASS}`,
+        "--digest","-u", `${hvUser}:${hvPass}`,
         "-H","Content-Type: application/json",
         "-X","POST",
         urlCard,
@@ -150,7 +151,7 @@ async function syncVisitanteEnPaneles(params: {
       await runCurl([
         "--silent","--show-error","--fail-with-body",
         "--insecure",
-        "--digest","-u", `${HV_USER}:${HV_PASS}`,
+        "--digest","-u", `${hvUser}:${hvPass}`,
         "-H","Content-Type: application/json",
         "-X","PUT",
         urlModify,
