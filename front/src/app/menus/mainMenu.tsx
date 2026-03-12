@@ -21,9 +21,9 @@ import {
   Settings,
   // Help, // FLAG: Ayuda oculta temporalmente - No borrar
   // Quiz, // FLAG: Ayuda oculta temporalmente - No borrar
-  LibraryBooks,
-  LibraryAddCheck,
-  AutoStories,
+  // LibraryBooks,
+  // LibraryAddCheck,
+  // AutoStories,
   // Duo, // FLAG: Ayuda oculta temporalmente - No borrar
   AssignmentInd,
   MeetingRoom,
