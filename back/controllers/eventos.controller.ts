@@ -1144,7 +1144,15 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                 });
                 await evento.save();
 
-                res.status(200).json({ estado: true, datos: { id_visitante: visitante._id, puedeAcceder: true, nombre: nombreCompleto } });
+                res.status(200).json({
+                    estado: true,
+                    datos: {
+                        id_visitante: visitante._id,
+                        puedeAcceder: true,
+                        nombre: nombreCompleto,
+                        tipo_check: tipo_evento
+                    }
+                });
                 return;
             }
             const { _id: id_registro, tipo_registro, fecha_entrada, nombre, accesos, canAccess, id_visitante, activo } = registro[0];
@@ -1227,7 +1235,10 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     id_acceso,
                     id_visitante
                 }, { _id: 1 }) as IRegistro;
-                res.status(200).json({ estado: true, datos: { id_registro, puedeAcceder: canAccess, nombre } });
+                res.status(200).json({
+                    estado: true,
+                    datos: { id_registro, puedeAcceder: canAccess, nombre, tipo_check: tipo_evento }
+                });
                 return;
             }
         }

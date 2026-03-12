@@ -94,6 +94,7 @@ export default function Visitantes() {
       if (res.data.estado) {
         const puedeAcceder = res.data.datos?.puedeAcceder;
         const nombre = res.data.datos?.nombre;
+        const tipoCheck = res.data.datos?.tipo_check;
         if (puedeAcceder === false) {
           const message = nombre
             ? `Acceso pendiente para ${nombre}. Requiere validación.`
@@ -101,11 +102,15 @@ export default function Visitantes() {
           enqueueSnackbar(message, { variant: "warning" });
           return { ok: false, message };
         }
+        const esEntrada = tipoCheck === 6 ? false : true;
         const message = nombre
-          ? `Acceso a ${nombre}. Bienvenido.`
-          : "Acceso permitido. Bienvenido.";
+          ? `Acceso a ${nombre}. ${esEntrada ? "Bienvenido." : "Hasta luego."}`
+          : esEntrada
+            ? "Acceso permitido. Bienvenido."
+            : "Salida registrada. Hasta luego.";
         enqueueSnackbar(message, { variant: "success" });
         return { ok: true, message };
+      }
       }
       const message = res.data.mensaje || "No se pudo validar el QR.";
       enqueueSnackbar(message, { variant: "error" });
