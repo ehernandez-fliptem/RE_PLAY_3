@@ -71,7 +71,9 @@ const sincronizarEventos = async (paneles: IDispositivoHv[]) => {
         const inicio = fechaParcial
             .subtract(QUERY_WINDOW_HOURS, "hour")
             .format("YYYY-MM-DD HH:mm:ss")
-        const final = fechaParcial.add(1, "minute").format("YYYY-MM-DD HH:mm:ss")
+        const final = fechaParcial
+            .add(QUERY_WINDOW_HOURS, "hour")
+            .format("YYYY-MM-DD HH:mm:ss")
 
         const panelInfo = {
             direccion_ip,
