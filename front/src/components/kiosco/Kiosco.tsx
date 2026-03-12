@@ -65,6 +65,7 @@ type IRegistro = {
   id_registro?: string;
   id_empleado?: string;
   id_usuario?: string;
+  id_visitante?: string;
 };
 
 type ARGS = {
@@ -88,6 +89,17 @@ const TYPE = {
   2: "Visitante",
   3: "Indefinido",
 };
+
+const getOrigenLabel = (item: IRegistro) => {
+  if (item.tipo_origen === 2) {
+    if (item.tipo_check === 5) return "Visitante: AccediÃ³";
+    if (item.tipo_check === 6) return "Visitante: SaliÃ³";
+    return "Visitante";
+  }
+  return TYPE[item.tipo_origen] || "Indefinido";
+};
+
+const hasImage = (value?: string) => Boolean(value && value.trim().length > 0);
 
 export default function Kiosco() {
   const socket = useSelector((state: IRootState) => state.ws.data);
@@ -241,13 +253,15 @@ export default function Kiosco() {
         const updatedRows = ROWS.map((item) => {
           const eventoIdEmpleado = datos.id_empleado || datos.id_usuario;
           const rowIdEmpleado = item.id_empleado || item.id_usuario;
+          const eventoVisitId = datos.id_registro || datos.id_visitante;
+          const rowVisitId = item.id_registro || item.id_visitante;
           if (item.tipo_origen === 1) {
             if (rowIdEmpleado === eventoIdEmpleado) {
               return { ...datos };
             }
           }
           if (item.tipo_origen === 2) {
-            if (item.id_registro === datos.id_registro) {
+            if (rowVisitId && eventoVisitId && rowVisitId === eventoVisitId) {
               return { ...datos };
             }
           }
@@ -256,11 +270,13 @@ export default function Kiosco() {
         const rowExists = updatedRows.some((row) => {
           const eventoIdEmpleado = datos.id_empleado || datos.id_usuario;
           const rowIdEmpleado = row.id_empleado || row.id_usuario;
+          const eventoVisitId = datos.id_registro || datos.id_visitante;
+          const rowVisitId = row.id_registro || row.id_visitante;
           if (row.tipo_origen === 1) {
             return rowIdEmpleado === eventoIdEmpleado;
           }
           if (row.tipo_origen === 2) {
-            return row.id_registro === datos.id_registro;
+            return !!rowVisitId && !!eventoVisitId && rowVisitId === eventoVisitId;
           }
           return false;
         });
@@ -323,11 +339,15 @@ export default function Kiosco() {
           }
         }
         if (IS_VISIT) {
-          if (String(datos?.id_registro) === String(firstRecord?.id_registro)) {
+          const eventoVisitId = datos.id_registro || datos.id_visitante;
+          const firstVisitId = firstRecord?.id_registro || firstRecord?.id_visitante;
+          if (String(eventoVisitId) === String(firstVisitId)) {
             paginatedRows = sortedRows
               .slice(0, pageSize || 12)
               .filter(
-                (item) => String(item.id_registro) !== String(datos.id_registro)
+                (item) =>
+                  String(item.id_registro || item.id_visitante) !==
+                  String(eventoVisitId)
               );
           } else {
             paginatedRows = (
@@ -335,7 +355,9 @@ export default function Kiosco() {
             )
               .slice(0, pageSize || 12)
               .filter(
-                (item) => String(item.id_registro) !== String(datos.id_registro)
+                (item) =>
+                  String(item.id_registro || item.id_visitante) !==
+                  String(eventoVisitId)
               );
           }
         }
@@ -492,16 +514,32 @@ export default function Kiosco() {
                           <CardActionArea
                             onClick={() => handleClickOpen(firstRecord)}
                           >
-                            <CardMedia
-                              component="img"
-                              sx={(theme) => ({
-                                bgcolor: theme.palette.grey[300],
-                                height: { xs: 150, md: 150, lg: 180, xl: 250 },
-                                objectFit: "contain",
-                              })}
-                              src={firstRecord.img_usuario}
-                              title={firstRecord.nombre}
-                            />
+                            {hasImage(firstRecord.img_usuario) ? (
+                              <CardMedia
+                                component="img"
+                                sx={(theme) => ({
+                                  bgcolor: theme.palette.grey[300],
+                                  height: { xs: 150, md: 150, lg: 180, xl: 250 },
+                                  objectFit: "contain",
+                                })}
+                                src={firstRecord.img_usuario}
+                                title={firstRecord.nombre}
+                              />
+                            ) : (
+                              <Box
+                                sx={(theme) => ({
+                                  bgcolor: theme.palette.grey[200],
+                                  height: { xs: 150, md: 150, lg: 180, xl: 250 },
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  color: theme.palette.text.secondary,
+                                  fontWeight: 600,
+                                })}
+                              >
+                                Sin foto
+                              </Box>
+                            )}
                           </CardActionArea>
                           <CardContent>
                             <Chip
@@ -533,7 +571,7 @@ export default function Kiosco() {
                               color="info"
                             >
                               <strong>Origen:</strong>{" "}
-                              {TYPE[firstRecord.tipo_origen]}
+                              {getOrigenLabel(firstRecord)}
                             </Typography>
                             {firstRecord?.panel && (
                               <Typography
@@ -870,9 +908,10 @@ export default function Kiosco() {
                             size={{ xs: 12, sm: 6, md: 4, xl: 3 }}
                           >
                             <Card elevation={3} sx={{ height: "100%" }}>
-                              <CardActionArea
-                                onClick={() => handleClickOpen(item)}
-                              >
+                            <CardActionArea
+                              onClick={() => handleClickOpen(item)}
+                            >
+                              {hasImage(item.img_usuario) ? (
                                 <CardMedia
                                   component="img"
                                   sx={(theme) => ({
@@ -883,7 +922,22 @@ export default function Kiosco() {
                                   src={item.img_usuario}
                                   title={item.nombre}
                                 />
-                              </CardActionArea>
+                              ) : (
+                                <Box
+                                  sx={(theme) => ({
+                                    bgcolor: theme.palette.grey[200],
+                                    height: { xs: 120, xl: 150 },
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    color: theme.palette.text.secondary,
+                                    fontWeight: 600,
+                                  })}
+                                >
+                                  Sin foto
+                                </Box>
+                              )}
+                            </CardActionArea>
                               <CardContent>
                                 <Chip
                                   label={getTipoEvento(item.tipo_check).nombre}
@@ -914,7 +968,7 @@ export default function Kiosco() {
                                   color="info"
                                 >
                                   <strong>Origen:</strong>{" "}
-                                  {TYPE[item.tipo_origen]}
+                                  {getOrigenLabel(item)}
                                 </Typography>
                                 {item?.panel && (
                                   <Typography
@@ -1024,7 +1078,24 @@ export default function Kiosco() {
       >
         <DialogTitle textAlign="center">{selectedReg?.nombre}</DialogTitle>
         <DialogContent>
-          <Box component="img" width={"100%"} src={selectedReg?.img_usuario} />
+          {hasImage(selectedReg?.img_usuario) ? (
+            <Box component="img" width={"100%"} src={selectedReg?.img_usuario} />
+          ) : (
+            <Box
+              sx={(theme) => ({
+                width: "100%",
+                minHeight: 200,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                bgcolor: theme.palette.grey[200],
+                color: theme.palette.text.secondary,
+                fontWeight: 600,
+              })}
+            >
+              Sin foto
+            </Box>
+          )}
         </DialogContent>
       </Dialog>
     </Fragment>

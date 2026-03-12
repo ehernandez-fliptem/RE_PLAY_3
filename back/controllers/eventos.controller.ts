@@ -400,7 +400,13 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
                         $cond: [
                             { $and: [{ $ifNull: ["$id_registro", false] }, { $ne: ["$id_registro", null] }] },
                             { registro: "$id_registro" },
-                            { usuario: "$id_empleado_effective" }
+                            {
+                                $cond: [
+                                    { $and: [{ $ifNull: ["$id_visitante", false] }, { $ne: ["$id_visitante", null] }] },
+                                    { visitante: "$id_visitante" },
+                                    { usuario: "$id_empleado_effective" }
+                                ]
+                            }
                         ]
                     },
                     doc: { $first: "$$ROOT" },
@@ -417,7 +423,13 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
                         $cond: [
                             { $and: [{ $ifNull: ["$id_registro", false] }, { $ne: ["$id_registro", null] }] },
                             2, // Visitante
-                            1  // Usuario
+                            {
+                                $cond: [
+                                    { $and: [{ $ifNull: ["$id_visitante", false] }, { $ne: ["$id_visitante", null] }] },
+                                    2, // Visitante (QR sin registro)
+                                    1  // Usuario
+                                ]
+                            }
                         ]
                     }
                 }
@@ -487,6 +499,25 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
             },
             {
                 $lookup: {
+                    from: "visitantes",
+                    localField: "id_visitante",
+                    foreignField: "_id",
+                    as: "visitante",
+                    pipeline: [
+                        {
+                            $project: {
+                                id_empresa: 1,
+                                img_usuario: 1,
+                                nombre: {
+                                    $concat: ["$nombre", " ", "$apellido_pat", " ", { $ifNull: ["$apellido_mat", ""] }]
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $lookup: {
                     from: "hikvision_dispositivos",
                     localField: "id_panel",
                     foreignField: "_id",
@@ -517,6 +548,7 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
                 $set: {
                     usuario: { $arrayElemAt: ["$usuario", -1] },
                     registro: { $arrayElemAt: ["$registro", -1] },
+                    visitante: { $arrayElemAt: ["$visitante", -1] },
                     panel: { $arrayElemAt: ["$panel", -1] },
                     acceso: { $arrayElemAt: ["$acceso", -1] },
                 }
@@ -529,7 +561,13 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
                         $cond: [
                             { $ifNull: ["$usuario", false] },
                             "$usuario",
-                            "$registro"
+                            {
+                                $cond: [
+                                    { $ifNull: ["$registro", false] },
+                                    "$registro",
+                                    "$visitante"
+                                ]
+                            }
                         ]
                     }
                 }
@@ -565,6 +603,7 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
                     panel: 1,
                     acceso: 1,
                     id_registro: 1,
+                    id_visitante: 1,
                     id_usuario: 1,
                     id_empleado: "$id_empleado_effective"
                 }
