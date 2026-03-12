@@ -12,6 +12,8 @@ export interface IDispositivoHv {
 
 export interface EventInfo {
     employeeNoString: string;
+    cardNo?: string;
+    employeeNo?: string;
     time: number | string;
     pictureURL?: string;
 }
