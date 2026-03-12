@@ -174,29 +174,29 @@ const mainMenu = [
       // },
     ],
   },
-  {
-    id: 3,
-    title: "Documentos",
-    rol: [1, 2, 10],
-    icon: <LibraryBooks fontSize="small" />,
-    submenu: [
-      {
-        id: 3.1,
-        title: "Validación",
-        rol: [1, 2],
-        icon: <LibraryAddCheck fontSize="small" />,
-        path: "/validacion-documentos",
-      },
-      {
-        id: 3.2,
-        title: "Documentos",
-        rol: [1, 2, 10],
-        icon: <AutoStories fontSize="small" />,
-        path: "/documentos",
-      },
-    ],
-  },
-  // FLAG: Checador oculto temporalmente - Se sacó Eventos
+  // FLAG: Documentos oculto temporalmente - No borrar
+  // id: 3,
+  // title: "Documentos",
+  // rol: [1, 2, 10],
+  // icon: <LibraryBooks fontSize="small" />,
+  // submenu: [
+  // {
+  // id: 3.1,
+  // title: "Validación",
+  // rol: [1, 2],
+  // icon: <LibraryAddCheck fontSize="small" />,
+  // path: "/validacion-documentos",
+  // },
+  // {
+  // id: 3.2,
+  // title: "Documentos",
+  // rol: [1, 2, 10],
+  // icon: <AutoStories fontSize="small" />,
+  // path: "/documentos",
+  // },
+  // ],
+  // },
+  // // FLAG: Checador oculto temporalmente - Se sacó Eventos
   /*
   {
     id: 4,
