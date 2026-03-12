@@ -190,7 +190,7 @@ export default function Eventos() {
               {
                 datos: {
                   ...restValues,
-                  estatus: tipoAccesoValue ? [tipoAccesoValue] : [],
+                  estatus: tipoAccesoValue ? [tipoAccesoValue] : [5, 6],
                 },
               }
             );
