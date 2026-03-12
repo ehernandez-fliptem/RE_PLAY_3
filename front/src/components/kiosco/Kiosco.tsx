@@ -92,8 +92,8 @@ const TYPE = {
 
 const getOrigenLabel = (item: IRegistro) => {
   if (item.tipo_origen === 2) {
-    if (item.tipo_check === 5) return "Visitante: AccediÃ³";
-    if (item.tipo_check === 6) return "Visitante: SaliÃ³";
+    if (item.tipo_check === 5) return "Visitante: Accedió";
+    if (item.tipo_check === 6) return "Visitante: Salió";
     return "Visitante";
   }
   return TYPE[item.tipo_origen] || "Indefinido";

@@ -406,11 +406,11 @@ async getTokenValue() {
                             this.img_modified = true;
                             this.img_sync++;
                         } else {
-                            console.error("Hikvision respondiÃ³ un error:", respRetry);
+                            console.error("Hikvision respondio un error:", respRetry);
                         }
                     }
                 } else {
-                    console.error("Hikvision respondiÃ³ un error:", resp);
+                    console.error("Hikvision respondio un error:", resp);
                 }
             }
 
