@@ -849,14 +849,38 @@ export async function crear(req: Request, res: Response): Promise<void> {
         _id: String(reg_saved._id),
         id_visitante: reg_saved.id_visitante,
         });
-    // 8) Respuesta (sin verificación ni panel)
-    res.status(200).json({
-      estado: true,
-      datos: {
-        _id: String(reg_saved._id),
-        id_visitante: reg_saved.id_visitante,
-      },
-    });
+
+        // 8) Generar card_code + verificar + sincronizar con panel
+        const fullName = `${nombre ?? ""} ${apellido_pat ?? ""} ${apellido_mat ?? ""}`
+          .replace(/\s+/g, " ")
+          .trim();
+        const cardNo = generarCardCodeDesdeId(Number(reg_saved.id_visitante));
+        const endOfTodayDate = dayjs().endOf("day").toDate();
+
+        await Visitantes.updateOne(
+          { _id: reg_saved._id },
+          { $set: { card_code: cardNo, verificado: true, bloqueado: false, desbloqueado_hasta: endOfTodayDate } }
+        );
+
+        try {
+          await syncVisitanteEnPaneles({
+            id_visitante: Number(reg_saved.id_visitante),
+            fullName,
+            cardNo,
+          });
+        } catch (e: any) {
+          console.log("[CREAR] WARN sync panel:", String(e?.message || e).slice(0, 200));
+        }
+
+        // 9) Respuesta
+        res.status(200).json({
+          estado: true,
+          datos: {
+            _id: String(reg_saved._id),
+            id_visitante: reg_saved.id_visitante,
+            card_code: cardNo,
+          },
+        });
 
   } catch (error: any) {
     console.log("[CREAR] ERROR:", error?.message || error);
