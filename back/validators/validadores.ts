@@ -11,6 +11,7 @@ import { IRol } from '../models/Roles';
 import { ITipoEvento } from '../models/TiposEventos';
 import { ITipoRegistro } from '../models/TiposRegistros';
 import { IUsuario } from '../models/Usuarios';
+import { IEmpleado } from '../models/Empleados';
 import { IEmpresa } from '../models/Empresas';
 import { IPase } from '../models/Pases';
 import { IPiso } from '../models/Pisos';
@@ -29,12 +30,7 @@ import { IFaceDescriptor } from '../models/FaceDescriptors';
  * @returns {object} - Retorna un objeto con los mensajes de error establecidos en el modelo de Usuarios.
 */
 export async function validarModelo(
-    doc:
-        IAsignacion | IConfiguracion | IDispositivoHv | IEvento |
-        IEmpresa | IHorario | IRecuperacion | IRegistro | IRol | IPase |
-        ITipoEvento | ITipoRegistro | IUsuario | IPiso | IPuesto | IAcceso | IVisitante |
-        IDocumento | IFaceDescriptor
-    ,
+    doc: any,
     isUpdate: boolean = false
 ): Promise<object> {
     try {
@@ -51,3 +47,4 @@ export async function validarModelo(
         throw error;
     }
 }
+

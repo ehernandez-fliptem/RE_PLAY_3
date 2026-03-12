@@ -1271,7 +1271,17 @@ export async function crear(req: Request, res: Response): Promise<void> {
         }
 
         if (tipo_registro == 1 && registrosCreadosWS.length > 0) {
-            seEnvioCorreoVisit = esVisit ? 1 : await enviarCorreoCitaVisitante(visitante.codigo, registrosCreadosWS, docsFaltantes.join(" - "));
+            if (!esVisit) {
+                const qr = await QRCode.toDataURL(String(visitante.codigo), {
+                    errorCorrectionLevel: 'H',
+                    type: 'image/png',
+                    width: 400,
+                    margin: 2
+                });
+                seEnvioCorreoVisit = await enviarCorreoCitaVisitante(visitante.codigo, registrosCreadosWS, docsFaltantes.join(" - "), qr);
+            } else {
+                seEnvioCorreoVisit = 1;
+            }
             seEnvioCorreoAnfit = await enviarCorreoCitaAnfitrion(registrosCreadosWS);
         }
 
@@ -1907,7 +1917,13 @@ export async function crearRegistroVisitante(req: Request, res: Response): Promi
 
 
         if (registrosCreadosWS.length > 0) {
-            seEnvioCorreoVisit = await enviarCorreoCitaVisitante(visitante.codigo, registrosCreadosWS, docsFaltantes.join(" - "));
+            const qr = await QRCode.toDataURL(String(visitante.codigo), {
+                errorCorrectionLevel: 'H',
+                type: 'image/png',
+                width: 400,
+                margin: 2
+            });
+            seEnvioCorreoVisit = await enviarCorreoCitaVisitante(visitante.codigo, registrosCreadosWS, docsFaltantes.join(" - "), qr);
             seEnvioCorreoAnfit = await enviarCorreoCitaAnfitrion(registrosCreadosWS);
         }
         await Tokens.findOneAndUpdate({ token }, { $set: { activo: false, fecha_modificacion: Date.now() } })
@@ -1933,4 +1949,8 @@ export async function crearRegistroVisitante(req: Request, res: Response): Promi
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 }
+
+
+
+
 
