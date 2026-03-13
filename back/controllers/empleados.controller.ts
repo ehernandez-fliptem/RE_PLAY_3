@@ -631,12 +631,7 @@ export async function obtenerFormNuevoEmpleado(req: Request, res: Response): Pro
                                     $or: [
                                         { $in: ["$$empresaId", "$empresas"] },
                                         { $in: ["$_id", "$$empresaPuestos"] },
-                                        {
-                                            $and: [
-                                                { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] },
-                                                { $eq: [{ $size: { $ifNull: ["$$empresaPuestos", []] } }, 0] }
-                                            ]
-                                        }
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
                                     ]
                                 }
                             }
@@ -662,12 +657,7 @@ export async function obtenerFormNuevoEmpleado(req: Request, res: Response): Pro
                                     $or: [
                                         { $in: ["$$empresaId", "$empresas"] },
                                         { $in: ["$_id", "$$empresaDepartamentos"] },
-                                        {
-                                            $and: [
-                                                { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] },
-                                                { $eq: [{ $size: { $ifNull: ["$$empresaDepartamentos", []] } }, 0] }
-                                            ]
-                                        }
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
                                     ]
                                 }
                             }
@@ -693,12 +683,7 @@ export async function obtenerFormNuevoEmpleado(req: Request, res: Response): Pro
                                     $or: [
                                         { $in: ["$$empresaId", "$empresas"] },
                                         { $in: ["$_id", "$$empresaCubiculos"] },
-                                        {
-                                            $and: [
-                                                { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] },
-                                                { $eq: [{ $size: { $ifNull: ["$$empresaCubiculos", []] } }, 0] }
-                                            ]
-                                        }
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
                                     ]
                                 }
                             }
@@ -724,12 +709,7 @@ export async function obtenerFormNuevoEmpleado(req: Request, res: Response): Pro
                                     $or: [
                                         { $in: ["$$empresaId", "$empresas"] },
                                         { $in: ["$_id", "$$empresaAccesos"] },
-                                        {
-                                            $and: [
-                                                { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] },
-                                                { $eq: [{ $size: { $ifNull: ["$$empresaAccesos", []] } }, 0] }
-                                            ]
-                                        }
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
                                     ]
                                 }
                             }
@@ -837,12 +817,7 @@ export async function obtenerFormEditarEmpleado(req: Request, res: Response): Pr
                                     $or: [
                                         { $in: ["$$empresaId", "$empresas"] },
                                         { $in: ["$_id", "$$empresaPuestos"] },
-                                        {
-                                            $and: [
-                                                { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] },
-                                                { $eq: [{ $size: { $ifNull: ["$$empresaPuestos", []] } }, 0] }
-                                            ]
-                                        }
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
                                     ]
                                 }
                             }
@@ -868,12 +843,7 @@ export async function obtenerFormEditarEmpleado(req: Request, res: Response): Pr
                                     $or: [
                                         { $in: ["$$empresaId", "$empresas"] },
                                         { $in: ["$_id", "$$empresaDepartamentos"] },
-                                        {
-                                            $and: [
-                                                { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] },
-                                                { $eq: [{ $size: { $ifNull: ["$$empresaDepartamentos", []] } }, 0] }
-                                            ]
-                                        }
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
                                     ]
                                 }
                             }
@@ -899,12 +869,7 @@ export async function obtenerFormEditarEmpleado(req: Request, res: Response): Pr
                                     $or: [
                                         { $in: ["$$empresaId", "$empresas"] },
                                         { $in: ["$_id", "$$empresaCubiculos"] },
-                                        {
-                                            $and: [
-                                                { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] },
-                                                { $eq: [{ $size: { $ifNull: ["$$empresaCubiculos", []] } }, 0] }
-                                            ]
-                                        }
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
                                     ]
                                 }
                             }
@@ -930,12 +895,7 @@ export async function obtenerFormEditarEmpleado(req: Request, res: Response): Pr
                                     $or: [
                                         { $in: ["$$empresaId", "$empresas"] },
                                         { $in: ["$_id", "$$empresaAccesos"] },
-                                        {
-                                            $and: [
-                                                { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] },
-                                                { $eq: [{ $size: { $ifNull: ["$$empresaAccesos", []] } }, 0] }
-                                            ]
-                                        }
+                                        { $eq: [{ $size: { $ifNull: ["$empresas", []] } }, 0] }
                                     ]
                                 }
                             }
