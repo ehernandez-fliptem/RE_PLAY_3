@@ -461,6 +461,53 @@ export default function Camera({
             />
           </Fragment>
         )}
+        {!isScan && !webcamError.estado && (
+          <Box
+            sx={{
+              position: "absolute",
+              inset: 0,
+              pointerEvents: "none",
+              zIndex: 5,
+              background:
+                "radial-gradient(ellipse at center, rgba(0,0,0,0) 0 45%, rgba(0,0,0,0.45) 46%)",
+            }}
+          >
+            <Box
+              sx={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Box
+                sx={{
+                  width: "62%",
+                  height: "78%",
+                  borderRadius: "50%",
+                  border: "2px solid rgba(255,255,255,0.85)",
+                  boxShadow: "0 0 0 2px rgba(0,0,0,0.2) inset",
+                }}
+              />
+            </Box>
+            <Box
+              sx={{
+                position: "absolute",
+                bottom: 12,
+                left: 0,
+                right: 0,
+                textAlign: "center",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 600,
+                textShadow: "0 1px 2px rgba(0,0,0,0.6)",
+              }}
+            >
+              Centra tu cara dentro del Ã³valo
+            </Box>
+          </Box>
+        )}
       </Box>
       {deviceId && !disabledDevicesMenu && !discretMenuDevices && (
         <Box
