@@ -6,11 +6,13 @@ import fs from "fs";
 import { UserRequest } from "../types/express";
 import { QueryParams } from "../types/queryparams";
 import Contratistas from "../models/Contratistas";
+import Usuarios from "../models/Usuarios";
 import ContratistaVisitantes, { IContratistaVisitante } from "../models/ContratistaVisitantes";
 import { fecha, log } from "../middlewares/log";
 import { customAggregationForDataGrids, isEmptyObject } from "../utils/utils";
 import { validarModelo } from "../validators/validadores";
 import { CONFIG } from "../config";
+import { enviarCorreoRechazoVisitanteContratista } from "../utils/correos";
 
 const DOC_KEYS = [
     "identificacion_oficial",
@@ -25,6 +27,17 @@ const DOC_KEYS = [
 
 type DocChecks = Record<(typeof DOC_KEYS)[number], boolean>;
 
+const DOC_LABELS: Record<(typeof DOC_KEYS)[number], string> = {
+    identificacion_oficial: "Identificación oficial",
+    sua: "SUA",
+    permiso_entrada: "Permiso de entrada",
+    lista_articulos: "Lista de artículos",
+    repse: "REPSE",
+    soporte_pago_actualizado: "Soporte de pago actualizado",
+    constancia_vigencia_imss: "Constancia de vigencia IMSS",
+    constancias_habilidades: "Constancias de habilidades",
+};
+
 const normalizeDocChecks = (value?: Partial<DocChecks> | null): DocChecks => ({
     identificacion_oficial: Boolean(value?.identificacion_oficial),
     sua: Boolean(value?.sua),
@@ -35,6 +48,9 @@ const normalizeDocChecks = (value?: Partial<DocChecks> | null): DocChecks => ({
     constancia_vigencia_imss: Boolean(value?.constancia_vigencia_imss),
     constancias_habilidades: Boolean(value?.constancias_habilidades),
 });
+
+const areDocChecksComplete = (value?: Partial<DocChecks> | null): boolean =>
+    DOC_KEYS.every((key) => Boolean(value?.[key]));
 
 const calcularHashVisitante = (payload: {
     nombre?: string;
@@ -77,7 +93,13 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
             return;
         }
 
-        const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string };
+        const { filter, pagination, sort, docs_estado, solo_pendientes } = req.query as {
+            filter: string;
+            pagination: string;
+            sort: string;
+            docs_estado?: string;
+            solo_pendientes?: string;
+        };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
         const querySort = JSON.parse(sort) as QueryParams["sort"];
         const queryPagination = JSON.parse(pagination) as QueryParams["pagination"];
@@ -100,6 +122,18 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                             input: { $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"] },
                         },
                     },
+                    docs_completos: {
+                        $and: [
+                            { $ifNull: ["$documentos_checks.identificacion_oficial", false] },
+                            { $ifNull: ["$documentos_checks.sua", false] },
+                            { $ifNull: ["$documentos_checks.permiso_entrada", false] },
+                            { $ifNull: ["$documentos_checks.lista_articulos", false] },
+                            { $ifNull: ["$documentos_checks.repse", false] },
+                            { $ifNull: ["$documentos_checks.soporte_pago_actualizado", false] },
+                            { $ifNull: ["$documentos_checks.constancia_vigencia_imss", false] },
+                            { $ifNull: ["$documentos_checks.constancias_habilidades", false] },
+                        ],
+                    },
                 },
             },
             {
@@ -112,12 +146,21 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                     telefono: 1,
                     empresa: 1,
                     documentos_checks: 1,
+                    docs_completos: 1,
                     estado_validacion: 1,
                     fecha_creacion: 1,
                     activo: 1,
                 },
             },
         ];
+        if (docs_estado === "completo") {
+            aggregation.push({ $match: { docs_completos: true } });
+        } else if (docs_estado === "incompleto") {
+            aggregation.push({ $match: { docs_completos: false } });
+        }
+        if (solo_pendientes === "1") {
+            aggregation.push({ $match: { estado_validacion: 1 } });
+        }
         if (filterMDB.length > 0) {
             aggregation.push({ $match: { $or: filterMDB } });
         }
@@ -279,6 +322,136 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             { $set: updateData },
             { new: true, runValidators: true }
         );
+        res.status(200).json({ estado: true, datos: actualizado });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function verificar(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const role = (req as UserRequest).role || [];
+        const contratista = role.includes(11)
+            ? await obtenerContratistaDeUsuario(String(id_usuario))
+            : null;
+        if (role.includes(11) && !contratista) {
+            res.status(200).json({ estado: false, mensaje: "Contratista no encontrado." });
+            return;
+        }
+        const registro = await ContratistaVisitantes.findOne(
+            contratista
+                ? { _id: req.params.id, id_contratista: contratista._id }
+                : { _id: req.params.id }
+        );
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Visitante no encontrado." });
+            return;
+        }
+
+        const mergedChecks = normalizeDocChecks({
+            ...(registro.documentos_checks || {}),
+            ...(req.body?.documentos_checks || {}),
+        });
+
+        const checks = mergedChecks;
+        if (!areDocChecksComplete(checks)) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No puedes verificar un visitante sin todos los documentos.",
+            });
+            return;
+        }
+
+        const now = new Date();
+        const actualizado = await ContratistaVisitantes.findByIdAndUpdate(
+            registro._id,
+            {
+                $set: {
+                    estado_validacion: 2,
+                    hash_ultimo_aprobado: registro.hash_datos || "",
+                    fecha_validacion: now,
+                    validado_por: id_usuario as any,
+                    documentos_checks: checks,
+                },
+            },
+            { new: true }
+        );
+
+        res.status(200).json({ estado: true, datos: actualizado });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function rechazar(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const role = (req as UserRequest).role || [];
+        const { motivo_rechazo } = req.body as { motivo_rechazo?: string };
+        if (!motivo_rechazo || !String(motivo_rechazo).trim()) {
+            res.status(200).json({ estado: false, mensaje: "El motivo de rechazo es obligatorio." });
+            return;
+        }
+
+        const contratista = role.includes(11)
+            ? await obtenerContratistaDeUsuario(String(id_usuario))
+            : null;
+        if (role.includes(11) && !contratista) {
+            res.status(200).json({ estado: false, mensaje: "Contratista no encontrado." });
+            return;
+        }
+        const registro = await ContratistaVisitantes.findOne(
+            contratista
+                ? { _id: req.params.id, id_contratista: contratista._id }
+                : { _id: req.params.id }
+        );
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Visitante no encontrado." });
+            return;
+        }
+
+        const checks = normalizeDocChecks({
+            ...(registro.documentos_checks || {}),
+            ...(req.body?.documentos_checks || {}),
+        });
+
+        const now = new Date();
+        const actualizado = await ContratistaVisitantes.findByIdAndUpdate(
+            registro._id,
+            {
+                $set: {
+                    estado_validacion: 3,
+                    motivo_rechazo: String(motivo_rechazo).trim(),
+                    fecha_validacion: now,
+                    validado_por: id_usuario as any,
+                    documentos_checks: checks,
+                },
+            },
+            { new: true }
+        );
+
+        const contratistaRegistro = contratista || (await Contratistas.findById(registro.id_contratista));
+        let correos = (contratistaRegistro?.correos || []).filter(Boolean);
+        if (contratistaRegistro?.id_usuario) {
+            const usuario = await Usuarios.findById(contratistaRegistro.id_usuario, "correo").lean();
+            if (usuario?.correo) correos.push(String(usuario.correo));
+        }
+        correos = Array.from(new Set(correos.map((c) => String(c).trim().toLowerCase()).filter(Boolean)));
+
+        const faltantes = DOC_KEYS.filter((key) => !checks[key]).map((key) => DOC_LABELS[key]);
+        if (correos.length > 0) {
+            await enviarCorreoRechazoVisitanteContratista({
+                correos,
+                empresa: contratistaRegistro?.empresa || registro.empresa,
+                visitante: `${registro.nombre} ${registro.apellido_pat} ${registro.apellido_mat || ""}`.trim(),
+                motivo: String(motivo_rechazo).trim(),
+                faltantes,
+            });
+        }
+
         res.status(200).json({ estado: true, datos: actualizado });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);

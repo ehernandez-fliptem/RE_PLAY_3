@@ -1740,3 +1740,152 @@ export async function enviarCorreoNuevaLigaCita(
         throw error;
     }
 }
+
+/**
+ * @function
+ * @name enviarCorreoContratistaAcceso
+ * @description Correo de acceso para contratistas (usuario manager).
+ */
+export async function enviarCorreoContratistaAcceso(
+    correo: string,
+    contrasena: string,
+    empresa: string,
+    qr: string
+): Promise<boolean> {
+    try {
+        const asunto = "Acceso portal de contratistas";
+        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
+        if (!config) throw new Error("No hay un configuración establecida.");
+        const { saludaCorreo, despedidaCorreo } = config;
+
+        const response = await sendEmail({
+            destinatario: correo,
+            asunto,
+            contenido: `
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                        <td>
+                            <table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
+                                <tr>
+                                    <td bgcolor="#ffffff">
+                                        <h1 align="center">${asunto}</h1>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>${saludaCorreo}</td>
+                                </tr>
+                                <tr>
+                                    <td><br>Se ha creado una cuenta para el portal de contratistas.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Empresa: </strong> ${empresa}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Correo: </strong> ${correo}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Contraseña: </strong> ${contrasena}</td>
+                                </tr>
+                                <tr>
+                                    <td><br>Para ingresar al portal haz clic en el siguiente enlace: <a href="${CONFIG.ENDPOINT}"><b>Portal de contratistas</b></a></td>
+                                </tr>
+                                <tr>
+                                    <br><br>
+                                    <td><strong>Código QR para check-in: </strong></td>
+                                    <br><br>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <div align="center"><img src="cid:qr" style="width:150px"></div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><div align="center"><p>${despedidaCorreo}</p></div><br></td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>`,
+            plusAttachments: [
+                {
+                    dataUrl: qr,
+                    cid: "qr",
+                    filename: "qr.png",
+                },
+            ],
+        });
+        return response;
+    } catch (error) {
+        console.error("Error en enviarCorreoContratistaAcceso:", error);
+        return false;
+    }
+}
+
+/**
+ * @function
+ * @name enviarCorreoRechazoVisitanteContratista
+ * @description Notifica rechazo de documentos de visitante al contratista.
+ */
+export async function enviarCorreoRechazoVisitanteContratista(datos: {
+    correos: string[];
+    empresa: string;
+    visitante: string;
+    motivo: string;
+    faltantes: string[];
+}): Promise<boolean> {
+    try {
+        const asunto = "Documentación incompleta - visitante";
+        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
+        if (!config) throw new Error("No hay un configuración establecida.");
+        const { saludaCorreo, despedidaCorreo } = config;
+        const destinatario = datos.correos.join(", ");
+        const faltantes = datos.faltantes?.length ? datos.faltantes.join(", ") : "No especificado";
+
+        const response = await sendEmail({
+            destinatario,
+            asunto,
+            contenido: `
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                        <td>
+                            <table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
+                                <tr>
+                                    <td bgcolor="#ffffff">
+                                        <h1 align="center">${asunto}</h1>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>${saludaCorreo}</td>
+                                </tr>
+                                <tr>
+                                    <td><br>Se rechazó la documentación de un visitante.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Empresa: </strong> ${datos.empresa}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Visitante: </strong> ${datos.visitante}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Documentos faltantes: </strong> ${faltantes}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Motivo: </strong> ${datos.motivo}</td>
+                                </tr>
+                                <tr>
+                                    <td><br>Favor de corregir y volver a enviar la información.</td>
+                                </tr>
+                                <tr>
+                                    <td><div align="center"><p>${despedidaCorreo}</p></div><br></td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>`,
+        });
+        return response;
+    } catch (error) {
+        console.error("Error en enviarCorreoRechazoVisitanteContratista:", error);
+        return false;
+    }
+}

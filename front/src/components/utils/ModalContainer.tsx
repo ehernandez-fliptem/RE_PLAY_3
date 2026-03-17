@@ -29,10 +29,24 @@ export default function ModalContainer({
   };
 
   return (
-    <Modal open onClose={handleClose} {...modalProps}>
+    <Modal
+      open
+      onClose={handleClose}
+      sx={{
+        outline: "none",
+        "&:focus, &:focus-visible": { outline: "none" },
+      }}
+      {...modalProps}
+    >
       <Container
         component="div"
-        sx={{ overflow: "auto", height: "100%", paddingX: 0 }}
+        sx={{
+          overflow: "auto",
+          height: "100%",
+          paddingX: 0,
+          outline: "none",
+          "&:focus, &:focus-visible": { outline: "none" },
+        }}
         disableGutters
         {...containerProps}
       >

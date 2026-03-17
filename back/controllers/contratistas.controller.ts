@@ -10,7 +10,7 @@ import Roles from "../models/Roles";
 import { fecha, log } from "../middlewares/log";
 import { customAggregationForDataGrids, generarCodigoUnico, isEmptyObject, cleanObject } from "../utils/utils";
 import { validarModelo } from "../validators/validadores";
-import { enviarCorreoUsuario } from "../utils/correos";
+import { enviarCorreoContratistaAcceso } from "../utils/correos";
 
 const ROL_CONTRATISTA = 11;
 
@@ -221,7 +221,12 @@ export async function crear(req: Request, res: Response): Promise<void> {
         });
         const roles = await Roles.find({ rol: { $in: [ROL_CONTRATISTA] }, activo: true }, "nombre");
         const rolesString = roles.map((item) => item.nombre).join(" - ");
-        const resultEnvioUsuario = await enviarCorreoUsuario(correoNormalizado, contrasena, rolesString, QR);
+        const resultEnvioUsuario = await enviarCorreoContratistaAcceso(
+            correoNormalizado,
+            contrasena,
+            empresa,
+            QR
+        );
 
         res.status(200).json({ estado: true, datos: { contratista: true, correoUsuario: resultEnvioUsuario } });
     } catch (error: any) {
