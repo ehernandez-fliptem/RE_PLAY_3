@@ -84,6 +84,7 @@ import DetalleContratistasSolicitud from "./contratistas/solicitudes/DetalleCont
 import PortalVisitantes from "./contratistas/portal/Visitantes";
 import NuevoPortalVisitante from "./contratistas/portal/NuevoVisitante";
 import EditarPortalVisitante from "./contratistas/portal/EditarVisitante";
+import DetallePortalVisitante from "./contratistas/portal/DetalleVisitante";
 import CargaVisitantesContratistas from "./contratistas/portal/CargaVisitantes";
 import PortalSolicitudes from "./contratistas/portal/Solicitudes";
 import NuevaPortalSolicitud from "./contratistas/portal/NuevaSolicitud";
@@ -282,6 +283,10 @@ export default function Routes() {
             {
               path: "editar/:id",
               element: esContratista || esSuper ? <EditarPortalVisitante /> : <Unauthorized />,
+            },
+            {
+              path: "detalle/:id",
+              element: esContratista || esSuper ? <DetallePortalVisitante /> : <Unauthorized />,
             },
             {
               path: "carga-masiva",

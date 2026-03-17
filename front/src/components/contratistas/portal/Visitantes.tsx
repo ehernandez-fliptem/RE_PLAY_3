@@ -85,6 +85,10 @@ export default function PortalVisitantes() {
     navigate(`editar/${ID}`);
   };
 
+  const verRegistro = (ID: string) => {
+    navigate(`detalle/${ID}`);
+  };
+
   const cargaMasiva = () => {
     navigate("carga-masiva");
   };
@@ -102,6 +106,8 @@ export default function PortalVisitantes() {
             flex: 1,
             display: "flex",
             minWidth: 180,
+            valueFormatter: (value?: string) =>
+              value && String(value).trim() ? String(value) : "-",
           },
           {
             headerName: "Correo",
@@ -109,6 +115,8 @@ export default function PortalVisitantes() {
             flex: 1,
             display: "flex",
             minWidth: 200,
+            valueFormatter: (value?: string) =>
+              value && String(value).trim() ? String(value) : "-",
           },
           {
             headerName: "Teléfono",
@@ -116,6 +124,8 @@ export default function PortalVisitantes() {
             flex: 1,
             display: "flex",
             minWidth: 140,
+            valueFormatter: (value?: string) =>
+              value && String(value).trim() ? String(value) : "-",
           },
           {
             headerName: "Estado",
@@ -141,7 +151,7 @@ export default function PortalVisitantes() {
               gridActions.push(
                 <GridActionsCellItem
                   icon={<Visibility color="primary" />}
-                  onClick={() => editarRegistro(row._id)}
+                  onClick={() => verRegistro(row._id)}
                   label="Ver"
                   title="Ver"
                 />
