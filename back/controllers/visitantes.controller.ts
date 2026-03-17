@@ -247,7 +247,10 @@ const didDocChecksChange = (
      * - Los paneles caídos se omiten
      */
     async function hvSetValidForEmployee(employeeNo: string, valid: { enable: boolean; beginTime: string; endTime: string }) {
-    const paneles = await DispositivosHv.find({ activo: true }, { direccion_ip: 1 }).lean();
+    const paneles = await DispositivosHv.find(
+        { activo: true },
+        { direccion_ip: 1, usuario: 1, contrasena: 1 }
+    ).lean();
 
     const panelesOrdenados = [...paneles].sort((a: any, b: any) => {
         const aLocal = String(a.direccion_ip).startsWith("192.168.100.");
@@ -257,6 +260,10 @@ const didDocChecksChange = (
 
     for (const panel of panelesOrdenados as any[]) {
         const ip = panel.direccion_ip;
+        const hvUser = panel.usuario || "admin";
+        const hvPass = panel.contrasena
+            ? decryptPassword(panel.contrasena, CONFIG.SECRET_CRYPTO)
+            : "";
 
         // quick check
         try {
@@ -264,7 +271,7 @@ const didDocChecksChange = (
             "--silent", "--show-error", "--fail-with-body",
             "--connect-timeout", "1",
             "--max-time", "2",
-            "--digest", "-u", `${HV_USER}:${HV_PASS}`,
+            "--digest", "-u", `${hvUser}:${hvPass}`,
             "-X", "GET",
             `http://${ip}/ISAPI/System/deviceInfo`,
         ]);
@@ -291,7 +298,7 @@ const didDocChecksChange = (
         await runCurl([
             "--silent", "--show-error", "--fail-with-body",
             "--insecure",
-            "--digest", "-u", `${HV_USER}:${HV_PASS}`,
+            "--digest", "-u", `${hvUser}:${hvPass}`,
             "-H", "Content-Type: application/json",
             "-X", "PUT",
             urlModify,
