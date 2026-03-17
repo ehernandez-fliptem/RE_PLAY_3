@@ -30,6 +30,7 @@ import {
   Margin,
   WebStories,
   VideoCameraFront,
+  Engineering,
 } from "@mui/icons-material";
 
 const mainMenu = [
@@ -101,6 +102,50 @@ const mainMenu = [
     rol: [1, 2, 4, 5],
     icon: <Group fontSize="small" />,
     path: "/visitantes",
+  },
+  {
+    id: 8,
+    title: "Portal Contratistas",
+    rol: [1, 11],
+    icon: <Engineering fontSize="small" />,
+    submenu: [
+      {
+        id: 8.1,
+        title: "Mi Catálogo",
+        rol: [1, 11],
+        icon: <Engineering fontSize="small" />,
+        path: "/portal-contratistas/visitantes",
+      },
+      {
+        id: 8.2,
+        title: "Solicitudes",
+        rol: [1, 11],
+        icon: <Engineering fontSize="small" />,
+        path: "/portal-contratistas/solicitudes",
+      },
+    ],
+  },
+  {
+    id: 9,
+    title: "Contratistas",
+    rol: [1],
+    icon: <Engineering fontSize="small" />,
+    submenu: [
+      {
+        id: 9.1,
+        title: "Alta de Contratistas",
+        rol: [1],
+        icon: <Engineering fontSize="small" />,
+        path: "/contratistas",
+      },
+      {
+        id: 9.2,
+        title: "Solicitudes Contratistas",
+        rol: [1, 2],
+        icon: <Engineering fontSize="small" />,
+        path: "/contratistas/solicitudes",
+      },
+    ],
   },
   {
     id: 0.8,

@@ -40,7 +40,23 @@ export async function connectDB(): Promise<void> {
                 { tipo: 2, nombre: 'SUA', descripcion: "Sitema Único de Determinación expedido por el IMSS", color: "#107A00", extensiones: ["pdf"] },
                 { tipo: 3, nombre: 'Permiso de entrada', descripcion: "Permiso expedido para ingresar a las instalaciones", color: "#51008F", extensiones: ["pdf"] },
                 { tipo: 4, nombre: 'Lista de artículos', descripcion: "Listado de artículos para la visita", color: "#892400", extensiones: ["pdf"] },
+                { tipo: 5, nombre: 'REPSE', descripcion: "Registro de Prestadoras de Servicios Especializados u Obras Especializadas", color: "#1B5E20", extensiones: ["pdf"] },
+                { tipo: 6, nombre: 'Soporte de pago actualizado', descripcion: "Comprobante de pago actualizado", color: "#0D47A1", extensiones: ["pdf"] },
+                { tipo: 7, nombre: 'Constancia de Vigencia IMSS', descripcion: "Constancia de Vigencia de Derechos ante el IMSS", color: "#4E342E", extensiones: ["pdf"] },
+                { tipo: 8, nombre: 'Constancias de Habilidades', descripcion: "Constancias de Habilidades Laborales aplicables", color: "#6A1B9A", extensiones: ["pdf"] },
             ]);
+        }
+        if (validarTiposDocs > 0) {
+            const extras = [
+                { tipo: 5, nombre: 'REPSE', descripcion: "Registro de Prestadoras de Servicios Especializados u Obras Especializadas", color: "#1B5E20", extensiones: ["pdf"] },
+                { tipo: 6, nombre: 'Soporte de pago actualizado', descripcion: "Comprobante de pago actualizado", color: "#0D47A1", extensiones: ["pdf"] },
+                { tipo: 7, nombre: 'Constancia de Vigencia IMSS', descripcion: "Constancia de Vigencia de Derechos ante el IMSS", color: "#4E342E", extensiones: ["pdf"] },
+                { tipo: 8, nombre: 'Constancias de Habilidades', descripcion: "Constancias de Habilidades Laborales aplicables", color: "#6A1B9A", extensiones: ["pdf"] },
+            ];
+            for (const item of extras) {
+                const existe = await TiposDocumentos.findOne({ tipo: item.tipo }, "_id").lean();
+                if (!existe) await TiposDocumentos.create(item);
+            }
         }
         if (validarTiposEven === 0) {
             await TiposEventos.insertMany([
@@ -64,7 +80,14 @@ export async function connectDB(): Promise<void> {
                 { rol: 6, nombre: 'Asistencia', color: "#00AB64" },
                 { rol: 7, nombre: 'Validador', color: "#850062" },
                 { rol: 10, nombre: 'Visitante', color: "#1C344E" },
+                { rol: 11, nombre: 'Contratista', color: "#2C6B2F" },
             ]);
+        }
+        if (validarRoles > 0) {
+            const existeContratista = await Roles.findOne({ rol: 11 }, "_id").lean();
+            if (!existeContratista) {
+                await Roles.create({ rol: 11, nombre: 'Contratista', color: "#2C6B2F" });
+            }
         }
         if (validarTiposDisp === 0) {
             await TiposDispositivos.insertMany([

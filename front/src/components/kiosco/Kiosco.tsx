@@ -34,7 +34,6 @@ import {
   ArrowUpward,
   ChevronLeft,
   ChevronRight,
-  WarningAmber,
 } from "@mui/icons-material";
 import ErrorOverlay from "../error/DataGridError";
 import SearchInput from "../recepcion/bitacora/utils/SearchInput";
@@ -73,13 +72,6 @@ type ARGS = {
   datos: IRegistro;
 };
 
-type IPanelAlerta = {
-  _id: string;
-  nombre: string;
-  direccion_ip?: string;
-  reloj_offset_segundos?: number;
-  reloj_ultimo_desfase_segundos?: number;
-};
 
 const pageSizeOptions = [12, 24, 48];
 const KIOSCO_PANEL_STORAGE_KEY = "SELECTED_KIOSCO_PANEL";
@@ -103,11 +95,9 @@ const hasImage = (value?: string) => Boolean(value && value.trim().length > 0);
 
 export default function Kiosco() {
   const socket = useSelector((state: IRootState) => state.ws.data);
-  const { rol, esRoot } = useSelector((state: IRootState) => state.auth.data);
   const { tipos_eventos } = useSelector(
     (state: IRootState) => state.config.data
   );
-  const puedeVerAlertasReloj = esRoot && rol.includes(1);
   const [error, setError] = useState<string>();
   const [cargando, setCargando] = useState(false);
   const [ROWS, setRows] = useState<IRegistro[]>([]);
@@ -126,7 +116,6 @@ export default function Kiosco() {
   const [panelFilter, setPanelFilter] = useState<string>(
     localStorage.getItem(KIOSCO_PANEL_STORAGE_KEY) || "all"
   );
-  const [alertasReloj, setAlertasReloj] = useState<IPanelAlerta[]>([]);
   const [sort, setSort] = useState<GridSortModel>([
     { field: "fecha_creacion", sort: "desc" },
   ]);
@@ -186,25 +175,6 @@ export default function Kiosco() {
     obtenerRegistros();
   }, [obtenerRegistros]);
 
-  useEffect(() => {
-    if (!puedeVerAlertasReloj) {
-      setAlertasReloj([]);
-      return;
-    }
-    const obtenerAlertasReloj = async () => {
-      try {
-        const res = await clienteAxios.get("/api/eventos/paneles-alerta-reloj");
-        if (res.data?.estado) {
-          setAlertasReloj(res.data.datos || []);
-        } else {
-          setAlertasReloj([]);
-        }
-      } catch {
-        setAlertasReloj([]);
-      }
-    };
-    obtenerAlertasReloj();
-  }, [puedeVerAlertasReloj]);
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
@@ -440,7 +410,11 @@ export default function Kiosco() {
 
   return (
     <Fragment>
-      {puedeVerAlertasReloj && alertasReloj.length > 0 && (
+      {/* 
+        Alertas de reloj en paneles (desactivado temporalmente para evitar ruido).
+        Rehabilitar cuando se quiera volver a ver avisos por desfase de hora.
+      */}
+      {/* {puedeVerAlertasReloj && alertasReloj.length > 0 && (
         <Box component="section" sx={{ mb: 2 }}>
           <Card
             elevation={0}
@@ -471,7 +445,7 @@ export default function Kiosco() {
             </CardContent>
           </Card>
         </Box>
-      )}
+      )} */}
       <Box
         component="section"
         position="relative"

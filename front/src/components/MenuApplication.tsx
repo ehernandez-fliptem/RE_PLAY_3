@@ -173,23 +173,26 @@ export default function MenuApplication({ children }: MenuProps) {
           navigate("/eventos");
         }
       }
+      let matched = false;
       for (const menu of mainMenu) {
         if (menu.submenu) {
           const foundSubMenu = menu.submenu.find(
-            (subM) => `/${path}` === subM.path
+            (subM) => pathname.startsWith(subM.path)
           );
           if (foundSubMenu) {
             setOpenItemList({ [Math.trunc(foundSubMenu.id)]: true });
             setSelectedIndex(foundSubMenu.id);
+            matched = true;
             break;
           }
-        } else if (`/${path}` === menu.path) {
+        } else if (pathname.startsWith(menu.path)) {
           setSelectedIndex(menu.id);
+          matched = true;
           break;
-        } else {
-          setSelectedIndex(0);
-          setOpenItemList({ 0: false });
         }
+      }
+      if (!matched && pathname === "/") {
+        setSelectedIndex(0);
       }
 
       const currentPageIndex = localStorage.getItem("PAGE_INDEX");
@@ -446,7 +449,7 @@ export default function MenuApplication({ children }: MenuProps) {
               >
                 <ListItem disablePadding disableGutters>
                   <ListItemButton
-                    selected={selectedIndex === item.id}
+                    selected={!item.submenu && selectedIndex === item.id}
                     onClick={() => handleListItemClick(item.id)}
                   >
                     <ListItemIcon
@@ -476,7 +479,7 @@ export default function MenuApplication({ children }: MenuProps) {
                     <ListItem disablePadding disableGutters>
                       <ListItemButton
                         key={item.id}
-                        selected={selectedIndex === item.id}
+                        selected={false}
                         onClick={() => handleClick(item.id)}
                       >
                         <ListItemIcon
@@ -504,6 +507,16 @@ export default function MenuApplication({ children }: MenuProps) {
                       </ListItemButton>
                     </ListItem>
                     {item.submenu?.map((subItem) => {
+                      const activeSubId = item.submenu
+                        ? item.submenu.reduce((acc, sub) => {
+                            const isMatch =
+                              location.pathname === sub.path ||
+                              location.pathname.startsWith(`${sub.path}/`);
+                            if (!isMatch) return acc;
+                            if (!acc) return sub;
+                            return sub.path.length > acc.path.length ? sub : acc;
+                          }, null as null | { id: number; path: string })
+                        : null;
                       let seeSubItem = obtenerDuplicados(rol, subItem.rol);
                       if (subItem.id === 99.1 && rol.includes(1))
                         seeSubItem = habilitarIntegracionHv;
@@ -527,7 +540,7 @@ export default function MenuApplication({ children }: MenuProps) {
                                   <ListItem disablePadding disableGutters>
                                     <ListItemButton
                                       sx={{ pl: 3 }}
-                                      selected={selectedIndex === subItem.id}
+                                      selected={activeSubId?.id === subItem.id}
                                       onClick={() =>
                                         handleListItemClick(subItem.id)
                                       }

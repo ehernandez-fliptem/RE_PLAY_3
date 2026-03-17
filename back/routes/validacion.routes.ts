@@ -20,7 +20,7 @@ import {
 const router = Router();
 
 router.get("/app", validarApp);
-router.get("/session-config", validarTokenYRol([1, 2, 4, 5, 10]), obtenerInformacioAppYSesion);
+router.get("/session-config", validarTokenYRol([1, 2, 4, 5, 10, 11]), obtenerInformacioAppYSesion);
 router.get("/generales", obtenerGenerales);
 router.get("/accesos", obtenerTodosAccesos);
 router.get("/pisos", obtenerTodosPisos);

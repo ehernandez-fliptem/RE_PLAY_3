@@ -1,4 +1,4 @@
-import { useRoutes } from "react-router-dom";
+import { useRoutes, Navigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../app/store";
 import Logout from "./auth/Logout";
@@ -75,6 +75,19 @@ import Cubiculos from "./catalogos/cubiculos/Cubiculos";
 import NuevoCubiculo from "./catalogos/cubiculos/NuevoCubiculo";
 import EditarCubiculo from "./catalogos/cubiculos/EditarCubiculo";
 import DetalleCubiculo from "./catalogos/cubiculos/DetalleCubiculo";
+import Contratistas from "./contratistas/Contratistas";
+import NuevoContratista from "./contratistas/NuevoContratista";
+import EditarContratista from "./contratistas/EditarContratista";
+import DetalleContratista from "./contratistas/DetalleContratista";
+import ContratistasSolicitudes from "./contratistas/solicitudes/ContratistasSolicitudes";
+import DetalleContratistasSolicitud from "./contratistas/solicitudes/DetalleContratistasSolicitud";
+import PortalVisitantes from "./contratistas/portal/Visitantes";
+import NuevoPortalVisitante from "./contratistas/portal/NuevoVisitante";
+import EditarPortalVisitante from "./contratistas/portal/EditarVisitante";
+import CargaVisitantesContratistas from "./contratistas/portal/CargaVisitantes";
+import PortalSolicitudes from "./contratistas/portal/Solicitudes";
+import NuevaPortalSolicitud from "./contratistas/portal/NuevaSolicitud";
+import DetallePortalSolicitud from "./contratistas/portal/DetalleSolicitud";
 
 import Kiosco from "./kiosco/Kiosco";
 import Bot from "./controlAcceso/bot/Bot";
@@ -93,15 +106,20 @@ export default function Routes() {
   const esAnfitrion = rol.includes(4);
   const esRecep = rol.includes(5);
   const esVisit = rol.includes(10);
+  const esContratista = rol.includes(11);
   const puedeAdmin = esSuper || esAdmin;
   const puedeKiosco = esSuper || esAdmin || esRecep;
   const puedeVisitantes = esSuper || esAdmin || esAnfitrion || esRecep;
-  const usuarioSistema = esSuper || esAdmin || esAnfitrion || esRecep;
+  const usuarioSistema = esSuper || esAdmin || esAnfitrion || esRecep || esContratista;
 
   return useRoutes([
     {
       path: "/",
-      element: usuarioSistema ? <Dashboard /> : <Unauthorized />,
+      element: usuarioSistema ? (
+        esContratista ? <Navigate to="/portal-contratistas/solicitudes" replace /> : <Dashboard />
+      ) : (
+        <Unauthorized />
+      ),
     },
     {
       path: "/logout",
@@ -195,6 +213,93 @@ export default function Routes() {
             {
               path: "detalle-empresa/:id",
               element: puedeAdmin ? <DetalleEmpresa /> : <Unauthorized />,
+            },
+          ],
+        },
+        {
+          path: "*",
+          element: <Unknown />,
+        },
+      ],
+    },
+    {
+      path: "/contratistas",
+      children: [
+        {
+          path: "",
+          element: esSuper ? <Contratistas /> : <Unauthorized />,
+          children: [
+            {
+              path: "nuevo-contratista",
+              element: esSuper ? <NuevoContratista /> : <Unauthorized />,
+            },
+            {
+              path: "editar-contratista/:id",
+              element: esSuper ? <EditarContratista /> : <Unauthorized />,
+            },
+            {
+              path: "detalle-contratista/:id",
+              element: esSuper ? <DetalleContratista /> : <Unauthorized />,
+            },
+          ],
+        },
+        {
+          path: "*",
+          element: <Unknown />,
+        },
+      ],
+    },
+    {
+      path: "/contratistas/solicitudes",
+      children: [
+        {
+          path: "",
+          element: puedeAdmin ? <ContratistasSolicitudes /> : <Unauthorized />,
+          children: [
+            {
+              path: "detalle/:id",
+              element: puedeAdmin ? <DetalleContratistasSolicitud /> : <Unauthorized />,
+            },
+          ],
+        },
+        {
+          path: "*",
+          element: <Unknown />,
+        },
+      ],
+    },
+    {
+      path: "/portal-contratistas",
+      children: [
+        {
+          path: "visitantes",
+          element: esContratista || esSuper ? <PortalVisitantes /> : <Unauthorized />,
+          children: [
+            {
+              path: "nuevo",
+              element: esContratista || esSuper ? <NuevoPortalVisitante /> : <Unauthorized />,
+            },
+            {
+              path: "editar/:id",
+              element: esContratista || esSuper ? <EditarPortalVisitante /> : <Unauthorized />,
+            },
+            {
+              path: "carga-masiva",
+              element: esContratista || esSuper ? <CargaVisitantesContratistas /> : <Unauthorized />,
+            },
+          ],
+        },
+        {
+          path: "solicitudes",
+          element: esContratista || esSuper ? <PortalSolicitudes /> : <Unauthorized />,
+          children: [
+            {
+              path: "nueva",
+              element: esContratista || esSuper ? <NuevaPortalSolicitud /> : <Unauthorized />,
+            },
+            {
+              path: "detalle/:id",
+              element: esContratista || esSuper ? <DetallePortalSolicitud /> : <Unauthorized />,
             },
           ],
         },

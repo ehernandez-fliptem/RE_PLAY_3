@@ -4,6 +4,7 @@ export const ROLE_LABELS: Record<number, string> = {
   4: "Anfitrión",
   5: "Recepción",
   10: "Visitante",
+  11: "Contratista",
 };
 
 export function getRoleLabel(id: number, fallback?: string) {
