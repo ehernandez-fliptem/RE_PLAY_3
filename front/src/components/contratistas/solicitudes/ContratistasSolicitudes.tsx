@@ -24,7 +24,7 @@ const getEstadoLabel = (estado?: number) => {
   if (estado === 2) return { label: "Aprobada", color: "success" as const };
   if (estado === 3) return { label: "Rechazada", color: "error" as const };
   if (estado === 4) return { label: "Parcial", color: "warning" as const };
-  return { label: "Pendiente", color: "warning" as const };
+  return { label: "Pendiente de verificar", color: "warning" as const };
 };
 
 export default function ContratistasSolicitudes() {
@@ -137,8 +137,8 @@ export default function ContratistasSolicitudes() {
               <GridActionsCellItem
                 icon={<Visibility color="primary" />}
                 onClick={() => verRegistro(row._id)}
-                label="Ver"
-                title="Ver"
+                label="Ver solicitud"
+                title="Ver solicitud"
               />,
             ],
           },

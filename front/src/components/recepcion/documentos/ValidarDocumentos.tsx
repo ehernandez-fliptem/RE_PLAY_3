@@ -91,7 +91,7 @@ const ESTATUS: Record<
   number,
   { nombre: string; color: "warning" | "error" | "success" }
 > = {
-  1: { nombre: "Por validar", color: "warning" },
+  1: { nombre: "Pendiente de documento", color: "warning" },
   2: { nombre: "Rechazado", color: "error" },
   3: { nombre: "Aceptado", color: "success" },
 };
@@ -470,16 +470,16 @@ export default function ValidarDocumentos() {
                   <GridActionsCellItem
                     icon={<Visibility color="primary" />}
                     onClick={() => verRegistro(row._id)}
-                    label="Ver"
-                    title="Ver"
+                    label="Ver documento"
+                    title="Ver documento"
                   />
                 );
                 gridActions.push(
                   <GridActionsCellItem
                     icon={<Edit color="primary" />}
                     onClick={() => editarRegistro(row._id)}
-                    label="Editar"
-                    title="Editar"
+                    label="Modificar documento"
+                    title="Modificar documento"
                   />
                 );
                 return gridActions;

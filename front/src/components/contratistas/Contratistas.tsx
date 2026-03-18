@@ -43,6 +43,7 @@ import { AxiosError } from "axios";
 import Modal from "@mui/material/Modal";
 import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import Spinner from "../utils/Spinner";
 
 const pageSizeOptions = [10, 25, 50];
 
@@ -87,6 +88,8 @@ export default function Contratistas() {
     useState<GridValidRowModel | null>(null);
   const [showDetalleVisitante, setShowDetalleVisitante] = useState(false);
   const [showVerificarVisitante, setShowVerificarVisitante] = useState(false);
+  const [isLoadingDetalle, setIsLoadingDetalle] = useState(false);
+  const [isLoadingVerificar, setIsLoadingVerificar] = useState(false);
   const [verifChecks, setVerifChecks] = useState<Record<string, boolean>>({});
   const [showMotivoRechazo, setShowMotivoRechazo] = useState(false);
   const [motivoRechazo, setMotivoRechazo] = useState("");
@@ -267,6 +270,7 @@ export default function Contratistas() {
     setShowDetalleVisitante(true);
     setExpandedDocKeyDetalle(false);
     setShowVisitantes(false);
+    cargarVisitanteDetalle(String(row._id || row.id));
   };
 
   const abrirVerificarVisitante = (row?: GridValidRowModel | null) => {
@@ -278,6 +282,28 @@ export default function Contratistas() {
     setExpandedDocKey(false);
     setShowVerificarVisitante(true);
     setShowVisitantes(false);
+    cargarVisitanteDetalle(String(target._id || target.id), true);
+  };
+
+  const cargarVisitanteDetalle = async (
+    id: string,
+    forVerificar = false
+  ) => {
+    if (!id) return;
+    forVerificar ? setIsLoadingVerificar(true) : setIsLoadingDetalle(true);
+    try {
+      const res = await clienteAxios.get(`/api/contratistas-visitantes/${id}`);
+      if (res.data.estado) {
+        setSelectedVisitante(res.data.datos);
+      } else {
+        enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      forVerificar ? setIsLoadingVerificar(false) : setIsLoadingDetalle(false);
+    }
   };
 
   const confirmarVerificacion = async () => {
@@ -813,34 +839,37 @@ export default function Contratistas() {
             }}
           >
             <CardContent>
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  mb: 2,
-                }}
-              >
-                <Typography variant="h5" component="h5" textAlign="center">
-                  Visitante{" - "}
-                  {selectedVisitante?.estado_validacion === 2
-                    ? "Aprobado"
-                    : selectedVisitante?.estado_validacion === 3
-                    ? "Rechazado"
-                    : "Pendiente"}
-                </Typography>
-                <MuiIconButton
-                  onClick={() => {
-                    setShowDetalleVisitante(false);
-                    setShowVisitantes(true);
-                  }}
-                  size="small"
-                  sx={{ color: "error.main" }}
-                >
-                  <CloseIcon fontSize="small" />
-                </MuiIconButton>
-              </Box>
-              <Box sx={{ mt: 2 }}>
+              {isLoadingDetalle ? (
+                <Spinner />
+              ) : (
+                <Box sx={{ mt: 2 }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      mb: 2,
+                    }}
+                  >
+                    <Typography variant="h5" component="h5" textAlign="center">
+                      Visitante{" - "}
+                      {selectedVisitante?.estado_validacion === 2
+                        ? "Aprobado"
+                        : selectedVisitante?.estado_validacion === 3
+                        ? "Rechazado"
+                        : "Pendiente"}
+                    </Typography>
+                    <MuiIconButton
+                      onClick={() => {
+                        setShowDetalleVisitante(false);
+                        setShowVisitantes(true);
+                      }}
+                      size="small"
+                      sx={{ color: "error.main" }}
+                    >
+                      <CloseIcon fontSize="small" />
+                    </MuiIconButton>
+                  </Box>
                 <Typography
                   variant="h6"
                   component="h6"
@@ -933,7 +962,7 @@ export default function Contratistas() {
                               fontWeight: 600,
                             }}
                           >
-                            {tieneDoc ? "OK" : "Pendiente"}
+                            {tieneDoc ? "OK" : "Pendiente de verificación"}
                           </Typography>
                         </Box>
                       </AccordionSummary>
@@ -958,7 +987,8 @@ export default function Contratistas() {
                     </Accordion>
                   );
                 })}
-              </Box>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Box>
@@ -993,131 +1023,137 @@ export default function Contratistas() {
             }}
           >
             <CardContent>
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  mb: 2,
-                }}
-              >
-                <Typography variant="h6" component="h6">
-                  Verificar visitante
-                </Typography>
-                <MuiIconButton
-                  onClick={() => {
-                    setShowVerificarVisitante(false);
-                    setShowVisitantes(true);
-                  }}
-                  size="small"
-                  sx={{ color: "error.main" }}
-                >
-                  <CloseIcon fontSize="small" />
-                </MuiIconButton>
-              </Box>
-              <Typography sx={{ mb: 2 }}>
-                <strong>
-                  {selectedVisitante?.nombre_completo ||
-                    [selectedVisitante?.nombre, selectedVisitante?.apellido_pat, selectedVisitante?.apellido_mat]
-                      .filter(Boolean)
-                      .join(" ") ||
-                    selectedVisitante?.correo ||
-                    "-"}
-                </strong>
-              </Typography>
-              {DOCUMENTOS_CONTRATISTAS.map(({ key, label }) => {
-                const documentos =
-                  (selectedVisitante as any)?.documentos ||
-                  (selectedVisitante as any)?.documentos_urls ||
-                  (selectedVisitante as any)?.documentos_archivos ||
-                  {};
-                const docUrl = documentos?.[key] as string | undefined;
-                const tieneDoc = Boolean(verifChecks?.[key]);
-                return (
-                  <Accordion
-                    key={key}
-                    disableGutters
-                    expanded={expandedDocKey === key}
-                    onChange={(_, isExpanded) =>
-                      setExpandedDocKey(isExpanded ? key : false)
-                    }
+              {isLoadingVerificar ? (
+                <Spinner />
+              ) : (
+                <>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      mb: 2,
+                    }}
                   >
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          width: "100%",
-                          pr: 2,
-                        }}
+                    <Typography variant="h6" component="h6">
+                      Verificar visitante
+                    </Typography>
+                    <MuiIconButton
+                      onClick={() => {
+                        setShowVerificarVisitante(false);
+                        setShowVisitantes(true);
+                      }}
+                      size="small"
+                      sx={{ color: "error.main" }}
+                    >
+                      <CloseIcon fontSize="small" />
+                    </MuiIconButton>
+                  </Box>
+                  <Typography sx={{ mb: 2 }}>
+                    <strong>
+                      {selectedVisitante?.nombre_completo ||
+                        [selectedVisitante?.nombre, selectedVisitante?.apellido_pat, selectedVisitante?.apellido_mat]
+                          .filter(Boolean)
+                          .join(" ") ||
+                        selectedVisitante?.correo ||
+                        "-"}
+                    </strong>
+                  </Typography>
+                  {DOCUMENTOS_CONTRATISTAS.map(({ key, label }) => {
+                    const documentos =
+                      (selectedVisitante as any)?.documentos ||
+                      (selectedVisitante as any)?.documentos_urls ||
+                      (selectedVisitante as any)?.documentos_archivos ||
+                      {};
+                    const docUrl = documentos?.[key] as string | undefined;
+                    const tieneDoc = Boolean(verifChecks?.[key]);
+                    return (
+                      <Accordion
+                        key={key}
+                        disableGutters
+                        expanded={expandedDocKey === key}
+                        onChange={(_, isExpanded) =>
+                          setExpandedDocKey(isExpanded ? key : false)
+                        }
                       >
-                        <Typography>{label}</Typography>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <Typography
-                            variant="caption"
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                          <Box
                             sx={{
-                              color: tieneDoc ? "success.main" : "error.main",
-                              fontWeight: 600,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              width: "100%",
+                              pr: 2,
                             }}
                           >
-                            {tieneDoc ? "OK" : "Pendiente"}
-                          </Typography>
-                          <Checkbox
-                            size="small"
-                            checked={tieneDoc}
-                            onClick={(event) => event.stopPropagation()}
-                            onChange={(event) =>
-                              setVerifChecks((prev) => ({
-                                ...prev,
-                                [key]: event.target.checked,
-                              }))
-                            }
-                          />
-                        </Box>
-                      </Box>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      {docUrl ? (
-                        <Box
-                          component="img"
-                          src={docUrl}
-                          alt={label}
-                          sx={{
-                            maxWidth: "100%",
-                            maxHeight: 360,
-                            objectFit: "contain",
-                            borderRadius: 1,
-                            border: "1px solid #e0e0e0",
-                          }}
-                        />
-                      ) : (
-                        <Typography variant="body2">Sin archivo</Typography>
-                      )}
-                    </AccordionDetails>
-                  </Accordion>
-                );
-              })}
-              <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
-                {areDocsComplete(verifChecks) ? (
-                  <Button
-                    variant="contained"
-                    startIcon={<Verified />}
-                    onClick={confirmarVerificacion}
-                    disabled={selectedVisitante?.estado_validacion === 2}
-                  >
-                    Verificar
-                  </Button>
-                ) : (
-                  <Button
-                    variant="contained"
-                    color="warning"
-                    onClick={solicitarCorreccion}
-                  >
-                    Solicitar corrección
-                  </Button>
-                )}
-              </Box>
+                            <Typography>{label}</Typography>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: tieneDoc ? "success.main" : "error.main",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {tieneDoc ? "OK" : "Pendiente"}
+                              </Typography>
+                              <Checkbox
+                                size="small"
+                                checked={tieneDoc}
+                                onClick={(event) => event.stopPropagation()}
+                                onChange={(event) =>
+                                  setVerifChecks((prev) => ({
+                                    ...prev,
+                                    [key]: event.target.checked,
+                                  }))
+                                }
+                              />
+                            </Box>
+                          </Box>
+                        </AccordionSummary>
+                        <AccordionDetails>
+                          {docUrl ? (
+                            <Box
+                              component="img"
+                              src={docUrl}
+                              alt={label}
+                              sx={{
+                                maxWidth: "100%",
+                                maxHeight: 360,
+                                objectFit: "contain",
+                                borderRadius: 1,
+                                border: "1px solid #e0e0e0",
+                              }}
+                            />
+                          ) : (
+                            <Typography variant="body2">Sin archivo</Typography>
+                          )}
+                        </AccordionDetails>
+                      </Accordion>
+                    );
+                  })}
+                  <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+                    {areDocsComplete(verifChecks) ? (
+                      <Button
+                        variant="contained"
+                        startIcon={<Verified />}
+                        onClick={confirmarVerificacion}
+                        disabled={selectedVisitante?.estado_validacion === 2}
+                      >
+                        Verificar
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="contained"
+                        color="warning"
+                        onClick={solicitarCorreccion}
+                      >
+                        Solicitar corrección
+                      </Button>
+                    )}
+                  </Box>
+                </>
+              )}
             </CardContent>
           </Card>
         </Box>

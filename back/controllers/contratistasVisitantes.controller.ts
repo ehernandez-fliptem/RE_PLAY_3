@@ -26,6 +26,7 @@ const DOC_KEYS = [
 ] as const;
 
 type DocChecks = Record<(typeof DOC_KEYS)[number], boolean>;
+type DocFiles = Record<(typeof DOC_KEYS)[number], string>;
 
 const DOC_LABELS: Record<(typeof DOC_KEYS)[number], string> = {
     identificacion_oficial: "Identificación oficial",
@@ -47,6 +48,17 @@ const normalizeDocChecks = (value?: Partial<DocChecks> | null): DocChecks => ({
     soporte_pago_actualizado: Boolean(value?.soporte_pago_actualizado),
     constancia_vigencia_imss: Boolean(value?.constancia_vigencia_imss),
     constancias_habilidades: Boolean(value?.constancias_habilidades),
+});
+
+const normalizeDocFiles = (value?: Partial<DocFiles> | null): DocFiles => ({
+    identificacion_oficial: String(value?.identificacion_oficial || ""),
+    sua: String(value?.sua || ""),
+    permiso_entrada: String(value?.permiso_entrada || ""),
+    lista_articulos: String(value?.lista_articulos || ""),
+    repse: String(value?.repse || ""),
+    soporte_pago_actualizado: String(value?.soporte_pago_actualizado || ""),
+    constancia_vigencia_imss: String(value?.constancia_vigencia_imss || ""),
+    constancias_habilidades: String(value?.constancias_habilidades || ""),
 });
 
 const areDocChecksComplete = (value?: Partial<DocChecks> | null): boolean =>
@@ -124,14 +136,14 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                     },
                     docs_completos: {
                         $and: [
-                            { $ifNull: ["$documentos_checks.identificacion_oficial", false] },
-                            { $ifNull: ["$documentos_checks.sua", false] },
-                            { $ifNull: ["$documentos_checks.permiso_entrada", false] },
-                            { $ifNull: ["$documentos_checks.lista_articulos", false] },
-                            { $ifNull: ["$documentos_checks.repse", false] },
-                            { $ifNull: ["$documentos_checks.soporte_pago_actualizado", false] },
-                            { $ifNull: ["$documentos_checks.constancia_vigencia_imss", false] },
-                            { $ifNull: ["$documentos_checks.constancias_habilidades", false] },
+                            { $ifNull: ["$documentos_archivos.identificacion_oficial", ""] },
+                            { $ifNull: ["$documentos_archivos.sua", ""] },
+                            { $ifNull: ["$documentos_archivos.permiso_entrada", ""] },
+                            { $ifNull: ["$documentos_archivos.lista_articulos", ""] },
+                            { $ifNull: ["$documentos_archivos.repse", ""] },
+                            { $ifNull: ["$documentos_archivos.soporte_pago_actualizado", ""] },
+                            { $ifNull: ["$documentos_archivos.constancia_vigencia_imss", ""] },
+                            { $ifNull: ["$documentos_archivos.constancias_habilidades", ""] },
                         ],
                     },
                 },
@@ -219,7 +231,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
             return;
         }
 
-        const { nombre, apellido_pat, apellido_mat, correo, telefono, documentos_checks } = req.body;
+        const { nombre, apellido_pat, apellido_mat, correo, telefono, documentos_checks, documentos_archivos } = req.body;
         const hash_datos = calcularHashVisitante({ nombre, apellido_pat, apellido_mat, correo, telefono, documentos_checks });
 
         const existeCorreo = await ContratistaVisitantes.findOne({
@@ -241,6 +253,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
             correo,
             telefono,
             documentos_checks: normalizeDocChecks(documentos_checks),
+            documentos_archivos: normalizeDocFiles(documentos_archivos),
             hash_datos,
             estado_validacion: 1,
             creado_por: id_usuario,
@@ -280,7 +293,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             return;
         }
 
-        const { nombre, apellido_pat, apellido_mat, correo, telefono, documentos_checks } = req.body;
+        const { nombre, apellido_pat, apellido_mat, correo, telefono, documentos_checks, documentos_archivos } = req.body;
         const hash_datos = calcularHashVisitante({ nombre, apellido_pat, apellido_mat, correo, telefono, documentos_checks });
 
         if (correo && String(correo).trim().toLowerCase() !== String(registro.correo).trim().toLowerCase()) {
@@ -302,6 +315,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             correo,
             telefono,
             documentos_checks: normalizeDocChecks(documentos_checks),
+            documentos_archivos: normalizeDocFiles(documentos_archivos),
             hash_datos,
             fecha_modificacion: new Date(),
             modificado_por: id_usuario as any,

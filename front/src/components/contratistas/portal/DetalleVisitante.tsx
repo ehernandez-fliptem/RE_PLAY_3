@@ -1,12 +1,13 @@
 import { ChevronLeft } from "@mui/icons-material";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
   Button,
   Card,
   CardContent,
-  Checkbox,
   Divider,
-  FormControlLabel,
   Stack,
   Typography,
 } from "@mui/material";
@@ -16,17 +17,7 @@ import Spinner from "../../utils/Spinner";
 import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-
-type DocChecks = {
-  identificacion_oficial: boolean;
-  sua: boolean;
-  permiso_entrada: boolean;
-  lista_articulos: boolean;
-  repse: boolean;
-  soporte_pago_actualizado: boolean;
-  constancia_vigencia_imss: boolean;
-  constancias_habilidades: boolean;
-};
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
 type FormValues = {
   nombre: string;
@@ -34,7 +25,8 @@ type FormValues = {
   apellido_mat?: string;
   correo: string;
   telefono?: string;
-  documentos_checks: DocChecks;
+  empresa?: string;
+  documentos_archivos?: Record<string, string>;
 };
 
 const initialValue: FormValues = {
@@ -43,19 +35,11 @@ const initialValue: FormValues = {
   apellido_mat: "",
   correo: "",
   telefono: "",
-  documentos_checks: {
-    identificacion_oficial: false,
-    sua: false,
-    permiso_entrada: false,
-    lista_articulos: false,
-    repse: false,
-    soporte_pago_actualizado: false,
-    constancia_vigencia_imss: false,
-    constancias_habilidades: false,
-  },
+  empresa: "",
+  documentos_archivos: {},
 };
 
-const DOC_LABELS: Record<keyof DocChecks, string> = {
+const DOC_LABELS: Record<string, string> = {
   identificacion_oficial: "Identificación oficial",
   sua: "SUA",
   permiso_entrada: "Permiso de entrada",
@@ -66,22 +50,14 @@ const DOC_LABELS: Record<keyof DocChecks, string> = {
   constancias_habilidades: "Constancias de Habilidades",
 };
 
-const DOC_KEYS: (keyof DocChecks)[] = [
-  "identificacion_oficial",
-  "sua",
-  "permiso_entrada",
-  "lista_articulos",
-  "repse",
-  "soporte_pago_actualizado",
-  "constancia_vigencia_imss",
-  "constancias_habilidades",
-];
+const DOC_KEYS = Object.keys(DOC_LABELS);
 
 export default function DetallePortalVisitante() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [datos, setDatos] = useState<FormValues>(initialValue);
+  const [expandedDocKey, setExpandedDocKey] = useState<string | false>(false);
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -115,41 +91,119 @@ export default function DetallePortalVisitante() {
             ) : (
               <>
                 <Typography variant="h4" component="h2" textAlign="center">
-                  Detalle de Visitante
+                  Visitante
                 </Typography>
-                <Box sx={{ mt: 2, display: "grid", gap: 1 }}>
-                  <Typography>
-                    <strong>Nombre:</strong> {datos.nombre}
+                <Box sx={{ mt: 2 }}>
+                  <Typography
+                    variant="h6"
+                    component="h6"
+                    color="primary"
+                    bgcolor="#FFFFFF"
+                    sx={(theme) => ({
+                      border: `1px solid ${theme.palette.primary.main}`,
+                      borderRadius: 2,
+                      px: 2,
+                      py: 0.5,
+                    })}
+                    textAlign="center"
+                    mb={2}
+                  >
+                    <strong>Generales</strong>
                   </Typography>
-                  <Typography>
-                    <strong>Apellido paterno:</strong> {datos.apellido_pat}
+                  <Box sx={{ display: "grid", gap: 1.5, mb: 3 }}>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 1 }}>
+                      <strong>Empresa:</strong>
+                      <span>{datos.empresa || "-"}</span>
+                    </Box>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 1 }}>
+                      <strong>Nombre:</strong>
+                      <span>
+                        {[datos.nombre, datos.apellido_pat, datos.apellido_mat]
+                          .filter(Boolean)
+                          .join(" ") || "-"}
+                      </span>
+                    </Box>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 1 }}>
+                      <strong>Correo:</strong>
+                      <span>{datos.correo || "-"}</span>
+                    </Box>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 1 }}>
+                      <strong>Teléfono:</strong>
+                      <span>{datos.telefono || "-"}</span>
+                    </Box>
+                  </Box>
+                  <Typography
+                    variant="h6"
+                    component="h6"
+                    color="primary"
+                    bgcolor="#FFFFFF"
+                    sx={(theme) => ({
+                      border: `1px solid ${theme.palette.primary.main}`,
+                      borderRadius: 2,
+                      px: 2,
+                      py: 0.5,
+                    })}
+                    textAlign="center"
+                    mb={2}
+                  >
+                    <strong>Documentos</strong>
                   </Typography>
-                  <Typography>
-                    <strong>Apellido materno:</strong> {datos.apellido_mat || "-"}
-                  </Typography>
-                  <Typography>
-                    <strong>Correo:</strong> {datos.correo}
-                  </Typography>
-                  <Typography>
-                    <strong>Teléfono:</strong> {datos.telefono || "-"}
-                  </Typography>
+                  {DOC_KEYS.map((key) => {
+                    const docUrl = datos.documentos_archivos?.[key];
+                    const tieneDoc = Boolean(docUrl);
+                    return (
+                      <Accordion
+                        key={key}
+                        disableGutters
+                        expanded={expandedDocKey === key}
+                        onChange={(_, isExpanded) =>
+                          setExpandedDocKey(isExpanded ? key : false)
+                        }
+                      >
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              width: "100%",
+                              pr: 2,
+                            }}
+                          >
+                            <Typography>{DOC_LABELS[key]}</Typography>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: tieneDoc ? "success.main" : "error.main",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {tieneDoc ? "OK" : "Pendiente de subir documento"}
+                            </Typography>
+                          </Box>
+                        </AccordionSummary>
+                        <AccordionDetails>
+                          {docUrl ? (
+                            <Box
+                              component="img"
+                              src={docUrl}
+                              alt={DOC_LABELS[key]}
+                              sx={{
+                                maxWidth: "100%",
+                                maxHeight: 360,
+                                objectFit: "contain",
+                                borderRadius: 1,
+                                border: "1px solid #e0e0e0",
+                              }}
+                            />
+                          ) : (
+                            <Typography variant="body2">Sin archivo</Typography>
+                          )}
+                        </AccordionDetails>
+                      </Accordion>
+                    );
+                  })}
                 </Box>
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="h6" component="h3">
-                  Documentos
-                </Typography>
-                {DOC_KEYS.map((key) => (
-                  <FormControlLabel
-                    key={key}
-                    control={
-                      <Checkbox
-                        checked={Boolean(datos.documentos_checks?.[key])}
-                        disabled
-                      />
-                    }
-                    label={DOC_LABELS[key] || key}
-                  />
-                ))}
                 <Divider sx={{ my: 2 }} />
                 <Box
                   component="footer"

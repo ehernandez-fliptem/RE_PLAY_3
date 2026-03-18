@@ -21,6 +21,16 @@ export interface IContratistaVisitante extends Document {
         constancia_vigencia_imss: boolean;
         constancias_habilidades: boolean;
     };
+    documentos_archivos?: {
+        identificacion_oficial?: string;
+        sua?: string;
+        permiso_entrada?: string;
+        lista_articulos?: string;
+        repse?: string;
+        soporte_pago_actualizado?: string;
+        constancia_vigencia_imss?: string;
+        constancias_habilidades?: string;
+    };
     hash_datos?: string;
     hash_ultimo_aprobado?: string;
     estado_validacion?: number; // 1: Pendiente, 2: Aprobado, 3: Rechazado
@@ -94,6 +104,16 @@ const contratistaVisitanteSchema = new Schema<IContratistaVisitante>({
         soporte_pago_actualizado: { type: Boolean, default: false },
         constancia_vigencia_imss: { type: Boolean, default: false },
         constancias_habilidades: { type: Boolean, default: false },
+    },
+    documentos_archivos: {
+        identificacion_oficial: { type: String, default: "" },
+        sua: { type: String, default: "" },
+        permiso_entrada: { type: String, default: "" },
+        lista_articulos: { type: String, default: "" },
+        repse: { type: String, default: "" },
+        soporte_pago_actualizado: { type: String, default: "" },
+        constancia_vigencia_imss: { type: String, default: "" },
+        constancias_habilidades: { type: String, default: "" },
     },
     hash_datos: { type: String, default: "" },
     hash_ultimo_aprobado: { type: String, default: "" },
