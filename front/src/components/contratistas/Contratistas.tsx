@@ -826,7 +826,9 @@ export default function Contratistas() {
                   const row = params.row;
                   setSelectedVisitanteId(String(params.id));
                   setSelectedVisitante(row);
-                  if (row?.estado_validacion !== 2) {
+                  if (row?.estado_validacion === 2) {
+                    abrirDetalleVisitante(row);
+                  } else {
                     abrirVerificarVisitante(row);
                   }
                 }}
@@ -944,31 +946,33 @@ export default function Contratistas() {
                       mb: 2,
                     }}
                   >
-                    <Typography variant="h5" component="h5" textAlign="center">
-                      Visitante
-                    </Typography>
-                    <Typography
-                      component="span"
-                      sx={{
-                        bgcolor:
-                          selectedVisitante?.estado_validacion === 2
-                            ? "success.main"
-                            : "error.main",
-                        color: "#fff",
-                        px: 1.5,
-                        py: 0.25,
-                        borderRadius: 999,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        minWidth: 110,
-                        textAlign: "center",
-                        display: "inline-block",
-                      }}
-                    >
-                      {selectedVisitante?.estado_validacion === 2
-                        ? "Verificado"
-                        : "No verificado"}
-                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                      <Typography variant="h5" component="h5">
+                        Visitante
+                      </Typography>
+                      <Typography
+                        component="span"
+                        sx={{
+                          bgcolor:
+                            selectedVisitante?.estado_validacion === 2
+                              ? "success.main"
+                              : "error.main",
+                          color: "#fff",
+                          px: 2,
+                          py: 0.45,
+                          borderRadius: 999,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          minWidth: 130,
+                          textAlign: "center",
+                          display: "inline-block",
+                        }}
+                      >
+                        {selectedVisitante?.estado_validacion === 2
+                          ? "Verificado"
+                          : "No verificado"}
+                      </Typography>
+                    </Box>
                     <MuiIconButton
                       onClick={() => {
                         setShowDetalleVisitante(false);
