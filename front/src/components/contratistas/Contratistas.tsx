@@ -32,6 +32,8 @@ import {
   Checkbox,
   IconButton as MuiIconButton,
   IconButton,
+  ToggleButton,
+  ToggleButtonGroup,
   TextField,
   Tooltip,
   Typography,
@@ -602,12 +604,13 @@ export default function Contratistas() {
             sx={{
               width: "100%",
               maxWidth: 1200,
-              maxHeight: "100%",
+              height: "80vh",
+              maxHeight: "80vh",
               outline: "none",
               "&:focus, &:focus-visible": { outline: "none" },
             }}
           >
-            <CardContent>
+            <CardContent sx={{ height: "100%", overflowY: "auto" }}>
               <Box
                 sx={{
                   display: "flex",
@@ -619,55 +622,55 @@ export default function Contratistas() {
                 <Typography variant="h6" component="h6">
                   Visitantes de {contratistaSeleccion?.empresa || ""}
                 </Typography>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Button
-                      size="small"
-                      variant={filtroDocs === "todos" ? "contained" : "outlined"}
-                      onClick={() => setFiltroDocs("todos")}
-                    >
-                      Todos
-                    </Button>
-                    <Button
-                      size="small"
-                      variant={
-                        filtroDocs === "pendientes_completos"
-                          ? "contained"
-                          : "outlined"
-                      }
-                      onClick={() => setFiltroDocs("pendientes_completos")}
-                    >
-                      Pendientes completos
-                    </Button>
-                    <Button
-                      size="small"
-                      variant={
-                        filtroDocs === "pendientes_incompletos"
-                          ? "contained"
-                          : "outlined"
-                      }
-                      onClick={() => setFiltroDocs("pendientes_incompletos")}
-                    >
-                      Pendientes incompletos
-                    </Button>
-                  </Box>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    startIcon={<Verified />}
-                    onClick={() => abrirVerificarVisitante()}
-                    disabled={!selectedVisitante || selectedVisitante?.estado_validacion === 2}
-                  >
-                    Verificar
-                  </Button>
-                  <MuiIconButton
-                    onClick={cerrarVisitantes}
-                    size="small"
-                    sx={{ color: "error.main" }}
-                  >
-                    <CloseIcon fontSize="small" />
-                  </MuiIconButton>
-                </Box>
+                <MuiIconButton
+                  onClick={cerrarVisitantes}
+                  size="small"
+                  sx={{ color: "error.main" }}
+                >
+                  <CloseIcon fontSize="small" />
+                </MuiIconButton>
+              </Box>
+              <Box sx={{ display: "grid", gap: 0.5, mb: 2 }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.6 }}
+                >
+                  Filtros
+                </Typography>
+                <ToggleButtonGroup
+                  size="small"
+                  exclusive
+                  value={filtroDocs}
+                  onChange={(_, value) => value && setFiltroDocs(value)}
+                  sx={{
+                    "& .MuiToggleButton-root": {
+                      textTransform: "none",
+                      px: 1.5,
+                      borderRadius: 2,
+                    },
+                    "& .MuiToggleButton-root.Mui-selected": {
+                      bgcolor: "primary.main",
+                      color: "primary.contrastText",
+                      borderColor: "primary.main",
+                      "&:hover": {
+                        bgcolor: "primary.dark",
+                      },
+                    },
+                  }}
+                >
+                  <ToggleButton value="todos">Todos</ToggleButton>
+                  <ToggleButton value="pendientes_completos">
+                    Pendientes completos
+                  </ToggleButton>
+                  <ToggleButton value="pendientes_incompletos">
+                    Pendientes incompletos
+                  </ToggleButton>
+                </ToggleButtonGroup>
+                <Typography variant="caption" color="text.secondary">
+                  {/* Filtra a los visitantes que tienen documentos completos o incompletos dentro de los pendientes. */}
+                  {/* Filtra por documentos cargados en pendientes. */}
+                </Typography>
               </Box>
               <DataGrid
                 apiRef={apiRefVisitantes}
@@ -707,15 +710,33 @@ export default function Contratistas() {
                     flex: 1,
                     display: "flex",
                     minWidth: 140,
-                    valueFormatter: (value?: number) =>
-                      value === 2
-                        ? "Aprobado"
-                        : value === 3
-                        ? "Rechazado"
-                        : "Pendiente",
+                    headerAlign: "center",
+                    align: "center",
+                    renderCell: ({ value }) => {
+                      const verificado = value === 2;
+                      return (
+                        <Typography
+                          component="span"
+                          sx={{
+                            bgcolor: verificado ? "success.main" : "error.main",
+                            color: "#fff",
+                            px: 1.5,
+                            py: 0.25,
+                            borderRadius: 999,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            minWidth: 100,
+                            textAlign: "center",
+                            display: "inline-block",
+                          }}
+                        >
+                          {verificado ? "Verificado" : "No verificado"}
+                        </Typography>
+                      );
+                    },
                   },
                   {
-                    headerName: "Docs",
+                    headerName: "Documentos",
                     field: "docs_completos",
                     flex: 1,
                     display: "flex",
@@ -758,6 +779,14 @@ export default function Contratistas() {
                   setSelectedVisitanteId(String(params.id));
                   setSelectedVisitante(params.row);
                 }}
+                onRowDoubleClick={(params) => {
+                  const row = params.row;
+                  setSelectedVisitanteId(String(params.id));
+                  setSelectedVisitante(row);
+                  if (row?.estado_validacion !== 2) {
+                    abrirVerificarVisitante(row);
+                  }
+                }}
                 getRowClassName={(params) =>
                   params.id === selectedVisitanteId ? "row-selected" : ""
                 }
@@ -781,6 +810,27 @@ export default function Contratistas() {
                   toolbarDensity: "",
                   toolbarExport: "",
                   noRowsLabel: "Sin registros",
+                }}
+                slots={{
+                  toolbar: () => (
+                    <DataGridToolbar
+                      tableTitle=""
+                      customActionButtons={
+                        <Button
+                          variant="contained"
+                          size="small"
+                          startIcon={<Verified />}
+                          onClick={() => abrirVerificarVisitante()}
+                          disabled={
+                            !selectedVisitante ||
+                            selectedVisitante?.estado_validacion === 2
+                          }
+                        >
+                          Verificar
+                        </Button>
+                      }
+                    />
+                  ),
                 }}
                 sx={{
                   "& .row-selected": {
@@ -833,12 +883,12 @@ export default function Contratistas() {
             sx={{
               width: "100%",
               maxWidth: 900,
-              maxHeight: "100%",
+              maxHeight: "70vh",
               outline: "none",
               "&:focus, &:focus-visible": { outline: "none" },
             }}
           >
-            <CardContent>
+            <CardContent sx={{ maxHeight: "70vh", overflowY: "auto" }}>
               {isLoadingDetalle ? (
                 <Spinner />
               ) : (
@@ -933,6 +983,10 @@ export default function Contratistas() {
                     (selectedVisitante as any)?.documentos_archivos ||
                     {};
                   const docUrl = documentos?.[key] as string | undefined;
+                  const esOpcional =
+                    key === "constancia_vigencia_imss" ||
+                    key === "constancias_habilidades";
+                  if (esOpcional && !docUrl) return null;
                   const checks = (selectedVisitante as any)?.documentos_checks || {};
                   const tieneDoc = Boolean(checks?.[key]);
                   return (
@@ -1017,12 +1071,12 @@ export default function Contratistas() {
             sx={{
               width: "100%",
               maxWidth: 900,
-              maxHeight: "100%",
+              maxHeight: "70vh",
               outline: "none",
               "&:focus, &:focus-visible": { outline: "none" },
             }}
           >
-            <CardContent>
+            <CardContent sx={{ maxHeight: "70vh", overflowY: "auto" }}>
               {isLoadingVerificar ? (
                 <Spinner />
               ) : (
@@ -1059,15 +1113,19 @@ export default function Contratistas() {
                         "-"}
                     </strong>
                   </Typography>
-                  {DOCUMENTOS_CONTRATISTAS.map(({ key, label }) => {
-                    const documentos =
-                      (selectedVisitante as any)?.documentos ||
-                      (selectedVisitante as any)?.documentos_urls ||
-                      (selectedVisitante as any)?.documentos_archivos ||
-                      {};
-                    const docUrl = documentos?.[key] as string | undefined;
-                    const tieneDoc = Boolean(verifChecks?.[key]);
-                    return (
+                {DOCUMENTOS_CONTRATISTAS.map(({ key, label }) => {
+                  const documentos =
+                    (selectedVisitante as any)?.documentos ||
+                    (selectedVisitante as any)?.documentos_urls ||
+                    (selectedVisitante as any)?.documentos_archivos ||
+                    {};
+                  const docUrl = documentos?.[key] as string | undefined;
+                  const esOpcional =
+                    key === "constancia_vigencia_imss" ||
+                    key === "constancias_habilidades";
+                  if (esOpcional && !docUrl) return null;
+                  const tieneDoc = Boolean(verifChecks?.[key]);
+                  return (
                       <Accordion
                         key={key}
                         disableGutters
@@ -1175,8 +1233,8 @@ export default function Contratistas() {
             "&:focus, &:focus-visible": { outline: "none" },
           }}
         >
-          <Card sx={{ width: "100%", maxWidth: 600 }}>
-            <CardContent>
+          <Card sx={{ width: "100%", maxWidth: 600, height: "60vh", maxHeight: "60vh" }}>
+            <CardContent sx={{ height: "100%", overflowY: "auto" }}>
               <Box
                 sx={{
                   display: "flex",
