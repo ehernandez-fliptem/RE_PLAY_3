@@ -25,6 +25,15 @@ const DOC_KEYS = [
     "constancias_habilidades",
 ] as const;
 
+const REQUIRED_DOC_KEYS = [
+    "identificacion_oficial",
+    "sua",
+    "permiso_entrada",
+    "lista_articulos",
+    "repse",
+    "soporte_pago_actualizado",
+] as const;
+
 type DocChecks = Record<(typeof DOC_KEYS)[number], boolean>;
 type DocFiles = Record<(typeof DOC_KEYS)[number], string>;
 
@@ -62,7 +71,7 @@ const normalizeDocFiles = (value?: Partial<DocFiles> | null): DocFiles => ({
 });
 
 const areDocChecksComplete = (value?: Partial<DocChecks> | null): boolean =>
-    DOC_KEYS.every((key) => Boolean(value?.[key]));
+    REQUIRED_DOC_KEYS.every((key) => Boolean(value?.[key]));
 
 const calcularHashVisitante = (payload: {
     nombre?: string;
@@ -503,7 +512,7 @@ export async function rechazar(req: Request, res: Response): Promise<void> {
         }
         correos = Array.from(new Set(correos.map((c) => String(c).trim().toLowerCase()).filter(Boolean)));
 
-        const faltantes = DOC_KEYS.filter((key) => !checks[key]).map((key) => DOC_LABELS[key]);
+        const faltantes = REQUIRED_DOC_KEYS.filter((key) => !checks[key]).map((key) => DOC_LABELS[key]);
         if (correos.length > 0) {
             await enviarCorreoRechazoVisitanteContratista({
                 correos,

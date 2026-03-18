@@ -65,8 +65,17 @@ const DOCUMENTOS_CONTRATISTAS = [
   { key: "constancias_habilidades", label: "Constancias de habilidades" },
 ];
 
+const REQUIRED_DOC_KEYS = [
+  "identificacion_oficial",
+  "sua",
+  "permiso_entrada",
+  "lista_articulos",
+  "repse",
+  "soporte_pago_actualizado",
+];
+
 const areDocsComplete = (value?: Record<string, boolean> | null) =>
-  DOCUMENTOS_CONTRATISTAS.every(({ key }) => Boolean(value?.[key]));
+  REQUIRED_DOC_KEYS.every((key) => Boolean(value?.[key]));
 
 const createChecks = () =>
   DOCUMENTOS_CONTRATISTAS.reduce<Record<string, boolean>>((acc, { key }) => {
@@ -1076,7 +1085,14 @@ export default function Contratistas() {
               "&:focus, &:focus-visible": { outline: "none" },
             }}
           >
-            <CardContent sx={{ maxHeight: "70vh", overflowY: "auto" }}>
+            <CardContent
+              sx={{
+                maxHeight: "70vh",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
+            >
               {isLoadingVerificar ? (
                 <Spinner />
               ) : (
@@ -1113,19 +1129,27 @@ export default function Contratistas() {
                         "-"}
                     </strong>
                   </Typography>
-                {DOCUMENTOS_CONTRATISTAS.map(({ key, label }) => {
-                  const documentos =
-                    (selectedVisitante as any)?.documentos ||
-                    (selectedVisitante as any)?.documentos_urls ||
-                    (selectedVisitante as any)?.documentos_archivos ||
-                    {};
-                  const docUrl = documentos?.[key] as string | undefined;
-                  const esOpcional =
-                    key === "constancia_vigencia_imss" ||
-                    key === "constancias_habilidades";
-                  if (esOpcional && !docUrl) return null;
-                  const tieneDoc = Boolean(verifChecks?.[key]);
-                  return (
+                  <Box
+                    sx={{
+                      flex: 1,
+                      minHeight: 0,
+                      overflowY: "auto",
+                      pr: 0.5,
+                    }}
+                  >
+                    {DOCUMENTOS_CONTRATISTAS.map(({ key, label }) => {
+                      const documentos =
+                        (selectedVisitante as any)?.documentos ||
+                        (selectedVisitante as any)?.documentos_urls ||
+                        (selectedVisitante as any)?.documentos_archivos ||
+                        {};
+                      const docUrl = documentos?.[key] as string | undefined;
+                      const esOpcional =
+                        key === "constancia_vigencia_imss" ||
+                        key === "constancias_habilidades";
+                      if (esOpcional && !docUrl) return null;
+                      const tieneDoc = Boolean(verifChecks?.[key]);
+                      return (
                       <Accordion
                         key={key}
                         disableGutters
@@ -1153,7 +1177,7 @@ export default function Contratistas() {
                                   fontWeight: 600,
                                 }}
                               >
-                                {tieneDoc ? "OK" : "Pendiente"}
+                                {tieneDoc ? "OK" : "Pendiente de revisión"}
                               </Typography>
                               <Checkbox
                                 size="small"
@@ -1188,8 +1212,9 @@ export default function Contratistas() {
                           )}
                         </AccordionDetails>
                       </Accordion>
-                    );
-                  })}
+                      );
+                    })}
+                  </Box>
                   <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
                     {areDocsComplete(verifChecks) ? (
                       <Button
