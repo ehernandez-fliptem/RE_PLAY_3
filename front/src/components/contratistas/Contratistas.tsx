@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, Fragment, useEffect, useRef } from "react";
 import {
   DataGrid,
   useGridApiRef,
@@ -112,6 +112,9 @@ export default function Contratistas() {
   const [filtroDocs, setFiltroDocs] = useState<
     "todos" | "pendientes_completos" | "pendientes_incompletos"
   >("todos");
+  const [canScrollUp, setCanScrollUp] = useState(false);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+  const verifScrollRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const confirm = useConfirm();
 
@@ -407,6 +410,35 @@ export default function Contratistas() {
       setIsEnviandoRechazo(false);
     }
   };
+
+  const actualizarScrollVerificar = () => {
+    const el = verifScrollRef.current;
+    if (!el) {
+      setCanScrollUp(false);
+      setCanScrollDown(false);
+      return;
+    }
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    setCanScrollUp(scrollTop > 4);
+    setCanScrollDown(scrollTop + clientHeight < scrollHeight - 4);
+  };
+
+  const scrollVerificarArriba = () => {
+    const el = verifScrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const scrollVerificarAbajo = () => {
+    const el = verifScrollRef.current;
+    if (!el) return;
+    const target = Math.max(0, el.scrollHeight - el.clientHeight);
+    el.scrollTo({ top: target, behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    actualizarScrollVerificar();
+  }, [showVerificarVisitante, isLoadingVerificar, selectedVisitante, expandedDocKey]);
 
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
@@ -1291,8 +1323,31 @@ export default function Contratistas() {
                       minHeight: 0,
                       overflowY: "auto",
                       pr: 0.5,
+                      position: "relative",
                     }}
+                    ref={verifScrollRef}
+                    onScroll={actualizarScrollVerificar}
                   >
+                    {!canScrollDown && canScrollUp && (
+                      <MuiIconButton
+                        size="small"
+                        onClick={scrollVerificarArriba}
+                        sx={{
+                          position: "sticky",
+                          top: 8,
+                          left: "50%",
+                          transform: "translateX(-50%)",
+                          bgcolor: "rgba(255,255,255,0.9)",
+                          border: "1px solid rgba(0,0,0,0.1)",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                          zIndex: 2,
+                          "&:hover": { bgcolor: "rgba(255,255,255,1)" },
+                        }}
+                        aria-label="Ir arriba"
+                      >
+                        <ExpandMoreIcon sx={{ transform: "rotate(180deg)" }} />
+                      </MuiIconButton>
+                    )}
                     {DOCUMENTOS_CONTRATISTAS.filter(
                       ({ key }) =>
                         !["constancia_vigencia_imss", "constancias_habilidades"].includes(
@@ -1473,6 +1528,26 @@ export default function Contratistas() {
                         </>
                       );
                     })()}
+                    {canScrollDown && (
+                      <MuiIconButton
+                        size="small"
+                        onClick={scrollVerificarAbajo}
+                        sx={{
+                          position: "sticky",
+                          bottom: 8,
+                          left: "50%",
+                          transform: "translateX(-50%)",
+                          bgcolor: "rgba(255,255,255,0.9)",
+                          border: "1px solid rgba(0,0,0,0.1)",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                          zIndex: 2,
+                          "&:hover": { bgcolor: "rgba(255,255,255,1)" },
+                        }}
+                        aria-label="Ir abajo"
+                      >
+                        <ExpandMoreIcon />
+                      </MuiIconButton>
+                    )}
                   </Box>
                   <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
                     {areDocsComplete(verifChecks) ? (
