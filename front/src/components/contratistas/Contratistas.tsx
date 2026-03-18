@@ -639,6 +639,7 @@ export default function Contratistas() {
                   <CloseIcon fontSize="small" />
                 </MuiIconButton>
               </Box>
+              {false && (
               <Box sx={{ display: "grid", gap: 0.5, mb: 2 }}>
                 <Typography
                   variant="caption"
@@ -681,6 +682,7 @@ export default function Contratistas() {
                   {/* Filtra por documentos cargados en pendientes. */}
                 </Typography>
               </Box>
+              )}
               <DataGrid
                 apiRef={apiRefVisitantes}
                 autoHeight
@@ -744,23 +746,23 @@ export default function Contratistas() {
                       );
                     },
                   },
-                  {
-                    headerName: "Documentos",
-                    field: "docs_completos",
-                    flex: 1,
-                    display: "flex",
-                    minWidth: 140,
-                    renderCell: ({ value }) =>
-                      value ? (
-                        <Typography color="success.main" fontWeight={600}>
-                          Completos
-                        </Typography>
-                      ) : (
-                        <Typography color="error.main" fontWeight={600}>
-                          Incompletos
-                        </Typography>
-                      ),
-                  },
+                  // {
+                  //   headerName: "Documentos",
+                  //   field: "docs_completos",
+                  //   flex: 1,
+                  //   display: "flex",
+                  //   minWidth: 140,
+                  //   renderCell: ({ value }) =>
+                  //     value ? (
+                  //       <Typography color="success.main" fontWeight={600}>
+                  //         Completos
+                  //       </Typography>
+                  //     ) : (
+                  //       <Typography color="error.main" fontWeight={600}>
+                  //         Incompletos
+                  //       </Typography>
+                  //     ),
+                  // },
                   {
                     headerName: "Acciones",
                     field: "acciones",
@@ -911,12 +913,29 @@ export default function Contratistas() {
                     }}
                   >
                     <Typography variant="h5" component="h5" textAlign="center">
-                      Visitante{" - "}
+                      Visitante
+                    </Typography>
+                    <Typography
+                      component="span"
+                      sx={{
+                        bgcolor:
+                          selectedVisitante?.estado_validacion === 2
+                            ? "success.main"
+                            : "error.main",
+                        color: "#fff",
+                        px: 1.5,
+                        py: 0.25,
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        minWidth: 110,
+                        textAlign: "center",
+                        display: "inline-block",
+                      }}
+                    >
                       {selectedVisitante?.estado_validacion === 2
-                        ? "Aprobado"
-                        : selectedVisitante?.estado_validacion === 3
-                        ? "Rechazado"
-                        : "Pendiente"}
+                        ? "Verificado"
+                        : "No verificado"}
                     </Typography>
                     <MuiIconButton
                       onClick={() => {
@@ -985,17 +1004,18 @@ export default function Contratistas() {
                 >
                   <strong>Documentos</strong>
                 </Typography>
-                {DOCUMENTOS_CONTRATISTAS.map(({ key, label }) => {
+                {DOCUMENTOS_CONTRATISTAS.filter(
+                  ({ key }) =>
+                    !["constancia_vigencia_imss", "constancias_habilidades"].includes(
+                      key
+                    )
+                ).map(({ key, label }) => {
                   const documentos =
                     (selectedVisitante as any)?.documentos ||
                     (selectedVisitante as any)?.documentos_urls ||
                     (selectedVisitante as any)?.documentos_archivos ||
                     {};
                   const docUrl = documentos?.[key] as string | undefined;
-                  const esOpcional =
-                    key === "constancia_vigencia_imss" ||
-                    key === "constancias_habilidades";
-                  if (esOpcional && !docUrl) return null;
                   const checks = (selectedVisitante as any)?.documentos_checks || {};
                   const tieneDoc = Boolean(checks?.[key]);
                   return (
@@ -1050,6 +1070,94 @@ export default function Contratistas() {
                     </Accordion>
                   );
                 })}
+                {(() => {
+                  const documentos =
+                    (selectedVisitante as any)?.documentos ||
+                    (selectedVisitante as any)?.documentos_urls ||
+                    (selectedVisitante as any)?.documentos_archivos ||
+                    {};
+                  const opcionales = DOCUMENTOS_CONTRATISTAS.filter(({ key }) =>
+                    ["constancia_vigencia_imss", "constancias_habilidades"].includes(key)
+                  ).filter(({ key }) => Boolean(documentos?.[key]));
+                  if (opcionales.length === 0) return null;
+                  return (
+                    <>
+                      <Typography
+                        variant="h6"
+                        component="h6"
+                        color="primary"
+                        bgcolor="#FFFFFF"
+                        sx={(theme) => ({
+                          border: `1px solid ${theme.palette.primary.main}`,
+                          borderRadius: 2,
+                          px: 2,
+                          py: 0.5,
+                        })}
+                        textAlign="center"
+                        mt={2}
+                        mb={2}
+                      >
+                        <strong>Documentos opcionales</strong>
+                      </Typography>
+                      {opcionales.map(({ key, label }) => {
+                        const docUrl = documentos?.[key] as string | undefined;
+                        const checks = (selectedVisitante as any)?.documentos_checks || {};
+                        const tieneDoc = Boolean(checks?.[key]);
+                        return (
+                          <Accordion
+                            key={key}
+                            disableGutters
+                            expanded={expandedDocKeyDetalle === key}
+                            onChange={(_, isExpanded) =>
+                              setExpandedDocKeyDetalle(isExpanded ? key : false)
+                            }
+                          >
+                            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  width: "100%",
+                                  pr: 2,
+                                }}
+                              >
+                                <Typography>{label}</Typography>
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: tieneDoc ? "success.main" : "error.main",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  {tieneDoc ? "OK" : "Pendiente de revisión"}
+                                </Typography>
+                              </Box>
+                            </AccordionSummary>
+                            <AccordionDetails>
+                              {docUrl ? (
+                                <Box
+                                  component="img"
+                                  src={docUrl}
+                                  alt={label}
+                                  sx={{
+                                    maxWidth: "100%",
+                                    maxHeight: 360,
+                                    objectFit: "contain",
+                                    borderRadius: 1,
+                                    border: "1px solid #e0e0e0",
+                                  }}
+                                />
+                              ) : (
+                                <Typography variant="body2">Sin archivo</Typography>
+                              )}
+                            </AccordionDetails>
+                          </Accordion>
+                        );
+                      })}
+                    </>
+                  );
+                })()}
                 </Box>
               )}
             </CardContent>
@@ -1058,9 +1166,11 @@ export default function Contratistas() {
       </Modal>
       <Modal
         open={showVerificarVisitante}
-        onClose={() => {
-          setShowVerificarVisitante(false);
-          setShowVisitantes(true);
+        onClose={(_, reason) => {
+          if (reason === "escapeKeyDown" || reason === "backdropClick") {
+            setShowVerificarVisitante(false);
+            setShowVisitantes(true);
+          }
         }}
         sx={{ outline: "none" }}
       >
@@ -1119,15 +1229,61 @@ export default function Contratistas() {
                       <CloseIcon fontSize="small" />
                     </MuiIconButton>
                   </Box>
-                  <Typography sx={{ mb: 2 }}>
-                    <strong>
-                      {selectedVisitante?.nombre_completo ||
-                        [selectedVisitante?.nombre, selectedVisitante?.apellido_pat, selectedVisitante?.apellido_mat]
-                          .filter(Boolean)
-                          .join(" ") ||
-                        selectedVisitante?.correo ||
-                        "-"}
-                    </strong>
+                  <Typography
+                    variant="h6"
+                    component="h6"
+                    color="primary"
+                    bgcolor="#FFFFFF"
+                    sx={(theme) => ({
+                      border: `1px solid ${theme.palette.primary.main}`,
+                      borderRadius: 2,
+                      px: 2,
+                      py: 0.5,
+                    })}
+                    textAlign="center"
+                    mb={2}
+                  >
+                    <strong>Generales</strong>
+                  </Typography>
+                  <Box sx={{ display: "grid", gap: 1.5, mb: 2 }}>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 1 }}>
+                      <strong>Empresa:</strong>
+                      <span>{selectedVisitante?.empresa || "-"}</span>
+                    </Box>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 1 }}>
+                      <strong>Nombre:</strong>
+                      <span>
+                        {selectedVisitante?.nombre_completo ||
+                          [selectedVisitante?.nombre, selectedVisitante?.apellido_pat, selectedVisitante?.apellido_mat]
+                            .filter(Boolean)
+                            .join(" ") ||
+                          "-"}
+                      </span>
+                    </Box>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 1 }}>
+                      <strong>Correo:</strong>
+                      <span>{selectedVisitante?.correo || "-"}</span>
+                    </Box>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 1 }}>
+                      <strong>Teléfono:</strong>
+                      <span>{selectedVisitante?.telefono || "-"}</span>
+                    </Box>
+                  </Box>
+                  <Typography
+                    variant="h6"
+                    component="h6"
+                    color="primary"
+                    bgcolor="#FFFFFF"
+                    sx={(theme) => ({
+                      border: `1px solid ${theme.palette.primary.main}`,
+                      borderRadius: 2,
+                      px: 2,
+                      py: 0.5,
+                    })}
+                    textAlign="center"
+                    mb={2}
+                  >
+                    <strong>Documentos</strong>
                   </Typography>
                   <Box
                     sx={{
@@ -1137,17 +1293,18 @@ export default function Contratistas() {
                       pr: 0.5,
                     }}
                   >
-                    {DOCUMENTOS_CONTRATISTAS.map(({ key, label }) => {
+                    {DOCUMENTOS_CONTRATISTAS.filter(
+                      ({ key }) =>
+                        !["constancia_vigencia_imss", "constancias_habilidades"].includes(
+                          key
+                        )
+                    ).map(({ key, label }) => {
                       const documentos =
                         (selectedVisitante as any)?.documentos ||
                         (selectedVisitante as any)?.documentos_urls ||
                         (selectedVisitante as any)?.documentos_archivos ||
                         {};
                       const docUrl = documentos?.[key] as string | undefined;
-                      const esOpcional =
-                        key === "constancia_vigencia_imss" ||
-                        key === "constancias_habilidades";
-                      if (esOpcional && !docUrl) return null;
                       const tieneDoc = Boolean(verifChecks?.[key]);
                       return (
                       <Accordion
@@ -1209,11 +1366,113 @@ export default function Contratistas() {
                             />
                           ) : (
                             <Typography variant="body2">Sin archivo</Typography>
-                          )}
-                        </AccordionDetails>
-                      </Accordion>
+                        )}
+                      </AccordionDetails>
+                    </Accordion>
                       );
                     })}
+                    {(() => {
+                      const documentos =
+                        (selectedVisitante as any)?.documentos ||
+                        (selectedVisitante as any)?.documentos_urls ||
+                        (selectedVisitante as any)?.documentos_archivos ||
+                        {};
+                      const opcionales = DOCUMENTOS_CONTRATISTAS.filter(({ key }) =>
+                        ["constancia_vigencia_imss", "constancias_habilidades"].includes(
+                          key
+                        )
+                      ).filter(({ key }) => Boolean(documentos?.[key]));
+                      if (opcionales.length === 0) return null;
+                      return (
+                        <>
+                          <Typography
+                            variant="h6"
+                            component="h6"
+                            color="primary"
+                            bgcolor="#FFFFFF"
+                            sx={(theme) => ({
+                              border: `1px solid ${theme.palette.primary.main}`,
+                              borderRadius: 2,
+                              px: 2,
+                              py: 0.5,
+                              mt: 2,
+                            })}
+                            textAlign="center"
+                            mb={2}
+                          >
+                            <strong>Documentos opcionales</strong>
+                          </Typography>
+                          {opcionales.map(({ key, label }) => {
+                            const docUrl = documentos?.[key] as string | undefined;
+                            const tieneDoc = Boolean(verifChecks?.[key]);
+                            return (
+                              <Accordion
+                                key={key}
+                                disableGutters
+                                expanded={expandedDocKey === key}
+                                onChange={(_, isExpanded) =>
+                                  setExpandedDocKey(isExpanded ? key : false)
+                                }
+                              >
+                                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                  <Box
+                                    sx={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "space-between",
+                                      width: "100%",
+                                      pr: 2,
+                                    }}
+                                  >
+                                    <Typography>{label}</Typography>
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                      <Typography
+                                        variant="caption"
+                                        sx={{
+                                          color: tieneDoc ? "success.main" : "error.main",
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        {tieneDoc ? "OK" : "Pendiente de revisión"}
+                                      </Typography>
+                                      <Checkbox
+                                        size="small"
+                                        checked={tieneDoc}
+                                        onClick={(event) => event.stopPropagation()}
+                                        onChange={(event) =>
+                                          setVerifChecks((prev) => ({
+                                            ...prev,
+                                            [key]: event.target.checked,
+                                          }))
+                                        }
+                                      />
+                                    </Box>
+                                  </Box>
+                                </AccordionSummary>
+                                <AccordionDetails>
+                                  {docUrl ? (
+                                    <Box
+                                      component="img"
+                                      src={docUrl}
+                                      alt={label}
+                                      sx={{
+                                        maxWidth: "100%",
+                                        maxHeight: 360,
+                                        objectFit: "contain",
+                                        borderRadius: 1,
+                                        border: "1px solid #e0e0e0",
+                                      }}
+                                    />
+                                  ) : (
+                                    <Typography variant="body2">Sin archivo</Typography>
+                                  )}
+                                </AccordionDetails>
+                              </Accordion>
+                            );
+                          })}
+                        </>
+                      );
+                    })()}
                   </Box>
                   <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
                     {areDocsComplete(verifChecks) ? (

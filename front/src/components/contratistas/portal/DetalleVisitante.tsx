@@ -148,7 +148,9 @@ export default function DetallePortalVisitante() {
                   >
                     <strong>Documentos</strong>
                   </Typography>
-                  {DOC_KEYS.map((key) => {
+                  {DOC_KEYS.filter(
+                    (key) => !["constancia_vigencia_imss", "constancias_habilidades"].includes(key)
+                  ).map((key) => {
                     const docUrl = datos.documentos_archivos?.[key];
                     const tieneDoc = Boolean(docUrl);
                     return (
@@ -203,6 +205,89 @@ export default function DetallePortalVisitante() {
                       </Accordion>
                     );
                   })}
+                  {(() => {
+                    const opcionales = DOC_KEYS.filter((key) =>
+                      ["constancia_vigencia_imss", "constancias_habilidades"].includes(key)
+                    ).filter((key) => Boolean(datos.documentos_archivos?.[key]));
+                    if (opcionales.length === 0) return null;
+                    return (
+                      <>
+                        <Typography
+                          variant="h6"
+                          component="h6"
+                          color="primary"
+                          bgcolor="#FFFFFF"
+                          sx={(theme) => ({
+                            border: `1px solid ${theme.palette.primary.main}`,
+                            borderRadius: 2,
+                            px: 2,
+                            py: 0.5,
+                          })}
+                          textAlign="center"
+                          mt={2}
+                          mb={2}
+                        >
+                          <strong>Documentos opcionales</strong>
+                        </Typography>
+                        {opcionales.map((key) => {
+                          const docUrl = datos.documentos_archivos?.[key];
+                          if (!docUrl) return null;
+                          const tieneDoc = Boolean(docUrl);
+                          return (
+                            <Accordion
+                              key={key}
+                              disableGutters
+                              expanded={expandedDocKey === key}
+                              onChange={(_, isExpanded) =>
+                                setExpandedDocKey(isExpanded ? key : false)
+                              }
+                            >
+                              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                <Box
+                                  sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    width: "100%",
+                                    pr: 2,
+                                  }}
+                                >
+                                  <Typography>{DOC_LABELS[key]}</Typography>
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      color: tieneDoc ? "success.main" : "error.main",
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    {tieneDoc ? "OK" : "Pendiente de subir documento"}
+                                  </Typography>
+                                </Box>
+                              </AccordionSummary>
+                              <AccordionDetails>
+                                {docUrl ? (
+                                  <Box
+                                    component="img"
+                                    src={docUrl}
+                                    alt={DOC_LABELS[key]}
+                                    sx={{
+                                      maxWidth: "100%",
+                                      maxHeight: 360,
+                                      objectFit: "contain",
+                                      borderRadius: 1,
+                                      border: "1px solid #e0e0e0",
+                                    }}
+                                  />
+                                ) : (
+                                  <Typography variant="body2">Sin archivo</Typography>
+                                )}
+                              </AccordionDetails>
+                            </Accordion>
+                          );
+                        })}
+                      </>
+                    );
+                  })()}
                 </Box>
                 <Divider sx={{ my: 2 }} />
                 <Box
