@@ -105,12 +105,13 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
             return;
         }
 
-        const { filter, pagination, sort, docs_estado, solo_pendientes } = req.query as {
+        const { filter, pagination, sort, docs_estado, solo_pendientes, estado } = req.query as {
             filter: string;
             pagination: string;
             sort: string;
             docs_estado?: string;
             solo_pendientes?: string;
+            estado?: string;
         };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
         const querySort = JSON.parse(sort) as QueryParams["sort"];
@@ -169,6 +170,9 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
             aggregation.push({ $match: { docs_completos: true } });
         } else if (docs_estado === "incompleto") {
             aggregation.push({ $match: { docs_completos: false } });
+        }
+        if (estado && !Number.isNaN(Number(estado))) {
+            aggregation.push({ $match: { estado_validacion: Number(estado) } });
         }
         if (solo_pendientes === "1") {
             aggregation.push({ $match: { estado_validacion: 1 } });
@@ -231,7 +235,16 @@ export async function crear(req: Request, res: Response): Promise<void> {
             return;
         }
 
-        const { nombre, apellido_pat, apellido_mat, correo, telefono, documentos_checks, documentos_archivos } = req.body;
+        const {
+            nombre,
+            apellido_pat,
+            apellido_mat,
+            correo,
+            telefono,
+            documentos_checks,
+            documentos_archivos,
+            documentos_actualizados,
+        } = req.body;
         const hash_datos = calcularHashVisitante({ nombre, apellido_pat, apellido_mat, correo, telefono, documentos_checks });
 
         const existeCorreo = await ContratistaVisitantes.findOne({
@@ -300,14 +313,26 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             return;
         }
 
-        const { nombre, apellido_pat, apellido_mat, correo, telefono, documentos_checks, documentos_archivos } = req.body;
+        const {
+            nombre,
+            apellido_pat,
+            apellido_mat,
+            correo,
+            telefono,
+            documentos_checks,
+            documentos_archivos,
+            documentos_actualizados,
+        } = req.body;
         const hash_datos = calcularHashVisitante({ nombre, apellido_pat, apellido_mat, correo, telefono, documentos_checks });
 
         const normalizedIncomingFiles = normalizeDocFiles(documentos_archivos);
         const normalizedPrevFiles = normalizeDocFiles(registro.documentos_archivos);
-        const filesChanged = DOC_KEYS.some(
+        let filesChanged = DOC_KEYS.some(
             (key) => normalizedIncomingFiles[key] !== normalizedPrevFiles[key]
         );
+        if (Array.isArray(documentos_actualizados) && documentos_actualizados.length > 0) {
+            filesChanged = true;
+        }
 
         const normalizeText = (value?: string | null) => String(value || "").trim().toLowerCase();
         const normalizePhone = (value?: string | null) => String(value || "").trim();

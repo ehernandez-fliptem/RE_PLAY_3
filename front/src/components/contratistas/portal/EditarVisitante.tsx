@@ -111,6 +111,9 @@ export default function EditarPortalVisitante() {
   const [documentosArchivos, setDocumentosArchivos] = useState<
     Record<string, { name: string; dataUrl: string }>
   >({});
+  const [documentosActualizados, setDocumentosActualizados] = useState<string[]>(
+    []
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -161,6 +164,9 @@ export default function EditarPortalVisitante() {
           ...prev,
           [key]: { name: file.name, dataUrl: String(reader.result || "") },
         }));
+        setDocumentosActualizados((prev) =>
+          prev.includes(key) ? prev : [...prev, key]
+        );
       };
       reader.readAsDataURL(file);
     };
@@ -186,6 +192,7 @@ export default function EditarPortalVisitante() {
             value.dataUrl,
           ])
         ),
+        documentos_actualizados: documentosActualizados,
       };
       const res = await clienteAxios.put(`api/contratistas-visitantes/${id}`, payload);
       if (res.data.estado) {

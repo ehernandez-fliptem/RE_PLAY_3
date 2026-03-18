@@ -74,7 +74,7 @@ export default function PortalVisitantes() {
         let rowCount: number = 0;
         try {
           const urlParams = new URLSearchParams({
-            filter: JSON.stringify(params.filterModel.quickFilterValues),
+            filter: JSON.stringify(params.filterModel.quickFilterValues || []),
             pagination: JSON.stringify(params.paginationModel),
             sort: JSON.stringify(params.sortModel),
           });
@@ -109,6 +109,9 @@ export default function PortalVisitantes() {
           pageSize: 10,
         },
         rowCount: 0,
+      },
+      sorting: {
+        sortModel: [{ field: "estado_validacion", sort: "asc" }],
       },
     }),
     []
@@ -253,6 +256,11 @@ export default function PortalVisitantes() {
             renderCell: ({ value }) => {
               const estado = getEstadoLabel(value);
               return <Chip label={estado.label} color={estado.color} size="small" />;
+            },
+            sortComparator: (v1, v2) => {
+              const order = (value?: number) =>
+                value === 3 ? 0 : value === 1 ? 1 : 2;
+              return order(v1 as number) - order(v2 as number);
             },
           },
           {
