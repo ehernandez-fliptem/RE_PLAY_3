@@ -433,7 +433,7 @@ export default function Contratistas() {
     const el = verifScrollRef.current;
     if (!el) return;
     const target = Math.max(0, el.scrollHeight - el.clientHeight);
-    el.scrollTo({ top: target, behavior: "smooth" });
+    el.scrollTo({ top: target, behavior: "auto" });
   };
 
   useEffect(() => {
@@ -1324,6 +1324,7 @@ export default function Contratistas() {
                       overflowY: "auto",
                       pr: 0.5,
                       position: "relative",
+                      overscrollBehavior: "contain",
                     }}
                     ref={verifScrollRef}
                     onScroll={actualizarScrollVerificar}
