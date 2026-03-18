@@ -125,7 +125,7 @@ export default function EditarPortalVisitante() {
               Object.entries(archivos).map(([key, value]) => [
                 key,
                 {
-                  name: value ? "Cargado" : "",
+                  name: "",
                   dataUrl: String(value || ""),
                 },
               ])
@@ -287,7 +287,7 @@ export default function EditarPortalVisitante() {
                           size="medium"
                           variant="contained"
                         >
-                          Siguiente <Save />
+                          Siguiente
                         </Button>
                       </Stack>
                     </Box>
@@ -295,7 +295,7 @@ export default function EditarPortalVisitante() {
                 ) : (
                   <>
                     <Typography variant="h4" component="h2" textAlign="center">
-                      Subir Documentos
+                      Editar Documentos
                     </Typography>
                     <Divider sx={{ my: 2 }} />
                     <Typography variant="h6" component="h3" sx={{ mb: 1 }}>
@@ -328,12 +328,19 @@ export default function EditarPortalVisitante() {
                           <Typography>{DOC_LABELS[key]}</Typography>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                             <Typography variant="caption">
-                              {documentosArchivos[key]?.name ||
-                                (documentosArchivos[key]?.dataUrl ? "Cargado" : "-")}
+                              {documentosArchivos[key]?.name
+                                ? documentosArchivos[key]?.name
+                                : documentosArchivos[key]?.dataUrl
+                                ? "Archivo cargado"
+                                : "Sin archivo"}
                             </Typography>
                             <InputFileUpload
                               name={key}
-                              label="Subir"
+                              label={
+                                documentosArchivos[key]?.dataUrl
+                                  ? "Re-subir"
+                                  : "Subir"
+                              }
                               onUpload={onUploadDoc(key)}
                               buttonProps={{ size: "small" }}
                             />
@@ -369,12 +376,19 @@ export default function EditarPortalVisitante() {
                           <Typography>{DOC_LABELS[key]}</Typography>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                             <Typography variant="caption">
-                              {documentosArchivos[key]?.name ||
-                                (documentosArchivos[key]?.dataUrl ? "Cargado" : "-")}
+                              {documentosArchivos[key]?.name
+                                ? documentosArchivos[key]?.name
+                                : documentosArchivos[key]?.dataUrl
+                                ? "Archivo cargado"
+                                : "Sin archivo"}
                             </Typography>
                             <InputFileUpload
                               name={key}
-                              label="Subir"
+                              label={
+                                documentosArchivos[key]?.dataUrl
+                                  ? "Re-subir"
+                                  : "Subir"
+                              }
                               onUpload={onUploadDoc(key)}
                               buttonProps={{ size: "small" }}
                             />

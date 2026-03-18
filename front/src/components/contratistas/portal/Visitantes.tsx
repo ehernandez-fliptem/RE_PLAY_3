@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, Fragment, type ChangeEvent } from "react";
 import {
   DataGrid,
   useGridApiRef,
@@ -12,12 +12,38 @@ import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { Outlet, useNavigate } from "react-router-dom";
 import { esES } from "@mui/x-data-grid/locales";
 import DataGridToolbar from "../../utils/DataGridToolbar";
-import { Add, Edit, Visibility, UploadFile } from "@mui/icons-material";
-import { Chip, IconButton, Tooltip } from "@mui/material";
+import { Add, Edit, UploadFile, Visibility, Close } from "@mui/icons-material";
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  IconButton,
+  Modal,
+  Tooltip,
+  Typography,
+} from "@mui/material";
 import ErrorOverlay from "../../error/DataGridError";
 import { AxiosError } from "axios";
+import { enqueueSnackbar } from "notistack";
+import Spinner from "../../utils/Spinner";
+import InputFileUpload from "../../utils/FileUpload";
 
 const pageSizeOptions = [10, 25, 50];
+
+const DOC_LABELS: Record<string, string> = {
+  identificacion_oficial: "Identificación oficial",
+  sua: "SUA",
+  permiso_entrada: "Permiso de entrada",
+  lista_articulos: "Lista de artículos",
+  repse: "REPSE",
+  soporte_pago_actualizado: "Soporte de pago actualizado",
+  constancia_vigencia_imss: "Constancia de Vigencia IMSS",
+  constancias_habilidades: "Constancias de Habilidades",
+};
+
+const DOC_KEYS = Object.keys(DOC_LABELS);
 
 const getEstadoLabel = (estado?: number) => {
   if (estado === 2) return { label: "Aprobado", color: "success" as const };
@@ -29,6 +55,17 @@ export default function PortalVisitantes() {
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();
   const navigate = useNavigate();
+  const [showCorreccion, setShowCorreccion] = useState(false);
+  const [isLoadingCorreccion, setIsLoadingCorreccion] = useState(false);
+  const [correccionVisitante, setCorreccionVisitante] =
+    useState<GridValidRowModel | null>(null);
+  const [documentosCorreccion, setDocumentosCorreccion] = useState<
+    Record<string, { name: string; dataUrl: string }>
+  >({});
+  const rejectedDocKeys = useMemo(() => {
+    const checks = (correccionVisitante as any)?.documentos_checks || {};
+    return DOC_KEYS.filter((key) => !checks?.[key]);
+  }, [correccionVisitante]);
 
   const dataSource: GridDataSource = useMemo(
     () => ({
@@ -91,6 +128,86 @@ export default function PortalVisitantes() {
 
   const cargaMasiva = () => {
     navigate("carga-masiva");
+  };
+
+  const abrirCorreccion = async (row: GridValidRowModel) => {
+    setShowCorreccion(true);
+    setIsLoadingCorreccion(true);
+    setCorreccionVisitante(null);
+    setDocumentosCorreccion({});
+    try {
+      const res = await clienteAxios.get(`/api/contratistas-visitantes/${row._id}`);
+      if (res.data.estado) {
+        setCorreccionVisitante(res.data.datos);
+      } else {
+        enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setIsLoadingCorreccion(false);
+    }
+  };
+
+  const cerrarCorreccion = () => {
+    setShowCorreccion(false);
+    setCorreccionVisitante(null);
+    setDocumentosCorreccion({});
+  };
+
+  const onUploadDoc =
+    (key: string) => async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        setDocumentosCorreccion((prev) => ({
+          ...prev,
+          [key]: { name: file.name, dataUrl: String(reader.result || "") },
+        }));
+      };
+      reader.readAsDataURL(file);
+    };
+
+  const enviarCorreccion = async () => {
+    if (!correccionVisitante) return;
+    if (rejectedDocKeys.length === 0) {
+      enqueueSnackbar("No hay documentos rechazados para corregir.", {
+        variant: "warning",
+      });
+      return;
+    }
+    const faltan = rejectedDocKeys.some(
+      (key) => !documentosCorreccion[key]?.dataUrl
+    );
+    if (faltan) {
+      enqueueSnackbar("Debes subir todos los documentos rechazados.", {
+        variant: "warning",
+      });
+      return;
+    }
+    try {
+      const payload = {
+        documentos_archivos: Object.fromEntries(
+          rejectedDocKeys.map((key) => [key, documentosCorreccion[key].dataUrl])
+        ),
+      };
+      const res = await clienteAxios.patch(
+        `/api/contratistas-visitantes/corregir/${correccionVisitante._id}`,
+        payload
+      );
+      if (res.data.estado) {
+        enqueueSnackbar("Corrección enviada.", { variant: "success" });
+        apiRef.current?.dataSource?.fetchRows?.();
+        cerrarCorreccion();
+      } else {
+        enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    }
   };
 
   return (
@@ -156,14 +273,25 @@ export default function PortalVisitantes() {
                   title="Ver"
                 />
               );
-              gridActions.push(
-                <GridActionsCellItem
-                  icon={<Edit color="primary" />}
-                  onClick={() => editarRegistro(row._id)}
-                  label="Editar"
-                  title="Editar"
-                />
-              );
+              if (row.estado_validacion === 3) {
+                gridActions.push(
+                  <GridActionsCellItem
+                    icon={<UploadFile color="warning" />}
+                    onClick={() => abrirCorreccion(row)}
+                    label="Corregir"
+                    title="Corregir"
+                  />
+                );
+              } else if (row.estado_validacion === 2) {
+                gridActions.push(
+                  <GridActionsCellItem
+                    icon={<Edit color="primary" />}
+                    onClick={() => editarRegistro(row._id)}
+                    label="Editar"
+                    title="Editar"
+                  />
+                );
+              }
               return gridActions;
             },
           },
@@ -205,11 +333,13 @@ export default function PortalVisitantes() {
                       <Add fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Carga masiva">
-                    <IconButton onClick={cargaMasiva}>
-                      <UploadFile fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                  {false && (
+                    <Tooltip title="Carga masiva">
+                      <IconButton onClick={cargaMasiva}>
+                        <UploadFile fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                 </Fragment>
               }
             />
@@ -220,6 +350,152 @@ export default function PortalVisitantes() {
         <ErrorOverlay error={error} gridDataRef={apiRef.current?.dataSource} />
       )}
       <Outlet context={apiRef.current?.dataSource} />
+      <Modal open={showCorreccion} onClose={cerrarCorreccion} sx={{ outline: "none" }}>
+        <Box
+          sx={{
+            height: "100%",
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 2,
+            outline: "none",
+            "&:focus, &:focus-visible": { outline: "none" },
+          }}
+        >
+          <Card sx={{ width: "100%", maxWidth: 900 }}>
+            <CardContent>
+              {isLoadingCorreccion ? (
+                <Spinner />
+              ) : (
+                <>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      mb: 2,
+                    }}
+                  >
+                    <Typography variant="h6" component="h6">
+                      Corrección de documentos
+                    </Typography>
+                    <IconButton onClick={cerrarCorreccion} size="small" sx={{ color: "error.main" }}>
+                      <Close fontSize="small" />
+                    </IconButton>
+                  </Box>
+                  <Box sx={{ display: "grid", gap: 0.5, mb: 2 }}>
+                    <Typography
+                      variant="h6"
+                      component="h6"
+                      color="primary"
+                      bgcolor="#FFFFFF"
+                      sx={(theme) => ({
+                        border: `1px solid ${theme.palette.primary.main}`,
+                        borderRadius: 2,
+                        px: 2,
+                        py: 0.5,
+                      })}
+                      textAlign="center"
+                      mb={1}
+                    >
+                      <strong>Generales</strong>
+                    </Typography>
+                    <Box sx={{ display: "grid", gap: 1.5, mb: 2 }}>
+                      <Box sx={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 1 }}>
+                        <strong>Visitante:</strong>
+                        <span>
+                          {correccionVisitante?.nombre_completo ||
+                            [correccionVisitante?.nombre, correccionVisitante?.apellido_pat, correccionVisitante?.apellido_mat]
+                              .filter(Boolean)
+                              .join(" ") ||
+                            correccionVisitante?.correo ||
+                            "-"}
+                        </span>
+                      </Box>
+                      <Box sx={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 1 }}>
+                        <strong>Motivo:</strong>
+                        <span>{correccionVisitante?.motivo_rechazo || "-"}</span>
+                      </Box>
+                    </Box>
+                  </Box>
+                  <Typography
+                    variant="h6"
+                    component="h6"
+                    color="primary"
+                    bgcolor="#FFFFFF"
+                    sx={(theme) => ({
+                      border: `1px solid ${theme.palette.primary.main}`,
+                      borderRadius: 2,
+                      px: 2,
+                      py: 0.5,
+                    })}
+                    textAlign="center"
+                    mb={2}
+                  >
+                    <strong>Documentos</strong>
+                  </Typography>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 1.5,
+                      border: "1px solid #eee",
+                      borderRadius: 1,
+                      p: 1.5,
+                    }}
+                  >
+                    {rejectedDocKeys.map((key) => (
+                      <Box
+                        key={key}
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 2,
+                          borderBottom: "1px dashed #e6e6e6",
+                          pb: 1,
+                        }}
+                      >
+                        <Typography>{DOC_LABELS[key]}</Typography>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <Typography variant="caption">
+                            {documentosCorreccion[key]?.name || "-"}
+                          </Typography>
+                          <InputFileUpload
+                            name={key}
+                            label="Subir"
+                            onUpload={onUploadDoc(key)}
+                            buttonProps={{ size: "small" }}
+                          />
+                        </Box>
+                      </Box>
+                    ))}
+                    {rejectedDocKeys.length === 0 && (
+                      <Typography variant="body2" color="text.secondary">
+                        No hay documentos pendientes de corrección.
+                      </Typography>
+                    )}
+                  </Box>
+                  <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+                    <Button
+                      variant="contained"
+                      onClick={enviarCorreccion}
+                      disabled={
+                        rejectedDocKeys.length === 0 ||
+                        rejectedDocKeys.some(
+                          (key) => !documentosCorreccion[key]?.dataUrl
+                        )
+                      }
+                    >
+                      Enviar corrección
+                    </Button>
+                  </Box>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </Box>
+      </Modal>
     </div>
   );
 }

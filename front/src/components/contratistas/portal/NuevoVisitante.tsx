@@ -254,7 +254,7 @@ export default function NuevoPortalVisitante() {
                           size="medium"
                           variant="contained"
                         >
-                          Siguiente <Save />
+                          Siguiente
                         </Button>
                       </Stack>
                     </Box>

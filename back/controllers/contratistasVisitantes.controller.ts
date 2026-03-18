@@ -292,9 +292,31 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             res.status(200).json({ estado: false, mensaje: "Visitante no encontrado." });
             return;
         }
+        if (role.includes(11) && registro.estado_validacion !== 2) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "Solo puedes modificar visitantes aprobados.",
+            });
+            return;
+        }
 
         const { nombre, apellido_pat, apellido_mat, correo, telefono, documentos_checks, documentos_archivos } = req.body;
         const hash_datos = calcularHashVisitante({ nombre, apellido_pat, apellido_mat, correo, telefono, documentos_checks });
+
+        const normalizedIncomingFiles = normalizeDocFiles(documentos_archivos);
+        const normalizedPrevFiles = normalizeDocFiles(registro.documentos_archivos);
+        const filesChanged = DOC_KEYS.some(
+            (key) => normalizedIncomingFiles[key] !== normalizedPrevFiles[key]
+        );
+
+        const normalizeText = (value?: string | null) => String(value || "").trim().toLowerCase();
+        const normalizePhone = (value?: string | null) => String(value || "").trim();
+        const coreChanged =
+            normalizeText(nombre) !== normalizeText(registro.nombre) ||
+            normalizeText(apellido_pat) !== normalizeText(registro.apellido_pat) ||
+            normalizeText(apellido_mat) !== normalizeText(registro.apellido_mat) ||
+            normalizeText(correo) !== normalizeText(registro.correo) ||
+            normalizePhone(telefono) !== normalizePhone(registro.telefono);
 
         if (correo && String(correo).trim().toLowerCase() !== String(registro.correo).trim().toLowerCase()) {
             const existeCorreo = await ContratistaVisitantes.findOne({
@@ -315,20 +337,21 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             correo,
             telefono,
             documentos_checks: normalizeDocChecks(documentos_checks),
-            documentos_archivos: normalizeDocFiles(documentos_archivos),
+            documentos_archivos: normalizedIncomingFiles,
             hash_datos,
             fecha_modificacion: new Date(),
             modificado_por: id_usuario as any,
         };
 
         const requiereRevision =
-            registro.estado_validacion === 2 && registro.hash_ultimo_aprobado && registro.hash_ultimo_aprobado !== hash_datos;
+            registro.estado_validacion === 2 && (coreChanged || filesChanged);
 
         if (requiereRevision) {
             updateData.estado_validacion = 1;
             updateData.motivo_rechazo = "";
             updateData.fecha_validacion = null as any;
             updateData.validado_por = null as any;
+            updateData.documentos_checks = normalizeDocChecks({});
         }
 
         const actualizado = await ContratistaVisitantes.findByIdAndUpdate(
@@ -465,6 +488,69 @@ export async function rechazar(req: Request, res: Response): Promise<void> {
                 faltantes,
             });
         }
+
+        res.status(200).json({ estado: true, datos: actualizado });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function corregir(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const contratista = await obtenerContratistaDeUsuario(String(id_usuario));
+        if (!contratista) {
+            res.status(200).json({ estado: false, mensaje: "Contratista no encontrado." });
+            return;
+        }
+
+        const registro = await ContratistaVisitantes.findOne({
+            _id: req.params.id,
+            id_contratista: contratista._id,
+        });
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Visitante no encontrado." });
+            return;
+        }
+
+        const incomingFiles = req.body?.documentos_archivos as Partial<DocFiles> | undefined;
+        if (!incomingFiles || typeof incomingFiles !== "object") {
+            res.status(200).json({
+                estado: false,
+                mensaje: "Debes proporcionar los documentos a corregir.",
+            });
+            return;
+        }
+
+        const mergedFiles = normalizeDocFiles({
+            ...(registro.documentos_archivos || {}),
+            ...incomingFiles,
+        });
+
+        const nextChecks = normalizeDocChecks(registro.documentos_checks || {});
+        Object.keys(incomingFiles).forEach((key) => {
+            if ((incomingFiles as any)[key]) {
+                (nextChecks as any)[key] = false;
+            }
+        });
+
+        const actualizado = await ContratistaVisitantes.findByIdAndUpdate(
+            registro._id,
+            {
+                $set: {
+                    documentos_archivos: mergedFiles,
+                    documentos_checks: nextChecks,
+                    estado_validacion: 1,
+                    motivo_rechazo: "",
+                    fecha_validacion: null,
+                    validado_por: null,
+                    fecha_modificacion: new Date(),
+                    modificado_por: id_usuario as any,
+                },
+            },
+            { new: true }
+        );
 
         res.status(200).json({ estado: true, datos: actualizado });
     } catch (error: any) {
