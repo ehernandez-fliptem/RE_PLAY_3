@@ -17,6 +17,7 @@ import {
   Delete,
   Edit,
   PeopleAlt,
+  Refresh,
   RestoreFromTrash,
   Verified,
   Visibility,
@@ -117,6 +118,16 @@ export default function Contratistas() {
   const verifScrollRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const confirm = useConfirm();
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      apiRef.current?.dataSource?.fetchRows?.();
+      if (showVisitantes) {
+        apiRefVisitantes.current?.dataSource?.fetchRows?.();
+      }
+    }, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [apiRef, apiRefVisitantes, showVisitantes]);
 
   const dataSource: GridDataSource = useMemo(
     () => ({
@@ -598,6 +609,11 @@ export default function Contratistas() {
                   <Tooltip title="Agregar">
                     <IconButton onClick={nuevoRegistro}>
                       <Add fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Recargar">
+                    <IconButton onClick={() => apiRef.current?.dataSource?.fetchRows?.()}>
+                      <Refresh fontSize="small" />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Ver visitantes">

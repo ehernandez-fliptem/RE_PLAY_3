@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment, type ChangeEvent } from "react";
+import { useState, useMemo, Fragment, type ChangeEvent, useEffect } from "react";
 import {
   DataGrid,
   useGridApiRef,
@@ -12,7 +12,7 @@ import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { Outlet, useNavigate } from "react-router-dom";
 import { esES } from "@mui/x-data-grid/locales";
 import DataGridToolbar from "../../utils/DataGridToolbar";
-import { Add, Edit, UploadFile, Visibility, Close } from "@mui/icons-material";
+import { Add, Edit, UploadFile, Visibility, Close, Refresh } from "@mui/icons-material";
 import {
   Box,
   Button,
@@ -46,7 +46,7 @@ const DOC_LABELS: Record<string, string> = {
 const DOC_KEYS = Object.keys(DOC_LABELS);
 
 const getEstadoLabel = (estado?: number) => {
-  if (estado === 2) return { label: "Aprobado", color: "success" as const };
+  if (estado === 2) return { label: "Verificado", color: "success" as const };
   if (estado === 3) return { label: "Rechazado", color: "error" as const };
   return { label: "Pendiente", color: "warning" as const };
 };
@@ -62,6 +62,13 @@ export default function PortalVisitantes() {
   const [documentosCorreccion, setDocumentosCorreccion] = useState<
     Record<string, { name: string; dataUrl: string }>
   >({});
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      apiRef.current?.dataSource?.fetchRows?.();
+    }, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [apiRef]);
   const rejectedDocKeys = useMemo(() => {
     const checks = (correccionVisitante as any)?.documentos_checks || {};
     return DOC_KEYS.filter((key) => !checks?.[key]);
@@ -255,7 +262,14 @@ export default function PortalVisitantes() {
             minWidth: 140,
             renderCell: ({ value }) => {
               const estado = getEstadoLabel(value);
-              return <Chip label={estado.label} color={estado.color} size="small" />;
+              return (
+                <Chip
+                  label={estado.label}
+                  color={estado.color}
+                  size="small"
+                  sx={{ minWidth: 110, fontWeight: 600, fontSize: 12, color: "#fff" }}
+                />
+              );
             },
             sortComparator: (v1, v2) => {
               const order = (value?: number) =>
@@ -339,6 +353,11 @@ export default function PortalVisitantes() {
                   <Tooltip title="Agregar">
                     <IconButton onClick={nuevoRegistro}>
                       <Add fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Recargar">
+                    <IconButton onClick={() => apiRef.current?.dataSource?.fetchRows?.()}>
+                      <Refresh fontSize="small" />
                     </IconButton>
                   </Tooltip>
                   {false && (
