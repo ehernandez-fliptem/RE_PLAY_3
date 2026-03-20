@@ -29,6 +29,16 @@ const rangoDia = (fecha: Date) => {
     return { inicio, fin };
 };
 
+const normalizarRangoFechas = (desde?: string, hasta?: string) => {
+    const inicio = desde ? new Date(desde) : null;
+    const fin = hasta ? new Date(hasta) : null;
+    if (inicio && Number.isNaN(inicio.getTime())) return null;
+    if (fin && Number.isNaN(fin.getTime())) return null;
+    if (inicio) inicio.setHours(0, 0, 0, 0);
+    if (fin) fin.setHours(23, 59, 59, 999);
+    return { inicio, fin };
+};
+
 const marcarSolicitudesVencidas = async (filtro: { id_contratista?: Types.ObjectId } = {}) => {
     const hoy = inicioHoy();
     await ContratistaSolicitudes.updateMany(
@@ -290,8 +300,24 @@ export async function obtenerSolicitudesContratista(req: Request, res: Response)
         const { filter: filterMDB, sort: sortMDB, pagination: paginationMDB } =
             customAggregationForDataGrids(queryFilter, querySort, queryPagination, ["comentario"]);
 
+        const rango = normalizarRangoFechas(
+            req.query?.fecha_desde as string | undefined,
+            req.query?.fecha_hasta as string | undefined
+        );
+        const estadoFiltro = Number.isFinite(Number(req.query?.estado))
+            ? Number(req.query?.estado)
+            : null;
+
+        const matchBase: Record<string, any> = contratista ? { id_contratista: contratista._id } : {};
+        if (rango?.inicio && rango?.fin) {
+            matchBase.fecha_visita = { $gte: rango.inicio, $lte: rango.fin };
+        }
+        if (estadoFiltro && estadoFiltro > 0) {
+            matchBase.estado = estadoFiltro;
+        }
+
         const aggregation: PipelineStage[] = [
-            { $match: contratista ? { id_contratista: contratista._id } : {} },
+            { $match: matchBase },
             {
                 $project: {
                     fecha_visita: 1,
@@ -317,6 +343,51 @@ export async function obtenerSolicitudesContratista(req: Request, res: Response)
 
         const registros = await ContratistaSolicitudes.aggregate(aggregation);
         res.status(200).json({ estado: true, datos: registros[0] });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function obtenerResumenSolicitudesContratista(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const role = (req as UserRequest).role || [];
+        const contratista = role.includes(11)
+            ? await obtenerContratistaDeUsuario(String(id_usuario))
+            : await Contratistas.findById(req.query?.id_contratista as string);
+        if (!contratista) {
+            res.status(200).json({ estado: false, mensaje: "Contratista no encontrado." });
+            return;
+        }
+
+        const rango = normalizarRangoFechas(
+            req.query?.fecha_desde as string | undefined,
+            req.query?.fecha_hasta as string | undefined
+        );
+        const matchBase: Record<string, any> = { id_contratista: contratista._id };
+        if (rango?.inicio && rango?.fin) {
+            matchBase.fecha_visita = { $gte: rango.inicio, $lte: rango.fin };
+        }
+
+        const aggregation: PipelineStage[] = [
+            { $match: matchBase },
+            { $group: { _id: "$estado", count: { $sum: 1 } } },
+        ];
+        const resultados = await ContratistaSolicitudes.aggregate(aggregation);
+        const resumen = resultados.reduce(
+            (acc, item) => {
+                acc.total += item.count;
+                if (item._id === 1) acc.pendientes += item.count;
+                if (item._id === 2) acc.aprobadas += item.count;
+                if (item._id === 3) acc.rechazadas += item.count;
+                if (item._id === 4) acc.parciales += item.count;
+                return acc;
+            },
+            { total: 0, pendientes: 0, aprobadas: 0, rechazadas: 0, parciales: 0 }
+        );
+
+        res.status(200).json({ estado: true, datos: resumen });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });

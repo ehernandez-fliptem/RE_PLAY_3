@@ -4,6 +4,7 @@ import {
     crearSolicitud,
     validarSolicitud,
     obtenerVisitantesOcupados,
+    obtenerResumenSolicitudesContratista,
     obtenerSolicitudesContratista,
     obtenerPendientes,
     obtenerSolicitud,
@@ -15,6 +16,7 @@ const router = Router();
 // Contratista
 router.get("/", validarTokenYRol([1, 11]), obtenerSolicitudesContratista);
 router.get("/ocupados", validarTokenYRol([1, 11]), obtenerVisitantesOcupados);
+router.get("/resumen", validarTokenYRol([1, 11]), obtenerResumenSolicitudesContratista);
 router.post("/validar", validarTokenYRol([1, 11]), validarSolicitud);
 router.post("/", validarTokenYRol([1, 11]), crearSolicitud);
 

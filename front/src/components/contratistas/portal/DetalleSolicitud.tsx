@@ -84,8 +84,17 @@ export default function DetallePortalSolicitud() {
 
   return (
     <ModalContainer containerProps={{ maxWidth: "lg" }}>
-      <Box component="section">
-        <Card elevation={5}>
+      <Box
+        component="section"
+        sx={{
+          minHeight: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          py: 2,
+        }}
+      >
+        <Card elevation={5} sx={{ width: "100%" }}>
           <CardContent>
             <Box
               sx={{
@@ -148,6 +157,30 @@ export default function DetallePortalSolicitud() {
                   <span>{datos.comentario || "-"}</span>
                 </Box>
               </Box>
+              {datos.estado === 3 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography
+                    variant="h6"
+                    component="h6"
+                    color="primary"
+                    bgcolor="#FFFFFF"
+                    sx={(theme) => ({
+                      border: `1px solid ${theme.palette.primary.main}`,
+                      borderRadius: 2,
+                      px: 2,
+                      py: 0.5,
+                    })}
+                    textAlign="center"
+                    mb={1}
+                  >
+                    <strong>Motivo de rechazo</strong>
+                  </Typography>
+                  <Typography sx={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 1 }}>
+                    <strong>Motivo:</strong>
+                    <span>-</span>
+                  </Typography>
+                </Box>
+              )}
               <Typography
                 variant="h6"
                 component="h6"
