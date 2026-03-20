@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   DataGrid,
   useGridApiRef,
@@ -12,11 +12,13 @@ import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { Outlet, useNavigate } from "react-router-dom";
 import { esES } from "@mui/x-data-grid/locales";
 import DataGridToolbar from "../../utils/DataGridToolbar";
-import { Visibility } from "@mui/icons-material";
-import { Chip } from "@mui/material";
+import { Refresh, Visibility } from "@mui/icons-material";
+import { Chip, IconButton, Tooltip } from "@mui/material";
 import ErrorOverlay from "../../error/DataGridError";
 import { AxiosError } from "axios";
 import dayjs from "dayjs";
+import { useSelector } from "react-redux";
+import type { IRootState } from "../../../app/store";
 
 const pageSizeOptions = [10, 25, 50];
 
@@ -28,9 +30,19 @@ const getEstadoLabel = (estado?: number) => {
 };
 
 export default function ContratistasSolicitudes() {
+  const { esRoot } = useSelector((state: IRootState) => state.auth.data);
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const navigate = useNavigate();
+  const autoRefreshEnabled = true;
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      apiRef.current?.dataSource?.fetchRows?.();
+    }, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [apiRef]);
 
   const dataSource: GridDataSource = useMemo(
     () => ({
@@ -69,6 +81,9 @@ export default function ContratistasSolicitudes() {
 
   const initialState: GridInitialState = useMemo(
     () => ({
+      sorting: {
+        sortModel: [{ field: "fecha_visita", sort: "desc" }],
+      },
       pagination: {
         paginationModel: {
           pageSize: 10,
@@ -107,7 +122,7 @@ export default function ContratistasSolicitudes() {
               value ? dayjs(value).format("DD/MM/YYYY") : "-",
           },
           {
-            headerName: "Items",
+            headerName: "Visitantes",
             field: "items",
             flex: 1,
             display: "flex",
@@ -122,7 +137,25 @@ export default function ContratistasSolicitudes() {
             minWidth: 120,
             renderCell: ({ value }) => {
               const estado = getEstadoLabel(value);
-              return <Chip label={estado.label} color={estado.color} size="small" />;
+              return (
+                <Chip
+                  label={estado.label}
+                  color={estado.color}
+                  size="small"
+                  sx={{
+                    minWidth: 130,
+                    height: 24,
+                    justifyContent: "center",
+                    "& .MuiChip-label": {
+                      px: 1.5,
+                      color: "#fff",
+                      fontWeight: 600,
+                      fontSize: 12,
+                      textAlign: "center",
+                    },
+                  }}
+                />
+              );
             },
           },
           {
@@ -145,6 +178,12 @@ export default function ContratistasSolicitudes() {
         ]}
         disableColumnFilter
         disableRowSelectionOnClick
+        onCellClick={(params) => {
+          setSelectedRowId(String(params.id));
+        }}
+        getRowClassName={(params) =>
+          params.id === selectedRowId ? "row-selected" : ""
+        }
         filterDebounceMs={1000}
         dataSource={dataSource}
         dataSourceCache={null}
@@ -169,14 +208,64 @@ export default function ContratistasSolicitudes() {
           toolbarExport: "",
           noRowsLabel: "Sin registros",
         }}
+        sx={{
+          "& .row-selected": {
+            outline: "2px solid #7A3DF0",
+            outlineOffset: -2,
+          },
+          "& .MuiDataGrid-cell.MuiDataGrid-cell--focus": {
+            outline: "none",
+          },
+          "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
+            outline: "none",
+          },
+          "& .MuiDataGrid-columnSeparator": {
+            display: "none",
+          },
+        }}
         slots={{
           toolbar: () => (
-            <DataGridToolbar tableTitle="Solicitudes Contratistas" />
+            <DataGridToolbar
+              tableTitle="Solicitudes Contratistas"
+              customActionButtons={
+                <Tooltip title="Recargar">
+                  <IconButton onClick={() => apiRef.current?.dataSource?.fetchRows?.()}>
+                    <Refresh fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              }
+            />
           ),
         }}
       />
       {error && (
         <ErrorOverlay error={error} gridDataRef={apiRef.current?.dataSource} />
+      )}
+      {esRoot && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 8,
+            left: 0,
+            right: 0,
+            display: "flex",
+            justifyContent: "center",
+            pointerEvents: "none",
+            zIndex: 1200,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 12,
+              color: "rgba(0, 0, 0, 0.45)",
+              background: "rgba(255, 255, 255, 0.75)",
+              padding: "2px 8px",
+              borderRadius: 8,
+            }}
+          >
+            Auto-refresh: {autoRefreshEnabled ? "activo" : "inactivo"}
+          </span>
+        </div>
       )}
       <Outlet context={apiRef.current?.dataSource} />
     </div>

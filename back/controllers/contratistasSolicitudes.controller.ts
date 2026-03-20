@@ -15,6 +15,77 @@ const obtenerContratistaDeUsuario = async (id_usuario: string) => {
     return Contratistas.findOne({ id_usuario, activo: true });
 };
 
+const inicioHoy = () => {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    return hoy;
+};
+
+const rangoDia = (fecha: Date) => {
+    const inicio = new Date(fecha);
+    inicio.setHours(0, 0, 0, 0);
+    const fin = new Date(fecha);
+    fin.setHours(23, 59, 59, 999);
+    return { inicio, fin };
+};
+
+const marcarSolicitudesVencidas = async (filtro: { id_contratista?: Types.ObjectId } = {}) => {
+    const hoy = inicioHoy();
+    await ContratistaSolicitudes.updateMany(
+        {
+            ...filtro,
+            fecha_visita: { $lt: hoy },
+            estado: { $ne: 2 },
+        },
+        {
+            $set: {
+                estado: 3,
+                "items.$[].estado": 3,
+                fecha_modificacion: new Date(),
+            },
+        }
+    );
+};
+
+const existeSolicitudConFechaYCantidad = async (
+    id_contratista: Types.ObjectId,
+    fecha_visita: string,
+    cantidad: number
+) => {
+    const fecha = new Date(fecha_visita);
+    if (Number.isNaN(fecha.getTime())) return false;
+    const { inicio, fin } = rangoDia(fecha);
+    const existente = await ContratistaSolicitudes.findOne({
+        id_contratista,
+        fecha_visita: { $gte: inicio, $lte: fin },
+        $expr: { $eq: [{ $size: "$items" }, cantidad] },
+    })
+        .select("_id")
+        .lean();
+    return Boolean(existente);
+};
+
+const obtenerVisitantesOcupadosPorFecha = async (
+    id_contratista: Types.ObjectId,
+    fecha_visita: string
+): Promise<Types.ObjectId[]> => {
+    const fecha = new Date(fecha_visita);
+    if (Number.isNaN(fecha.getTime())) return [];
+    const { inicio, fin } = rangoDia(fecha);
+    const ocupados = await ContratistaSolicitudes.aggregate([
+        {
+            $match: {
+                id_contratista,
+                fecha_visita: { $gte: inicio, $lte: fin },
+            },
+        },
+        { $unwind: "$items" },
+        { $match: { "items.estado": { $ne: 3 } } },
+        { $group: { _id: "$items.id_visitante" } },
+    ]);
+    return ocupados.map((o) => o._id as Types.ObjectId);
+};
+
 export async function crearSolicitud(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;
@@ -36,8 +107,29 @@ export async function crearSolicitud(req: Request, res: Response): Promise<void>
             res.status(200).json({ estado: false, mensaje: "Faltan datos para crear la solicitud." });
             return;
         }
+        const hoy = inicioHoy();
+        const fechaSolicitud = new Date(fecha_visita);
+        if (Number.isNaN(fechaSolicitud.getTime()) || fechaSolicitud < hoy) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No puedes crear solicitudes para días anteriores.",
+            });
+            return;
+        }
 
         const visitantesIds = visitantes.map((id) => new Types.ObjectId(id));
+        const ocupados = await obtenerVisitantesOcupadosPorFecha(contratista._id, fecha_visita);
+        const ocupadosSet = new Set(ocupados.map((id) => String(id)));
+        const duplicados = visitantesIds.filter((id) => ocupadosSet.has(String(id)));
+        if (duplicados.length > 0) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "Ya se encuentra una solicitud de visita con esas personas ese día.",
+                duplicado: true,
+                duplicados,
+            });
+            return;
+        }
         const visitantesValidos = await ContratistaVisitantes.find({
             _id: { $in: visitantesIds },
             id_contratista: contratista._id,
@@ -79,6 +171,102 @@ export async function crearSolicitud(req: Request, res: Response): Promise<void>
     }
 }
 
+export async function validarSolicitud(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const role = (req as UserRequest).role || [];
+        const contratista = role.includes(11)
+            ? await obtenerContratistaDeUsuario(String(id_usuario))
+            : await Contratistas.findById(req.body?.id_contratista);
+        if (!contratista) {
+            res.status(200).json({ estado: false, mensaje: "Contratista no encontrado." });
+            return;
+        }
+
+        const { fecha_visita, visitantes_count, visitantes } = req.body as {
+            fecha_visita: string;
+            visitantes_count: number;
+            visitantes?: string[];
+        };
+        if (!fecha_visita || !Number.isFinite(visitantes_count)) {
+            res.status(200).json({ estado: false, mensaje: "Faltan datos para validar la solicitud." });
+            return;
+        }
+        const hoy = inicioHoy();
+        const fechaSolicitud = new Date(fecha_visita);
+        if (Number.isNaN(fechaSolicitud.getTime()) || fechaSolicitud < hoy) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No puedes crear solicitudes para días anteriores.",
+            });
+            return;
+        }
+
+        const visitantesIds = Array.isArray(visitantes)
+            ? visitantes.map((id) => new Types.ObjectId(id))
+            : [];
+        if (visitantesIds.length > 0) {
+            const ocupados = await obtenerVisitantesOcupadosPorFecha(contratista._id, fecha_visita);
+            const ocupadosSet = new Set(ocupados.map((id) => String(id)));
+            const duplicados = visitantesIds.filter((id) => ocupadosSet.has(String(id)));
+            if (duplicados.length > 0) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: "Ya se encuentra una solicitud de visita con esas personas ese día.",
+                    duplicado: true,
+                    duplicados,
+                });
+                return;
+            }
+        }
+
+        const duplicado = await existeSolicitudConFechaYCantidad(
+            contratista._id,
+            fecha_visita,
+            Number(visitantes_count)
+        );
+        if (duplicado) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "Ya se encuentra una solicitud de visita con esas personas ese día.",
+                duplicado: true,
+            });
+            return;
+        }
+
+        res.status(200).json({ estado: true });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function obtenerVisitantesOcupados(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const role = (req as UserRequest).role || [];
+        const contratista = role.includes(11)
+            ? await obtenerContratistaDeUsuario(String(id_usuario))
+            : await Contratistas.findById(req.query?.id_contratista as string);
+        if (!contratista) {
+            res.status(200).json({ estado: false, mensaje: "Contratista no encontrado." });
+            return;
+        }
+
+        const fecha_visita = String(req.query?.fecha_visita || "");
+        if (!fecha_visita) {
+            res.status(200).json({ estado: false, mensaje: "Falta la fecha de visita." });
+            return;
+        }
+
+        const ocupados = await obtenerVisitantesOcupadosPorFecha(contratista._id, fecha_visita);
+        res.status(200).json({ estado: true, datos: { ocupados } });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
 export async function obtenerSolicitudesContratista(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;
@@ -89,6 +277,9 @@ export async function obtenerSolicitudesContratista(req: Request, res: Response)
         if (role.includes(11) && !contratista) {
             res.status(200).json({ estado: false, mensaje: "Contratista no encontrado." });
             return;
+        }
+        if (contratista?._id) {
+            await marcarSolicitudesVencidas({ id_contratista: contratista._id });
         }
 
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string };
@@ -134,6 +325,7 @@ export async function obtenerSolicitudesContratista(req: Request, res: Response)
 
 export async function obtenerPendientes(req: Request, res: Response): Promise<void> {
     try {
+        await marcarSolicitudesVencidas();
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
         const querySort = JSON.parse(sort) as QueryParams["sort"];
@@ -193,6 +385,9 @@ export async function obtenerSolicitud(req: Request, res: Response): Promise<voi
         if (!registro) {
             res.status(200).json({ estado: false, mensaje: "Solicitud no encontrada." });
             return;
+        }
+        if (registro.estado !== 2 && registro.fecha_visita && registro.fecha_visita < inicioHoy()) {
+            await marcarSolicitudesVencidas({ id_contratista: registro.id_contratista as any });
         }
         if (role.includes(11)) {
             const id_usuario = (req as UserRequest).userId;

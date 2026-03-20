@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, Fragment, useEffect } from "react";
 import {
   DataGrid,
   useGridApiRef,
@@ -12,7 +12,7 @@ import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { Outlet, useNavigate } from "react-router-dom";
 import { esES } from "@mui/x-data-grid/locales";
 import DataGridToolbar from "../../utils/DataGridToolbar";
-import { Add, Visibility } from "@mui/icons-material";
+import { Add, Refresh, Visibility } from "@mui/icons-material";
 import { IconButton, Tooltip, Chip } from "@mui/material";
 import ErrorOverlay from "../../error/DataGridError";
 import { AxiosError } from "axios";
@@ -30,7 +30,15 @@ const getEstadoLabel = (estado?: number) => {
 export default function PortalSolicitudes() {
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      apiRef.current?.dataSource?.fetchRows?.();
+    }, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [apiRef]);
 
   const dataSource: GridDataSource = useMemo(
     () => ({
@@ -69,6 +77,9 @@ export default function PortalSolicitudes() {
 
   const initialState: GridInitialState = useMemo(
     () => ({
+      sorting: {
+        sortModel: [{ field: "fecha_visita", sort: "desc" }],
+      },
       pagination: {
         paginationModel: {
           pageSize: 10,
@@ -104,11 +115,13 @@ export default function PortalSolicitudes() {
               value ? dayjs(value).format("DD/MM/YYYY") : "-",
           },
           {
-            headerName: "Items",
+            headerName: "Visitantes",
             field: "items",
             flex: 1,
             display: "flex",
             minWidth: 80,
+            headerAlign: "center",
+            align: "center",
             valueFormatter: (value: any[]) => value?.length || 0,
           },
           {
@@ -117,9 +130,29 @@ export default function PortalSolicitudes() {
             flex: 1,
             display: "flex",
             minWidth: 120,
+            headerAlign: "center",
+            align: "center",
             renderCell: ({ value }) => {
               const estado = getEstadoLabel(value);
-              return <Chip label={estado.label} color={estado.color} size="small" />;
+              return (
+                <Chip
+                  label={estado.label}
+                  color={estado.color}
+                  size="small"
+                  sx={{
+                    minWidth: 130,
+                    height: 24,
+                    justifyContent: "center",
+                    "& .MuiChip-label": {
+                      px: 1.5,
+                      color: "#fff",
+                      fontWeight: 600,
+                      fontSize: 12,
+                      textAlign: "center",
+                    },
+                  }}
+                />
+              );
             },
           },
           {
@@ -142,6 +175,12 @@ export default function PortalSolicitudes() {
         ]}
         disableColumnFilter
         disableRowSelectionOnClick
+        onCellClick={(params) => {
+          setSelectedRowId(String(params.id));
+        }}
+        getRowClassName={(params) =>
+          params.id === selectedRowId ? "row-selected" : ""
+        }
         filterDebounceMs={1000}
         dataSource={dataSource}
         dataSourceCache={null}
@@ -166,12 +205,32 @@ export default function PortalSolicitudes() {
           toolbarExport: "",
           noRowsLabel: "Sin registros",
         }}
+        sx={{
+          "& .row-selected": {
+            outline: "2px solid #7A3DF0",
+            outlineOffset: -2,
+          },
+          "& .MuiDataGrid-cell.MuiDataGrid-cell--focus": {
+            outline: "none",
+          },
+          "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
+            outline: "none",
+          },
+          "& .MuiDataGrid-columnSeparator": {
+            display: "none",
+          },
+        }}
         slots={{
           toolbar: () => (
             <DataGridToolbar
-              tableTitle="Solicitudes"
+              tableTitle="Solicitudes de visitas"
               customActionButtons={
                 <Fragment>
+                  <Tooltip title="Recargar">
+                    <IconButton onClick={() => apiRef.current?.dataSource?.fetchRows?.()}>
+                      <Refresh fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title="Nueva Solicitud">
                     <IconButton onClick={nuevaSolicitud}>
                       <Add fontSize="small" />

@@ -2,6 +2,8 @@ import { Router } from "express";
 import { validarTokenYRol } from "../middlewares/validarToken";
 import {
     crearSolicitud,
+    validarSolicitud,
+    obtenerVisitantesOcupados,
     obtenerSolicitudesContratista,
     obtenerPendientes,
     obtenerSolicitud,
@@ -12,6 +14,8 @@ const router = Router();
 
 // Contratista
 router.get("/", validarTokenYRol([1, 11]), obtenerSolicitudesContratista);
+router.get("/ocupados", validarTokenYRol([1, 11]), obtenerVisitantesOcupados);
+router.post("/validar", validarTokenYRol([1, 11]), validarSolicitud);
 router.post("/", validarTokenYRol([1, 11]), crearSolicitud);
 
 // Admin

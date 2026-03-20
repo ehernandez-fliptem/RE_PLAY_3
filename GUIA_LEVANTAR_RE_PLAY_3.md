@@ -20,7 +20,7 @@ Desde la raiz del repo:
 
 ### Instalacion desde 0
 
-Instalar Node.js antes usar los comandos
+Instalar Node.js y **MongoDB Community Server** antes de usar los comandos
 
 ```
 PowerShell -ExecutionPolicy Bypass -File scripts\setup.ps1
