@@ -7,7 +7,7 @@ import {
   Card,
   CardContent,
   Chip,
-  Grid,
+  Divider,
   Stack,
   Typography,
 } from "@mui/material";
@@ -84,46 +84,109 @@ export default function DetallePortalSolicitud() {
 
   return (
     <ModalContainer containerProps={{ maxWidth: "lg" }}>
-      <Card elevation={5}>
-        <CardContent>
-          <Typography variant="h5" component="h5" textAlign="center">
-            Solicitud{" "}
-            {!isLoading && (
-              <Chip label={estadoSolicitud.label} color={estadoSolicitud.color} />
-            )}
-          </Typography>
+      <Box component="section">
+        <Card elevation={5}>
+          <CardContent>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 2,
+              }}
+            >
+              <Typography variant="h4" component="h2" textAlign="center">
+                Solicitud
+              </Typography>
+              {!isLoading && (
+                <Chip
+                  label={estadoSolicitud.label}
+                  color={estadoSolicitud.color}
+                  size="small"
+                  sx={{
+                    minWidth: 130,
+                    height: 24,
+                    justifyContent: "center",
+                    "& .MuiChip-label": {
+                      px: 1.5,
+                      color: "#fff",
+                      fontWeight: 600,
+                      fontSize: 12,
+                      textAlign: "center",
+                    },
+                  }}
+                />
+              )}
+            </Box>
           {isLoading ? (
             <Spinner />
           ) : (
-            <Grid container spacing={2} sx={{ mt: 2 }}>
-              <Grid size={12}>
-                <Typography>
-                  <strong>Fecha de visita:</strong>{" "}
-                  {dayjs(datos.fecha_visita).format("DD/MM/YYYY")}
-                </Typography>
-              </Grid>
-              <Grid size={12}>
-                <Typography>
-                  <strong>Comentario:</strong> {datos.comentario || "-"}
-                </Typography>
-              </Grid>
-              <Grid size={12}>
-                <Typography variant="h6" component="h6">
-                  Visitantes
-                </Typography>
-                {datos.items.map((item) => {
-                  const visitante = datos.visitantes.find(
-                    (v) => v._id === item.id_visitante
-                  );
-                  const estadoItem = getEstadoLabel(item.estado);
-                  return (
+            <Box sx={{ mt: 2 }}>
+              <Typography
+                variant="h6"
+                component="h6"
+                color="primary"
+                bgcolor="#FFFFFF"
+                sx={(theme) => ({
+                  border: `1px solid ${theme.palette.primary.main}`,
+                  borderRadius: 2,
+                  px: 2,
+                  py: 0.5,
+                })}
+                textAlign="center"
+                mb={2}
+              >
+                <strong>Datos de la visita</strong>
+              </Typography>
+              <Box sx={{ display: "grid", gap: 1.5, mb: 3 }}>
+                <Box sx={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 1 }}>
+                  <strong>Fecha de visita:</strong>
+                  <span>{dayjs(datos.fecha_visita).format("DD/MM/YYYY")}</span>
+                </Box>
+                <Box sx={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 1 }}>
+                  <strong>Razón de visita:</strong>
+                  <span>{datos.comentario || "-"}</span>
+                </Box>
+              </Box>
+              <Typography
+                variant="h6"
+                component="h6"
+                color="primary"
+                bgcolor="#FFFFFF"
+                sx={(theme) => ({
+                  border: `1px solid ${theme.palette.primary.main}`,
+                  borderRadius: 2,
+                  px: 2,
+                  py: 0.5,
+                })}
+                textAlign="center"
+                mb={2}
+              >
+                <strong>Visitantes</strong>
+              </Typography>
+              {datos.items.map((item) => {
+                const visitante = datos.visitantes.find(
+                  (v) => v._id === item.id_visitante
+                );
+                const estadoItem = getEstadoLabel(item.estado);
+                return (
+                  <Box
+                    key={item.id_visitante}
+                    sx={{
+                      p: 1.5,
+                      border: "1px solid #e0e0e0",
+                      borderRadius: 1.5,
+                      mb: 1.5,
+                      display: "grid",
+                      gap: 0.75,
+                    }}
+                  >
                     <Box
-                      key={item.id_visitante}
                       sx={{
-                        p: 1,
-                        border: "1px solid #ddd",
-                        borderRadius: 1,
-                        mb: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 2,
                       }}
                     >
                       <Typography>
@@ -135,47 +198,60 @@ export default function DetallePortalSolicitud() {
                         label={estadoItem.label}
                         color={estadoItem.color}
                         size="small"
-                        sx={{ mt: 1 }}
+                        sx={{
+                          minWidth: 120,
+                          height: 24,
+                          justifyContent: "center",
+                          "& .MuiChip-label": {
+                            px: 1.5,
+                            color: "#fff",
+                            fontWeight: 600,
+                            fontSize: 12,
+                            textAlign: "center",
+                          },
+                        }}
                       />
-                      {item.motivo && (
-                        <Typography sx={{ mt: 1 }}>
-                          <strong>Motivo:</strong> {item.motivo}
-                        </Typography>
-                      )}
                     </Box>
-                  );
-                })}
-              </Grid>
-            </Grid>
+                    {item.motivo && (
+                      <Typography variant="body2">
+                        <strong>Motivo:</strong> {item.motivo}
+                      </Typography>
+                    )}
+                  </Box>
+                );
+              })}
+            </Box>
           )}
-          <Box
-            component="footer"
-            sx={{
-              display: "flex",
-              justifyContent: "end",
-              mt: 3,
-              mb: 0.5,
-            }}
-          >
-            <Stack
-              spacing={2}
-              direction={{ xs: "column-reverse", sm: "row" }}
-              justifyContent="end"
-              sx={{ width: "100%" }}
+            <Divider sx={{ my: 2 }} />
+            <Box
+              component="footer"
+              sx={{
+                display: "flex",
+                justifyContent: "end",
+                mt: 3,
+                mb: 0.5,
+              }}
             >
-              <Button
-                type="button"
-                size="medium"
-                variant="contained"
-                color="secondary"
-                onClick={regresar}
+              <Stack
+                spacing={2}
+                direction={{ xs: "column-reverse", sm: "row" }}
+                justifyContent="end"
+                sx={{ width: "100%" }}
               >
-                <ChevronLeft /> Regresar
-              </Button>
-            </Stack>
-          </Box>
-        </CardContent>
-      </Card>
+                <Button
+                  type="button"
+                  size="medium"
+                  variant="contained"
+                  color="secondary"
+                  onClick={regresar}
+                >
+                  <ChevronLeft /> Regresar
+                </Button>
+              </Stack>
+            </Box>
+          </CardContent>
+        </Card>
+      </Box>
     </ModalContainer>
   );
 }

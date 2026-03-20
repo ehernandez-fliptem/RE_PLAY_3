@@ -178,6 +178,9 @@ export default function PortalSolicitudes() {
         onCellClick={(params) => {
           setSelectedRowId(String(params.id));
         }}
+        onRowDoubleClick={(params) => {
+          verRegistro(String(params.id));
+        }}
         getRowClassName={(params) =>
           params.id === selectedRowId ? "row-selected" : ""
         }
