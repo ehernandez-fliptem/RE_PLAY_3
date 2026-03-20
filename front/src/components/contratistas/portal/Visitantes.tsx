@@ -44,6 +44,7 @@ const DOC_LABELS: Record<string, string> = {
 };
 
 const DOC_KEYS = Object.keys(DOC_LABELS);
+const OPTIONAL_DOC_KEYS = ["constancia_vigencia_imss", "constancias_habilidades"];
 
 const getEstadoLabel = (estado?: number) => {
   if (estado === 2) return { label: "Verificado", color: "success" as const };
@@ -55,6 +56,7 @@ export default function PortalVisitantes() {
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();
   const navigate = useNavigate();
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [showCorreccion, setShowCorreccion] = useState(false);
   const [isLoadingCorreccion, setIsLoadingCorreccion] = useState(false);
   const [correccionVisitante, setCorreccionVisitante] =
@@ -73,6 +75,14 @@ export default function PortalVisitantes() {
     const checks = (correccionVisitante as any)?.documentos_checks || {};
     return DOC_KEYS.filter((key) => !checks?.[key]);
   }, [correccionVisitante]);
+  const rejectedRequiredKeys = useMemo(
+    () => rejectedDocKeys.filter((key) => !OPTIONAL_DOC_KEYS.includes(key)),
+    [rejectedDocKeys]
+  );
+  const rejectedOptionalKeys = useMemo(
+    () => rejectedDocKeys.filter((key) => OPTIONAL_DOC_KEYS.includes(key)),
+    [rejectedDocKeys]
+  );
 
   const dataSource: GridDataSource = useMemo(
     () => ({
@@ -188,21 +198,29 @@ export default function PortalVisitantes() {
       });
       return;
     }
-    const faltan = rejectedDocKeys.some(
+    const faltan = rejectedRequiredKeys.some(
       (key) => !documentosCorreccion[key]?.dataUrl
     );
     if (faltan) {
-      enqueueSnackbar("Debes subir todos los documentos rechazados.", {
+      enqueueSnackbar("Debes subir los documentos obligatorios rechazados.", {
         variant: "warning",
       });
       return;
     }
     try {
-      const payload = {
-        documentos_archivos: Object.fromEntries(
-          rejectedDocKeys.map((key) => [key, documentosCorreccion[key].dataUrl])
-        ),
-      };
+    const payload = {
+      documentos_archivos: Object.fromEntries(
+        [
+          ...rejectedRequiredKeys.map((key) => [
+            key,
+            documentosCorreccion[key].dataUrl,
+          ]),
+          ...rejectedOptionalKeys
+            .filter((key) => documentosCorreccion[key]?.dataUrl)
+            .map((key) => [key, documentosCorreccion[key].dataUrl]),
+        ]
+      ),
+    };
       const res = await clienteAxios.patch(
         `/api/contratistas-visitantes/corregir/${correccionVisitante._id}`,
         payload
@@ -320,6 +338,20 @@ export default function PortalVisitantes() {
         ]}
         disableColumnFilter
         disableRowSelectionOnClick
+        onCellClick={(params) => {
+          setSelectedRowId(String(params.id));
+        }}
+        onRowDoubleClick={(params) => {
+          const row = params.row as GridValidRowModel;
+          if (row.estado_validacion === 3) {
+            abrirCorreccion(row);
+            return;
+          }
+          verRegistro(String(params.id));
+        }}
+        getRowClassName={(params) =>
+          params.id === selectedRowId ? "row-selected" : ""
+        }
         filterDebounceMs={1000}
         dataSource={dataSource}
         dataSourceCache={null}
@@ -343,6 +375,21 @@ export default function PortalVisitantes() {
           toolbarDensity: "",
           toolbarExport: "",
           noRowsLabel: "Sin registros",
+        }}
+        sx={{
+          "& .row-selected": {
+            outline: "2px solid #7A3DF0",
+            outlineOffset: -2,
+          },
+          "& .MuiDataGrid-cell.MuiDataGrid-cell--focus": {
+            outline: "none",
+          },
+          "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
+            outline: "none",
+          },
+          "& .MuiDataGrid-columnSeparator": {
+            display: "none",
+          },
         }}
         slots={{
           toolbar: () => (
@@ -390,7 +437,7 @@ export default function PortalVisitantes() {
             "&:focus, &:focus-visible": { outline: "none" },
           }}
         >
-          <Card sx={{ width: "100%", maxWidth: 900 }}>
+          <Card sx={{ width: "100%", maxWidth: 1100 }}>
             <CardContent>
               {isLoadingCorreccion ? (
                 <Spinner />
@@ -404,7 +451,7 @@ export default function PortalVisitantes() {
                       mb: 2,
                     }}
                   >
-                    <Typography variant="h6" component="h6">
+                    <Typography variant="h4" component="h2" sx={{ flex: 1 }} textAlign="center">
                       Corrección de documentos
                     </Typography>
                     <IconButton onClick={cerrarCorreccion} size="small" sx={{ color: "error.main" }}>
@@ -426,7 +473,7 @@ export default function PortalVisitantes() {
                       textAlign="center"
                       mb={1}
                     >
-                      <strong>Generales</strong>
+                      <strong>Datos del visitante</strong>
                     </Typography>
                     <Box sx={{ display: "grid", gap: 1.5, mb: 2 }}>
                       <Box sx={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 1 }}>
@@ -471,7 +518,7 @@ export default function PortalVisitantes() {
                       p: 1.5,
                     }}
                   >
-                    {rejectedDocKeys.map((key) => (
+                    {rejectedRequiredKeys.map((key) => (
                       <Box
                         key={key}
                         sx={{
@@ -497,19 +544,76 @@ export default function PortalVisitantes() {
                         </Box>
                       </Box>
                     ))}
-                    {rejectedDocKeys.length === 0 && (
+                    {rejectedRequiredKeys.length === 0 && (
                       <Typography variant="body2" color="text.secondary">
                         No hay documentos pendientes de corrección.
                       </Typography>
                     )}
                   </Box>
+                  {rejectedOptionalKeys.length > 0 && (
+                    <>
+                      <Typography
+                        variant="h6"
+                        component="h6"
+                        color="primary"
+                        bgcolor="#FFFFFF"
+                        sx={(theme) => ({
+                          border: `1px solid ${theme.palette.primary.main}`,
+                          borderRadius: 2,
+                          px: 2,
+                          py: 0.5,
+                          mt: 2,
+                        })}
+                        textAlign="center"
+                        mb={2}
+                      >
+                        <strong>Documentos opcionales</strong>
+                      </Typography>
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gap: 1.5,
+                          border: "1px solid #eee",
+                          borderRadius: 1,
+                          p: 1.5,
+                        }}
+                      >
+                        {rejectedOptionalKeys.map((key) => (
+                          <Box
+                            key={key}
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 2,
+                              borderBottom: "1px dashed #e6e6e6",
+                              pb: 1,
+                            }}
+                          >
+                            <Typography>{DOC_LABELS[key]}</Typography>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <Typography variant="caption">
+                                {documentosCorreccion[key]?.name || "-"}
+                              </Typography>
+                              <InputFileUpload
+                                name={key}
+                                label="Subir"
+                                onUpload={onUploadDoc(key)}
+                                buttonProps={{ size: "small" }}
+                              />
+                            </Box>
+                          </Box>
+                        ))}
+                      </Box>
+                    </>
+                  )}
                   <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
                     <Button
                       variant="contained"
                       onClick={enviarCorreccion}
                       disabled={
                         rejectedDocKeys.length === 0 ||
-                        rejectedDocKeys.some(
+                        rejectedRequiredKeys.some(
                           (key) => !documentosCorreccion[key]?.dataUrl
                         )
                       }

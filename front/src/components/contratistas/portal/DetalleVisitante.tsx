@@ -26,6 +26,9 @@ type FormValues = {
   correo: string;
   telefono?: string;
   empresa?: string;
+  estado_validacion?: number;
+  motivo_rechazo?: string;
+  documentos_checks?: Record<string, boolean>;
   documentos_archivos?: Record<string, string>;
 };
 
@@ -36,6 +39,9 @@ const initialValue: FormValues = {
   correo: "",
   telefono: "",
   empresa: "",
+  estado_validacion: 1,
+  motivo_rechazo: "",
+  documentos_checks: {},
   documentos_archivos: {},
 };
 
@@ -108,7 +114,7 @@ export default function DetallePortalVisitante() {
                     textAlign="center"
                     mb={2}
                   >
-                    <strong>Generales</strong>
+                    <strong>Datos del visitante</strong>
                   </Typography>
                   <Box sx={{ display: "grid", gap: 1.5, mb: 3 }}>
                     <Box sx={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 1 }}>
@@ -132,6 +138,36 @@ export default function DetallePortalVisitante() {
                       <span>{datos.telefono || "-"}</span>
                     </Box>
                   </Box>
+                  {datos.estado_validacion === 3 && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography
+                        variant="h6"
+                        component="h6"
+                        color="primary"
+                        bgcolor="#FFFFFF"
+                        sx={(theme) => ({
+                          border: `1px solid ${theme.palette.primary.main}`,
+                          borderRadius: 2,
+                          px: 2,
+                          py: 0.5,
+                        })}
+                        textAlign="center"
+                        mb={1}
+                      >
+                        <strong>Motivo de rechazo</strong>
+                      </Typography>
+                      <Typography
+                        sx={{
+                          display: "grid",
+                          gridTemplateColumns: "120px 1fr",
+                          gap: 1,
+                        }}
+                      >
+                        <strong>Motivo:</strong>
+                        <span>{datos.motivo_rechazo || "-"}</span>
+                      </Typography>
+                    </Box>
+                  )}
                   <Typography
                     variant="h6"
                     component="h6"
@@ -152,7 +188,22 @@ export default function DetallePortalVisitante() {
                     (key) => !["constancia_vigencia_imss", "constancias_habilidades"].includes(key)
                   ).map((key) => {
                     const docUrl = datos.documentos_archivos?.[key];
+                    const check = datos.documentos_checks?.[key];
                     const tieneDoc = Boolean(docUrl);
+                    const estadoDoc =
+                      check === true
+                        ? { label: "OK", color: "success.main" }
+                        : check === false
+                          ? {
+                              label:
+                                datos.estado_validacion === 3
+                                  ? "Pendiente de corrección"
+                                  : "Pendiente de revisión",
+                              color: "error.main",
+                            }
+                          : tieneDoc
+                            ? { label: "OK", color: "success.main" }
+                            : { label: "Pendiente de subir documento", color: "error.main" };
                     return (
                       <Accordion
                         key={key}
@@ -176,11 +227,11 @@ export default function DetallePortalVisitante() {
                             <Typography
                               variant="caption"
                               sx={{
-                                color: tieneDoc ? "success.main" : "error.main",
+                                color: estadoDoc.color,
                                 fontWeight: 600,
                               }}
                             >
-                              {tieneDoc ? "OK" : "Pendiente de subir documento"}
+                              {estadoDoc.label}
                             </Typography>
                           </Box>
                         </AccordionSummary>
@@ -232,7 +283,22 @@ export default function DetallePortalVisitante() {
                         {opcionales.map((key) => {
                           const docUrl = datos.documentos_archivos?.[key];
                           if (!docUrl) return null;
+                          const check = datos.documentos_checks?.[key];
                           const tieneDoc = Boolean(docUrl);
+                          const estadoDoc =
+                            check === true
+                              ? { label: "OK", color: "success.main" }
+                              : check === false
+                                ? {
+                                    label:
+                                      datos.estado_validacion === 3
+                                        ? "Pendiente de corrección"
+                                        : "Pendiente de revisión",
+                                    color: "error.main",
+                                  }
+                                : tieneDoc
+                                  ? { label: "OK", color: "success.main" }
+                                  : { label: "Pendiente de subir documento", color: "error.main" };
                           return (
                             <Accordion
                               key={key}
@@ -256,11 +322,11 @@ export default function DetallePortalVisitante() {
                                   <Typography
                                     variant="caption"
                                     sx={{
-                                      color: tieneDoc ? "success.main" : "error.main",
+                                      color: estadoDoc.color,
                                       fontWeight: 600,
                                     }}
                                   >
-                                    {tieneDoc ? "OK" : "Pendiente de subir documento"}
+                                    {estadoDoc.label}
                                   </Typography>
                                 </Box>
                               </AccordionSummary>

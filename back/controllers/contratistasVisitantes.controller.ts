@@ -33,6 +33,7 @@ const REQUIRED_DOC_KEYS = [
     "repse",
     "soporte_pago_actualizado",
 ] as const;
+const OPTIONAL_DOC_KEYS = ["constancia_vigencia_imss", "constancias_habilidades"] as const;
 
 type DocChecks = Record<(typeof DOC_KEYS)[number], boolean>;
 type DocFiles = Record<(typeof DOC_KEYS)[number], string>;
@@ -565,6 +566,12 @@ export async function corregir(req: Request, res: Response): Promise<void> {
         const nextChecks = normalizeDocChecks(registro.documentos_checks || {});
         Object.keys(incomingFiles).forEach((key) => {
             if ((incomingFiles as any)[key]) {
+                (nextChecks as any)[key] = false;
+            }
+        });
+        OPTIONAL_DOC_KEYS.forEach((key) => {
+            if (!(key in (incomingFiles as any))) {
+                (mergedFiles as any)[key] = "";
                 (nextChecks as any)[key] = false;
             }
         });
