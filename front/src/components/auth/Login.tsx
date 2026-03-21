@@ -24,6 +24,7 @@ import { enqueueSnackbar } from "notistack";
 import { setFormErrors } from "../helpers/formHelper";
 import LogoHeader from "./LogoHeader";
 import AuthContainer from "./AuthContainer";
+import Swal from "sweetalert2";
 
 type FormValues = {
   correo: string;
@@ -93,7 +94,22 @@ export default function Login() {
         dispatch(addAuth(res.data.datos));
         navigate("/", { replace: true });
       } else {
-        enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+        const mensaje = String(res.data.mensaje || "");
+        const mensajeLower = mensaje.toLowerCase();
+        if (mensajeLower.includes("contratistas") && mensajeLower.includes("desactivado")) {
+          await Swal.fire({
+            icon: "error",
+            title: "Acceso restringido",
+            text: mensaje,
+            showConfirmButton: true,
+            confirmButtonText: "OK",
+            allowOutsideClick: false,
+            showClass: { popup: "swal2-show" },
+            hideClass: { popup: "swal2-hide" },
+          });
+        } else {
+          enqueueSnackbar(mensaje, { variant: "warning" });
+        }
       }
     } catch (error: unknown) {
       const { restartSession, erroresForm } = handlingError(error);

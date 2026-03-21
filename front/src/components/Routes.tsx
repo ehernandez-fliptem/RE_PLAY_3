@@ -119,7 +119,7 @@ export default function Routes() {
       path: "/",
       element: usuarioSistema ? (
         esContratista && habilitarContratistas ? (
-          <Navigate to="/portal-contratistas/solicitudes" replace />
+          <Navigate to="/portal-contratistas/visitantes" replace />
         ) : (
           <Dashboard />
         )

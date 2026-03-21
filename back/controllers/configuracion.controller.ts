@@ -12,6 +12,7 @@ import TiposDocumentos from "../models/TiposDocumentos";
 import TiposEventos from "../models/TiposEventos";
 import Roles from "../models/Roles";
 import TiposDispositivos from "../models/TiposDispositivos";
+import Usuarios from "../models/Usuarios";
 
 export async function obtenerIntegraciones(_req: Request, res: Response): Promise<void> {
     try {
@@ -53,6 +54,19 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
         }
 
         await Configuracion.updateOne({}, { $set: update }, { upsert: true, runValidators: false });
+
+        if (typeof habilitarContratistas === "boolean") {
+            await Usuarios.updateMany(
+                { rol: 11 },
+                {
+                    $set: {
+                        activo: habilitarContratistas,
+                        token_web: "",
+                        token_app: "",
+                    },
+                }
+            );
+        }
 
         res.status(200).json({ estado: true, datos: update });
     } catch (error: any) {

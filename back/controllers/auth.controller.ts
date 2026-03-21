@@ -4,6 +4,8 @@ import jwt, { SignOptions } from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import Usuarios from "../models/Usuarios";
 import Visitantes from "../models/Visitantes";
+import Configuracion from "../models/Configuracion";
+import Empresas from "../models/Empresas";
 import { fecha, log } from "../middlewares/log";
 import { UserRequest } from "../types/express";
 import { CONFIG } from "../config";
@@ -21,6 +23,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     try {
         const { correo, contrasena } = req.body;
         const device_type = (req as UserRequest).device.type
+        const configuracion = await Configuracion.findOne({}, "habilitarContratistas appNombre");
         if (!REGEX_EMAIL.test(correo)) {
             res.status(400).json({
                 estado: false,
@@ -42,6 +45,21 @@ export async function login(req: Request, res: Response): Promise<void> {
             });
             return;
         }
+        if (configuracion && configuracion.habilitarContratistas === false) {
+            const contratista = await Usuarios.findOne(
+                { correo: correo?.trim().toLowerCase(), rol: 11 },
+                { id_empresa: 1 }
+            );
+            if (contratista) {
+                const empresa = await Empresas.findById(contratista.id_empresa, { nombre: 1 });
+                res.status(200).json({
+                    estado: false,
+                    mensaje: `El módulo de contratistas está desactivado. Contacta con ${empresa?.nombre || configuracion.appNombre || "tu empresa"}.`,
+                });
+                return;
+            }
+        }
+
         let documento = null;
         documento = (await Usuarios.aggregate([
             { $match: { correo, activo: true }, },

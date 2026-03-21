@@ -128,6 +128,7 @@ export default function MenuApplication({ children }: MenuProps) {
   const esAnfitrion = rol.includes(4);
   const esRecep = rol.includes(5);
   const esVisit = rol.includes(10);
+  const esContratista = rol.includes(11);
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -159,6 +160,16 @@ export default function MenuApplication({ children }: MenuProps) {
     if (location) {
       const { pathname } = location;
       const path = pathname.split("/")[1];
+      if (
+        esContratista &&
+        habilitarContratistas &&
+        !pathname.startsWith("/portal-contratistas") &&
+        pathname !== "/perfil" &&
+        pathname !== "/logout"
+      ) {
+        navigate("/portal-contratistas/visitantes", { replace: true });
+        return;
+      }
       if (path === "perfil") {
         setSelectedIndex(0.1);
         return;
@@ -166,7 +177,9 @@ export default function MenuApplication({ children }: MenuProps) {
       // FLAG: Bitácora oculta temporalmente - No borrar
       // if (!path) navigate("/bitacora");
       if (!path) {
-        if (esAnfitrion) {
+        if (esContratista && habilitarContratistas) {
+          navigate("/portal-contratistas/visitantes");
+        } else if (esAnfitrion) {
           navigate("/visitantes");
         } else if (esRecep) {
           navigate("/eventos");
@@ -444,6 +457,61 @@ export default function MenuApplication({ children }: MenuProps) {
                 (habilitarIntegracionHv || habilitarCamaras);
             if (item.id === 8 || item.id === 9) {
               seeItem = seeItem && habilitarContratistas;
+            }
+            if (esContratista && item.id === 8 && item.submenu && seeItem) {
+              return (
+                <Fragment key={item.id}>
+                  {item.submenu.map((subItem) => {
+                    const activeSubId = item.submenu
+                      ? item.submenu.reduce((acc, sub) => {
+                          const isMatch =
+                            location.pathname === sub.path ||
+                            location.pathname.startsWith(`${sub.path}/`);
+                          if (!isMatch) return acc;
+                          if (!acc) return sub;
+                          return sub.path.length > acc.path.length ? sub : acc;
+                        }, null as null | { id: number; path: string })
+                      : null;
+                    let seeSubItem = obtenerDuplicados(rol, subItem.rol);
+                    if (subItem.id === 8.1 || subItem.id === 8.2) {
+                      seeSubItem = seeSubItem && habilitarContratistas;
+                    }
+                    if (!seeSubItem) return null;
+                    return (
+                      <RouterLink
+                        key={subItem.id}
+                        to={subItem.path}
+                        style={{ textDecoration: "none" }}
+                      >
+                        <ListItem disablePadding disableGutters>
+                          <ListItemButton
+                            selected={activeSubId?.id === subItem.id}
+                            onClick={() => handleListItemClick(subItem.id)}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                color: "primary.contrastText",
+                              }}
+                            >
+                              {subItem.icon}
+                            </ListItemIcon>
+                            <ListItemText
+                              sx={{
+                                color: "primary.contrastText",
+                              }}
+                              primary={
+                                <Typography variant="subtitle2" component="h6">
+                                  {subItem.title}
+                                </Typography>
+                              }
+                            />
+                          </ListItemButton>
+                        </ListItem>
+                      </RouterLink>
+                    );
+                  })}
+                </Fragment>
+              );
             }
             return !item.submenu && seeItem ? (
               <RouterLink
