@@ -99,7 +99,8 @@ import EditarCamara from "./catalogos/camaras/EditarCamara";
 
 export default function Routes() {
   const { rol } = useSelector((state: IRootState) => state.auth.data);
-  const { habilitarCamaras, habilitarIntegracionHv } = useSelector(
+  const { habilitarCamaras, habilitarIntegracionHv, habilitarContratistas } =
+    useSelector(
     (state: IRootState) => state.config.data
   );
   const esSuper = rol.includes(1);
@@ -117,7 +118,11 @@ export default function Routes() {
     {
       path: "/",
       element: usuarioSistema ? (
-        esContratista ? <Navigate to="/portal-contratistas/solicitudes" replace /> : <Dashboard />
+        esContratista && habilitarContratistas ? (
+          <Navigate to="/portal-contratistas/solicitudes" replace />
+        ) : (
+          <Dashboard />
+        )
       ) : (
         <Unauthorized />
       ),
@@ -228,19 +233,19 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esSuper ? <Contratistas /> : <Unauthorized />,
+          element: esSuper && habilitarContratistas ? <Contratistas /> : <Unauthorized />,
           children: [
             {
               path: "nuevo-contratista",
-              element: esSuper ? <NuevoContratista /> : <Unauthorized />,
+              element: esSuper && habilitarContratistas ? <NuevoContratista /> : <Unauthorized />,
             },
             {
               path: "editar-contratista/:id",
-              element: esSuper ? <EditarContratista /> : <Unauthorized />,
+              element: esSuper && habilitarContratistas ? <EditarContratista /> : <Unauthorized />,
             },
             {
               path: "detalle-contratista/:id",
-              element: esSuper ? <DetalleContratista /> : <Unauthorized />,
+              element: esSuper && habilitarContratistas ? <DetalleContratista /> : <Unauthorized />,
             },
           ],
         },
@@ -255,11 +260,12 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: puedeAdmin ? <ContratistasSolicitudes /> : <Unauthorized />,
+          element: puedeAdmin && habilitarContratistas ? <ContratistasSolicitudes /> : <Unauthorized />,
           children: [
             {
               path: "detalle/:id",
-              element: puedeAdmin ? <DetalleContratistasSolicitud /> : <Unauthorized />,
+              element:
+                puedeAdmin && habilitarContratistas ? <DetalleContratistasSolicitud /> : <Unauthorized />,
             },
           ],
         },
@@ -274,37 +280,77 @@ export default function Routes() {
       children: [
         {
           path: "visitantes",
-          element: esContratista || esSuper ? <PortalVisitantes /> : <Unauthorized />,
+          element:
+            (esContratista || esSuper) && habilitarContratistas ? (
+              <PortalVisitantes />
+            ) : (
+              <Unauthorized />
+            ),
           children: [
             {
               path: "nuevo",
-              element: esContratista || esSuper ? <NuevoPortalVisitante /> : <Unauthorized />,
+              element:
+                (esContratista || esSuper) && habilitarContratistas ? (
+                  <NuevoPortalVisitante />
+                ) : (
+                  <Unauthorized />
+                ),
             },
             {
               path: "editar/:id",
-              element: esContratista || esSuper ? <EditarPortalVisitante /> : <Unauthorized />,
+              element:
+                (esContratista || esSuper) && habilitarContratistas ? (
+                  <EditarPortalVisitante />
+                ) : (
+                  <Unauthorized />
+                ),
             },
             {
               path: "detalle/:id",
-              element: esContratista || esSuper ? <DetallePortalVisitante /> : <Unauthorized />,
+              element:
+                (esContratista || esSuper) && habilitarContratistas ? (
+                  <DetallePortalVisitante />
+                ) : (
+                  <Unauthorized />
+                ),
             },
             {
               path: "carga-masiva",
-              element: esContratista || esSuper ? <CargaVisitantesContratistas /> : <Unauthorized />,
+              element:
+                (esContratista || esSuper) && habilitarContratistas ? (
+                  <CargaVisitantesContratistas />
+                ) : (
+                  <Unauthorized />
+                ),
             },
           ],
         },
         {
           path: "solicitudes",
-          element: esContratista || esSuper ? <PortalSolicitudes /> : <Unauthorized />,
+          element:
+            (esContratista || esSuper) && habilitarContratistas ? (
+              <PortalSolicitudes />
+            ) : (
+              <Unauthorized />
+            ),
           children: [
             {
               path: "nueva",
-              element: esContratista || esSuper ? <NuevaPortalSolicitud /> : <Unauthorized />,
+              element:
+                (esContratista || esSuper) && habilitarContratistas ? (
+                  <NuevaPortalSolicitud />
+                ) : (
+                  <Unauthorized />
+                ),
             },
             {
               path: "detalle/:id",
-              element: esContratista || esSuper ? <DetallePortalSolicitud /> : <Unauthorized />,
+              element:
+                (esContratista || esSuper) && habilitarContratistas ? (
+                  <DetallePortalSolicitud />
+                ) : (
+                  <Unauthorized />
+                ),
             },
           ],
         },

@@ -118,7 +118,8 @@ type MenuProps = {
 
 export default function MenuApplication({ children }: MenuProps) {
   const pageIndex = localStorage.getItem("PAGE_INDEX");
-  const { habilitarIntegracionHv, habilitarCamaras, roles } = useSelector(
+  const { habilitarIntegracionHv, habilitarCamaras, habilitarContratistas, roles } =
+    useSelector(
     (state: IRootState) => state.config.data
   );
   const { rol, nombre, img_usuario, empresa } = useSelector(
@@ -441,6 +442,9 @@ export default function MenuApplication({ children }: MenuProps) {
               seeItem =
                 rol.includes(1) &&
                 (habilitarIntegracionHv || habilitarCamaras);
+            if (item.id === 8 || item.id === 9) {
+              seeItem = seeItem && habilitarContratistas;
+            }
             return !item.submenu && seeItem ? (
               <RouterLink
                 key={item.id}
@@ -522,6 +526,9 @@ export default function MenuApplication({ children }: MenuProps) {
                         seeSubItem = habilitarIntegracionHv;
                       if (subItem.id === 99.2 && rol.includes(1))
                         seeSubItem = habilitarCamaras;
+                      if (subItem.id === 8.1 || subItem.id === 8.2 || subItem.id === 9.1 || subItem.id === 9.2) {
+                        seeSubItem = seeSubItem && habilitarContratistas;
+                      }
                       if (rol.includes(1) && subItem.rol.includes(0))
                         seeSubItem = true;
                       return (

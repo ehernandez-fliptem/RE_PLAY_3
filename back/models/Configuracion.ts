@@ -32,6 +32,7 @@ export interface IConfiguracion extends Document {
     habilitarIntegracionHv: boolean;
     habilitarIntegracionCdvi: boolean;
     habilitarCamaras: boolean;
+    habilitarContratistas: boolean;
 
     autorizacionCheck?: boolean;
     validarHorario?: boolean;
@@ -97,6 +98,7 @@ const configuracionSchema = new Schema<IConfiguracion>({
     habilitarIntegracionHv: { type: Boolean, default: false },
     habilitarIntegracionCdvi: { type: Boolean, default: false },
     habilitarCamaras: { type: Boolean, default: false },
+    habilitarContratistas: { type: Boolean, default: true },
 
     // 1.4 Apariencia
     palette: {

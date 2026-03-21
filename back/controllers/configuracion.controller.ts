@@ -16,7 +16,10 @@ import TiposDispositivos from "../models/TiposDispositivos";
 export async function obtenerIntegraciones(_req: Request, res: Response): Promise<void> {
     try {
         console.log("Obteniendo integraciones de configuración...");
-        const registro = await Configuracion.findOne({}, "habilitarIntegracionHv habilitarIntegracionCdvi");
+        const registro = await Configuracion.findOne(
+            {},
+            "habilitarIntegracionHv habilitarIntegracionCdvi habilitarContratistas"
+        );
         res.status(200).send({ estado: true, datos: registro });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -26,17 +29,27 @@ export async function obtenerIntegraciones(_req: Request, res: Response): Promis
 
 export async function modificarIntegraciones(req: Request, res: Response): Promise<void> {
     try {
-        const { habilitarIntegracionHv, habilitarIntegracionCdvi, habilitarCamaras } = req.body;
+        const {
+            habilitarIntegracionHv,
+            habilitarIntegracionCdvi,
+            habilitarCamaras,
+            habilitarContratistas,
+        } = req.body;
         const { id: id_usuario } = jwt.verify(req.headers["x-access-token"] as string, CONFIG.SECRET) as DecodedTokenUser;
 
         const update: Record<string, unknown> = {
             habilitarIntegracionHv: !!habilitarIntegracionHv,
             habilitarCamaras: !!habilitarCamaras,
+            habilitarContratistas:
+                typeof habilitarContratistas === "boolean" ? habilitarContratistas : undefined,
             modificado_por: id_usuario,
             fecha_modificacion: Date.now(),
         };
         if (typeof habilitarIntegracionCdvi === "boolean") {
             update.habilitarIntegracionCdvi = habilitarIntegracionCdvi;
+        }
+        if (update.habilitarContratistas === undefined) {
+            delete update.habilitarContratistas;
         }
 
         await Configuracion.updateOne({}, { $set: update }, { upsert: true, runValidators: false });

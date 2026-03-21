@@ -52,6 +52,7 @@ type FormValues = {
   tiempoToleranciaEntrada: string;
   habilitarIntegracionHv: boolean;
   habilitarCamaras: boolean;
+  habilitarContratistas: boolean;
   validarHorario: boolean;
   notificarCheck: boolean;
   autorizacionCheck: boolean;
@@ -117,6 +118,7 @@ const resolver = yup.object().shape({
   tiempoToleranciaEntrada: yup.string().required("Este campo es obligatorio."),
   habilitarIntegracionHv: yup.boolean().required("Este campo es obligatorio."),
   habilitarCamaras: yup.boolean().required("Este campo es obligatorio."),
+  habilitarContratistas: yup.boolean().required("Este campo es obligatorio."),
   validarHorario: yup.boolean().required("Este campo es obligatorio."),
   notificarCheck: yup.boolean().required("Este campo es obligatorio."),
   autorizacionCheck: yup.boolean().required("Este campo es obligatorio."),
@@ -144,6 +146,7 @@ const initialValue: FormValues = {
   tiempoToleranciaEntrada: "30/m",
   habilitarIntegracionHv: false,
   habilitarCamaras: false,
+  habilitarContratistas: true,
 
   validarHorario: false,
   notificarCheck: false,

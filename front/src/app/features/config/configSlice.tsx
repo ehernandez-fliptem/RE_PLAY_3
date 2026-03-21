@@ -18,6 +18,7 @@ interface ConfigState {
     habilitarIntegracionHv: boolean;
     habilitarIntegracionCdvi: boolean;
     habilitarCamaras: boolean;
+    habilitarContratistas: boolean;
     tipos_dispositivos: { [key: number]: { nombre: string; color: string } };
     tipos_eventos: { [key: number]: { nombre: string; color: string } };
     roles: { [key: number]: { nombre: string; color: string } };
@@ -54,6 +55,7 @@ const initialState = {
     habilitarIntegracionHv: false,
     habilitarIntegracionCdvi: false,
     habilitarCamaras: false,
+    habilitarContratistas: true,
     tipos_dispositivos: {} as {
       [key: number]: { nombre: string; color: string };
     },

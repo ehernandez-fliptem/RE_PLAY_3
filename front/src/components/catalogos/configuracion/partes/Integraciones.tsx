@@ -16,16 +16,19 @@ export default function Integraciones() {
   const guardarIntegraciones = async () => {
     try {
       setIsSaving(true);
-      const { habilitarIntegracionHv, habilitarCamaras } = getValues();
+      const { habilitarIntegracionHv, habilitarCamaras, habilitarContratistas } =
+        getValues();
       const res = await clienteAxios.put("/api/configuracion/integraciones", {
         habilitarIntegracionHv,
         habilitarCamaras,
+        habilitarContratistas,
       });
       if (res.data.estado) {
         dispatch(
           updateConfig({
             habilitarIntegracionHv,
             habilitarCamaras,
+            habilitarContratistas,
           })
         );
         enqueueSnackbar("Integraciones guardadas.", { variant: "success" });
@@ -55,7 +58,7 @@ export default function Integraciones() {
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
             <Typography variant="overline" component="h2">
-              <strong> Habilitar integración</strong>
+              <strong> Integración con Control de accesos de Hikvision</strong>
             </Typography>
             <Typography
               variant="body2"
@@ -82,6 +85,34 @@ export default function Integraciones() {
             labelPlacement="start"
             name="habilitarIntegracionHv"
           />
+        </Grid>
+      </Grid>
+      <Grid container spacing={2} sx={{ my: 2 }}>
+        <Grid size={{ xs: 12, sm: 10 }}>
+          <Stack spacing={0}>
+            <Typography variant="overline" component="h2">
+              <strong> Portal de Visitas para Contratistas</strong>
+            </Typography>
+            <Typography
+              variant="body2"
+              component="span"
+              sx={{ ml: { xs: 0, sm: 2 } }}
+            >
+              <small>
+                Habilita o deshabilita el módulo de contratistas en el sistema.
+              </small>
+            </Typography>
+          </Stack>
+        </Grid>
+        <Grid
+          size={{ xs: 12, sm: 2 }}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: { xs: "center", sm: "end" },
+          }}
+        >
+          <SwitchElement label="" labelPlacement="start" name="habilitarContratistas" />
         </Grid>
       </Grid>
       <Grid container spacing={2} sx={{ my: 1 }}>
