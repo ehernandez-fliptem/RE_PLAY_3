@@ -564,12 +564,19 @@ export async function obtenerGenerales(req: Request, res: Response): Promise<voi
             res.status(200).json({ estado: false, mensaje: "No se ha establecido la empresa maestra." });
             return;
         }
-        const config = await Configuracion.findOne({ activo: true }, "appNombre palette");
+        const config = await Configuracion.findOne({ activo: true }, "appNombre palette imgCorreo");
         if (!config) {
             res.status(200).json({ estado: false, mensaje: "No se ha establecido la configuración general." });
             return;
         }
-        res.status(200).json({ estado: true, datos: { img_empresa: empresa.img_empresa, appNombre: config?.appNombre, palette: config?.palette } });
+        res.status(200).json({
+            estado: true,
+            datos: {
+                img_general: config?.imgCorreo || empresa.img_empresa,
+                appNombre: config?.appNombre,
+                palette: config?.palette,
+            },
+        });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });

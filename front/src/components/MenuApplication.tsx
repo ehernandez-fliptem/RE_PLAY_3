@@ -118,10 +118,13 @@ type MenuProps = {
 
 export default function MenuApplication({ children }: MenuProps) {
   const pageIndex = localStorage.getItem("PAGE_INDEX");
-  const { habilitarIntegracionHv, habilitarCamaras, habilitarContratistas, roles } =
-    useSelector(
-    (state: IRootState) => state.config.data
-  );
+  const {
+    habilitarIntegracionHv,
+    habilitarCamaras,
+    habilitarContratistas,
+    roles,
+    imgCorreo,
+  } = useSelector((state: IRootState) => state.config.data);
   const { rol, nombre, img_usuario, empresa } = useSelector(
     (state: IRootState) => state.auth.data
   );
@@ -272,10 +275,10 @@ export default function MenuApplication({ children }: MenuProps) {
                 alignItems: "center",
               }}
             >
-              {empresa?.img_empresa && (
+              {(imgCorreo || empresa?.img_empresa) && (
                 <Box
                   component="img"
-                  src={empresa?.img_empresa}
+                  src={imgCorreo || empresa?.img_empresa}
                   height={appBarHeight - 25}
                   sx={{ filter: "drop-shadow(0px 0px 10px rgba(0, 0, 0, 0.3))" }}
                 />

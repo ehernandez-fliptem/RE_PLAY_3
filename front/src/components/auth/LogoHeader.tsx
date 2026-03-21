@@ -15,9 +15,9 @@ export default function LogoHeader() {
       try {
         const res = await clienteAxios.get("/api/validacion/generales");
         if (res.data.estado) {
-          const { img_empresa, appNombre, palette } = res.data.datos;
+          const { img_general, appNombre, palette } = res.data.datos;
           dispatch(updateColorPalette(palette));
-          setLogo(img_empresa);
+          setLogo(img_general);
           setAppNombre(appNombre);
           document.title = appNombre;
         }
