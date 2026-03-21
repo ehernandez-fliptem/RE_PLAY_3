@@ -13,12 +13,13 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { esES } from "@mui/x-data-grid/locales";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import { Refresh, Visibility } from "@mui/icons-material";
-import { Chip, IconButton, Tooltip } from "@mui/material";
+import { Box, Chip, IconButton, Tooltip } from "@mui/material";
 import ErrorOverlay from "../../error/DataGridError";
 import { AxiosError } from "axios";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
+import { DatePicker, type DateValidationError } from "@mui/x-date-pickers";
 
 const pageSizeOptions = [10, 25, 50];
 
@@ -36,6 +37,32 @@ export default function ContratistasSolicitudes() {
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const navigate = useNavigate();
   const autoRefreshEnabled = true;
+  const [estadoFiltro, setEstadoFiltro] = useState<number | null>(null);
+  const [fechaDesde, setFechaDesde] = useState(dayjs().startOf("month"));
+  const [fechaHasta, setFechaHasta] = useState(dayjs().endOf("month"));
+  const [resumen, setResumen] = useState({
+    total: 0,
+    pendientes: 0,
+    aprobadas: 0,
+    rechazadas: 0,
+    parciales: 0,
+    urgentes: 0,
+  });
+  const chipScale = 1.5;
+  const [fechaDesdeError, setFechaDesdeError] = useState<string>("");
+  const [fechaHastaError, setFechaHastaError] = useState<string>("");
+  const [urgenteFiltro, setUrgenteFiltro] = useState(false);
+
+  const safeIso = (value: dayjs.Dayjs | null) => {
+    if (!value || !value.isValid()) return "";
+    try {
+      return value.toISOString();
+    } catch {
+      // eslint-disable-next-line no-console
+      console.warn("Invalid time value al convertir fecha en Solicitudes de Contratistas.");
+      return "";
+    }
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -44,17 +71,54 @@ export default function ContratistasSolicitudes() {
     return () => clearInterval(interval);
   }, [apiRef]);
 
+  useEffect(() => {
+    apiRef.current?.dataSource?.fetchRows?.();
+  }, [apiRef, estadoFiltro, fechaDesde, fechaHasta, urgenteFiltro]);
+
+  useEffect(() => {
+    const obtenerResumen = async () => {
+      try {
+        const desdeIso = safeIso(fechaDesde);
+        const hastaIso = safeIso(fechaHasta);
+        if (!desdeIso || !hastaIso) return;
+        const res = await clienteAxios.get(
+          `/api/contratistas-solicitudes/resumen-admin?fecha_desde=${desdeIso}&fecha_hasta=${hastaIso}`
+        );
+        if (res.data.estado) {
+          setResumen(res.data.datos);
+        }
+      } catch (error) {
+        const { restartSession } = handlingError(error);
+        if (restartSession) navigate("/logout", { replace: true });
+      }
+    };
+    obtenerResumen();
+  }, [fechaDesde, fechaHasta, navigate]);
+
   const dataSource: GridDataSource = useMemo(
     () => ({
       getRows: async (params) => {
         let rows: GridValidRowModel[] = [];
         let rowCount: number = 0;
         try {
+          const desdeIso = safeIso(fechaDesde);
+          const hastaIso = safeIso(fechaHasta);
+          if (!desdeIso || !hastaIso) {
+            return { rows: [], rowCount: 0 };
+          }
           const urlParams = new URLSearchParams({
             filter: JSON.stringify(params.filterModel.quickFilterValues),
             pagination: JSON.stringify(params.paginationModel),
             sort: JSON.stringify(params.sortModel),
+            fecha_desde: desdeIso,
+            fecha_hasta: hastaIso,
           });
+          if (estadoFiltro !== null) {
+            urlParams.set("estado", String(estadoFiltro));
+          }
+          if (urgenteFiltro) {
+            urlParams.set("urgente", "1");
+          }
           const res = await clienteAxios.get(
             "/api/contratistas-solicitudes/pendientes?" + urlParams.toString()
           );
@@ -75,8 +139,7 @@ export default function ContratistasSolicitudes() {
         };
       },
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [estadoFiltro, fechaDesde, fechaHasta, urgenteFiltro, navigate]
   );
 
   const initialState: GridInitialState = useMemo(
@@ -98,8 +161,212 @@ export default function ContratistasSolicitudes() {
     navigate(`detalle/${ID}`);
   };
 
+  const actualizarEstadoFiltro = (estado: number | null) => {
+    setEstadoFiltro(estado);
+    setUrgenteFiltro(false);
+    apiRef.current?.dataSource?.fetchRows?.();
+  };
+
+  const actualizarUrgente = () => {
+    setUrgenteFiltro(true);
+    setEstadoFiltro(null);
+    apiRef.current?.dataSource?.fetchRows?.();
+  };
+
+  const actualizarFechaDesde = (value: dayjs.Dayjs | null) => {
+    if (!value) return;
+    setFechaDesde(value);
+    if (value.isAfter(fechaHasta)) {
+      setFechaHasta(value);
+    }
+    apiRef.current?.dataSource?.fetchRows?.();
+  };
+
+  const actualizarFechaHasta = (value: dayjs.Dayjs | null) => {
+    if (!value) return;
+    setFechaHasta(value);
+    if (value.isBefore(fechaDesde)) {
+      setFechaDesde(value);
+    }
+    apiRef.current?.dataSource?.fetchRows?.();
+  };
+
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
+      <Box
+        sx={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 1.5,
+          alignItems: "center",
+          mb: 1.5,
+          backgroundColor: "#fff",
+          borderRadius: 2,
+          p: 1.5,
+          boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+        }}
+      >
+        <DatePicker
+          label="Desde"
+          value={fechaDesde}
+          onChange={actualizarFechaDesde}
+          maxDate={fechaHasta}
+          onError={(reason: DateValidationError) =>
+            setFechaDesdeError(
+              reason ? "Fecha inválida. Usa un día válido del mes." : ""
+            )
+          }
+          sx={{
+            "& .MuiInputBase-root": {
+              backgroundColor: "#fff",
+            },
+          }}
+          slotProps={{
+            textField: {
+              error: Boolean(fechaDesdeError),
+              helperText: fechaDesdeError,
+              sx: {
+                backgroundColor: "#fff",
+                borderRadius: 1,
+              },
+            },
+          }}
+        />
+        <DatePicker
+          label="Hasta"
+          value={fechaHasta}
+          onChange={actualizarFechaHasta}
+          minDate={fechaDesde}
+          onError={(reason: DateValidationError) =>
+            setFechaHastaError(
+              reason ? "Fecha inválida. Usa un día válido del mes." : ""
+            )
+          }
+          sx={{
+            "& .MuiInputBase-root": {
+              backgroundColor: "#fff",
+            },
+          }}
+          slotProps={{
+            textField: {
+              error: Boolean(fechaHastaError),
+              helperText: fechaHastaError,
+              sx: {
+                backgroundColor: "#fff",
+                borderRadius: 1,
+              },
+            },
+          }}
+        />
+        <Chip
+          label={`Todos: ${resumen.total}`}
+          color={estadoFiltro === null ? "primary" : "default"}
+          onClick={() => actualizarEstadoFiltro(null)}
+          sx={{
+            minWidth: 150 * chipScale,
+            height: 30 * chipScale,
+            justifyContent: "center",
+            "& .MuiChip-label": {
+              px: 1.5 * chipScale,
+              color: estadoFiltro === null ? "#fff" : "#2f2f2f",
+              fontWeight: 600,
+              fontSize: 12 * chipScale,
+              textAlign: "center",
+            },
+          }}
+        />
+        <Chip
+          label={`Aprobadas: ${resumen.aprobadas}`}
+          color={estadoFiltro === 2 ? "success" : "default"}
+          onClick={() => actualizarEstadoFiltro(2)}
+          sx={{
+            minWidth: 150 * chipScale,
+            height: 30 * chipScale,
+            justifyContent: "center",
+            "& .MuiChip-label": {
+              px: 1.5 * chipScale,
+              color: estadoFiltro === 2 ? "#fff" : "#2f2f2f",
+              fontWeight: 600,
+              fontSize: 12 * chipScale,
+              textAlign: "center",
+            },
+          }}
+        />
+        <Chip
+          label={`Pendientes: ${resumen.pendientes}`}
+          color={estadoFiltro === 1 ? "warning" : "default"}
+          onClick={() => actualizarEstadoFiltro(1)}
+          sx={{
+            minWidth: 150 * chipScale,
+            height: 30 * chipScale,
+            justifyContent: "center",
+            "& .MuiChip-label": {
+              px: 1.5 * chipScale,
+              color: estadoFiltro === 1 ? "#fff" : "#2f2f2f",
+              fontWeight: 600,
+              fontSize: 12 * chipScale,
+              textAlign: "center",
+            },
+          }}
+        />
+        <Chip
+          label={`Rechazadas: ${resumen.rechazadas}`}
+          color={estadoFiltro === 3 ? "error" : "default"}
+          onClick={() => actualizarEstadoFiltro(3)}
+          sx={{
+            minWidth: 150 * chipScale,
+            height: 30 * chipScale,
+            justifyContent: "center",
+            "& .MuiChip-label": {
+              px: 1.5 * chipScale,
+              color: estadoFiltro === 3 ? "#fff" : "#2f2f2f",
+              fontWeight: 600,
+              fontSize: 12 * chipScale,
+              textAlign: "center",
+            },
+          }}
+        />
+        <Chip
+          label={`Urgentes: ${resumen.urgentes}`}
+          color={urgenteFiltro ? "error" : "default"}
+          onClick={actualizarUrgente}
+          sx={{
+            minWidth: 150 * chipScale,
+            height: 30 * chipScale,
+            justifyContent: "center",
+            "& .MuiChip-label": {
+              px: 1.5 * chipScale,
+              color: urgenteFiltro ? "#fff" : "#2f2f2f",
+              fontWeight: 600,
+              fontSize: 12 * chipScale,
+              textAlign: "center",
+            },
+          }}
+        />
+        <Box sx={{ flex: 1 }} />
+        <Chip
+          label="Limpiar filtros"
+          color="default"
+          onClick={() => {
+            actualizarEstadoFiltro(null);
+            actualizarFechaDesde(dayjs().startOf("month"));
+            actualizarFechaHasta(dayjs().endOf("month"));
+            setUrgenteFiltro(false);
+          }}
+          sx={{
+            minWidth: 170 * chipScale,
+            height: 30 * chipScale,
+            justifyContent: "center",
+            "& .MuiChip-label": {
+              px: 1.5 * chipScale,
+              color: "#2f2f2f",
+              fontWeight: 600,
+              fontSize: 12 * chipScale,
+              textAlign: "center",
+            },
+          }}
+        />
+      </Box>
       <DataGrid
         apiRef={apiRef}
         initialState={initialState}
@@ -181,6 +448,9 @@ export default function ContratistasSolicitudes() {
         onCellClick={(params) => {
           setSelectedRowId(String(params.id));
         }}
+        onRowDoubleClick={(params) => {
+          verRegistro(String(params.id));
+        }}
         getRowClassName={(params) =>
           params.id === selectedRowId ? "row-selected" : ""
         }
@@ -225,8 +495,8 @@ export default function ContratistasSolicitudes() {
         }}
         slots={{
           toolbar: () => (
-            <DataGridToolbar
-              tableTitle="Solicitudes Contratistas"
+              <DataGridToolbar
+              tableTitle="Solicitudes de Contratistas"
               customActionButtons={
                 <Tooltip title="Recargar">
                   <IconButton onClick={() => apiRef.current?.dataSource?.fetchRows?.()}>

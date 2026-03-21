@@ -8,16 +8,10 @@ import {
   CardContent,
   Chip,
   Divider,
-  FormControl,
-  Grid,
-  InputLabel,
-  MenuItem,
-  Select,
   Stack,
-  TextField,
   Typography,
 } from "@mui/material";
-import { ChevronLeft, Save } from "@mui/icons-material";
+import { ChevronLeft } from "@mui/icons-material";
 import ModalContainer from "../../utils/ModalContainer";
 import Spinner from "../../utils/Spinner";
 import { enqueueSnackbar } from "notistack";
@@ -95,137 +89,157 @@ export default function DetalleContratistasSolicitud() {
     [items, datos.visitantes]
   );
 
-  const actualizarItem = (id_visitante: string, patch: Partial<Item>) => {
-    setItems((prev) =>
-      prev.map((i) => (i.id_visitante === id_visitante ? { ...i, ...patch } : i))
-    );
-  };
-
-  const aprobarTodos = () => {
-    setItems((prev) => prev.map((i) => ({ ...i, estado: 2, motivo: "" })));
-  };
-
-  const rechazarTodos = () => {
-    setItems((prev) => prev.map((i) => ({ ...i, estado: 3 })));
-  };
-
-  const guardar = async () => {
-    try {
-      const res = await clienteAxios.post(`/api/contratistas-solicitudes/${id}/revisar`, {
-        items,
-      });
-      if (res.data.estado) {
-        enqueueSnackbar("Revisión guardada.", { variant: "success" });
-        navigate("/contratistas/solicitudes");
-      } else {
-        enqueueSnackbar(res.data.mensaje, { variant: "warning" });
-      }
-    } catch (error) {
-      handlingError(error);
-    }
-  };
-
   const regresar = () => {
     navigate(`/contratistas/solicitudes`);
   };
 
   return (
     <ModalContainer containerProps={{ maxWidth: "lg" }}>
-      <Card elevation={5}>
-        <CardContent>
-          <Typography variant="h5" component="h5" textAlign="center">
-            Solicitud{" "}
+      <Box
+        component="section"
+        sx={{
+          minHeight: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          py: 2,
+        }}
+      >
+        <Card elevation={5} sx={{ width: "100%" }}>
+          <CardContent>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 2,
+            }}
+          >
+            <Typography variant="h4" component="h2" textAlign="center">
+              Solicitud
+            </Typography>
             {!isLoading && (
-              <Chip label={estadoSolicitud.label} color={estadoSolicitud.color} />
+              <Chip
+                label={estadoSolicitud.label}
+                color={estadoSolicitud.color}
+                size="small"
+                sx={{
+                  minWidth: 130,
+                  height: 24,
+                  justifyContent: "center",
+                  "& .MuiChip-label": {
+                    px: 1.5,
+                    color: "#fff",
+                    fontWeight: 600,
+                    fontSize: 12,
+                    textAlign: "center",
+                  },
+                }}
+              />
             )}
-          </Typography>
+          </Box>
           {isLoading ? (
             <Spinner />
           ) : (
-            <>
-              <Grid container spacing={2} sx={{ mt: 2 }}>
-                <Grid size={12}>
-                  <Typography>
-                    <strong>Fecha de visita:</strong>{" "}
-                    {dayjs(datos.fecha_visita).format("DD/MM/YYYY")}
-                  </Typography>
-                </Grid>
-                <Grid size={12}>
-                  <Typography>
-                    <strong>Comentario:</strong> {datos.comentario || "-"}
-                  </Typography>
-                </Grid>
-              </Grid>
-              <Divider sx={{ my: 2 }} />
-              <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-                <Button variant="outlined" onClick={aprobarTodos}>
-                  Aprobar todos
-                </Button>
-                <Button variant="outlined" color="error" onClick={rechazarTodos}>
-                  Rechazar todos
-                </Button>
-              </Stack>
-              {mapItems.map((item) => (
-                <Box
-                  key={item.id_visitante}
-                  sx={{
-                    p: 1,
-                    border: "1px solid #ddd",
-                    borderRadius: 1,
-                    mb: 1,
-                  }}
-                >
-                  <Typography>
-                    {item.visitante
-                      ? `${item.visitante.nombre} ${item.visitante.apellido_pat} ${item.visitante.apellido_mat || ""} (${item.visitante.correo})`
-                      : item.id_visitante}
-                  </Typography>
-                  <Grid container spacing={2} sx={{ mt: 1 }}>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <FormControl fullWidth>
-                        <InputLabel>Estado</InputLabel>
-                        <Select
-                          label="Estado"
-                          value={item.estado}
-                          onChange={(e) =>
-                            actualizarItem(item.id_visitante, {
-                              estado: Number(e.target.value),
-                            })
-                          }
-                        >
-                          <MenuItem value={2}>Aprobado</MenuItem>
-                          <MenuItem value={3}>Rechazado</MenuItem>
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 8 }}>
-                      <TextField
-                        label="Motivo (si rechazo)"
-                        value={item.motivo || ""}
-                        onChange={(e) =>
-                          actualizarItem(item.id_visitante, {
-                            motivo: e.target.value,
-                          })
-                        }
-                        fullWidth
-                      />
-                    </Grid>
-                    {item.visitante && (item.visitante as any).documentos_checks && (
-                      <Grid size={12}>
-                        <Typography variant="body2" sx={{ mt: 1 }}>
-                          <strong>Docs:</strong>{" "}
-                          {Object.entries((item.visitante as any).documentos_checks)
-                            .filter(([, v]) => Boolean(v))
-                            .map(([k]) => k.replace(/_/g, " "))
-                            .join(", ") || "-"}
-                        </Typography>
-                      </Grid>
-                    )}
-                  </Grid>
+            <Box sx={{ mt: 2 }}>
+              <Typography
+                variant="h6"
+                component="h6"
+                color="primary"
+                bgcolor="#FFFFFF"
+                sx={(theme) => ({
+                  border: `1px solid ${theme.palette.primary.main}`,
+                  borderRadius: 2,
+                  px: 2,
+                  py: 0.5,
+                })}
+                textAlign="center"
+                mb={2}
+              >
+                <strong>Datos de la visita</strong>
+              </Typography>
+              <Box sx={{ display: "grid", gap: 1.5, mb: 3 }}>
+                <Box sx={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 1 }}>
+                  <strong>Fecha de visita:</strong>
+                  <span>{dayjs(datos.fecha_visita).format("DD/MM/YYYY")}</span>
                 </Box>
-              ))}
-            </>
+                <Box sx={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 1 }}>
+                  <strong>Razon de visita:</strong>
+                  <span>{datos.comentario || "-"}</span>
+                </Box>
+              </Box>
+              <Typography
+                variant="h6"
+                component="h6"
+                color="primary"
+                bgcolor="#FFFFFF"
+                sx={(theme) => ({
+                  border: `1px solid ${theme.palette.primary.main}`,
+                  borderRadius: 2,
+                  px: 2,
+                  py: 0.5,
+                })}
+                textAlign="center"
+                mb={2}
+              >
+                <strong>Visitantes</strong>
+              </Typography>
+              {mapItems.map((item) => {
+                const estadoItem = getEstadoLabel(item.estado);
+                return (
+                  <Box
+                    key={item.id_visitante}
+                    sx={{
+                      p: 1.5,
+                      border: "1px solid #e0e0e0",
+                      borderRadius: 1.5,
+                      mb: 1.5,
+                      display: "grid",
+                      gap: 0.75,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 2,
+                      }}
+                    >
+                      <Typography>
+                        {item.visitante
+                          ? `${item.visitante.nombre} ${item.visitante.apellido_pat} ${item.visitante.apellido_mat || ""} (${item.visitante.correo})`
+                          : item.id_visitante}
+                      </Typography>
+                      <Chip
+                        label={estadoItem.label}
+                        color={estadoItem.color}
+                        size="small"
+                        sx={{
+                          minWidth: 120,
+                          height: 24,
+                          justifyContent: "center",
+                          "& .MuiChip-label": {
+                            px: 1.5,
+                            color: "#fff",
+                            fontWeight: 600,
+                            fontSize: 12,
+                            textAlign: "center",
+                          },
+                        }}
+                      />
+                    </Box>
+                    {item.motivo && (
+                      <Typography variant="body2">
+                        <strong>Motivo:</strong> {item.motivo}
+                      </Typography>
+                    )}
+                  </Box>
+                );
+              })}
+            </Box>
           )}
+          <Divider sx={{ my: 2 }} />
           <Box
             component="footer"
             sx={{
@@ -250,13 +264,14 @@ export default function DetalleContratistasSolicitud() {
               >
                 <ChevronLeft /> Regresar
               </Button>
-              <Button type="button" size="medium" variant="contained" onClick={guardar}>
-                <Save /> Guardar revisión
-              </Button>
             </Stack>
           </Box>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </Box>
     </ModalContainer>
   );
 }
+
+
+

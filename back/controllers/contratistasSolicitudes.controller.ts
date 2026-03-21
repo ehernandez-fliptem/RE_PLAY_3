@@ -21,6 +21,12 @@ const inicioHoy = () => {
     return hoy;
 };
 
+const inicioManana = () => {
+    const manana = inicioHoy();
+    manana.setDate(manana.getDate() + 1);
+    return manana;
+};
+
 const rangoDia = (fecha: Date) => {
     const inicio = new Date(fecha);
     inicio.setHours(0, 0, 0, 0);
@@ -405,8 +411,31 @@ export async function obtenerPendientes(req: Request, res: Response): Promise<vo
         const { filter: filterMDB, sort: sortMDB, pagination: paginationMDB } =
             customAggregationForDataGrids(queryFilter, querySort, queryPagination, ["comentario"]);
 
+        const rango = normalizarRangoFechas(
+            req.query?.fecha_desde as string | undefined,
+            req.query?.fecha_hasta as string | undefined
+        );
+        const estadoFiltro = Number.isFinite(Number(req.query?.estado))
+            ? Number(req.query?.estado)
+            : null;
+        const matchEstado = estadoFiltro ? { estado: estadoFiltro } : { estado: 1 };
+        const urgente = String(req.query?.urgente || "") === "1";
+        const manana = inicioManana();
+        const mananaFin = new Date(manana);
+        mananaFin.setHours(23, 59, 59, 999);
+
         const aggregation: PipelineStage[] = [
-            { $match: { estado: 1 } },
+            {
+                $match: {
+                    ...(urgente ? { estado: 1 } : matchEstado),
+                    ...(urgente
+                        ? { fecha_visita: { $gte: manana, $lte: mananaFin } }
+                        : {}),
+                    ...(rango?.inicio && rango?.fin
+                        ? { fecha_visita: { $gte: rango.inicio, $lte: rango.fin } }
+                        : {}),
+                },
+            },
             {
                 $lookup: {
                     from: "contratistas",
@@ -443,6 +472,50 @@ export async function obtenerPendientes(req: Request, res: Response): Promise<vo
 
         const registros = await ContratistaSolicitudes.aggregate(aggregation);
         res.status(200).json({ estado: true, datos: registros[0] });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function obtenerResumenSolicitudesAdmin(req: Request, res: Response): Promise<void> {
+    try {
+        const rango = normalizarRangoFechas(
+            req.query?.fecha_desde as string | undefined,
+            req.query?.fecha_hasta as string | undefined
+        );
+        const matchBase: Record<string, any> = {};
+        if (rango?.inicio && rango?.fin) {
+            matchBase.fecha_visita = { $gte: rango.inicio, $lte: rango.fin };
+        }
+
+        const aggregation: PipelineStage[] = [
+            { $match: matchBase },
+            { $group: { _id: "$estado", count: { $sum: 1 } } },
+        ];
+        const resultados = await ContratistaSolicitudes.aggregate(aggregation);
+        const manana = inicioManana();
+        const mananaFin = new Date(manana);
+        mananaFin.setHours(23, 59, 59, 999);
+        const urgentes = await ContratistaSolicitudes.countDocuments({
+            ...matchBase,
+            estado: 1,
+            fecha_visita: { $gte: manana, $lte: mananaFin },
+        });
+        const resumen = resultados.reduce(
+            (acc, item) => {
+                acc.total += item.count;
+                if (item._id === 1) acc.pendientes += item.count;
+                if (item._id === 2) acc.aprobadas += item.count;
+                if (item._id === 3) acc.rechazadas += item.count;
+                if (item._id === 4) acc.parciales += item.count;
+                return acc;
+            },
+            { total: 0, pendientes: 0, aprobadas: 0, rechazadas: 0, parciales: 0 }
+        );
+        (resumen as any).urgentes = urgentes;
+
+        res.status(200).json({ estado: true, datos: resumen });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });

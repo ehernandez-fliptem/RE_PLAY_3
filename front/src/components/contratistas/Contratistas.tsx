@@ -876,23 +876,34 @@ export default function Contratistas() {
                   toolbar: () => (
                     <DataGridToolbar
                       tableTitle=""
-                      customActionButtons={
-                        <Button
-                          variant="contained"
-                          size="small"
-                          startIcon={<Verified />}
-                          onClick={() => abrirVerificarVisitante()}
-                          disabled={
-                            !selectedVisitante ||
-                            selectedVisitante?.estado_validacion === 2
-                          }
-                        >
-                          Verificar
-                        </Button>
-                      }
-                    />
-                  ),
-                }}
+                        customActionButtons={
+                          <Fragment>
+                            <Button
+                              variant="contained"
+                              size="small"
+                              startIcon={<Verified />}
+                              onClick={() => abrirVerificarVisitante()}
+                              disabled={
+                                !selectedVisitante ||
+                                selectedVisitante?.estado_validacion === 2
+                              }
+                            >
+                              Verificar
+                            </Button>
+                            <Tooltip title="Recargar">
+                              <IconButton
+                                onClick={() =>
+                                  apiRefVisitantes.current?.dataSource?.fetchRows?.()
+                                }
+                              >
+                                <Refresh fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Fragment>
+                        }
+                      />
+                    ),
+                  }}
                 sx={{
                   "& .row-selected": {
                     outline: "2px solid #7A3DF0",
@@ -943,7 +954,7 @@ export default function Contratistas() {
           <Card
             sx={{
               width: "100%",
-              maxWidth: 900,
+              maxWidth: 1200,
               maxHeight: "70vh",
               outline: "none",
               "&:focus, &:focus-visible": { outline: "none" },
@@ -1241,7 +1252,7 @@ export default function Contratistas() {
           <Card
             sx={{
               width: "100%",
-              maxWidth: 900,
+              maxWidth: 1200,
               maxHeight: "70vh",
               outline: "none",
               "&:focus, &:focus-visible": { outline: "none" },
