@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
   Button,
   Card,
@@ -11,7 +14,8 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { ChevronLeft } from "@mui/icons-material";
+import { ChevronLeft, Verified } from "@mui/icons-material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ModalContainer from "../../utils/ModalContainer";
 import Spinner from "../../utils/Spinner";
 import { enqueueSnackbar } from "notistack";
@@ -23,6 +27,9 @@ type Visitante = {
   apellido_pat: string;
   apellido_mat?: string;
   correo: string;
+  estado_validacion?: number;
+  documentos_checks?: Record<string, boolean>;
+  documentos_archivos?: Record<string, string>;
 };
 
 type Item = {
@@ -39,6 +46,19 @@ type Solicitud = {
   visitantes: Visitante[];
 };
 
+const DOC_LABELS: Record<string, string> = {
+  identificacion_oficial: "Identificacion oficial",
+  sua: "SUA",
+  permiso_entrada: "Permiso de entrada",
+  lista_articulos: "Lista de articulos",
+  repse: "REPSE",
+  soporte_pago_actualizado: "Soporte de pago actualizado",
+  constancia_vigencia_imss: "Constancia de Vigencia IMSS",
+  constancias_habilidades: "Constancias de Habilidades",
+};
+
+const DOC_KEYS = Object.keys(DOC_LABELS);
+
 const getEstadoLabel = (estado?: number) => {
   if (estado === 2) return { label: "Aprobada", color: "success" as const };
   if (estado === 3) return { label: "Rechazada", color: "error" as const };
@@ -46,10 +66,17 @@ const getEstadoLabel = (estado?: number) => {
   return { label: "Pendiente", color: "warning" as const };
 };
 
+const getEstadoVisitante = (estado?: number) => {
+  if (estado === 2) return { label: "Verificado", color: "success.main" };
+  return { label: "No verificado", color: "error.main" };
+};
+
 export default function DetalleContratistasSolicitud() {
   const { id } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [datos, setDatos] = useState<Solicitud>({
     fecha_visita: "",
     comentario: "",
@@ -58,6 +85,8 @@ export default function DetalleContratistasSolicitud() {
     visitantes: [],
   });
   const [items, setItems] = useState<Item[]>([]);
+  const [expandedVisitanteId, setExpandedVisitanteId] = useState<string | false>(false);
+  const isAprobarMode = new URLSearchParams(location.search).get("modo") === "aprobar";
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -91,6 +120,30 @@ export default function DetalleContratistasSolicitud() {
 
   const regresar = () => {
     navigate(`/contratistas/solicitudes`);
+  };
+
+  const aprobarSolicitud = async () => {
+    try {
+      setIsSaving(true);
+      const payload = items.map((item) => ({
+        ...item,
+        estado: 2,
+        motivo: "",
+      }));
+      const res = await clienteAxios.post(`/api/contratistas-solicitudes/${id}/revisar`, {
+        items: payload,
+      });
+      if (res.data.estado) {
+        enqueueSnackbar("Solicitud aprobada.", { variant: "success" });
+        navigate("/contratistas/solicitudes");
+      } else {
+        enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+      }
+    } catch (error) {
+      handlingError(error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -185,56 +238,100 @@ export default function DetalleContratistasSolicitud() {
                 <strong>Visitantes</strong>
               </Typography>
               {mapItems.map((item) => {
-                const estadoItem = getEstadoLabel(item.estado);
+                const visitante = item.visitante as Visitante | undefined;
+                const checks = visitante?.documentos_checks || {};
+                const archivos = visitante?.documentos_archivos || {};
+                const estadoVisitante = getEstadoVisitante(visitante?.estado_validacion);
                 return (
-                  <Box
+                  <Accordion
                     key={item.id_visitante}
-                    sx={{
-                      p: 1.5,
-                      border: "1px solid #e0e0e0",
-                      borderRadius: 1.5,
-                      mb: 1.5,
-                      display: "grid",
-                      gap: 0.75,
-                    }}
+                    disableGutters
+                    expanded={expandedVisitanteId === item.id_visitante}
+                    onChange={(_, isExpanded) =>
+                      setExpandedVisitanteId(isExpanded ? item.id_visitante : false)
+                    }
+                    sx={{ mb: 1.5 }}
                   >
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 2,
-                      }}
-                    >
-                      <Typography>
-                        {item.visitante
-                          ? `${item.visitante.nombre} ${item.visitante.apellido_pat} ${item.visitante.apellido_mat || ""} (${item.visitante.correo})`
-                          : item.id_visitante}
-                      </Typography>
-                      <Chip
-                        label={estadoItem.label}
-                        color={estadoItem.color}
-                        size="small"
+                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                      <Box
                         sx={{
-                          minWidth: 120,
-                          height: 24,
-                          justifyContent: "center",
-                          "& .MuiChip-label": {
-                            px: 1.5,
-                            color: "#fff",
-                            fontWeight: 600,
-                            fontSize: 12,
-                            textAlign: "center",
-                          },
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          width: "100%",
+                          pr: 2,
                         }}
-                      />
-                    </Box>
-                    {item.motivo && (
-                      <Typography variant="body2">
-                        <strong>Motivo:</strong> {item.motivo}
-                      </Typography>
-                    )}
-                  </Box>
+                      >
+                        <Typography>
+                          {visitante
+                            ? `${visitante.nombre} ${visitante.apellido_pat} ${visitante.apellido_mat || ""} (${visitante.correo})`
+                            : item.id_visitante}
+                        </Typography>
+                        <Chip
+                          label={estadoVisitante.label}
+                          size="small"
+                          sx={{
+                            minWidth: 120,
+                            height: 24,
+                            justifyContent: "center",
+                            "& .MuiChip-label": {
+                              px: 1.5,
+                              color: "#fff",
+                              fontWeight: 600,
+                              fontSize: 12,
+                              textAlign: "center",
+                            },
+                            bgcolor: estadoVisitante.color,
+                          }}
+                        />
+                      </Box>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      {DOC_KEYS.map((key) => {
+                        const tieneArchivo = Boolean(archivos?.[key]);
+                        const check = checks?.[key];
+                        const estadoDoc =
+                          check === true
+                            ? { label: "OK", color: "success.main" }
+                            : check === false
+                              ? { label: "Pendiente de revision", color: "error.main" }
+                              : tieneArchivo
+                                ? { label: "OK", color: "success.main" }
+                                : { label: "-", color: "text.secondary" };
+                        return (
+                          <Box
+                            key={`${item.id_visitante}-${key}`}
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              border: "1px solid #e0e0e0",
+                              borderRadius: 1,
+                              px: 2,
+                              py: 1,
+                              mb: 1,
+                            }}
+                          >
+                            <Typography>{DOC_LABELS[key]}</Typography>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: estadoDoc.color,
+                                fontWeight: 600,
+                              }}
+                            >
+                              {estadoDoc.label}
+                            </Typography>
+                          </Box>
+                        );
+                      })}
+                      {item.motivo && (
+                        <Typography variant="body2" sx={{ mt: 1 }}>
+                          <strong>Motivo:</strong> {item.motivo}
+                        </Typography>
+                      )}
+                    </AccordionDetails>
+                  </Accordion>
                 );
               })}
             </Box>
@@ -264,6 +361,18 @@ export default function DetalleContratistasSolicitud() {
               >
                 <ChevronLeft /> Regresar
               </Button>
+              {isAprobarMode && (
+                <Button
+                  type="button"
+                  size="medium"
+                  variant="contained"
+                  onClick={aprobarSolicitud}
+                  disabled={isSaving}
+                  startIcon={<Verified />}
+                >
+                  Aprobar visita
+                </Button>
+              )}
             </Stack>
           </Box>
           </CardContent>

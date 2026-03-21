@@ -418,8 +418,26 @@ export async function obtenerPendientes(req: Request, res: Response): Promise<vo
         const estadoFiltro = Number.isFinite(Number(req.query?.estado))
             ? Number(req.query?.estado)
             : null;
-        const matchEstado = estadoFiltro ? { estado: estadoFiltro } : { estado: 1 };
+        const matchEstado = estadoFiltro !== null ? { estado: estadoFiltro } : {};
         const urgente = String(req.query?.urgente || "") === "1";
+        const empresaFiltro = String(req.query?.empresa || "").trim();
+        let contratistasFiltrados: Types.ObjectId[] = [];
+        if (empresaFiltro) {
+            const contratistas = await Contratistas.find(
+                { empresa: { $regex: empresaFiltro, $options: "i" } },
+                { _id: 1 }
+            ).lean();
+            contratistasFiltrados = contratistas
+                .map((c: any) => c._id)
+                .filter(Boolean);
+            if (contratistasFiltrados.length === 0) {
+                res.status(200).json({
+                    estado: true,
+                    datos: { paginatedResults: [], totalCount: [] },
+                });
+                return;
+            }
+        }
         const manana = inicioManana();
         const mananaFin = new Date(manana);
         mananaFin.setHours(23, 59, 59, 999);
@@ -433,6 +451,9 @@ export async function obtenerPendientes(req: Request, res: Response): Promise<vo
                         : {}),
                     ...(rango?.inicio && rango?.fin
                         ? { fecha_visita: { $gte: rango.inicio, $lte: rango.fin } }
+                        : {}),
+                    ...(contratistasFiltrados.length > 0
+                        ? { id_contratista: { $in: contratistasFiltrados } }
                         : {}),
                 },
             },
@@ -484,9 +505,25 @@ export async function obtenerResumenSolicitudesAdmin(req: Request, res: Response
             req.query?.fecha_desde as string | undefined,
             req.query?.fecha_hasta as string | undefined
         );
+        const empresaFiltro = String(req.query?.empresa || "").trim();
         const matchBase: Record<string, any> = {};
         if (rango?.inicio && rango?.fin) {
             matchBase.fecha_visita = { $gte: rango.inicio, $lte: rango.fin };
+        }
+        if (empresaFiltro) {
+            const contratistas = await Contratistas.find(
+                { empresa: { $regex: empresaFiltro, $options: "i" } },
+                { _id: 1 }
+            ).lean();
+            const ids = contratistas.map((c: any) => c._id).filter(Boolean);
+            if (ids.length === 0) {
+                res.status(200).json({
+                    estado: true,
+                    datos: { total: 0, pendientes: 0, aprobadas: 0, rechazadas: 0, parciales: 0, urgentes: 0 },
+                });
+                return;
+            }
+            matchBase.id_contratista = { $in: ids };
         }
 
         const aggregation: PipelineStage[] = [
@@ -516,6 +553,22 @@ export async function obtenerResumenSolicitudesAdmin(req: Request, res: Response
         (resumen as any).urgentes = urgentes;
 
         res.status(200).json({ estado: true, datos: resumen });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function obtenerEmpresasSolicitudesAdmin(
+    req: Request,
+    res: Response
+): Promise<void> {
+    try {
+        const empresas = await Contratistas.distinct("empresa", {
+            empresa: { $nin: [null, ""] },
+        });
+        empresas.sort((a, b) => String(a).localeCompare(String(b)));
+        res.status(200).json({ estado: true, datos: empresas });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });

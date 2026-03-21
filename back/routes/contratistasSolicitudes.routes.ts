@@ -6,6 +6,7 @@ import {
     obtenerVisitantesOcupados,
     obtenerResumenSolicitudesContratista,
     obtenerResumenSolicitudesAdmin,
+    obtenerEmpresasSolicitudesAdmin,
     obtenerSolicitudesContratista,
     obtenerPendientes,
     obtenerSolicitud,
@@ -24,6 +25,7 @@ router.post("/", validarTokenYRol([1, 11]), crearSolicitud);
 // Admin
 router.get("/pendientes", validarTokenYRol([1, 2]), obtenerPendientes);
 router.get("/resumen-admin", validarTokenYRol([1, 2]), obtenerResumenSolicitudesAdmin);
+router.get("/empresas-admin", validarTokenYRol([1, 2]), obtenerEmpresasSolicitudesAdmin);
 router.get("/:id", validarTokenYRol([1, 2, 11]), obtenerSolicitud);
 router.post("/:id/revisar", validarTokenYRol([1, 2]), revisarSolicitud);
 

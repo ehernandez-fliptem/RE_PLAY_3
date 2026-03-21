@@ -12,8 +12,18 @@ import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { Outlet, useNavigate } from "react-router-dom";
 import { esES } from "@mui/x-data-grid/locales";
 import DataGridToolbar from "../../utils/DataGridToolbar";
-import { Refresh, Visibility } from "@mui/icons-material";
-import { Box, Chip, IconButton, Tooltip } from "@mui/material";
+import { Refresh, Verified, Visibility } from "@mui/icons-material";
+import {
+  Box,
+  Button,
+  Chip,
+  FormControl,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Select,
+  Tooltip,
+} from "@mui/material";
 import ErrorOverlay from "../../error/DataGridError";
 import { AxiosError } from "axios";
 import dayjs from "dayjs";
@@ -35,6 +45,7 @@ export default function ContratistasSolicitudes() {
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  const [selectedRowEstado, setSelectedRowEstado] = useState<number | null>(null);
   const navigate = useNavigate();
   const autoRefreshEnabled = true;
   const [estadoFiltro, setEstadoFiltro] = useState<number | null>(null);
@@ -52,6 +63,10 @@ export default function ContratistasSolicitudes() {
   const [fechaDesdeError, setFechaDesdeError] = useState<string>("");
   const [fechaHastaError, setFechaHastaError] = useState<string>("");
   const [urgenteFiltro, setUrgenteFiltro] = useState(false);
+  const [empresaFiltro, setEmpresaFiltro] = useState("");
+  const [empresasDisponibles, setEmpresasDisponibles] = useState<string[]>([]);
+  const isTodosSelected = estadoFiltro === null && !urgenteFiltro;
+  const isUrgenteSelected = urgenteFiltro;
 
   const safeIso = (value: dayjs.Dayjs | null) => {
     if (!value || !value.isValid()) return "";
@@ -73,7 +88,7 @@ export default function ContratistasSolicitudes() {
 
   useEffect(() => {
     apiRef.current?.dataSource?.fetchRows?.();
-  }, [apiRef, estadoFiltro, fechaDesde, fechaHasta, urgenteFiltro]);
+  }, [apiRef, estadoFiltro, fechaDesde, fechaHasta, urgenteFiltro, empresaFiltro]);
 
   useEffect(() => {
     const obtenerResumen = async () => {
@@ -81,8 +96,11 @@ export default function ContratistasSolicitudes() {
         const desdeIso = safeIso(fechaDesde);
         const hastaIso = safeIso(fechaHasta);
         if (!desdeIso || !hastaIso) return;
+        const empresaParam = empresaFiltro.trim();
         const res = await clienteAxios.get(
-          `/api/contratistas-solicitudes/resumen-admin?fecha_desde=${desdeIso}&fecha_hasta=${hastaIso}`
+          `/api/contratistas-solicitudes/resumen-admin?fecha_desde=${desdeIso}&fecha_hasta=${hastaIso}${
+            empresaParam ? `&empresa=${encodeURIComponent(empresaParam)}` : ""
+          }`
         );
         if (res.data.estado) {
           setResumen(res.data.datos);
@@ -93,6 +111,26 @@ export default function ContratistasSolicitudes() {
       }
     };
     obtenerResumen();
+  }, [fechaDesde, fechaHasta, empresaFiltro, navigate]);
+
+  useEffect(() => {
+    const obtenerEmpresas = async () => {
+      try {
+        const desdeIso = safeIso(fechaDesde);
+        const hastaIso = safeIso(fechaHasta);
+        if (!desdeIso || !hastaIso) return;
+        const res = await clienteAxios.get(
+          `/api/contratistas-solicitudes/empresas-admin?fecha_desde=${desdeIso}&fecha_hasta=${hastaIso}`
+        );
+        if (res.data.estado) {
+          setEmpresasDisponibles(res.data.datos || []);
+        }
+      } catch (error) {
+        const { restartSession } = handlingError(error);
+        if (restartSession) navigate("/logout", { replace: true });
+      }
+    };
+    obtenerEmpresas();
   }, [fechaDesde, fechaHasta, navigate]);
 
   const dataSource: GridDataSource = useMemo(
@@ -119,6 +157,9 @@ export default function ContratistasSolicitudes() {
           if (urgenteFiltro) {
             urlParams.set("urgente", "1");
           }
+          if (empresaFiltro.trim()) {
+            urlParams.set("empresa", empresaFiltro.trim());
+          }
           const res = await clienteAxios.get(
             "/api/contratistas-solicitudes/pendientes?" + urlParams.toString()
           );
@@ -139,7 +180,7 @@ export default function ContratistasSolicitudes() {
         };
       },
     }),
-    [estadoFiltro, fechaDesde, fechaHasta, urgenteFiltro, navigate]
+    [estadoFiltro, fechaDesde, fechaHasta, urgenteFiltro, empresaFiltro, navigate]
   );
 
   const initialState: GridInitialState = useMemo(
@@ -258,9 +299,24 @@ export default function ContratistasSolicitudes() {
             },
           }}
         />
+        <FormControl size="small" sx={{ minWidth: 220 }}>
+          <InputLabel>Empresa</InputLabel>
+          <Select
+            label="Empresa"
+            value={empresaFiltro}
+            onChange={(e) => setEmpresaFiltro(String(e.target.value))}
+          >
+            <MenuItem value="">Todas</MenuItem>
+            {empresasDisponibles.map((empresa) => (
+              <MenuItem key={empresa} value={empresa}>
+                {empresa}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
         <Chip
           label={`Todos: ${resumen.total}`}
-          color={estadoFiltro === null ? "primary" : "default"}
+          color={isTodosSelected ? "primary" : "default"}
           onClick={() => actualizarEstadoFiltro(null)}
           sx={{
             minWidth: 150 * chipScale,
@@ -268,7 +324,7 @@ export default function ContratistasSolicitudes() {
             justifyContent: "center",
             "& .MuiChip-label": {
               px: 1.5 * chipScale,
-              color: estadoFiltro === null ? "#fff" : "#2f2f2f",
+              color: isTodosSelected ? "#fff" : "#2f2f2f",
               fontWeight: 600,
               fontSize: 12 * chipScale,
               textAlign: "center",
@@ -328,7 +384,7 @@ export default function ContratistasSolicitudes() {
         />
         <Chip
           label={`Urgentes: ${resumen.urgentes}`}
-          color={urgenteFiltro ? "error" : "default"}
+          color={isUrgenteSelected ? "warning" : "default"}
           onClick={actualizarUrgente}
           sx={{
             minWidth: 150 * chipScale,
@@ -336,11 +392,12 @@ export default function ContratistasSolicitudes() {
             justifyContent: "center",
             "& .MuiChip-label": {
               px: 1.5 * chipScale,
-              color: urgenteFiltro ? "#fff" : "#2f2f2f",
+              color: isUrgenteSelected ? "#fff" : "#2f2f2f",
               fontWeight: 600,
               fontSize: 12 * chipScale,
               textAlign: "center",
             },
+            bgcolor: isUrgenteSelected ? "#ff7a00" : undefined,
           }}
         />
         <Box sx={{ flex: 1 }} />
@@ -352,6 +409,7 @@ export default function ContratistasSolicitudes() {
             actualizarFechaDesde(dayjs().startOf("month"));
             actualizarFechaHasta(dayjs().endOf("month"));
             setUrgenteFiltro(false);
+            setEmpresaFiltro("");
           }}
           sx={{
             minWidth: 170 * chipScale,
@@ -385,6 +443,8 @@ export default function ContratistasSolicitudes() {
             flex: 1,
             display: "flex",
             minWidth: 160,
+            headerAlign: "center",
+            align: "center",
             valueFormatter: (value: string) =>
               value ? dayjs(value).format("DD/MM/YYYY") : "-",
           },
@@ -394,6 +454,8 @@ export default function ContratistasSolicitudes() {
             flex: 1,
             display: "flex",
             minWidth: 80,
+            headerAlign: "center",
+            align: "center",
             valueFormatter: (value: any[]) => value?.length || 0,
           },
           {
@@ -402,6 +464,8 @@ export default function ContratistasSolicitudes() {
             flex: 1,
             display: "flex",
             minWidth: 120,
+            headerAlign: "center",
+            align: "center",
             renderCell: ({ value }) => {
               const estado = getEstadoLabel(value);
               return (
@@ -410,7 +474,7 @@ export default function ContratistasSolicitudes() {
                   color={estado.color}
                   size="small"
                   sx={{
-                    minWidth: 130,
+                    minWidth: 170,
                     height: 24,
                     justifyContent: "center",
                     "& .MuiChip-label": {
@@ -447,8 +511,14 @@ export default function ContratistasSolicitudes() {
         disableRowSelectionOnClick
         onCellClick={(params) => {
           setSelectedRowId(String(params.id));
+          setSelectedRowEstado(typeof params.row?.estado === "number" ? params.row.estado : null);
         }}
         onRowDoubleClick={(params) => {
+          const estado = typeof params.row?.estado === "number" ? params.row.estado : null;
+          if (estado === 1) {
+            navigate(`detalle/${String(params.id)}?modo=aprobar`);
+            return;
+          }
           verRegistro(String(params.id));
         }}
         getRowClassName={(params) =>
@@ -495,14 +565,27 @@ export default function ContratistasSolicitudes() {
         }}
         slots={{
           toolbar: () => (
-              <DataGridToolbar
+            <DataGridToolbar
               tableTitle="Solicitudes de Contratistas"
               customActionButtons={
-                <Tooltip title="Recargar">
-                  <IconButton onClick={() => apiRef.current?.dataSource?.fetchRows?.()}>
-                    <Refresh fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                <>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<Verified />}
+                    onClick={() => {
+                      if (selectedRowId) navigate(`detalle/${selectedRowId}?modo=aprobar`);
+                    }}
+                    disabled={!selectedRowId || selectedRowEstado !== 1}
+                  >
+                    Verificar
+                  </Button>
+                  <Tooltip title="Recargar">
+                    <IconButton onClick={() => apiRef.current?.dataSource?.fetchRows?.()}>
+                      <Refresh fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </>
               }
             />
           ),
