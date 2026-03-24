@@ -16,6 +16,7 @@ import {
 } from "@mui/material";
 import { FormContainer, TextFieldElement } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
+import Swal from "sweetalert2";
 import {
     REGEX_BASE64,
   REGEX_NAME,
@@ -206,7 +207,7 @@ export default function EditarVisitante() {
                     `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${ID}`
                   );
                   console.log("[SYNC-VIS] respuesta FDSetUp", syncRes.data);
-                  if (syncRes.data?.codigo === "FACE_INVALID") {
+                  if (syncRes.data?.estado === false) {
                     faceInvalid = true;
                     faceInvalidMessage =
                       syncRes.data?.mensaje || faceInvalidMessage;
@@ -222,7 +223,15 @@ export default function EditarVisitante() {
             // no bloquea si no se pudieron listar paneles
           }
           if (faceInvalid) {
-            enqueueSnackbar(faceInvalidMessage, { variant: "warning" });
+            await Swal.fire({
+              icon: "error",
+              title: "No se pudo subir la foto",
+              text: faceInvalidMessage,
+              showConfirmButton: true,
+              allowOutsideClick: false,
+              showClass: { popup: "swal2-show" },
+              hideClass: { popup: "swal2-hide" },
+            });
             return;
           }
         }
