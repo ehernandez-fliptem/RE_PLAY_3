@@ -178,10 +178,9 @@ async getTokenValue() {
         try {
             console.log("Ya termina JD!!!!!!!");
             const isFaceInvalid = (resp: any) =>
-                resp?.subStatusCode !== "deviceUserAlreadyExistFace" &&
-                (resp?.subStatusCode === "SubpicAnalysisModelingError" ||
-                    resp?.errorMsg === "saveFacePic" ||
-                    resp?.statusCode === 6);
+                resp?.subStatusCode === "SubpicAnalysisModelingError" ||
+                resp?.errorMsg === "saveFacePic" ||
+                resp?.statusCode === 6;
 
             // =========================
             // 1) Datos de entrada
@@ -372,7 +371,8 @@ async getTokenValue() {
             this.user_sync++;
             }
 
-            // Subir/actualizar cara si viene imagen (con reemplazo si ya existe)
+            // Subir/actualizar cara si viene imagen.
+            // Idea: primero eliminar la cara (dejar "vacía") y luego subir la nueva.
             if (hasImage && imageBuffer) {
                 const urlFaceRecord = `http://${this.ip}/ISAPI/Intelligent/FDLib/FaceDataRecord?format=json`;
                 const urlFaceDelete = `http://${this.ip}/ISAPI/Intelligent/FDLib/FDSetUp?format=json`;
@@ -389,6 +389,24 @@ async getTokenValue() {
                         imageName
                     );
 
+                // 1) Intentar borrar siempre antes de subir nueva cara
+                const resDel = (await peticionPutPanel(
+                    urlFaceDelete,
+                    dataFaceDelete,
+                    this.usuario,
+                    this.contrasena
+                )) as UserInfoSavedResponse;
+
+                // Si no se pudo borrar, no seguimos
+                if (resDel.statusString !== "OK") {
+                    return {
+                        estado: false,
+                        mensaje: "El panel no permitió limpiar la foto anterior.",
+                        datos: { face_delete_response: resDel },
+                    };
+                }
+
+                // 2) Subir cara nueva
                 const resp = await uploadFace();
                 console.log("[HV] FaceDataRecord (modify) resp:", resp);
                 const respText = typeof resp === "string" ? resp : resp.statusString;
@@ -396,45 +414,19 @@ async getTokenValue() {
                 if (respText === "OK") {
                     this.img_modified = true;
                     this.img_sync++;
+                } else if (isFaceInvalid(resp)) {
+                    return {
+                        estado: false,
+                        mensaje: "La foto no es válida para el panel. Intenta con otra imagen.",
+                        datos: { face_response: resp, face_delete_response: resDel },
+                    };
                 } else if (respText === "deviceUserAlreadyExistFace") {
-                    const resDel = (await peticionPutPanel(
-                        urlFaceDelete,
-                        dataFaceDelete,
-                        this.usuario,
-                        this.contrasena
-                    )) as UserInfoSavedResponse;
-
-                    if (resDel.statusString === "OK") {
-                        const respRetry = await uploadFace();
-                        const respRetryText =
-                            typeof respRetry === "string" ? respRetry : respRetry.statusString;
-                        if (respRetryText === "OK") {
-                            this.img_modified = true;
-                            this.img_sync++;
-                        } else if (isFaceInvalid(respRetry)) {
-                            return {
-                                estado: false,
-                                mensaje: "La foto no es válida para el panel. Intenta con otra imagen.",
-                                datos: { face_response: respRetry, face_delete_response: resDel },
-                            };
-                        } else {
-                            console.error("Hikvision respondio un error:", respRetry);
-                        }
-                    } else {
-                        return {
-                            estado: false,
-                            mensaje: "El panel no permitió reemplazar la foto.",
-                            datos: { face_delete_response: resDel },
-                        };
-                    }
+                    return {
+                        estado: false,
+                        mensaje: "El panel no permitió reemplazar la foto.",
+                        datos: { face_response: resp, face_delete_response: resDel },
+                    };
                 } else {
-                    if (isFaceInvalid(resp)) {
-                        return {
-                            estado: false,
-                            mensaje: "La foto no es válida para el panel. Intenta con otra imagen.",
-                            datos: { face_response: resp },
-                        };
-                    }
                     console.error("Hikvision respondio un error:", resp);
                 }
             }
