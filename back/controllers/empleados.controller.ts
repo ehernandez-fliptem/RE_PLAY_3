@@ -1046,8 +1046,9 @@ export async function modificar(req: Request, res: Response): Promise<void> {
 
         const esUsuarioMaestro = await Empleados.find({ _id: req.params.id, esRoot: true, id_empleado: 1 }, '_id').limit(1);
         const prevRegistro = await Empleados.findById(req.params.id).lean() as IEmpleado | null;
+        const imgChanged = prevRegistro ? prevRegistro.img_usuario !== img_usuario : true;
         let updateData = {
-            img_usuario: await resizeImage(img_usuario),
+            img_usuario: imgChanged ? await resizeImage(img_usuario) : prevRegistro?.img_usuario || '',
             nombre,
             apellido_pat,
             apellido_mat,
@@ -1090,7 +1091,6 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             return;
         }
 
-        const imgChanged = prevRegistro.img_usuario !== registro.img_usuario;
         const panelPayload = mapEmpleadoToPanel(registro);
         if (!imgChanged) {
             delete (panelPayload as any).img_usuario;
