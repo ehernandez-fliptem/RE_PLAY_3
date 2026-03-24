@@ -163,7 +163,8 @@ export default function EditarEmpleado() {
   const navigate = useNavigate();
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);`n  const [showForm, setShowForm] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showForm, setShowForm] = useState(true);
   const [empresas, setEmpresas] = useState<TEmpresas[]>([]);
   const [pisos, setPisos] = useState<TPisos[]>([]);
   const [accesos, setAccesos] = useState<TAccesos[]>([]);
@@ -232,6 +233,7 @@ export default function EditarEmpleado() {
         navigate("/empleados");
       } else if (res.data.codigo === "PANEL_SYNC_FAILED") {
         setIsSaving(false);
+        setShowForm(false);
         await Swal.fire({
           icon: "error",
           title: "No se pudo subir la foto",
@@ -243,6 +245,7 @@ export default function EditarEmpleado() {
           showClass: { popup: "swal2-show" },
           hideClass: { popup: "swal2-hide" },
         });
+        setShowForm(true);
         return;
       } else {
         enqueueSnackbar(res.data.mensaje, { variant: "warning" });
@@ -263,7 +266,11 @@ export default function EditarEmpleado() {
     navigate("/empleados");
   };
 
-  if (!showForm) {`n    return null;`n  }`n`n  return (
+  if (!showForm) {
+    return null;
+  }
+
+  return (
     <ModalContainer containerProps={{ maxWidth: "lg" }}>
       <Box component="section">
         <Card elevation={5}>
@@ -521,6 +528,17 @@ export default function EditarEmpleado() {
     </ModalContainer>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
 
 
 
