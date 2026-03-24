@@ -1,4 +1,4 @@
-import { Fragment, lazy, Suspense, useEffect, useState } from "react";
+import { Fragment, lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Close, Save } from "@mui/icons-material";
 import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -172,6 +172,7 @@ export default function EditarEmpleado() {
   const [departamentos, setDepartamentos] = useState<TDepartamentos[]>([]);
   const [cubiculos, setCubiculos] = useState<TCubiculos[]>([]);
   const [esUsuarioMaestro, setEsUsuarioMaestro] = useState(false);
+  const initialFormRef = useRef<FormValues | null>(null);
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -209,6 +210,7 @@ export default function EditarEmpleado() {
           };
           formContext.reset(usuarioForm);
           formContext.trigger();
+          initialFormRef.current = formContext.getValues();
           setIsLoading(false);
         } else {
           enqueueSnackbar(res.data.mensaje, { variant: "warning" });
@@ -223,6 +225,31 @@ export default function EditarEmpleado() {
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
+      const initial = initialFormRef.current;
+      if (initial) {
+        const sameAccesos =
+          (initial.accesos || []).slice().sort().join(",") ===
+          (data.accesos || []).slice().sort().join(",");
+        const noChanges =
+          initial.img_usuario === data.img_usuario &&
+          initial.nombre === data.nombre &&
+          initial.apellido_pat === data.apellido_pat &&
+          initial.apellido_mat === data.apellido_mat &&
+          initial.id_empresa === data.id_empresa &&
+          initial.id_piso === data.id_piso &&
+          initial.id_puesto === data.id_puesto &&
+          initial.id_departamento === data.id_departamento &&
+          initial.id_cubiculo === data.id_cubiculo &&
+          initial.movil === data.movil &&
+          initial.telefono === data.telefono &&
+          initial.extension === data.extension &&
+          initial.correo === data.correo &&
+          sameAccesos;
+        if (noChanges) {
+          navigate("/empleados");
+          return;
+        }
+      }
       setIsSaving(true);
       const res = await clienteAxios.put(`/api/empleados/${ID}`, data);
       if (res.data.estado) {

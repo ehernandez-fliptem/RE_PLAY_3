@@ -1003,8 +1003,8 @@ export async function crear(req: Request, res: Response): Promise<void> {
                                 await FaceDescriptors.deleteOne({ id_usuario: reg_saved._id });
                                 res.status(200).json({
                                     estado: false,
-                                    codigo: "PANEL_SYNC_FAILED",
-                                    mensaje: syncRes?.mensaje || "El panel no aceptó la foto.",
+                                    codigo: 'PANEL_SYNC_FAILED',
+                                    mensaje: syncRes?.mensaje || 'El panel no aceptó la foto.',
                                     datos: syncRes?.datos,
                                 });
                                 return;
@@ -1012,10 +1012,10 @@ export async function crear(req: Request, res: Response): Promise<void> {
                         } catch (error: any) {
                             await Empleados.findByIdAndDelete(reg_saved._id);
                             await FaceDescriptors.deleteOne({ id_usuario: reg_saved._id });
-                            const panelMsg = error?.response?.data?.mensaje || error?.message || "Error al sincronizar con el panel.";
+                            const panelMsg = error?.response?.data?.mensaje || error?.message || 'Error al sincronizar con el panel.';
                             res.status(200).json({
                                 estado: false,
-                                codigo: "PANEL_SYNC_FAILED",
+                                codigo: 'PANEL_SYNC_FAILED',
                                 mensaje: panelMsg,
                                 datos: error?.response?.data,
                             });
@@ -1038,7 +1038,6 @@ export async function crear(req: Request, res: Response): Promise<void> {
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 };
-
 export async function modificar(req: Request, res: Response): Promise<void> {
     try {
         const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo } = req.body;
@@ -1090,16 +1089,13 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             res.status(200).json({ estado: false, mensaje: 'Usuario no encontrado' });
             return;
         }
-        if (img_usuario) {
-            try {
-                // TEMP: permitir imágenes sin rostro en catálogo de empleados.
-                await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: registro._id, img_usuario: registro.img_usuario });
-            } catch (error) {
-                await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
-            }
-        } else {
-            await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
+
+        const imgChanged = prevRegistro.img_usuario !== registro.img_usuario;
+        const panelPayload = mapEmpleadoToPanel(registro);
+        if (!imgChanged) {
+            delete (panelPayload as any).img_usuario;
         }
+
         const { habilitarIntegracionHv } = await Configuracion.findOne({}, 'habilitarIntegracionHv') as IConfiguracion;
         if (habilitarIntegracionHv) {
             const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: accesos } });
@@ -1111,7 +1107,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                     // Si hay foto, dejamos que el panel_server maneje la auth internamente
                     // (evita fallas de hikvision-auth en /api/panel/seguridad).
                     // if (registro.img_usuario) await HVPANEL.getTokenValue();
-                    const syncRes = await HVPANEL.saverUser(mapEmpleadoToPanel(registro));
+                    const syncRes = await HVPANEL.saverUser(panelPayload);
                     if (syncRes?.estado === false) {
                         await Empleados.findByIdAndUpdate(req.params.id, { $set: {
                             img_usuario: prevRegistro.img_usuario,
@@ -1185,6 +1181,18 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                 }
             }
         }
+        if (imgChanged) {
+            if (img_usuario) {
+                try {
+                    // TEMP: permitir imágenes sin rostro en catálogo de empleados.
+                    await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: registro._id, img_usuario: registro.img_usuario });
+                } catch (error) {
+                    await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
+                }
+            } else {
+                await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
+            }
+        }
         res.status(200).json({ estado: true });
         return;
     } catch (error: any) {
@@ -1192,7 +1200,6 @@ export async function modificar(req: Request, res: Response): Promise<void> {
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 };
-
 export async function modificarEstado(req: Request, res: Response): Promise<void> {
     try {
         const { activo } = req.body;
@@ -1809,6 +1816,11 @@ const añadir = async ({ isMaster, id_empresa }: { isMaster: boolean; id_empresa
             return workbook.xlsx.writeFile(nameFileExcel);
         });
 }
+
+
+
+
+
 
 
 
