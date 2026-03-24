@@ -1093,6 +1093,9 @@ export async function modificar(req: Request, res: Response): Promise<void> {
         }
 
         const panelPayload = mapEmpleadoToPanel(registro);
+        if (imgChanged && prevRegistro?.img_usuario) {
+            (panelPayload as any).img_usuario_prev = prevRegistro.img_usuario;
+        }
         if (!imgChanged) {
             delete (panelPayload as any).img_usuario;
         }

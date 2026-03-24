@@ -41,6 +41,7 @@ const minimal_args = [
 interface IRegistroHV {
     employeeNo?: string;
     img_usuario?: string;
+    img_usuario_prev?: string;
     id_general?: string | number;
     codigo?: string;
     nombre?: string;
@@ -185,7 +186,7 @@ async getTokenValue() {
             // =========================
             // 1) Datos de entrada
             // =========================
-            const { img_usuario, id_general, nombre, activo, fecha_creacion } = registro;
+            const { img_usuario, img_usuario_prev, id_general, nombre, activo, fecha_creacion } = registro;
 
             const employeeNo = String(id_general);
             const fpid = String(id_general);
@@ -197,6 +198,9 @@ async getTokenValue() {
             const hasImage = Boolean(activo && img_usuario);
             const imageBuffer = hasImage ? await this.#base64ToJpegBuffer(img_usuario as string) : null;
             const imageName = `img_${employeeNo}.jpg`;
+            const hasPrevImage = Boolean(img_usuario_prev);
+            const prevImageBuffer = hasPrevImage ? await this.#base64ToJpegBuffer(img_usuario_prev as string) : null;
+            const prevImageName = `img_prev_${employeeNo}.jpg`;
 
             // =========================
             // 3) Buscar usuario por EmployeeNo
@@ -415,12 +419,46 @@ async getTokenValue() {
                     this.img_modified = true;
                     this.img_sync++;
                 } else if (isFaceInvalid(resp)) {
+                    // Reintentar restaurar la foto anterior si existe
+                    if (hasPrevImage && prevImageBuffer) {
+                        try {
+                            const restoreResp = await peticionPutImg(
+                                urlFaceRecord,
+                                this.usuario,
+                                this.contrasena,
+                                employeeNo,
+                                fpid,
+                                prevImageBuffer,
+                                prevImageName
+                            );
+                            console.log("[HV] FaceDataRecord (restore prev) resp:", restoreResp);
+                        } catch (restoreError) {
+                            console.error("[HV] Error restaurando foto anterior:", restoreError);
+                        }
+                    }
                     return {
                         estado: false,
                         mensaje: "La foto no es válida para el panel. Intenta con otra imagen.",
                         datos: { face_response: resp, face_delete_response: resDel },
                     };
                 } else if (respText === "deviceUserAlreadyExistFace") {
+                    // Reintentar restaurar la foto anterior si existe
+                    if (hasPrevImage && prevImageBuffer) {
+                        try {
+                            const restoreResp = await peticionPutImg(
+                                urlFaceRecord,
+                                this.usuario,
+                                this.contrasena,
+                                employeeNo,
+                                fpid,
+                                prevImageBuffer,
+                                prevImageName
+                            );
+                            console.log("[HV] FaceDataRecord (restore prev) resp:", restoreResp);
+                        } catch (restoreError) {
+                            console.error("[HV] Error restaurando foto anterior:", restoreError);
+                        }
+                    }
                     return {
                         estado: false,
                         mensaje: "El panel no permitió reemplazar la foto.",
