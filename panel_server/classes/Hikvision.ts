@@ -377,60 +377,27 @@ async getTokenValue() {
                 }
             }
 
-            // Subir/actualizar cara si viene imagen
+            // Subir/actualizar cara si viene imagen (mismo flujo que crear)
             if (hasImage && imageBuffer) {
                 const urlFaceRecord = `http://${this.ip}/ISAPI/Intelligent/FDLib/FaceDataRecord?format=json`;
-                const urlFaceDelete = `http://${this.ip}/ISAPI/Intelligent/FDLib/FDSetUp?format=json`;
-                const dataFaceDelete = { faceLibType: "blackFD", FDID: "1", FPID: employeeNo, deleteFP: true };
-
-                const uploadFace = async () =>
-                    peticionPutImg(
-                        urlFaceRecord,
-                        this.usuario,
-                        this.contrasena,
-                        employeeNo,
-                        fpid,
-                        imageBuffer,
-                        imageName
-                    );
-
-                const resp = await uploadFace();
+                const resp = await peticionPutImg(
+                    urlFaceRecord,
+                    this.usuario,
+                    this.contrasena,
+                    employeeNo,
+                    fpid,
+                    imageBuffer,
+                    imageName
+                );
                 const respText = typeof resp === "string" ? resp : resp.statusString;
 
                 if (respText === "OK") {
                     this.img_modified = true;
                     this.img_sync++;
                 } else if (respText === "deviceUserAlreadyExistFace") {
-                    const resDel = (await peticionPutPanel(
-                        urlFaceDelete,
-                        dataFaceDelete,
-                        this.usuario,
-                        this.contrasena
-                    )) as UserInfoSavedResponse;
-
-                    if (resDel.statusString === "OK") {
-                        const respRetry = await uploadFace();
-                        const respRetryText =
-                            typeof respRetry === "string" ? respRetry : respRetry.statusString;
-                        if (respRetryText === "OK") {
-                            this.img_modified = true;
-                            this.img_sync++;
-                        } else if (isFaceInvalid(respRetry)) {
-                            return {
-                                estado: false,
-                                mensaje: "La foto no es válida para el panel. Intenta con otra imagen.",
-                                datos: { face_response: respRetry, face_delete_response: resDel },
-                            };
-                        } else {
-                            console.error("Hikvision respondio un error:", respRetry);
-                        }
-                    } else {
-                        return {
-                            estado: false,
-                            mensaje: "El panel no permitió reemplazar la foto.",
-                            datos: { face_delete_response: resDel },
-                        };
-                    }
+                    // En modificar, si ya existe cara, no forzamos borrado.
+                    // Consideramos OK para evitar rechazo innecesario.
+                    this.img_modified = false;
                 } else {
                     if (isFaceInvalid(resp)) {
                         return {
