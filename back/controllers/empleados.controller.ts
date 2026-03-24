@@ -1128,36 +1128,41 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                             correo: prevRegistro.correo,
                             esRoot: prevRegistro.esRoot,
                         } });
-                        if (prevRegistro.img_usuario) {
-                            try {
-                                await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: registro._id, img_usuario: prevRegistro.img_usuario });
-                            } catch {
-                                await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
-                            }
-                        } else {
-                            await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
-                        }
-                        if (imgChanged && prevRegistro.img_usuario) {
-                            const { direccion_ip, usuario, contrasena } = panel;
-                            const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
-                            const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                            const restorePayload = mapEmpleadoToPanel(prevRegistro);
-                            (restorePayload as any).img_usuario = prevRegistro.img_usuario;
-                            delete (restorePayload as any).img_usuario_prev;
-                            HVPANEL.saverUser(restorePayload)
-                                .then((restoreRes: any) => {
-                                    console.log("[EMP] Panel restore prev (modificar):", restoreRes);
-                                })
-                                .catch((restoreErr: any) => {
-                                    console.error("[EMP] Panel restore prev error:", restoreErr?.message || restoreErr);
-                                });
-                        }
+                        const prevImg = prevRegistro.img_usuario;
+                        const restorePayload = imgChanged && prevImg ? (() => {
+                            const payload = mapEmpleadoToPanel(prevRegistro);
+                            (payload as any).img_usuario = prevImg;
+                            delete (payload as any).img_usuario_prev;
+                            return payload;
+                        })() : null;
                         res.status(200).json({
                             estado: false,
                             codigo: "PANEL_SYNC_FAILED",
-                            mensaje: syncRes?.mensaje || "El panel no aceptó la foto.",
+                            mensaje: syncRes?.mensaje || "El panel no acept� la foto.",
                             datos: syncRes?.datos,
                         });
+                        setTimeout(() => {
+                            (async () => {
+                                if (prevImg) {
+                                    try {
+                                        await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: registro._id, img_usuario: prevImg });
+                                    } catch {
+                                        await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
+                                    }
+                                } else {
+                                    await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
+                                }
+                                if (restorePayload) {
+                                    HVPANEL.saverUser(restorePayload)
+                                        .then((restoreRes: any) => {
+                                            console.log("[EMP] Panel restore prev (modificar):", restoreRes);
+                                        })
+                                        .catch((restoreErr: any) => {
+                                            console.error("[EMP] Panel restore prev error:", restoreErr?.message || restoreErr);
+                                        });
+                                }
+                            })();
+                        }, 0);
                         return;
                     }
                 } catch (error: any) {
@@ -1188,9 +1193,9 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                         await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
                     }
                     if (imgChanged && prevRegistro.img_usuario) {
-                            const { direccion_ip, usuario, contrasena } = panel;
-                            const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
-                            const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
+                        const { direccion_ip, usuario, contrasena } = panel;
+                        const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
+                        const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
                         const restorePayload = mapEmpleadoToPanel(prevRegistro);
                         (restorePayload as any).img_usuario = prevRegistro.img_usuario;
                         delete (restorePayload as any).img_usuario_prev;
@@ -1848,6 +1853,8 @@ const añadir = async ({ isMaster, id_empresa }: { isMaster: boolean; id_empresa
             return workbook.xlsx.writeFile(nameFileExcel);
         });
 }
+
+
 
 
 
