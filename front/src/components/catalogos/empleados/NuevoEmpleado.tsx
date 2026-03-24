@@ -6,6 +6,7 @@ import * as yup from "yup";
 import { Box, Button, Card, CardContent, Divider, Stack, Typography } from "@mui/material";
 import { AutocompleteElement, FormContainer, TextFieldElement } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
+import Swal from "sweetalert2";
 import { REGEX_BASE64, REGEX_NAME } from "../../../app/constants/CommonRegex";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import Spinner from "../../utils/Spinner";
@@ -223,6 +224,18 @@ export default function NuevoEmpleado() {
         });
         parentGridDataRef.fetchRows();
         navigate("/empleados");
+      } else if (res.data.codigo === "PANEL_SYNC_FAILED") {
+        await Swal.fire({
+          icon: "error",
+          title: "No se pudo subir la foto",
+          text:
+            res.data.mensaje ||
+            "El panel no aceptó la foto. Intenta con otra imagen.",
+          showConfirmButton: true,
+          allowOutsideClick: false,
+          showClass: { popup: "swal2-show" },
+          hideClass: { popup: "swal2-hide" },
+        });
       } else {
         enqueueSnackbar(res.data.mensaje, { variant: "warning" });
       }
@@ -489,3 +502,5 @@ export default function NuevoEmpleado() {
     </ModalContainer>
   );
 }
+
+

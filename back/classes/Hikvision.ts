@@ -142,6 +142,7 @@ export default class Hikvision {
                     this.img_sync = this.img_sync + 1;
                 }
             }
+            return respuesta.data;
 
             // const { img_usuario, id_general, nombre, activo, fecha_creacion } = registro;
             // const readStreamIMG = (activo && img_usuario) ? await this.#base64ToReadStream(img_usuario, `temp/img_${id_general}.jpg`) : '';

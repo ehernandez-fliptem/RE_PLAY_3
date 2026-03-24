@@ -997,9 +997,25 @@ export async function crear(req: Request, res: Response): Promise<void> {
                             // Si hay foto, dejamos que el panel_server maneje la auth internamente
                             // (evita fallas de hikvision-auth en /api/panel/seguridad).
                             // if (nuevoUsuario.img_usuario) await HVPANEL.getTokenValue();
-                            await HVPANEL.saverUser(mapEmpleadoToPanel(reg_saved));
+                            const syncRes = await HVPANEL.saverUser(mapEmpleadoToPanel(reg_saved));
+                            if (syncRes?.estado === false) {
+                                res.status(200).json({
+                                    estado: false,
+                                    codigo: "PANEL_SYNC_FAILED",
+                                    mensaje: syncRes?.mensaje || "El panel no aceptó la foto.",
+                                    datos: syncRes?.datos,
+                                });
+                                return;
+                            }
                         } catch (error: any) {
-                            console.warn("[EMPLEADOS][CREAR] Sync panel falló:", error?.message || error);
+                            const panelMsg = error?.response?.data?.mensaje || error?.message || "Error al sincronizar con el panel.";
+                            res.status(200).json({
+                                estado: false,
+                                codigo: "PANEL_SYNC_FAILED",
+                                mensaje: panelMsg,
+                                datos: error?.response?.data,
+                            });
+                            return;
                         }
                     }
                 }
@@ -1090,9 +1106,25 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                     // Si hay foto, dejamos que el panel_server maneje la auth internamente
                     // (evita fallas de hikvision-auth en /api/panel/seguridad).
                     // if (registro.img_usuario) await HVPANEL.getTokenValue();
-                    await HVPANEL.saverUser(mapEmpleadoToPanel(registro));
+                    const syncRes = await HVPANEL.saverUser(mapEmpleadoToPanel(registro));
+                    if (syncRes?.estado === false) {
+                        res.status(200).json({
+                            estado: false,
+                            codigo: "PANEL_SYNC_FAILED",
+                            mensaje: syncRes?.mensaje || "El panel no aceptó la foto.",
+                            datos: syncRes?.datos,
+                        });
+                        return;
+                    }
                 } catch (error: any) {
-                    console.warn("[EMPLEADOS][MODIFICAR] Sync panel falló:", error?.message || error);
+                    const panelMsg = error?.response?.data?.mensaje || error?.message || "Error al sincronizar con el panel.";
+                    res.status(200).json({
+                        estado: false,
+                        codigo: "PANEL_SYNC_FAILED",
+                        mensaje: panelMsg,
+                        datos: error?.response?.data,
+                    });
+                    return;
                 }
             }
         }
