@@ -338,43 +338,36 @@ async getTokenValue() {
             else {
             const { employeeNo: empExist, name, userType, numOfFace } = userByID.UserInfoSearch.UserInfo[0];
 
-            const needsUpdate =
-                !(empExist === employeeNo &&
-                ((userType === "normal" && activo) || (userType === "blackList" && !activo)) &&
-                name === nombre);
+            const urlUserModify = `http://${this.ip}/ISAPI/AccessControl/UserInfo/Modify?format=json`;
 
-            if (needsUpdate) {
-                const urlUserModify = `http://${this.ip}/ISAPI/AccessControl/UserInfo/Modify?format=json`;
-
-                const dataUserModify = {
-                UserInfo: {
-                    employeeNo,
-                    name: nombre,
-                    userType: activo ? "normal" : "blackList",
-                    localUIRight: false,
-                    Valid: {
-                    enable: true,
-                    beginTime: fechaCreacion,
-                    endTime: "2037-12-31T23:59:59",
-                    timeType: "local",
-                    },
-                    doorRight: "1",
-                    RightPlan: [{ doorNo: 1, planTemplateNo: "1" }],
-                    userVerifyMode: "",
+            const dataUserModify = {
+            UserInfo: {
+                employeeNo,
+                name: nombre,
+                userType: activo ? "normal" : "blackList",
+                localUIRight: false,
+                Valid: {
+                enable: true,
+                beginTime: fechaCreacion,
+                endTime: "2037-12-31T23:59:59",
+                timeType: "local",
                 },
-                };
+                doorRight: "1",
+                RightPlan: [{ doorNo: 1, planTemplateNo: "1" }],
+                userVerifyMode: "",
+            },
+            };
 
-                const res = (await peticionPutPanel(
-                urlUserModify,
-                dataUserModify,
-                this.usuario,
-                this.contrasena
-                )) as UserInfoSavedResponse;
+            const res = (await peticionPutPanel(
+            urlUserModify,
+            dataUserModify,
+            this.usuario,
+            this.contrasena
+            )) as UserInfoSavedResponse;
 
-                if (res.statusString === "OK") {
-                this.user_modified = true;
-                this.user_sync++;
-                }
+            if (res.statusString === "OK") {
+            this.user_modified = true;
+            this.user_sync++;
             }
 
             // Subir/actualizar cara si viene imagen (mismo flujo que crear)
