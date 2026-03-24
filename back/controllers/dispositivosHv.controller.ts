@@ -1316,24 +1316,32 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
           face = "ALREADY_EXISTS";
           const delRes = await faceDelete(ip, hvUser, hvPass, fpid);
           faceDeleteResponse = delRes.json ?? delRes.body ?? delRes;
-          if (delRes.json?.statusString === "OK") {
-            const faceRetry = await faceUpload(ip, hvUser, hvPass, employeeNo, fpid, filePath, mime);
-            faceResponse = faceRetry.json ?? faceRetry.body ?? faceRetry;
-            if (isFaceInvalid(faceRetry.json)) {
-              res.status(200).json({
-                estado: false,
-                codigo: "FACE_INVALID",
-                mensaje: "La foto no es válida para el panel. Intenta con otra imagen.",
-                datos: { panel: ip, face_response: faceResponse, face_delete_response: faceDeleteResponse },
-              });
-              return;
-            }
-            if (faceRetry.json?.statusString === "OK") {
-              face = "OK";
-            } else {
-              face = "ERROR";
-              console.log("[SYNC-VIS] face retry resp", { status: faceRetry.status, json: faceRetry.json, body: faceRetry.body });
-            }
+          if (delRes.json?.statusString !== "OK") {
+            res.status(200).json({
+              estado: false,
+              codigo: "FACE_DELETE_FAILED",
+              mensaje:
+                "El panel no permitió reemplazar la foto. Intenta con otra imagen o elimina la foto desde el panel.",
+              datos: { panel: ip, face_delete_response: faceDeleteResponse },
+            });
+            return;
+          }
+          const faceRetry = await faceUpload(ip, hvUser, hvPass, employeeNo, fpid, filePath, mime);
+          faceResponse = faceRetry.json ?? faceRetry.body ?? faceRetry;
+          if (isFaceInvalid(faceRetry.json)) {
+            res.status(200).json({
+              estado: false,
+              codigo: "FACE_INVALID",
+              mensaje: "La foto no es válida para el panel. Intenta con otra imagen.",
+              datos: { panel: ip, face_response: faceResponse, face_delete_response: faceDeleteResponse },
+            });
+            return;
+          }
+          if (faceRetry.json?.statusString === "OK") {
+            face = "OK";
+          } else {
+            face = "ERROR";
+            console.log("[SYNC-VIS] face retry resp", { status: faceRetry.status, json: faceRetry.json, body: faceRetry.body });
           }
         } else {
           face = "ERROR";
