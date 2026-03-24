@@ -190,6 +190,9 @@ export default function EditarVisitante() {
       const res = await clienteAxios.put(`/api/visitantes/${ID}`, data);
       if (res.data.estado) {
         if (res.data.datos?.verificado) {
+          let faceInvalid = false;
+          let faceInvalidMessage =
+            "La foto no es válida para el panel. Intenta con otra imagen.";
           try {
             const pRes = await clienteAxios.get(
               "/api/dispositivos-hikvision/demonio"
@@ -199,16 +202,27 @@ export default function EditarVisitante() {
               for (const p of paneles) {
                 try {
                   const panelId = p._id;
-                  await clienteAxios.get(
+                  const syncRes = await clienteAxios.get(
                     `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${ID}`
                   );
+                  if (syncRes.data?.codigo === "FACE_INVALID") {
+                    faceInvalid = true;
+                    faceInvalidMessage =
+                      syncRes.data?.mensaje || faceInvalidMessage;
+                    break;
+                  }
                 } catch {
                   // no bloquea si un panel falla
                 }
+                if (faceInvalid) break;
               }
             }
           } catch {
             // no bloquea si no se pudieron listar paneles
+          }
+          if (faceInvalid) {
+            enqueueSnackbar(faceInvalidMessage, { variant: "warning" });
+            return;
           }
         }
         if (res.data.datos?.requiereReverificacion) {
