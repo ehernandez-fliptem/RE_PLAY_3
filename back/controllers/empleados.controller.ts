@@ -982,11 +982,10 @@ export async function crear(req: Request, res: Response): Promise<void> {
             }
         } else {
             await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: nuevoUsuario._id });
-        }
-        await nuevoUsuario
+        }        await nuevoUsuario
             .save()
             .then(async (reg_saved) => {
-                const { habilitarIntegracionHv } = await Configuracion.findOne({}, 'habilitarIntegracionHv') as IConfiguracion;
+                const { habilitarIntegracionHv } = await Configuracion.findOne({}, "habilitarIntegracionHv") as IConfiguracion;
                 if (habilitarIntegracionHv) {
                     const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: accesos } });
                     for await (let panel of paneles) {
@@ -1005,7 +1004,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
                                 res.status(200).json({
                                     estado: false,
                                     codigo: 'PANEL_SYNC_FAILED',
-                                    mensaje: syncRes?.mensaje || 'El panel no aceptó la foto.',
+                                    mensaje: syncRes?.mensaje || 'El panel no acept� la foto.',
                                     datos: syncRes?.datos,
                                 });
                                 return;
@@ -1024,10 +1023,8 @@ export async function crear(req: Request, res: Response): Promise<void> {
                         }
                     }
                 }
-                {
-                    res.status(200).json({ estado: true, datos: { usuario: true } });
-                    return;
-                }
+                res.status(200).json({ estado: true, datos: { usuario: true } });
+                return;
             })
             .catch(async (error) => {
                 log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -1140,6 +1137,21 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                         } else {
                             await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
                         }
+                        if (imgChanged && prevRegistro.img_usuario) {
+                            const { direccion_ip, usuario, contrasena } = panel;
+                            const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
+                            const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
+                            const restorePayload = mapEmpleadoToPanel(prevRegistro);
+                            (restorePayload as any).img_usuario = prevRegistro.img_usuario;
+                            delete (restorePayload as any).img_usuario_prev;
+                            HVPANEL.saverUser(restorePayload)
+                                .then((restoreRes: any) => {
+                                    console.log("[EMP] Panel restore prev (modificar):", restoreRes);
+                                })
+                                .catch((restoreErr: any) => {
+                                    console.error("[EMP] Panel restore prev error:", restoreErr?.message || restoreErr);
+                                });
+                        }
                         res.status(200).json({
                             estado: false,
                             codigo: "PANEL_SYNC_FAILED",
@@ -1174,6 +1186,21 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                         }
                     } else {
                         await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
+                    }
+                    if (imgChanged && prevRegistro.img_usuario) {
+                            const { direccion_ip, usuario, contrasena } = panel;
+                            const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
+                            const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
+                        const restorePayload = mapEmpleadoToPanel(prevRegistro);
+                        (restorePayload as any).img_usuario = prevRegistro.img_usuario;
+                        delete (restorePayload as any).img_usuario_prev;
+                        HVPANEL.saverUser(restorePayload)
+                            .then((restoreRes: any) => {
+                                console.log("[EMP] Panel restore prev (modificar catch):", restoreRes);
+                            })
+                            .catch((restoreErr: any) => {
+                                console.error("[EMP] Panel restore prev error:", restoreErr?.message || restoreErr);
+                            });
                     }
                     const panelMsg = error?.response?.data?.mensaje || error?.message || "Error al sincronizar con el panel.";
                     res.status(200).json({
@@ -1821,6 +1848,10 @@ const añadir = async ({ isMaster, id_empresa }: { isMaster: boolean; id_empresa
             return workbook.xlsx.writeFile(nameFileExcel);
         });
 }
+
+
+
+
 
 
 
