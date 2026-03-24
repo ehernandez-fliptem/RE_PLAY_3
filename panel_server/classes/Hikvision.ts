@@ -178,9 +178,10 @@ async getTokenValue() {
         try {
             console.log("Ya termina JD!!!!!!!");
             const isFaceInvalid = (resp: any) =>
-                resp?.subStatusCode === "SubpicAnalysisModelingError" ||
-                resp?.errorMsg === "saveFacePic" ||
-                resp?.statusCode === 6;
+                resp?.subStatusCode !== "deviceUserAlreadyExistFace" &&
+                (resp?.subStatusCode === "SubpicAnalysisModelingError" ||
+                    resp?.errorMsg === "saveFacePic" ||
+                    resp?.statusCode === 6);
 
             // =========================
             // 1) Datos de entrada
@@ -371,18 +372,24 @@ async getTokenValue() {
             this.user_sync++;
             }
 
-            // Subir/actualizar cara si viene imagen (mismo flujo que crear)
+            // Subir/actualizar cara si viene imagen (con reemplazo si ya existe)
             if (hasImage && imageBuffer) {
                 const urlFaceRecord = `http://${this.ip}/ISAPI/Intelligent/FDLib/FaceDataRecord?format=json`;
-                const resp = await peticionPutImg(
-                    urlFaceRecord,
-                    this.usuario,
-                    this.contrasena,
-                    employeeNo,
-                    fpid,
-                    imageBuffer,
-                    imageName
-                );
+                const urlFaceDelete = `http://${this.ip}/ISAPI/Intelligent/FDLib/FDSetUp?format=json`;
+                const dataFaceDelete = { faceLibType: "blackFD", FDID: "1", FPID: employeeNo, deleteFP: true };
+
+                const uploadFace = async () =>
+                    peticionPutImg(
+                        urlFaceRecord,
+                        this.usuario,
+                        this.contrasena,
+                        employeeNo,
+                        fpid,
+                        imageBuffer,
+                        imageName
+                    );
+
+                const resp = await uploadFace();
                 console.log("[HV] FaceDataRecord (modify) resp:", resp);
                 const respText = typeof resp === "string" ? resp : resp.statusString;
 
@@ -390,9 +397,36 @@ async getTokenValue() {
                     this.img_modified = true;
                     this.img_sync++;
                 } else if (respText === "deviceUserAlreadyExistFace") {
-                    // En modificar, si ya existe cara, no forzamos borrado.
-                    // Consideramos OK para evitar rechazo innecesario.
-                    this.img_modified = false;
+                    const resDel = (await peticionPutPanel(
+                        urlFaceDelete,
+                        dataFaceDelete,
+                        this.usuario,
+                        this.contrasena
+                    )) as UserInfoSavedResponse;
+
+                    if (resDel.statusString === "OK") {
+                        const respRetry = await uploadFace();
+                        const respRetryText =
+                            typeof respRetry === "string" ? respRetry : respRetry.statusString;
+                        if (respRetryText === "OK") {
+                            this.img_modified = true;
+                            this.img_sync++;
+                        } else if (isFaceInvalid(respRetry)) {
+                            return {
+                                estado: false,
+                                mensaje: "La foto no es válida para el panel. Intenta con otra imagen.",
+                                datos: { face_response: respRetry, face_delete_response: resDel },
+                            };
+                        } else {
+                            console.error("Hikvision respondio un error:", respRetry);
+                        }
+                    } else {
+                        return {
+                            estado: false,
+                            mensaje: "El panel no permitió reemplazar la foto.",
+                            datos: { face_delete_response: resDel },
+                        };
+                    }
                 } else {
                     if (isFaceInvalid(resp)) {
                         return {
