@@ -1270,6 +1270,8 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
     let createdUser = false;
     let createdCard = false;
     let face: "OK" | "ALREADY_EXISTS" | "SKIPPED" | "ERROR" = "SKIPPED";
+    let faceResponse: any = null;
+    let faceDeleteResponse: any = null;
 
     // 2) Crear usuario si no existe
     if (!exists) {
@@ -1298,12 +1300,13 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
       try {
         const faceRes = await faceUpload(ip, hvUser, hvPass, employeeNo, fpid, filePath, mime);
 
+        faceResponse = faceRes.json ?? faceRes.body ?? faceRes;
         if (isFaceInvalid(faceRes.json)) {
           res.status(200).json({
             estado: false,
             codigo: "FACE_INVALID",
             mensaje: "La foto no es válida para el panel. Intenta con otra imagen.",
-            datos: { panel: ip },
+            datos: { panel: ip, face_response: faceResponse },
           });
           return;
         }
@@ -1312,14 +1315,16 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
         } else if (faceRes.json?.subStatusCode === "deviceUserAlreadyExistFace") {
           face = "ALREADY_EXISTS";
           const delRes = await faceDelete(ip, hvUser, hvPass, fpid);
+          faceDeleteResponse = delRes.json ?? delRes.body ?? delRes;
           if (delRes.json?.statusString === "OK") {
             const faceRetry = await faceUpload(ip, hvUser, hvPass, employeeNo, fpid, filePath, mime);
+            faceResponse = faceRetry.json ?? faceRetry.body ?? faceRetry;
             if (isFaceInvalid(faceRetry.json)) {
               res.status(200).json({
                 estado: false,
                 codigo: "FACE_INVALID",
                 mensaje: "La foto no es válida para el panel. Intenta con otra imagen.",
-                datos: { panel: ip },
+                datos: { panel: ip, face_response: faceResponse, face_delete_response: faceDeleteResponse },
               });
               return;
             }
@@ -1347,7 +1352,7 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
           _id: String(visitante._id),
           id_visitante: visitante.id_visitante,
           employeeNo,
-        cardNo,
+          cardNo,
           fpid,
           nombre: fullName,
           beginTime,
@@ -1357,6 +1362,8 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
         createdUser,
         createdCard,
         face,
+        face_response: faceResponse,
+        face_delete_response: faceDeleteResponse,
       },
       mensaje: "Visitante sincronizado (ID numérico 990000 + id_visitante).",
     });
