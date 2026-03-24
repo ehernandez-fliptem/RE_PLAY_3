@@ -999,6 +999,8 @@ export async function crear(req: Request, res: Response): Promise<void> {
                             // if (nuevoUsuario.img_usuario) await HVPANEL.getTokenValue();
                             const syncRes = await HVPANEL.saverUser(mapEmpleadoToPanel(reg_saved));
                             if (syncRes?.estado === false) {
+                                await Empleados.findByIdAndDelete(reg_saved._id);
+                                await FaceDescriptors.deleteOne({ id_usuario: reg_saved._id });
                                 res.status(200).json({
                                     estado: false,
                                     codigo: "PANEL_SYNC_FAILED",
@@ -1008,6 +1010,8 @@ export async function crear(req: Request, res: Response): Promise<void> {
                                 return;
                             }
                         } catch (error: any) {
+                            await Empleados.findByIdAndDelete(reg_saved._id);
+                            await FaceDescriptors.deleteOne({ id_usuario: reg_saved._id });
                             const panelMsg = error?.response?.data?.mensaje || error?.message || "Error al sincronizar con el panel.";
                             res.status(200).json({
                                 estado: false,
@@ -1042,6 +1046,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
         const empresa = await Empresas.findById(id_empresa, 'esRoot');
 
         const esUsuarioMaestro = await Empleados.find({ _id: req.params.id, esRoot: true, id_empleado: 1 }, '_id').limit(1);
+        const prevRegistro = await Empleados.findById(req.params.id).lean() as IEmpleado | null;
         let updateData = {
             img_usuario: await resizeImage(img_usuario),
             nombre,
@@ -1081,7 +1086,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                 }
             });
 
-        if (!registro) {
+        if (!registro || !prevRegistro) {
             res.status(200).json({ estado: false, mensaje: 'Usuario no encontrado' });
             return;
         }
@@ -1108,6 +1113,32 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                     // if (registro.img_usuario) await HVPANEL.getTokenValue();
                     const syncRes = await HVPANEL.saverUser(mapEmpleadoToPanel(registro));
                     if (syncRes?.estado === false) {
+                        await Empleados.findByIdAndUpdate(req.params.id, { $set: {
+                            img_usuario: prevRegistro.img_usuario,
+                            nombre: prevRegistro.nombre,
+                            apellido_pat: prevRegistro.apellido_pat,
+                            apellido_mat: prevRegistro.apellido_mat,
+                            movil: prevRegistro.movil,
+                            telefono: prevRegistro.telefono,
+                            extension: prevRegistro.extension,
+                            accesos: prevRegistro.accesos,
+                            id_puesto: prevRegistro.id_puesto,
+                            id_departamento: prevRegistro.id_departamento,
+                            id_cubiculo: prevRegistro.id_cubiculo,
+                            id_empresa: prevRegistro.id_empresa,
+                            id_piso: prevRegistro.id_piso,
+                            correo: prevRegistro.correo,
+                            esRoot: prevRegistro.esRoot,
+                        } });
+                        if (prevRegistro.img_usuario) {
+                            try {
+                                await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: registro._id, img_usuario: prevRegistro.img_usuario });
+                            } catch {
+                                await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
+                            }
+                        } else {
+                            await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
+                        }
                         res.status(200).json({
                             estado: false,
                             codigo: "PANEL_SYNC_FAILED",
@@ -1117,6 +1148,32 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                         return;
                     }
                 } catch (error: any) {
+                    await Empleados.findByIdAndUpdate(req.params.id, { $set: {
+                        img_usuario: prevRegistro.img_usuario,
+                        nombre: prevRegistro.nombre,
+                        apellido_pat: prevRegistro.apellido_pat,
+                        apellido_mat: prevRegistro.apellido_mat,
+                        movil: prevRegistro.movil,
+                        telefono: prevRegistro.telefono,
+                        extension: prevRegistro.extension,
+                        accesos: prevRegistro.accesos,
+                        id_puesto: prevRegistro.id_puesto,
+                        id_departamento: prevRegistro.id_departamento,
+                        id_cubiculo: prevRegistro.id_cubiculo,
+                        id_empresa: prevRegistro.id_empresa,
+                        id_piso: prevRegistro.id_piso,
+                        correo: prevRegistro.correo,
+                        esRoot: prevRegistro.esRoot,
+                    } });
+                    if (prevRegistro.img_usuario) {
+                        try {
+                            await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: registro._id, img_usuario: prevRegistro.img_usuario });
+                        } catch {
+                            await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
+                        }
+                    } else {
+                        await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
+                    }
                     const panelMsg = error?.response?.data?.mensaje || error?.message || "Error al sincronizar con el panel.";
                     res.status(200).json({
                         estado: false,
@@ -1752,6 +1809,10 @@ const añadir = async ({ isMaster, id_empresa }: { isMaster: boolean; id_empresa
             return workbook.xlsx.writeFile(nameFileExcel);
         });
 }
+
+
+
+
 
 
 
