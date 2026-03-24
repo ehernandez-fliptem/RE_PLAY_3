@@ -974,7 +974,12 @@ export async function crear(req: Request, res: Response): Promise<void> {
             return;
         }
         if (img_usuario) {
-            await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: nuevoUsuario._id, img_usuario: nuevoUsuario.img_usuario });
+            try {
+                // TEMP: permitir imágenes sin rostro en catálogo de empleados.
+                await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: nuevoUsuario._id, img_usuario: nuevoUsuario.img_usuario });
+            } catch (error) {
+                await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: nuevoUsuario._id });
+            }
         } else {
             await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: nuevoUsuario._id });
         }
@@ -1065,7 +1070,12 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             return;
         }
         if (img_usuario) {
-            await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: registro._id, img_usuario: registro.img_usuario });
+            try {
+                // TEMP: permitir imágenes sin rostro en catálogo de empleados.
+                await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: registro._id, img_usuario: registro.img_usuario });
+            } catch (error) {
+                await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
+            }
         } else {
             await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
         }
