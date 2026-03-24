@@ -163,6 +163,7 @@ export default function EditarEmpleado() {
   const navigate = useNavigate();
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [empresas, setEmpresas] = useState<TEmpresas[]>([]);
   const [pisos, setPisos] = useState<TPisos[]>([]);
   const [accesos, setAccesos] = useState<TAccesos[]>([]);
@@ -221,6 +222,7 @@ export default function EditarEmpleado() {
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
+      setIsSaving(true);
       const res = await clienteAxios.put(`/api/empleados/${ID}`, data);
       if (res.data.estado) {
         enqueueSnackbar("El empleado se modificó correctamente.", {
@@ -246,6 +248,8 @@ export default function EditarEmpleado() {
     } catch (error: unknown) {
       const { erroresForm } = handlingError(error);
       if (erroresForm) setFormErrors(formContext.setError, erroresForm);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -262,7 +266,7 @@ export default function EditarEmpleado() {
       <Box component="section">
         <Card elevation={5}>
           <CardContent>
-            {formContext.formState.isSubmitting || isLoading ? (
+            {isSaving || isLoading ? (
               <Spinner />
             ) : (
               <FormContainer formContext={formContext} onSuccess={onSubmit}>
@@ -515,5 +519,8 @@ export default function EditarEmpleado() {
     </ModalContainer>
   );
 }
+
+
+
 
 

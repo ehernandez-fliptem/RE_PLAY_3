@@ -163,6 +163,7 @@ export default function NuevoEmpleado() {
   const navigate = useNavigate();
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [empresas, setEmpresas] = useState<TEmpresas[]>([]);
   const [pisos, setPisos] = useState<TPisos[]>([]);
   const [accesos, setAccesos] = useState<TAccesos[]>([]);
@@ -217,6 +218,7 @@ export default function NuevoEmpleado() {
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
+      setIsSaving(true);
       const res = await clienteAxios.post("api/empleados", data);
       if (res.data.estado) {
         enqueueSnackbar("El empleado se creó correctamente.", {
@@ -242,6 +244,8 @@ export default function NuevoEmpleado() {
     } catch (error: unknown) {
       const { erroresForm } = handlingError(error);
       if (erroresForm) setFormErrors(formContext.setError, erroresForm);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -258,7 +262,7 @@ export default function NuevoEmpleado() {
       <Box component="section">
         <Card elevation={5}>
           <CardContent>
-            {formContext.formState.isSubmitting || isLoading ? (
+            {isSaving || isLoading ? (
               <Spinner />
             ) : (
               <FormContainer formContext={formContext} onSuccess={onSubmit}>
@@ -502,5 +506,8 @@ export default function NuevoEmpleado() {
     </ModalContainer>
   );
 }
+
+
+
 
 
