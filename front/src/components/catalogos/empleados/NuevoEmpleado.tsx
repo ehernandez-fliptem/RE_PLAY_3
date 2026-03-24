@@ -227,6 +227,7 @@ export default function NuevoEmpleado() {
         parentGridDataRef.fetchRows();
         navigate("/empleados");
       } else if (res.data.codigo === "PANEL_SYNC_FAILED") {
+        setIsSaving(false);
         await Swal.fire({
           icon: "error",
           title: "No se pudo subir la foto",
@@ -238,6 +239,7 @@ export default function NuevoEmpleado() {
           showClass: { popup: "swal2-show" },
           hideClass: { popup: "swal2-hide" },
         });
+        return;
       } else {
         enqueueSnackbar(res.data.mensaje, { variant: "warning" });
       }
