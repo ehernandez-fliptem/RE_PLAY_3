@@ -205,6 +205,7 @@ export default function EditarVisitante() {
                   const syncRes = await clienteAxios.get(
                     `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${ID}`
                   );
+                  console.log("[SYNC-VIS] respuesta FDSetUp", syncRes.data);
                   if (syncRes.data?.codigo === "FACE_INVALID") {
                     faceInvalid = true;
                     faceInvalidMessage =
