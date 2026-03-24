@@ -163,7 +163,7 @@ export default function NuevoEmpleado() {
   const navigate = useNavigate();
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);`n  const [showForm, setShowForm] = useState(true);
   const [empresas, setEmpresas] = useState<TEmpresas[]>([]);
   const [pisos, setPisos] = useState<TPisos[]>([]);
   const [accesos, setAccesos] = useState<TAccesos[]>([]);
@@ -259,7 +259,7 @@ export default function NuevoEmpleado() {
     navigate("/empleados");
   };
 
-  return (
+  if (!showForm) {`n    return null;`n  }`n`n  return (
     <ModalContainer containerProps={{ maxWidth: "lg" }}>
       <Box component="section">
         <Card elevation={5}>
@@ -508,6 +508,7 @@ export default function NuevoEmpleado() {
     </ModalContainer>
   );
 }
+
 
 
 
