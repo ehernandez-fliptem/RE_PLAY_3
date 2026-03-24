@@ -304,6 +304,7 @@ async getTokenValue() {
                 imageBuffer,
                 imageName
                 );
+                console.log("[HV] FaceDataRecord (create) resp:", resp);
 
                 // Caso A: el equipo respondió TEXTO
                 if (typeof resp === "string") {
@@ -382,6 +383,7 @@ async getTokenValue() {
                     imageBuffer,
                     imageName
                 );
+                console.log("[HV] FaceDataRecord (modify) resp:", resp);
                 const respText = typeof resp === "string" ? resp : resp.statusString;
 
                 if (respText === "OK") {

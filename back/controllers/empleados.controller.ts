@@ -998,6 +998,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
                             // (evita fallas de hikvision-auth en /api/panel/seguridad).
                             // if (nuevoUsuario.img_usuario) await HVPANEL.getTokenValue();
                             const syncRes = await HVPANEL.saverUser(mapEmpleadoToPanel(reg_saved));
+                            console.log("[EMP] Panel sync respuesta (crear):", syncRes);
                             if (syncRes?.estado === false) {
                                 await Empleados.findByIdAndDelete(reg_saved._id);
                                 await FaceDescriptors.deleteOne({ id_usuario: reg_saved._id });
@@ -1108,6 +1109,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                     // (evita fallas de hikvision-auth en /api/panel/seguridad).
                     // if (registro.img_usuario) await HVPANEL.getTokenValue();
                     const syncRes = await HVPANEL.saverUser(panelPayload);
+                    console.log("[EMP] Panel sync respuesta (modificar):", syncRes);
                     if (syncRes?.estado === false) {
                         await Empleados.findByIdAndUpdate(req.params.id, { $set: {
                             img_usuario: prevRegistro.img_usuario,
