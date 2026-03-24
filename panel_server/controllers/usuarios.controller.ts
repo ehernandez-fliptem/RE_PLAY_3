@@ -20,6 +20,10 @@ export async function crear(req: Request, res: Response): Promise<void> {
         const { img_usuario, id_general, nombre, activo, fecha_creacion } = req.body.datos;
         const HVPANEL = new Hikvision(direccion_ip, usuario, contrasena, "", token, web_session );
         const resPanel = await HVPANEL.saverUser({ img_usuario, id_general, nombre, activo, fecha_creacion });
+        if (resPanel?.estado === false) {
+            res.status(200).json({ estado: false, mensaje: resPanel.mensaje, datos: resPanel.datos })
+            return;
+        }
         res.status(200).json({ estado: true, datos: resPanel })
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -33,6 +37,10 @@ export async function modificar(req: Request, res: Response): Promise<void> {
         const { img_usuario, id_general, nombre, activo, fecha_creacion } = req.body.datos;
         const HVPANEL = new Hikvision(direccion_ip, usuario, contrasena, "", token, web_session );
         const resPanel = await HVPANEL.saverUser({ img_usuario, id_general, nombre, activo, fecha_creacion });
+        if (resPanel?.estado === false) {
+            res.status(200).json({ estado: false, mensaje: resPanel.mensaje, datos: resPanel.datos })
+            return;
+        }
         res.status(200).json({ estado: true, datos: resPanel })
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);

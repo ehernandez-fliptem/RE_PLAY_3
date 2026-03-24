@@ -177,6 +177,10 @@ async getTokenValue() {
     async saverUser(registro: IRegistroHV) {
         try {
             console.log("Ya termina JD!!!!!!!");
+            const isFaceInvalid = (resp: any) =>
+                resp?.subStatusCode === "SubpicAnalysisModelingError" ||
+                resp?.errorMsg === "saveFacePic" ||
+                resp?.statusCode === 6;
 
             // =========================
             // 1) Datos de entrada
@@ -310,10 +314,7 @@ async getTokenValue() {
                 }
                 } else {
                 // Caso B: JSON ISAPI
-                if (resp.statusString === "OK") {
-                    this.img_created = true;
-                    this.img_sync++;
-                } else if (resp.statusString === "deviceUserAlreadyExistFace") {
+                if (resp.statusString === "OK") {\n                    this.img_created = true;\n                    this.img_sync++;\n                } else if (isFaceInvalid(resp)) {\n                    return {\n                        estado: false,\n                        mensaje: "La foto no es válida para el panel. Intenta con otra imagen.",\n                        datos: { face_response: resp },\n                    };\n                } else if (resp.statusString === "deviceUserAlreadyExistFace") {
                     console.log("La cara ya existe. Este firmware no permite reemplazarla.");
                 } else {
                     console.error("Hikvision respondió un error:", resp);
@@ -398,20 +399,8 @@ async getTokenValue() {
                         this.contrasena
                     )) as UserInfoSavedResponse;
 
-                    if (resDel.statusString === "OK") {
-                        const respRetry = await uploadFace();
-                        const respRetryText =
-                            typeof respRetry === "string" ? respRetry : respRetry.statusString;
-                        if (respRetryText === "OK") {
-                            this.img_modified = true;
-                            this.img_sync++;
-                        } else {
-                            console.error("Hikvision respondio un error:", respRetry);
-                        }
-                    }
-                } else {
-                    console.error("Hikvision respondio un error:", resp);
-                }
+                    if (resDel.statusString === "OK") {\n                        const respRetry = await uploadFace();\n                        const respRetryText =\n                            typeof respRetry === "string" ? respRetry : respRetry.statusString;\n                        if (respRetryText === "OK") {\n                            this.img_modified = true;\n                            this.img_sync++;\n                        } else if (isFaceInvalid(respRetry)) {\n                            return {\n                                estado: false,\n                                mensaje: "La foto no es válida para el panel. Intenta con otra imagen.",\n                                datos: { face_response: respRetry, face_delete_response: resDel },\n                            };\n                        } else {\n                            console.error("Hikvision respondio un error:", respRetry);\n                        }\n                    } else {\n                        return {\n                            estado: false,\n                            mensaje: "El panel no permitió reemplazar la foto.",\n                            datos: { face_delete_response: resDel },\n                        };\n                    }
+                } else {\n                    if (isFaceInvalid(resp)) {\n                        return {\n                            estado: false,\n                            mensaje: "La foto no es válida para el panel. Intenta con otra imagen.",\n                            datos: { face_response: resp },\n                        };\n                    }\n                    console.error("Hikvision respondio un error:", resp);\n                }
             }
 
             // Borrar cara si aplica (tu regla actual)
@@ -1158,3 +1147,6 @@ private static AUTH_DIR = Hikvision.resolveAuthDir();
         }
     }
 }
+
+
+
