@@ -28,7 +28,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;
         const isMaster = (req as UserRequest).isMaster;
-        const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario
+        const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
 
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
@@ -146,7 +146,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                     ]
                 }
             }
-        )
+        );
         const registros = await Empleados.aggregate(aggregation);
         res.status(200).json({ estado: true, datos: registros[0] });
     } catch (error: any) {
@@ -218,8 +218,8 @@ export async function obtenerTodosActivos(req: Request, res: Response): Promise<
                     ]
                 }
             }
-        )
-        const registros = await Empleados.aggregate(aggregation)
+        );
+        const registros = await Empleados.aggregate(aggregation);
         res.status(200).json({ estado: true, datos: registros[0] });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -294,8 +294,8 @@ export async function obtenerTodosDirectorio(req: Request, res: Response): Promi
                     ]
                 }
             }
-        )
-        const registros = await Empleados.aggregate(aggregation)
+        );
+        const registros = await Empleados.aggregate(aggregation);
         res.status(200).json({ estado: true, datos: registros[0] });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -367,7 +367,7 @@ export async function obtenerAnfitriones(req: Request, res: Response): Promise<v
                     ]
                 }
             }
-        )
+        );
         const registros = await Empleados.aggregate(aggregation);
         res.status(200).json({ estado: true, datos: registros[0] });
     } catch (error: any) {
@@ -973,16 +973,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
             res.status(400).json({ estado: false, mensaje: 'Revisa que los datos que estás ingresando sean correctos.', mensajes });
             return;
         }
-        if (img_usuario) {
-            try {
-                // TEMP: permitir imágenes sin rostro en catálogo de empleados.
-                await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: nuevoUsuario._id, img_usuario: nuevoUsuario.img_usuario });
-            } catch (error) {
-                await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: nuevoUsuario._id });
-            }
-        } else {
-            await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: nuevoUsuario._id });
-        }        await nuevoUsuario
+        await nuevoUsuario
             .save()
             .then(async (reg_saved) => {
                 const { habilitarIntegracionHv } = await Configuracion.findOne({}, "habilitarIntegracionHv") as IConfiguracion;
@@ -1004,7 +995,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
                                 res.status(200).json({
                                     estado: false,
                                     codigo: 'PANEL_SYNC_FAILED',
-                                    mensaje: syncRes?.mensaje || 'El panel no acept� la foto.',
+                                    mensaje: syncRes?.mensaje || 'El panel no acept� la foto.',
                                     datos: syncRes?.datos,
                                 });
                                 return;
@@ -1024,6 +1015,20 @@ export async function crear(req: Request, res: Response): Promise<void> {
                     }
                 }
                 res.status(200).json({ estado: true, datos: { usuario: true } });
+                setTimeout(() => {
+                    (async () => {
+                        if (img_usuario) {
+                            try {
+                                // TEMP: permitir im�genes sin rostro en cat�logo de empleados.
+                                await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: reg_saved._id, img_usuario: reg_saved.img_usuario });
+                            } catch {
+                                await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: reg_saved._id });
+                            }
+                        } else {
+                            await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: reg_saved._id });
+                        }
+                    })();
+                }, 0);
                 return;
             })
             .catch(async (error) => {
@@ -1031,7 +1036,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
                 res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
             });
     } catch (error: any) {
-        console.log(error)
+        console.log(error);
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
@@ -1058,15 +1063,15 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             id_departamento,
             id_cubiculo,
             fecha_modificacion: Date.now(),
-            modificado_por: id_usuario
-        }
+            modificado_por: id_usuario,
+        };
         if (!esUsuarioMaestro[0]) {
             Object.assign(updateData, {
                 id_empresa,
                 id_piso,
                 correo,
                 esRoot: empresa?.esRoot,
-            })
+            });
         }
         const registro = await Empleados.findByIdAndUpdate(
             req.params.id,
@@ -1138,7 +1143,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                         res.status(200).json({
                             estado: false,
                             codigo: "PANEL_SYNC_FAILED",
-                            mensaje: syncRes?.mensaje || "El panel no acept� la foto.",
+                            mensaje: syncRes?.mensaje || "El panel no acept� la foto.",
                             datos: syncRes?.datos,
                         });
                         setTimeout(() => {
@@ -1218,19 +1223,32 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                 }
             }
         }
-        if (imgChanged) {
-            if (img_usuario) {
-                try {
-                    // TEMP: permitir imágenes sin rostro en catálogo de empleados.
-                    await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: registro._id, img_usuario: registro.img_usuario });
-                } catch (error) {
-                    await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
-                }
-            } else {
-                await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
-            }
-        }
         res.status(200).json({ estado: true });
+        setTimeout(() => {
+            (async () => {
+                if (imgChanged) {
+                    if (registro.img_usuario) {
+                        try {
+                            await faceDetector.guardarDescriptorUsuario({
+                                id_usu_modif: id_usuario,
+                                id_usuario: registro._id,
+                                img_usuario: registro.img_usuario,
+                            });
+                        } catch {
+                            await faceDetector.deshabilitarDescriptor({
+                                id_usu_modif: id_usuario,
+                                id_usuario: registro._id,
+                            });
+                        }
+                    } else {
+                        await faceDetector.deshabilitarDescriptor({
+                            id_usu_modif: id_usuario,
+                            id_usuario: registro._id,
+                        });
+                    }
+                }
+            })();
+        }, 0);
         return;
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -1263,7 +1281,7 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
                     const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
                     await HVPANEL.saverUser(registroPanel);
                 } catch (error: any) {
-                    console.warn("[EMPLEADOS][ESTADO] Sync panel falló:", error?.message || error);
+                    console.warn("[EMPLEADOS][ESTADO] Sync panel fall�:", error?.message || error);
                 }
             }
         }
@@ -1292,7 +1310,7 @@ export async function anonimizar(req: Request, res: Response): Promise<void> {
         const hash = generarCodigoUnico(10);
         const correo_arco = `${hash}@${correo.split('@')[1]}`;
 
-        await Empleados.findByIdAndUpdate(req.params.id, { $set: { img_usuario: '', apellido_pat: "", apellido_mat: "", correo: correo_arco, telefono: "", movil: "", extension: "", modificado_por: id_usuario, fecha_modificacion: Date.now(), arco: true } })
+        await Empleados.findByIdAndUpdate(req.params.id, { $set: { img_usuario: '', apellido_pat: "", apellido_mat: "", correo: correo_arco, telefono: "", movil: "", extension: "", modificado_por: id_usuario, fecha_modificacion: Date.now(), arco: true } });
         res.status(200).json({ estado: true });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -1398,10 +1416,10 @@ const KEYS = {
     'Correo*': 'correo',
     'Puesto': 'puesto',
     'Departamento': 'departamento',
-    'Cubículo': 'cubiculo',
-    'Móvil': 'movil',
-    'Teléfono': 'telefono',
-    'Extensión': 'extension',
+    'Cub�culo': 'cubiculo',
+    'M�vil': 'movil',
+    'Tel�fono': 'telefono',
+    'Extensi�n': 'extension',
 }
 const isCellHyperlinkValue = (value: CellHyperlinkValue): value is CellHyperlinkValue => !!value?.hyperlink;
 const isCellFormulaValue = (value: CellFormulaValue): value is CellFormulaValue => !!value?.formula;
@@ -1417,17 +1435,17 @@ const HEADERS = [
     'Correo*',
     'Puesto',
     'Departamento',
-    'Cubículo',
-    'Móvil',
-    'Teléfono',
-    'Extensión',
+    'Cub�culo',
+    'M�vil',
+    'Tel�fono',
+    'Extensi�n',
 ];
 
 export async function cargarFormato(req: Request, res: Response): Promise<void> {
     try {
         const workbook = new Excel.Workbook();
         if (!req.files || !req.files.document) {
-            res.status(400).send({ estado: false, mensaje: 'No se ha proporcionado un archivo válido.' });
+            res.status(400).send({ estado: false, mensaje: 'No se ha proporcionado un archivo v�lido.' });
             return;
         }
         const file = req.files.document;
@@ -1441,7 +1459,7 @@ export async function cargarFormato(req: Request, res: Response): Promise<void> 
                 const worksheet = workbook.getWorksheet(1);
                 if (worksheet) {
                     const firstRow = worksheet.getRow(1);
-                    const keys = Array.isArray(firstRow.values) ? firstRow.values.map((item) => String(item)) : []
+                    const keys = Array.isArray(firstRow.values) ? firstRow.values.map((item) => String(item)) : [];
                     worksheet.eachRow((row, rowNumber) => {
                         if (rowNumber == 1) {
                             isValidFile = keys.every((item) => HEADERS.includes(item));
@@ -1476,7 +1494,7 @@ export async function cargarFormato(req: Request, res: Response): Promise<void> 
                             return op;
                         }, {});
                         if (!data.nombre && !data.rfc && !data.id_piso && !data.accesos && !data.correo) return;
-                        datos.push(data)
+                        datos.push(data);
                     });
                 }
             })
@@ -1488,7 +1506,7 @@ export async function cargarFormato(req: Request, res: Response): Promise<void> 
             return;
         }
         if (datos.length === 0) {
-            res.status(400).send({ estado: false, mensaje: 'El archivo está vacío.' });
+            res.status(400).send({ estado: false, mensaje: 'El archivo est� vac�o.' });
             return;
         }
         let detectoErrores = false;
@@ -1609,7 +1627,7 @@ export async function cargarFormato(req: Request, res: Response): Promise<void> 
         res.status(200).json({ estado: true, datos: registros });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
-        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` })
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 };
 
@@ -1620,13 +1638,13 @@ export async function descargarFormato(req: Request, res: Response): Promise<voi
         } else {
             crearExcel(req, res);
         }
-    })
+    });
 };
 
 export async function crearExcel(req: Request, res: Response): Promise<void> {
     const id_usuario = (req as UserRequest).userId;
     const isMaster = (req as UserRequest).isMaster;
-    const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario
+    const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
     const options = {
         root: './'
     };
@@ -1639,7 +1657,7 @@ export async function crearExcel(req: Request, res: Response): Promise<void> {
                 const Columns = [] as Column[];
                 const headersValues = HEADERS;
                 headersValues.map(header => {
-                    Columns.push({ header: header, key: header, width: 40 } as Column)
+                    Columns.push({ header: header, key: header, width: 40 } as Column);
                 });
                 worksheet.columns = Columns;
 
@@ -1657,7 +1675,7 @@ export async function crearExcel(req: Request, res: Response): Promise<void> {
                     .xlsx
                     .writeFile('./temp/formatoEmpleados.xlsx')
                     .then(async () => {
-                        añadir({ isMaster, id_empresa }).then(async () => {
+                        rellenarHojaEmpresasFormato({ isMaster, id_empresa }).then(async () => {
                             await res.sendFile('./temp/formatoEmpleados.xlsx', options);
                         });
                     })
@@ -1667,8 +1685,14 @@ export async function crearExcel(req: Request, res: Response): Promise<void> {
                     });
 
             } else {
-                log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
-                res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+                rellenarHojaEmpresasFormato({ isMaster, id_empresa })
+                    .then(async () => {
+                        await res.sendFile('./temp/formatoEmpleados.xlsx', options);
+                    })
+                    .catch((sendErr: any) => {
+                        log(`${fecha()} ERROR: ${sendErr.name}: ${sendErr.message}\n`);
+                        res.status(500).send({ estado: false, mensaje: `${sendErr.name}: ${sendErr.message}` });
+                    });
             }
         });
     } catch (error: any) {
@@ -1677,8 +1701,8 @@ export async function crearExcel(req: Request, res: Response): Promise<void> {
     }
 }
 
-const añadir = async ({ isMaster, id_empresa }: { isMaster: boolean; id_empresa: Types.ObjectId; }) => {
-    const nameFileExcel = './temp/formatoEmpleados.xlsx'
+const rellenarHojaEmpresasFormato = async ({ isMaster, id_empresa }: { isMaster: boolean; id_empresa: Types.ObjectId; }) => {
+    const nameFileExcel = './temp/formatoEmpleados.xlsx';
     const workbook = new Excel.Workbook();
     const empresas = await Empresas.aggregate([
         {
@@ -1782,7 +1806,7 @@ const añadir = async ({ isMaster, id_empresa }: { isMaster: boolean; id_empresa
                     showErrorMessage: true,
                     formulae: [0, 999999999999999],
                     errorTitle: 'Error',
-                    error: 'El formato no es válido.'
+                    error: 'El formato no es v�lido.'
                 }
                 getRowInsert.getCell("O").dataValidation = {
                     type: 'decimal',
@@ -1791,7 +1815,7 @@ const añadir = async ({ isMaster, id_empresa }: { isMaster: boolean; id_empresa
                     showErrorMessage: true,
                     formulae: [0, 999999999999999],
                     errorTitle: 'Error',
-                    error: 'El formato no es válido.'
+                    error: 'El formato no es v�lido.'
                 }
                 getRowInsert.getCell("P").dataValidation = {
                     type: 'decimal',
@@ -1800,7 +1824,7 @@ const añadir = async ({ isMaster, id_empresa }: { isMaster: boolean; id_empresa
                     showErrorMessage: true,
                     formulae: [0, 999999999999999],
                     errorTitle: 'Error',
-                    error: 'El formato no es válido.'
+                    error: 'El formato no es v�lido.'
                 }
             }
 
@@ -1853,6 +1877,13 @@ const añadir = async ({ isMaster, id_empresa }: { isMaster: boolean; id_empresa
             return workbook.xlsx.writeFile(nameFileExcel);
         });
 }
+
+
+
+
+
+
+
 
 
 
