@@ -995,7 +995,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
                                 res.status(200).json({
                                     estado: false,
                                     codigo: 'PANEL_SYNC_FAILED',
-                                    mensaje: syncRes?.mensaje || 'El panel no acept� la foto.',
+                                    mensaje: syncRes?.mensaje || 'El panel no aceptó la foto.',
                                     datos: syncRes?.datos,
                                 });
                                 return;
@@ -1019,7 +1019,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
                     (async () => {
                         if (img_usuario) {
                             try {
-                                // TEMP: permitir im�genes sin rostro en cat�logo de empleados.
+                                // TEMP: permitir imágenes sin rostro en catálogo de empleados.
                                 await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: reg_saved._id, img_usuario: reg_saved.img_usuario });
                             } catch {
                                 await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: reg_saved._id });
@@ -1143,7 +1143,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                         res.status(200).json({
                             estado: false,
                             codigo: "PANEL_SYNC_FAILED",
-                            mensaje: syncRes?.mensaje || "El panel no acept� la foto.",
+                            mensaje: syncRes?.mensaje || "El panel no aceptó la foto.",
                             datos: syncRes?.datos,
                         });
                         setTimeout(() => {
@@ -1281,7 +1281,7 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
                     const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
                     await HVPANEL.saverUser(registroPanel);
                 } catch (error: any) {
-                    console.warn("[EMPLEADOS][ESTADO] Sync panel fall�:", error?.message || error);
+                    console.warn("[EMPLEADOS][ESTADO] Sync panel falló:", error?.message || error);
                 }
             }
         }
@@ -1416,10 +1416,10 @@ const KEYS = {
     'Correo*': 'correo',
     'Puesto': 'puesto',
     'Departamento': 'departamento',
-    'Cub�culo': 'cubiculo',
-    'M�vil': 'movil',
-    'Tel�fono': 'telefono',
-    'Extensi�n': 'extension',
+    'Cubículo': 'cubiculo',
+    'Móvil': 'movil',
+    'Teléfono': 'telefono',
+    'Extensión': 'extension',
 }
 const isCellHyperlinkValue = (value: CellHyperlinkValue): value is CellHyperlinkValue => !!value?.hyperlink;
 const isCellFormulaValue = (value: CellFormulaValue): value is CellFormulaValue => !!value?.formula;
@@ -1435,17 +1435,17 @@ const HEADERS = [
     'Correo*',
     'Puesto',
     'Departamento',
-    'Cub�culo',
-    'M�vil',
-    'Tel�fono',
-    'Extensi�n',
+    'Cubículo',
+    'Móvil',
+    'Teléfono',
+    'Extensión',
 ];
 
 export async function cargarFormato(req: Request, res: Response): Promise<void> {
     try {
         const workbook = new Excel.Workbook();
         if (!req.files || !req.files.document) {
-            res.status(400).send({ estado: false, mensaje: 'No se ha proporcionado un archivo v�lido.' });
+            res.status(400).send({ estado: false, mensaje: 'No se ha proporcionado un archivo válido.' });
             return;
         }
         const file = req.files.document;
@@ -1506,7 +1506,7 @@ export async function cargarFormato(req: Request, res: Response): Promise<void> 
             return;
         }
         if (datos.length === 0) {
-            res.status(400).send({ estado: false, mensaje: 'El archivo est� vac�o.' });
+            res.status(400).send({ estado: false, mensaje: 'El archivo está vacío.' });
             return;
         }
         let detectoErrores = false;
@@ -1806,7 +1806,7 @@ const rellenarHojaEmpresasFormato = async ({ isMaster, id_empresa }: { isMaster:
                     showErrorMessage: true,
                     formulae: [0, 999999999999999],
                     errorTitle: 'Error',
-                    error: 'El formato no es v�lido.'
+                    error: 'El formato no es válido.'
                 }
                 getRowInsert.getCell("O").dataValidation = {
                     type: 'decimal',
@@ -1815,7 +1815,7 @@ const rellenarHojaEmpresasFormato = async ({ isMaster, id_empresa }: { isMaster:
                     showErrorMessage: true,
                     formulae: [0, 999999999999999],
                     errorTitle: 'Error',
-                    error: 'El formato no es v�lido.'
+                    error: 'El formato no es válido.'
                 }
                 getRowInsert.getCell("P").dataValidation = {
                     type: 'decimal',
@@ -1824,7 +1824,7 @@ const rellenarHojaEmpresasFormato = async ({ isMaster, id_empresa }: { isMaster:
                     showErrorMessage: true,
                     formulae: [0, 999999999999999],
                     errorTitle: 'Error',
-                    error: 'El formato no es v�lido.'
+                    error: 'El formato no es válido.'
                 }
             }
 

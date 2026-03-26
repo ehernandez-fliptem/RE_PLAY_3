@@ -23,6 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 
+# Local release + installer output
+release/
+output/
+
 [Ll]ibrary/
 [Tt]emp/
 [Oo]bj/

@@ -13,6 +13,30 @@ if (fs.existsSync(envLocalPath)) {
 }
 dotenv.config();
 
+type LocalConfig = {
+    httpPort?: number;
+    httpsPort?: number;
+    openBrowser?: boolean;
+};
+
+function loadLocalConfig(): LocalConfig {
+    try {
+        const configPath = path.resolve(__dirname, "..", "..", "config", "config.json");
+        if (!fs.existsSync(configPath)) return {};
+        const raw = fs.readFileSync(configPath, "utf8");
+        const parsed = JSON.parse(raw);
+        return {
+            httpPort: typeof parsed.httpPort === "number" ? parsed.httpPort : undefined,
+            httpsPort: typeof parsed.httpsPort === "number" ? parsed.httpsPort : undefined,
+            openBrowser: typeof parsed.openBrowser === "boolean" ? parsed.openBrowser : undefined,
+        };
+    } catch {
+        return {};
+    }
+}
+
+const localConfig = loadLocalConfig();
+
 const envSchema = z.object({
     NODE_ENV: z.string(),
     ENDPOINT: z.string().url(),
@@ -41,8 +65,8 @@ let CONFIG: z.infer<typeof envSchema>;
 try {
     const rawEnv = {
         ...process.env,
-        PUERTO_HTTP: process.env.REPLAY_BACK_PORT ?? process.env.PUERTO_HTTP,
-        PUERTO_HTTPS: process.env.REPLAY_BACK_HTTPS_PORT ?? process.env.PUERTO_HTTPS,
+        PUERTO_HTTP: localConfig.httpPort ?? process.env.REPLAY_BACK_PORT ?? process.env.PUERTO_HTTP,
+        PUERTO_HTTPS: localConfig.httpsPort ?? process.env.REPLAY_BACK_HTTPS_PORT ?? process.env.PUERTO_HTTPS,
     };
     CONFIG = envSchema.parse(rawEnv);
 } catch (error) {
