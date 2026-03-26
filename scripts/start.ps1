@@ -25,6 +25,7 @@ Assert-Path $demonioIndex "No se encontro $demonioIndex"
 
 $configPath = Join-Path $BasePath "config\config.json"
 $httpPort = 80
+$httpsPort = 443
 $openBrowser = $true
 $configFound = $false
 if (Test-Path $configPath) {
@@ -32,6 +33,7 @@ if (Test-Path $configPath) {
     try {
         $cfg = Get-Content $configPath -Raw | ConvertFrom-Json
         if ($cfg.httpPort) { $httpPort = [int]$cfg.httpPort }
+        if ($cfg.httpsPort) { $httpsPort = [int]$cfg.httpsPort }
         if ($null -ne $cfg.openBrowser) { $openBrowser = [bool]$cfg.openBrowser }
     } catch {
         Write-Host "No se pudo leer config\\config.json. Se usa httpPort=80."
@@ -43,6 +45,7 @@ Write-Host "Ruta node.exe      : $nodeExe"
 Write-Host "Ruta back/index.js : $backIndex"
 Write-Host "Config encontrada  : $configFound"
 Write-Host "Puerto HTTP        : $httpPort"
+Write-Host "Puerto HTTPS       : $httpsPort"
 
 $logsDir = Join-Path $BasePath "logs"
 New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
@@ -83,11 +86,11 @@ function Test-PortOpen {
     }
 }
 
-Write-Step "Esperando a que el puerto HTTP responda"
+Write-Step "Esperando a que el puerto HTTPS responda"
 $maxWaitSec = 20
 $ready = $false
 for ($i = 0; $i -lt $maxWaitSec; $i++) {
-    if (Test-PortOpen -Port $httpPort) {
+    if (Test-PortOpen -Port $httpsPort) {
         $ready = $true
         break
     }
@@ -95,14 +98,30 @@ for ($i = 0; $i -lt $maxWaitSec; $i++) {
 }
 
 if ($ready) {
-    Write-Step "Puerto $httpPort activo"
+    Write-Step "Puerto $httpsPort activo"
     if ($openBrowser) {
-        Start-Process "http://localhost:$httpPort"
+        Start-Process "https://localhost:$httpsPort"
     }
 } else {
     Write-Host ""
-    Write-Host "No responde el puerto $httpPort. Revisa los logs en:"
-    Write-Host "  $backErr"
-    Write-Host "  $panelErr"
-    Write-Host "  $demonioErr"
+    Write-Host "No responde el puerto $httpsPort. Intentando HTTP ($httpPort)..."
+    $httpReady = $false
+    for ($i = 0; $i -lt $maxWaitSec; $i++) {
+        if (Test-PortOpen -Port $httpPort) {
+            $httpReady = $true
+            break
+        }
+        Start-Sleep -Seconds 1
+    }
+    if ($httpReady) {
+        Write-Step "Puerto $httpPort activo"
+        if ($openBrowser) {
+            Start-Process "http://localhost:$httpPort"
+        }
+    } else {
+        Write-Host "No responde HTTPS ni HTTP. Revisa los logs en:"
+        Write-Host "  $backErr"
+        Write-Host "  $panelErr"
+        Write-Host "  $demonioErr"
+    }
 }
