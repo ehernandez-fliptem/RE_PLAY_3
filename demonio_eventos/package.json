@@ -24,12 +24,12 @@
     "mongoose-sequence": "^6.0.1",
     "mongoose-unique-validator": "^5.0.1",
     "morgan": "^1.10.1",
+    "nodemon": "^3.1.10",
     "socket.io-client": "^4.8.1",
     "zod": "^4.0.10"
   },
   "devDependencies": {
     "@types/crypto-js": "^4.2.2",
-    "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

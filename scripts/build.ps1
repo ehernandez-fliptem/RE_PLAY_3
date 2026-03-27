@@ -1,45 +1,11 @@
 param(
     [string]$BasePath = (Resolve-Path (Join-Path $PSScriptRoot "..")),
-    [string]$ReleasePath = (Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..")) "release"),
-    [switch]$ProdOnly
+    [string]$ReleasePath = (Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..")) "release")
 )
 
 function Write-Step($msg) { Write-Host "`n==> $msg" }
 function Fail($msg) { Write-Error $msg; exit 1 }
 function Assert-Path($path, $msg) { if (!(Test-Path $path)) { Fail $msg } }
-function Ensure-Install($path, $args) {
-    Push-Location $path
-    if (!(Test-Path (Join-Path $path "node_modules"))) {
-        Write-Step "Instalando dependencias en $path"
-        npm install @args
-    }
-    Pop-Location
-}
-
-function Ensure-ProdOnlySafe($pkgPath, $moduleName) {
-    if (-not $ProdOnly) { return }
-    if (!(Test-Path $pkgPath)) { return }
-    $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
-    if ($pkg.devDependencies -and $pkg.devDependencies.express) {
-        Fail "No puedo usar -ProdOnly en $moduleName porque 'express' esta en devDependencies. Muevelo a dependencies y vuelve a intentar."
-    }
-}
-
-function Remove-DirsByName($root, $names) {
-    foreach ($name in $names) {
-        Get-ChildItem -Path $root -Recurse -Directory -Filter $name -ErrorAction SilentlyContinue | ForEach-Object {
-            Remove-Item -Recurse -Force $_.FullName
-        }
-    }
-}
-
-function Remove-FilesByExt($root, $exts) {
-    foreach ($ext in $exts) {
-        Get-ChildItem -Path $root -Recurse -File -Filter "*$ext" -ErrorAction SilentlyContinue | ForEach-Object {
-            Remove-Item -Force $_.FullName
-        }
-    }
-}
 
 $ErrorActionPreference = "Stop"
 
@@ -52,48 +18,41 @@ $nodeCmd = (Get-Command node -ErrorAction SilentlyContinue).Path
 if (-not $nodeCmd) { Fail "No se encontro node en PATH. Instala Node.js para ejecutar el build local." }
 
 Write-Step "1) Build del FRONT"
-Ensure-Install $front @("--legacy-peer-deps")
 Push-Location $front
+Assert-Path (Join-Path $front "node_modules") "Faltan dependencias en front. Ejecuta: npm install"
 npm run build
 Pop-Location
 Assert-Path (Join-Path $front "dist\index.html") "El build del front no genero dist\\index.html"
 
-Write-Step "2) Build del BACK"
-Ensure-ProdOnlySafe (Join-Path $back "package.json") "back"
-Ensure-Install $back @()
+Write-Step "2) Copiar build del FRONT al BACK (back\\dist\\dist)"
+$srcFrontDist = Join-Path $front "dist"
+$destBackDist = Join-Path $back "dist\dist"
+if (!(Test-Path $srcFrontDist)) { Fail "No se encontro $srcFrontDist" }
+if (!(Test-Path $destBackDist)) { New-Item -ItemType Directory -Force $destBackDist | Out-Null }
+Copy-Item -Path (Join-Path $srcFrontDist "*") -Destination $destBackDist -Recurse -Force
+
+Write-Step "3) Build del BACK"
 Push-Location $back
+Assert-Path (Join-Path $back "node_modules") "Faltan dependencias en back. Ejecuta: npm install"
 npm run build
 Pop-Location
 Assert-Path (Join-Path $back "dist\index.js") "El build del back no genero dist\\index.js"
 
-Write-Step "3) Copiar build del FRONT al BACK (back\\dist\\dist)"
-$srcFrontDist = Join-Path $front "dist"
-$destBackDist = Join-Path $back "dist\dist"
-if (!(Test-Path $srcFrontDist)) { Fail "No se encontro $srcFrontDist" }
-if (Test-Path $destBackDist) { Remove-Item -Recurse -Force $destBackDist }
-New-Item -ItemType Directory -Force $destBackDist | Out-Null
-Copy-Item -Path (Join-Path $srcFrontDist "*") -Destination $destBackDist -Recurse -Force
-
 Write-Step "4) Build de PANEL_SERVER"
-Ensure-ProdOnlySafe (Join-Path $panel "package.json") "panel_server"
-Ensure-Install $panel @()
 Push-Location $panel
+Assert-Path (Join-Path $panel "node_modules") "Faltan dependencias en panel_server. Ejecuta: npm install"
 npm run build
 Pop-Location
 Assert-Path (Join-Path $panel "dist\index.js") "El build del panel_server no genero dist\\index.js"
 
 Write-Step "5) Build de DEMONIO_EVENTOS"
-Ensure-ProdOnlySafe (Join-Path $demonio "package.json") "demonio_eventos"
-Ensure-Install $demonio @()
 Push-Location $demonio
+Assert-Path (Join-Path $demonio "node_modules") "Faltan dependencias en demonio_eventos. Ejecuta: npm install"
 npm run build
 Pop-Location
 Assert-Path (Join-Path $demonio "dist\index.js") "El build del demonio_eventos no genero dist\\index.js"
 
-Write-Step "6) Limpiar y crear estructura release"
-if (Test-Path $ReleasePath) {
-    Remove-Item -Recurse -Force $ReleasePath
-}
+Write-Step "6) Crear estructura release"
 New-Item -ItemType Directory -Force -Path $ReleasePath | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $ReleasePath "runtime\node") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $ReleasePath "config") | Out-Null
@@ -141,30 +100,6 @@ if (!(Test-Path $configPath)) {
 
 Write-Step "13) Copiar scripts de arranque"
 Copy-Item -Path (Join-Path $BasePath "scripts\start.ps1") -Destination (Join-Path $ReleasePath "scripts\start.ps1") -Force
-if (Test-Path (Join-Path $BasePath "scripts\stop.ps1")) {
-    Copy-Item -Path (Join-Path $BasePath "scripts\stop.ps1") -Destination (Join-Path $ReleasePath "scripts\stop.ps1") -Force
-}
-
-if ($ProdOnly) {
-    Write-Step "14) Reducir node_modules a solo produccion (omit=dev)"
-    Push-Location (Join-Path $ReleasePath "back")
-    npm prune --omit=dev
-    Pop-Location
-    Push-Location (Join-Path $ReleasePath "panel_server")
-    npm prune --omit=dev
-    Pop-Location
-    Push-Location (Join-Path $ReleasePath "demonio_eventos")
-    npm prune --omit=dev
-    Pop-Location
-}
-
-Write-Step "15) Limpieza de archivos innecesarios en release"
-if (Test-Path (Join-Path $ReleasePath "logs")) { Remove-Item -Recurse -Force (Join-Path $ReleasePath "logs") }
-if (Test-Path (Join-Path $ReleasePath "back\\logs")) { Remove-Item -Recurse -Force (Join-Path $ReleasePath "back\\logs") }
-if (Test-Path (Join-Path $ReleasePath "demonio_eventos\\logs")) { Remove-Item -Recurse -Force (Join-Path $ReleasePath "demonio_eventos\\logs") }
-
-Remove-DirsByName $ReleasePath @("test", "tests", "__tests__", "docs", "doc", ".cache", "coverage", ".git", ".github", ".vscode")
-Remove-FilesByExt $ReleasePath @(".map", ".ts", ".tsx", ".md", ".pdf")
 
 Write-Step "Listo. Carpeta release generada en:"
 Write-Host $ReleasePath
