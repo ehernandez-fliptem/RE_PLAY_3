@@ -81,8 +81,11 @@ Copy-Item -Path (Join-Path $demonio "dist") -Destination (Join-Path $ReleasePath
 Copy-Item -Path (Join-Path $demonio "node_modules") -Destination (Join-Path $ReleasePath "demonio_eventos") -Recurse -Force
 
 Write-Step "11) Copiar .env (si existe)"
+$envBack = Join-Path $back ".env"
 $envRoot = Join-Path $BasePath ".env"
-if (Test-Path $envRoot) {
+if (Test-Path $envBack) {
+    Copy-Item -Path $envBack -Destination (Join-Path $ReleasePath ".env") -Force
+} elseif (Test-Path $envRoot) {
     Copy-Item -Path $envRoot -Destination (Join-Path $ReleasePath ".env") -Force
 }
 
