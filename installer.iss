@@ -40,12 +40,14 @@ end;
 procedure InitializeWizard();
 begin
   PortsPage := CreateInputQueryPage(wpSelectDir,
-    'Puerto',
-    'Configura el puerto del servidor',
-    'Ingresa el puerto que deseas usar. Debe ser un numero entre 1 y 65535.');
+    'Puertos HTTP/HTTPS',
+    'Configura los puertos del servidor',
+    'Ingresa los puertos que deseas usar. Deben ser numeros entre 1 y 65535.');
 
-  PortsPage.Add('Puerto:', False);
+  PortsPage.Add('Puerto HTTP:', False);
+  PortsPage.Add('Puerto HTTPS:', False);
   PortsPage.Values[0] := '3000';
+  PortsPage.Values[1] := '443';
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -55,7 +57,13 @@ begin
   begin
     if not IsValidPort(PortsPage.Values[0]) then
     begin
-      MsgBox('Puerto invalido. Debe ser un numero entre 1 y 65535.', mbError, MB_OK);
+      MsgBox('Puerto HTTP invalido. Debe ser un numero entre 1 y 65535.', mbError, MB_OK);
+      Result := False;
+      Exit;
+    end;
+    if not IsValidPort(PortsPage.Values[1]) then
+    begin
+      MsgBox('Puerto HTTPS invalido. Debe ser un numero entre 1 y 65535.', mbError, MB_OK);
       Result := False;
       Exit;
     end;
@@ -73,7 +81,7 @@ begin
     JsonText :=
       '{' + #13#10 +
       '  "httpPort": ' + PortsPage.Values[0] + ',' + #13#10 +
-      '  "httpsPort": ' + PortsPage.Values[0] + ',' + #13#10 +
+      '  "httpsPort": ' + PortsPage.Values[1] + ',' + #13#10 +
       '  "openBrowser": true' + #13#10 +
       '}';
     SaveStringToFile(ConfigPath, JsonText, False);
