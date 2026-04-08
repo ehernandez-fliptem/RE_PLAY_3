@@ -1,27 +1,73 @@
-import { Fragment, useState } from "react";
-import { Button, Grid, Stack, Typography } from "@mui/material";
-import { SwitchElement } from "react-hook-form-mui";
-import { Devices } from "@mui/icons-material";
+﻿import { Fragment, useState } from "react";
+import {
+  Button,
+  Grid,
+  Stack,
+  Typography,
+  Box,
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+} from "@mui/material";
+import { SwitchElement, CheckboxElement } from "react-hook-form-mui";
+import { Devices, ExpandMore } from "@mui/icons-material";
 import { useFormContext } from "react-hook-form";
 import { clienteAxios, handlingError } from "../../../../app/config/axios";
 import { enqueueSnackbar } from "notistack";
 import { useDispatch } from "react-redux";
 import { updateConfig } from "../../../../app/features/config/configSlice";
+import Swal from "sweetalert2";
 
 export default function Integraciones() {
-  const { getValues } = useFormContext();
+  const { getValues, watch } = useFormContext();
   const [isSaving, setIsSaving] = useState(false);
+  const [expandedDocs, setExpandedDocs] = useState<
+    "contratistas" | "visitantes" | false
+  >(false);
   const dispatch = useDispatch();
+  const habilitarContratistas = watch("habilitarContratistas");
+
+  const DOC_LABELS: Record<string, string> = {
+    identificacion_oficial: "Identificación oficial",
+    sua: "SUA",
+    permiso_entrada: "Permiso de entrada",
+    lista_articulos: "Lista de artículos",
+    repse: "REPSE",
+    soporte_pago_actualizado: "Soporte de pago actualizado",
+    constancia_vigencia_imss: "Constancia de Vigencia IMSS",
+    constancias_habilidades: "Constancias de Habilidades",
+  };
+
+  const DOCS_REQUIRED = [
+    "identificacion_oficial",
+    "sua",
+    "permiso_entrada",
+    "lista_articulos",
+    "repse",
+    "soporte_pago_actualizado",
+  ];
+
+  const DOCS_OPTIONAL = [
+    "constancia_vigencia_imss",
+    "constancias_habilidades",
+  ];
 
   const guardarIntegraciones = async () => {
     try {
       setIsSaving(true);
-      const { habilitarIntegracionHv, habilitarCamaras, habilitarContratistas } =
-        getValues();
+      const {
+        habilitarIntegracionHv,
+        habilitarCamaras,
+        habilitarContratistas,
+        documentos_visitantes,
+        documentos_contratistas,
+      } = getValues();
       const res = await clienteAxios.put("/api/configuracion/integraciones", {
         habilitarIntegracionHv,
         habilitarCamaras,
         habilitarContratistas,
+        documentos_visitantes,
+        documentos_contratistas,
       });
       if (res.data.estado) {
         dispatch(
@@ -29,6 +75,8 @@ export default function Integraciones() {
             habilitarIntegracionHv,
             habilitarCamaras,
             habilitarContratistas,
+            documentos_visitantes,
+            documentos_contratistas,
           })
         );
         enqueueSnackbar("Integraciones guardadas.", { variant: "success" });
@@ -39,6 +87,20 @@ export default function Integraciones() {
       handlingError(error);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const guardarDocumentos = async () => {
+    try {
+      await guardarIntegraciones();
+      await Swal.fire({
+        icon: "success",
+        title: "Enviado con éxito",
+        confirmButtonText: "OK",
+        allowOutsideClick: false,
+      });
+    } catch {
+      // errores ya manejados en guardarIntegraciones
     }
   };
 
@@ -58,7 +120,7 @@ export default function Integraciones() {
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
             <Typography variant="overline" component="h2">
-              <strong> Integración con Control de accesos de Hikvision</strong>
+              <strong>Integración con Control de accesos de Hikvision</strong>
             </Typography>
             <Typography
               variant="body2"
@@ -80,41 +142,155 @@ export default function Integraciones() {
             justifyContent: { xs: "center", sm: "end" },
           }}
         >
-          <SwitchElement
-            label=""
-            labelPlacement="start"
-            name="habilitarIntegracionHv"
-          />
+          <SwitchElement label="" labelPlacement="start" name="habilitarIntegracionHv" />
         </Grid>
       </Grid>
       <Grid container spacing={2} sx={{ my: 2 }}>
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
             <Typography variant="overline" component="h2">
-              <strong> Portal de Visitas para Contratistas</strong>
-            </Typography>
-            <Typography
-              variant="body2"
-              component="span"
-              sx={{ ml: { xs: 0, sm: 2 } }}
-            >
-              <small>
-                Habilita o deshabilita el módulo de contratistas en el sistema.
-              </small>
+              <strong>Portal de Visitas para Contratistas</strong>
             </Typography>
           </Stack>
         </Grid>
-        <Grid
-          size={{ xs: 12, sm: 2 }}
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: { xs: "center", sm: "end" },
-          }}
-        >
-          <SwitchElement label="" labelPlacement="start" name="habilitarContratistas" />
-        </Grid>
       </Grid>
+      {habilitarContratistas && (
+        <Box sx={{ ml: { xs: 0, sm: 2 }, mt: 1 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Documentos
+          </Typography>
+          <Box
+            sx={{
+              display: "grid",
+              gap: 1,
+              border: "1px solid #e6e6e6",
+              borderRadius: 1,
+              p: 1,
+            }}
+          >
+            <Accordion
+              expanded={expandedDocs === "contratistas"}
+              onChange={(_, isExpanded) =>
+                setExpandedDocs(isExpanded ? "contratistas" : false)
+              }
+            >
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Typography fontWeight={600} variant="body2">
+                  Contratistas
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Box sx={{ mt: 1.5, p: 1.5, border: "1px solid #e6e6e6", borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    Documentos obligatorios
+                  </Typography>
+                  <Grid container spacing={1}>
+                    {DOCS_REQUIRED.map((key) => (
+                      <Grid key={key} size={{ xs: 12, sm: 6, md: 4 }}>
+                        <CheckboxElement
+                          name={`documentos_contratistas.${key}`}
+                          label={DOC_LABELS[key]}
+                        />
+                      </Grid>
+                    ))}
+                  </Grid>
+                  <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
+                    Documentos opcionales
+                  </Typography>
+                  <Grid container spacing={1}>
+                    {DOCS_OPTIONAL.map((key) => (
+                      <Grid key={key} size={{ xs: 12, sm: 6, md: 4 }}>
+                        <CheckboxElement
+                          name={`documentos_contratistas.${key}`}
+                          label={DOC_LABELS[key]}
+                        />
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+                <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={guardarDocumentos}
+                    disabled={isSaving}
+                  >
+                    Guardar documentos
+                  </Button>
+                </Box>
+              </AccordionDetails>
+            </Accordion>
+            <Accordion
+              expanded={expandedDocs === "visitantes"}
+              onChange={(_, isExpanded) =>
+                setExpandedDocs(isExpanded ? "visitantes" : false)
+              }
+            >
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Typography fontWeight={600} variant="body2">
+                  Visitantes
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Box sx={{ mt: 1.5, p: 1.5, border: "1px solid #e6e6e6", borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    Documentos obligatorios
+                  </Typography>
+                  <Grid container spacing={1}>
+                    {DOCS_REQUIRED.map((key) => (
+                      <Grid key={key} size={{ xs: 12, sm: 6, md: 4 }}>
+                        <CheckboxElement
+                          name={`documentos_visitantes.${key}`}
+                          label={DOC_LABELS[key]}
+                        />
+                      </Grid>
+                    ))}
+                  </Grid>
+                  <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
+                    Documentos opcionales
+                  </Typography>
+                  <Grid container spacing={1}>
+                    {DOCS_OPTIONAL.map((key) => (
+                      <Grid key={key} size={{ xs: 12, sm: 6, md: 4 }}>
+                        <CheckboxElement
+                          name={`documentos_visitantes.${key}`}
+                          label={DOC_LABELS[key]}
+                        />
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+                <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={guardarDocumentos}
+                    disabled={isSaving}
+                  >
+                    Guardar documentos
+                  </Button>
+                </Box>
+              </AccordionDetails>
+            </Accordion>
+          </Box>
+        </Box>
+      )}
+      <Typography
+        variant="body2"
+        component="span"
+        sx={{ ml: { xs: 0, sm: 2 }, display: "block", mt: 1 }}
+      >
+        <small>Habilita o deshabilita el módulo de contratistas en el sistema.</small>
+      </Typography>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: { xs: "center", sm: "end" },
+          mt: 1,
+        }}
+      >
+        <SwitchElement label="" labelPlacement="start" name="habilitarContratistas" />
+      </Box>
       <Grid container spacing={2} sx={{ my: 1 }}>
         <Grid
           size={{ xs: 12 }}
@@ -133,3 +309,6 @@ export default function Integraciones() {
     </Fragment>
   );
 }
+
+
+

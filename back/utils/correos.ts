@@ -1754,58 +1754,17 @@ export async function enviarCorreoContratistaAcceso(
 ): Promise<boolean> {
     try {
         const asunto = "Acceso portal de contratistas";
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay un configuración establecida.");
-        const { saludaCorreo, despedidaCorreo } = config;
-
-        const response = await sendEmail({
+        const response = await enviarCorreoPlantillaContratistas({
             destinatario: correo,
             asunto,
-            contenido: `
-                <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                    <tr>
-                        <td>
-                            <table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
-                                <tr>
-                                    <td bgcolor="#ffffff">
-                                        <h1 align="center">${asunto}</h1>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>${saludaCorreo}</td>
-                                </tr>
-                                <tr>
-                                    <td><br>Se ha creado una cuenta para el portal de contratistas.</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Empresa: </strong> ${empresa}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Correo: </strong> ${correo}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Contraseña: </strong> ${contrasena}</td>
-                                </tr>
-                                <tr>
-                                    <td><br>Para ingresar al portal haz clic en el siguiente enlace: <a href="${CONFIG.ENDPOINT}"><b>Portal de contratistas</b></a></td>
-                                </tr>
-                                <tr>
-                                    <br><br>
-                                    <td><strong>Código QR para check-in: </strong></td>
-                                    <br><br>
-                                </tr>
-                                <tr>
-                                    <td>
-                                        <div align="center"><img src="cid:qr" style="width:150px"></div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td><div align="center"><p>${despedidaCorreo}</p></div><br></td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-                </table>`,
+            cuerpo: `
+                <tr><td><br>Se ha creado una cuenta para el portal de contratistas.</td></tr>
+                <tr><td><strong>Empresa: </strong> ${empresa}</td></tr>
+                <tr><td><strong>Correo: </strong> ${correo}</td></tr>
+                <tr><td><strong>Contrase&ntilde;a: </strong> ${contrasena}</td></tr>
+                <tr><td><br>Para ingresar al portal haz clic en el siguiente enlace: <a href="${CONFIG.ENDPOINT}"><b>Portal de contratistas</b></a></td></tr>
+                <tr><td><br><strong>C&oacute;digo QR para check-in:</strong></td></tr>
+                <tr><td><div align="center"><img src="cid:qr" style="width:150px"></div></td></tr>`,
             plusAttachments: [
                 {
                     dataUrl: qr,
@@ -1820,7 +1779,6 @@ export async function enviarCorreoContratistaAcceso(
         return false;
     }
 }
-
 /**
  * @function
  * @name enviarCorreoRechazoVisitanteContratista
@@ -1834,54 +1792,20 @@ export async function enviarCorreoRechazoVisitanteContratista(datos: {
     faltantes: string[];
 }): Promise<boolean> {
     try {
-        const asunto = "Documentación incompleta - visitante";
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay un configuración establecida.");
-        const { saludaCorreo, despedidaCorreo } = config;
+        const asunto = "Documentacion incompleta - visitante";
         const destinatario = datos.correos.join(", ");
         const faltantes = datos.faltantes?.length ? datos.faltantes.join(", ") : "No especificado";
 
-        const response = await sendEmail({
+        const response = await enviarCorreoPlantillaContratistas({
             destinatario,
             asunto,
-            contenido: `
-                <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                    <tr>
-                        <td>
-                            <table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
-                                <tr>
-                                    <td bgcolor="#ffffff">
-                                        <h1 align="center">${asunto}</h1>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>${saludaCorreo}</td>
-                                </tr>
-                                <tr>
-                                    <td><br>Se rechazó la documentación de un visitante.</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Empresa: </strong> ${datos.empresa}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Visitante: </strong> ${datos.visitante}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Documentos faltantes: </strong> ${faltantes}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Motivo: </strong> ${datos.motivo}</td>
-                                </tr>
-                                <tr>
-                                    <td><br>Favor de corregir y volver a enviar la información.</td>
-                                </tr>
-                                <tr>
-                                    <td><div align="center"><p>${despedidaCorreo}</p></div><br></td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-                </table>`,
+            cuerpo: `
+                <tr><td><br>Se rechazo la documentacion de un visitante.</td></tr>
+                <tr><td><strong>Empresa: </strong> ${datos.empresa}</td></tr>
+                <tr><td><strong>Visitante: </strong> ${datos.visitante}</td></tr>
+                <tr><td><strong>Documentos faltantes: </strong> ${faltantes}</td></tr>
+                <tr><td><strong>Motivo: </strong> ${datos.motivo}</td></tr>
+                <tr><td><br>Favor de corregir y volver a enviar la informacion.</td></tr>`,
         });
         return response;
     } catch (error) {
@@ -1889,3 +1813,156 @@ export async function enviarCorreoRechazoVisitanteContratista(datos: {
         return false;
     }
 }
+type CorreoSolicitudContratistaBase = {
+    correos: string[];
+    empresa: string;
+    fecha_visita: Date;
+    visitantes?: string[];
+    anfitriones?: string[];
+    comentario?: string;
+};
+
+const listaHtml = (items: string[]) =>
+    items?.length
+        ? `<ul>${items.map((item) => `<li>${item}</li>`).join("")}</ul>`
+        : "<p>No especificado.</p>";
+
+const enviarCorreoPlantillaContratistas = async (params: {
+    destinatario: string;
+    asunto: string;
+    cuerpo: string;
+    plusAttachments?: {
+        path?: string;
+        dataUrl?: string;
+        content?: Buffer | string;
+        cid: string;
+        filename?: string;
+        encoding?: string;
+        contentType?: string;
+    }[];
+}): Promise<boolean> => {
+    try {
+        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
+        if (!config) throw new Error("No hay una configuracion establecida.");
+        const { saludaCorreo, despedidaCorreo } = config;
+        const response = await sendEmail({
+            destinatario: params.destinatario,
+            asunto: params.asunto,
+            contenido: `
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                        <td>
+                            <table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
+                                <tr><td bgcolor="#ffffff"><h1 align="center">${params.asunto}</h1></td></tr>
+                                <tr><td>${saludaCorreo}</td></tr>
+                                ${params.cuerpo}
+                                <tr><td><div align="center"><p>${despedidaCorreo}</p></div><br></td></tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>`,
+            plusAttachments: params.plusAttachments,
+        });
+        return response;
+    } catch {
+        return false;
+    }
+};
+
+/**
+ * @function
+ * @name enviarCorreoContratistaSolicitudCreada
+ * @description Acuse de recibo al contratista cuando genera una solicitud.
+ */
+export async function enviarCorreoContratistaSolicitudCreada(
+    datos: CorreoSolicitudContratistaBase
+): Promise<boolean> {
+    try {
+        const asunto = "Solicitud de visita recibida";
+        const response = await enviarCorreoPlantillaContratistas({
+            destinatario: datos.correos.join(", "),
+            asunto,
+            cuerpo: `
+                <tr><td><br>Tu solicitud fue registrada correctamente y quedo en estado pendiente.</td></tr>
+                <tr><td><strong>Empresa contratista: </strong>${datos.empresa}</td></tr>
+                <tr><td><strong>Fecha de visita: </strong>${dayjs(datos.fecha_visita).format("DD/MM/YYYY")}</td></tr>
+                <tr><td><strong>Visitantes:</strong>${listaHtml(datos.visitantes || [])}</td></tr>
+                <tr><td><strong>A quien visita:</strong>${listaHtml(datos.anfitriones || [])}</td></tr>
+                ${datos.comentario ? `<tr><td><strong>Razon de visita: </strong>${datos.comentario}</td></tr>` : ""}`,
+        });
+        return response;
+    } catch (error) {
+        console.error("Error en enviarCorreoContratistaSolicitudCreada:", error);
+        return false;
+    }
+}
+type CorreoSolicitudResultado = CorreoSolicitudContratistaBase & {
+    estado: number;
+    aprobados: string[];
+    rechazados: string[];
+};
+
+/**
+ * @function
+ * @name enviarCorreoContratistaSolicitudResultado
+ * @description Resultado de revision de solicitud de visita para contratistas.
+ */
+export async function enviarCorreoContratistaSolicitudResultado(
+    datos: CorreoSolicitudResultado
+): Promise<boolean> {
+    try {
+        const estadoLabel =
+            datos.estado === 2 ? "Aprobada" : datos.estado === 3 ? "Rechazada" : datos.estado === 4 ? "Parcial" : "Pendiente";
+        const asunto = `Resultado de solicitud de visita: ${estadoLabel}`;
+        const response = await enviarCorreoPlantillaContratistas({
+            destinatario: datos.correos.join(", "),
+            asunto,
+            cuerpo: `
+                <tr><td><br>Se reviso la solicitud de visita.</td></tr>
+                <tr><td><strong>Empresa contratista: </strong>${datos.empresa}</td></tr>
+                <tr><td><strong>Fecha de visita: </strong>${dayjs(datos.fecha_visita).format("DD/MM/YYYY")}</td></tr>
+                <tr><td><strong>Estado final: </strong>${estadoLabel}</td></tr>
+                <tr><td><strong>Visitantes aprobados:</strong>${listaHtml(datos.aprobados || [])}</td></tr>
+                <tr><td><strong>Visitantes rechazados:</strong>${listaHtml(datos.rechazados || [])}</td></tr>
+                <tr><td><strong>A quien visita:</strong>${listaHtml(datos.anfitriones || [])}</td></tr>
+                ${datos.comentario ? `<tr><td><strong>Razon de visita: </strong>${datos.comentario}</td></tr>` : ""}`,
+        });
+        return response;
+    } catch (error) {
+        console.error("Error en enviarCorreoContratistaSolicitudResultado:", error);
+        return false;
+    }
+}
+/**
+ * @function
+ * @name enviarCorreoAnfitrionSolicitudAprobada
+ * @description Notificacion a anfitrion cuando una solicitud de contratista incluye visitantes aprobados.
+ */
+export async function enviarCorreoAnfitrionSolicitudAprobada(datos: {
+    correo: string;
+    anfitrion?: string;
+    empresa: string;
+    fecha_visita: Date;
+    visitantes_aprobados: string[];
+    comentario?: string;
+}): Promise<boolean> {
+    try {
+        const asunto = "Visitas aprobadas de contratista";
+        const response = await enviarCorreoPlantillaContratistas({
+            destinatario: datos.correo,
+            asunto,
+            cuerpo: `
+                <tr><td><br>Se aprobaron visitantes para una solicitud de contratista.</td></tr>
+                ${datos.anfitrion ? `<tr><td><strong>Anfitrion: </strong>${datos.anfitrion}</td></tr>` : ""}
+                <tr><td><strong>Empresa contratista: </strong>${datos.empresa}</td></tr>
+                <tr><td><strong>Fecha de visita: </strong>${dayjs(datos.fecha_visita).format("DD/MM/YYYY")}</td></tr>
+                <tr><td><strong>Visitantes aprobados:</strong>${listaHtml(datos.visitantes_aprobados || [])}</td></tr>
+                ${datos.comentario ? `<tr><td><strong>Razon de visita: </strong>${datos.comentario}</td></tr>` : ""}`,
+        });
+        return response;
+    } catch (error) {
+        console.error("Error en enviarCorreoAnfitrionSolicitudAprobada:", error);
+        return false;
+    }
+}
+

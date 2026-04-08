@@ -40,6 +40,17 @@ type Colleciones = {
   color: string;
 };
 
+type DocChecks = {
+  identificacion_oficial: boolean;
+  sua: boolean;
+  permiso_entrada: boolean;
+  lista_articulos: boolean;
+  repse: boolean;
+  soporte_pago_actualizado: boolean;
+  constancia_vigencia_imss: boolean;
+  constancias_habilidades: boolean;
+};
+
 type FormValues = {
   appNombre: string;
   zonaHoraria: string;
@@ -53,6 +64,8 @@ type FormValues = {
   habilitarIntegracionHv: boolean;
   habilitarCamaras: boolean;
   habilitarContratistas: boolean;
+  documentos_visitantes: DocChecks;
+  documentos_contratistas: DocChecks;
   validarHorario: boolean;
   notificarCheck: boolean;
   autorizacionCheck: boolean;
@@ -119,6 +132,32 @@ const resolver = yup.object().shape({
   habilitarIntegracionHv: yup.boolean().required("Este campo es obligatorio."),
   habilitarCamaras: yup.boolean().required("Este campo es obligatorio."),
   habilitarContratistas: yup.boolean().required("Este campo es obligatorio."),
+  documentos_visitantes: yup
+    .object()
+    .shape({
+      identificacion_oficial: yup.boolean().required(),
+      sua: yup.boolean().required(),
+      permiso_entrada: yup.boolean().required(),
+      lista_articulos: yup.boolean().required(),
+      repse: yup.boolean().required(),
+      soporte_pago_actualizado: yup.boolean().required(),
+      constancia_vigencia_imss: yup.boolean().required(),
+      constancias_habilidades: yup.boolean().required(),
+    })
+    .required(),
+  documentos_contratistas: yup
+    .object()
+    .shape({
+      identificacion_oficial: yup.boolean().required(),
+      sua: yup.boolean().required(),
+      permiso_entrada: yup.boolean().required(),
+      lista_articulos: yup.boolean().required(),
+      repse: yup.boolean().required(),
+      soporte_pago_actualizado: yup.boolean().required(),
+      constancia_vigencia_imss: yup.boolean().required(),
+      constancias_habilidades: yup.boolean().required(),
+    })
+    .required(),
   validarHorario: yup.boolean().required("Este campo es obligatorio."),
   notificarCheck: yup.boolean().required("Este campo es obligatorio."),
   autorizacionCheck: yup.boolean().required("Este campo es obligatorio."),
@@ -147,6 +186,26 @@ const initialValue: FormValues = {
   habilitarIntegracionHv: false,
   habilitarCamaras: false,
   habilitarContratistas: true,
+  documentos_visitantes: {
+    identificacion_oficial: true,
+    sua: true,
+    permiso_entrada: true,
+    lista_articulos: true,
+    repse: true,
+    soporte_pago_actualizado: true,
+    constancia_vigencia_imss: true,
+    constancias_habilidades: true,
+  },
+  documentos_contratistas: {
+    identificacion_oficial: true,
+    sua: true,
+    permiso_entrada: true,
+    lista_articulos: true,
+    repse: true,
+    soporte_pago_actualizado: true,
+    constancia_vigencia_imss: true,
+    constancias_habilidades: true,
+  },
 
   validarHorario: false,
   notificarCheck: false,
@@ -187,6 +246,7 @@ export default function Configuracion() {
             roles,
           } = res.data.datos;
           formContext.reset({
+            ...initialValue,
             ...configuracion,
             palette: {
               ...defaultColorPalette,

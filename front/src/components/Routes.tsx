@@ -89,6 +89,7 @@ import CargaVisitantesContratistas from "./contratistas/portal/CargaVisitantes";
 import PortalSolicitudes from "./contratistas/portal/Solicitudes";
 import NuevaPortalSolicitud from "./contratistas/portal/NuevaSolicitud";
 import DetallePortalSolicitud from "./contratistas/portal/DetalleSolicitud";
+import DocumentosContratista from "./contratistas/portal/DocumentosContratista";
 
 import Kiosco from "./kiosco/Kiosco";
 import Bot from "./controlAcceso/bot/Bot";
@@ -150,6 +151,15 @@ export default function Routes() {
     {
       path: "/pisos",
       children: [
+        {
+          path: "documentos",
+          element:
+            (esContratista || esSuper) && habilitarContratistas ? (
+              <DocumentosContratista />
+            ) : (
+              <Unauthorized />
+            ),
+        },
         {
           path: "",
           element: puedeAdmin ? <Pisos /> : <Unauthorized />,
@@ -278,6 +288,15 @@ export default function Routes() {
     {
       path: "/portal-contratistas",
       children: [
+        {
+          path: "documentos",
+          element:
+            (esContratista || esSuper) && habilitarContratistas ? (
+              <DocumentosContratista />
+            ) : (
+              <Unauthorized />
+            ),
+        },
         {
           path: "visitantes",
           element:
@@ -896,6 +915,7 @@ export default function Routes() {
     },
   ]);
 }
+
 
 
 

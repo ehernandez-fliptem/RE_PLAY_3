@@ -19,6 +19,8 @@ interface ConfigState {
     habilitarIntegracionCdvi: boolean;
     habilitarCamaras: boolean;
     habilitarContratistas: boolean;
+    documentos_visitantes: Record<string, boolean>;
+    documentos_contratistas: Record<string, boolean>;
     tipos_dispositivos: { [key: number]: { nombre: string; color: string } };
     tipos_eventos: { [key: number]: { nombre: string; color: string } };
     roles: { [key: number]: { nombre: string; color: string } };
@@ -56,6 +58,8 @@ const initialState = {
     habilitarIntegracionCdvi: false,
     habilitarCamaras: false,
     habilitarContratistas: true,
+    documentos_visitantes: {},
+    documentos_contratistas: {},
     tipos_dispositivos: {} as {
       [key: number]: { nombre: string; color: string };
     },
@@ -89,6 +93,10 @@ export const configSlice = createSlice({
     updateConfig: (state, action) => {
       state.data = {
         ...action.payload,
+        documentos_visitantes:
+          action.payload.documentos_visitantes || state.data.documentos_visitantes,
+        documentos_contratistas:
+          action.payload.documentos_contratistas || state.data.documentos_contratistas,
         tipos_dispositivos: action.payload.tipos_dispositivos || state.data.tipos_dispositivos,
         tipos_eventos: action.payload.tipos_eventos || state.data.tipos_eventos,
         roles: action.payload.roles || state.data.roles,

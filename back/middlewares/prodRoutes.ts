@@ -48,6 +48,7 @@ const PROD_ROUTES = [
     '/portal-contratistas/visitantes/nuevo',
     '/portal-contratistas/visitantes/editar/:id',
     '/portal-contratistas/visitantes/carga-masiva',
+    '/portal-contratistas/documentos',
     '/portal-contratistas/solicitudes',
     '/portal-contratistas/solicitudes/nueva',
     '/portal-contratistas/solicitudes/detalle/:id',

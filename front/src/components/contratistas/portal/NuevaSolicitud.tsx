@@ -30,16 +30,24 @@ type Visitante = {
   correo: string;
 };
 
+type Anfitrion = {
+  _id: string;
+  nombre: string;
+};
+
 export default function NuevaPortalSolicitud() {
   const navigate = useNavigate();
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
   const [visitantes, setVisitantes] = useState<Visitante[]>([]);
   const [selected, setSelected] = useState<Visitante[]>([]);
+  const [anfitriones, setAnfitriones] = useState<Anfitrion[]>([]);
+  const [selectedAnfitriones, setSelectedAnfitriones] = useState<Anfitrion[]>([]);
   const [fecha, setFecha] = useState<Dayjs | null>(dayjs());
   const [comentario, setComentario] = useState("");
   const [swalOpen, setSwalOpen] = useState(false);
   const [ocupadosIds, setOcupadosIds] = useState<string[]>([]);
+
   const opcionesDisponibles = visitantes.filter(
     (option) =>
       !selected.some((v) => v._id === option._id) && !ocupadosIds.includes(option._id)
@@ -48,7 +56,17 @@ export default function NuevaPortalSolicitud() {
     visitantes.length === 0
       ? "No hay visitantes registrados."
       : opcionesDisponibles.length === 0
-        ? "Todos los visitantes ya están registrados para ese día."
+        ? "Todos los visitantes ya estan registrados para ese dia."
+        : "Sin opciones";
+
+  const anfitrionesDisponibles = anfitriones.filter(
+    (option) => !selectedAnfitriones.some((v) => v._id === option._id)
+  );
+  const noOptionsTextAnfitriones =
+    anfitriones.length === 0
+      ? "No hay empleados activos."
+      : anfitrionesDisponibles.length === 0
+        ? "Todos los empleados ya fueron seleccionados."
         : "Sin opciones";
 
   const bringSwalToFront = () => {
@@ -73,20 +91,30 @@ export default function NuevaPortalSolicitud() {
   };
 
   useEffect(() => {
-    const obtenerVisitantes = async () => {
+    const obtenerDatosIniciales = async () => {
       try {
         const urlParams = new URLSearchParams({
           filter: JSON.stringify([]),
           pagination: JSON.stringify({ page: 0, pageSize: 1000 }),
           sort: JSON.stringify([]),
         });
-        const res = await clienteAxios.get(
+
+        const resVisitantes = await clienteAxios.get(
           "/api/contratistas-visitantes?" + urlParams.toString()
         );
-        if (res.data.estado) {
-          setVisitantes(res.data.datos.paginatedResults || []);
+        if (resVisitantes.data.estado) {
+          setVisitantes(resVisitantes.data.datos.paginatedResults || []);
         } else {
-          enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+          enqueueSnackbar(resVisitantes.data.mensaje, { variant: "warning" });
+        }
+
+        const resAnfitriones = await clienteAxios.get(
+          "/api/empleados/anfitriones?" + urlParams.toString()
+        );
+        if (resAnfitriones.data.estado) {
+          setAnfitriones(resAnfitriones.data.datos.paginatedResults || []);
+        } else {
+          enqueueSnackbar(resAnfitriones.data.mensaje, { variant: "warning" });
         }
       } catch (error: unknown) {
         const { restartSession } = handlingError(error);
@@ -95,7 +123,7 @@ export default function NuevaPortalSolicitud() {
         setIsLoading(false);
       }
     };
-    obtenerVisitantes();
+    obtenerDatosIniciales();
   }, [navigate]);
 
   useEffect(() => {
@@ -111,7 +139,7 @@ export default function NuevaPortalSolicitud() {
           setSelected((prev) => {
             const filtered = prev.filter((v) => !ids.includes(v._id));
             if (filtered.length !== prev.length) {
-              enqueueSnackbar("Algunos visitantes ya están registrados ese día.", {
+              enqueueSnackbar("Algunos visitantes ya estan registrados ese dia.", {
                 variant: "warning",
               });
             }
@@ -134,7 +162,7 @@ export default function NuevaPortalSolicitud() {
         return;
       }
       if (comentario.trim().length < 10) {
-        enqueueSnackbar("La razón de visita debe tener al menos 10 caracteres.", {
+        enqueueSnackbar("La razon de visita debe tener al menos 10 caracteres.", {
           variant: "warning",
         });
         return;
@@ -148,7 +176,7 @@ export default function NuevaPortalSolicitud() {
         await showSwal({
           icon: "error",
           title: "Solicitud existente",
-          text: "Ya se encuentra una solicitud de visita con esas personas ese día.",
+          text: "Ya se encuentra una solicitud de visita con esas personas ese dia.",
           allowOutsideClick: false,
           showConfirmButton: true,
           confirmButtonText: "OK",
@@ -162,6 +190,7 @@ export default function NuevaPortalSolicitud() {
         fecha_visita: fecha.toISOString(),
         comentario,
         visitantes: selected.map((v) => v._id),
+        anfitriones: selectedAnfitriones.map((v) => v._id),
       };
       const res = await clienteAxios.post("/api/contratistas-solicitudes", payload);
       if (res.data.estado) {
@@ -170,7 +199,7 @@ export default function NuevaPortalSolicitud() {
         await showSwal({
           icon: "success",
           title: "Solicitud creada",
-          html: `Se creó su solicitud correctamente.<br/>Fecha de visita: ${dayjs(fecha).format("DD/MM/YYYY")}<br/>${visitantesLabel} registrados: ${selected.length}`,
+          html: `Se creo su solicitud correctamente.<br/>Fecha de visita: ${dayjs(fecha).format("DD/MM/YYYY")}<br/>${visitantesLabel} registrados: ${selected.length}`,
           showConfirmButton: true,
           confirmButtonText: "OK",
           allowOutsideClick: false,
@@ -215,17 +244,18 @@ export default function NuevaPortalSolicitud() {
                   sx={{ width: "100%", mt: 2 }}
                 />
                 <TextField
-                  label="Razón de visita"
+                  label="Razon de visita"
                   value={comentario}
                   onChange={(e) => setComentario(e.target.value)}
                   fullWidth
                   margin="normal"
-                  helperText="Mínimo 10 caracteres"
+                  helperText="Minimo 10 caracteres"
                   error={comentario.length > 0 && comentario.trim().length < 10}
                 />
                 <Autocomplete
                   multiple
                   options={opcionesDisponibles}
+                  isOptionEqualToValue={(option, value) => option._id === value._id}
                   getOptionLabel={(option) =>
                     `${option.nombre} ${option.apellido_pat || ""} ${
                       option.apellido_mat || ""
@@ -236,6 +266,19 @@ export default function NuevaPortalSolicitud() {
                   noOptionsText={noOptionsText}
                   renderInput={(params) => (
                     <TextField {...params} label="Selecciona visitantes" />
+                  )}
+                />
+                <Autocomplete
+                  multiple
+                  options={anfitrionesDisponibles}
+                  isOptionEqualToValue={(option, value) => option._id === value._id}
+                  getOptionLabel={(option) => option.nombre}
+                  value={selectedAnfitriones}
+                  onChange={(_, value) => setSelectedAnfitriones(value)}
+                  noOptionsText={noOptionsTextAnfitriones}
+                  sx={{ mt: 2 }}
+                  renderInput={(params) => (
+                    <TextField {...params} label="A quien visita" />
                   )}
                 />
                 <Divider sx={{ my: 2 }} />

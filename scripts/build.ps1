@@ -42,6 +42,22 @@ function Remove-FilesByExt($root, $exts) {
     }
 }
 
+function Copy-PackageFiles($src, $dst) {
+    if (Test-Path (Join-Path $src "package.json")) {
+        Copy-Item -Path (Join-Path $src "package.json") -Destination $dst -Force
+    }
+    if (Test-Path (Join-Path $src "package-lock.json")) {
+        Copy-Item -Path (Join-Path $src "package-lock.json") -Destination $dst -Force
+    }
+}
+
+function Assert-ModuleExists($root, $moduleName) {
+    $p = Join-Path $root ("node_modules\" + $moduleName)
+    if (!(Test-Path $p)) {
+        Fail "Falta el modulo requerido '$moduleName' en $root\\node_modules"
+    }
+}
+
 $ErrorActionPreference = "Stop"
 
 $back = Join-Path $BasePath "back"
@@ -111,14 +127,17 @@ if (Test-Path (Join-Path $back "secure")) {
     Copy-Item -Path (Join-Path $back "secure") -Destination (Join-Path $ReleasePath "back") -Recurse -Force
 }
 Copy-Item -Path (Join-Path $back "node_modules") -Destination (Join-Path $ReleasePath "back") -Recurse -Force
+Copy-PackageFiles $back (Join-Path $ReleasePath "back")
 
 Write-Step "9) Copiar PANEL_SERVER (dist + node_modules)"
 Copy-Item -Path (Join-Path $panel "dist") -Destination (Join-Path $ReleasePath "panel_server") -Recurse -Force
 Copy-Item -Path (Join-Path $panel "node_modules") -Destination (Join-Path $ReleasePath "panel_server") -Recurse -Force
+Copy-PackageFiles $panel (Join-Path $ReleasePath "panel_server")
 
 Write-Step "10) Copiar DEMONIO_EVENTOS (dist + node_modules)"
 Copy-Item -Path (Join-Path $demonio "dist") -Destination (Join-Path $ReleasePath "demonio_eventos") -Recurse -Force
 Copy-Item -Path (Join-Path $demonio "node_modules") -Destination (Join-Path $ReleasePath "demonio_eventos") -Recurse -Force
+Copy-PackageFiles $demonio (Join-Path $ReleasePath "demonio_eventos")
 
 Write-Step "11) Copiar .env (si existe)"
 $envBack = Join-Path $back ".env"
@@ -150,14 +169,20 @@ if (Test-Path (Join-Path $BasePath "scripts\stop.ps1")) {
 if ($ProdOnly) {
     Write-Step "14) Reducir node_modules a solo produccion (omit=dev)"
     Push-Location (Join-Path $ReleasePath "back")
-    npm prune --omit=dev
+    if (Test-Path "package.json") { npm prune --omit=dev }
     Pop-Location
     Push-Location (Join-Path $ReleasePath "panel_server")
-    npm prune --omit=dev
+    if (Test-Path "package.json") { npm prune --omit=dev }
     Pop-Location
     Push-Location (Join-Path $ReleasePath "demonio_eventos")
-    npm prune --omit=dev
+    if (Test-Path "package.json") { npm prune --omit=dev }
     Pop-Location
+
+    Assert-ModuleExists (Join-Path $ReleasePath "back") "mongoose"
+    Assert-ModuleExists (Join-Path $ReleasePath "back") "express"
+    Assert-ModuleExists (Join-Path $ReleasePath "panel_server") "express"
+    Assert-ModuleExists (Join-Path $ReleasePath "panel_server") "mongoose"
+    Assert-ModuleExists (Join-Path $ReleasePath "demonio_eventos") "mongoose"
 }
 
 Write-Step "15) Limpieza de archivos innecesarios en release"
@@ -165,7 +190,7 @@ if (Test-Path (Join-Path $ReleasePath "logs")) { Remove-Item -Recurse -Force (Jo
 if (Test-Path (Join-Path $ReleasePath "back\\logs")) { Remove-Item -Recurse -Force (Join-Path $ReleasePath "back\\logs") }
 if (Test-Path (Join-Path $ReleasePath "demonio_eventos\\logs")) { Remove-Item -Recurse -Force (Join-Path $ReleasePath "demonio_eventos\\logs") }
 
-Remove-DirsByName $ReleasePath @("test", "tests", "__tests__", "docs", "doc", ".cache", "coverage", ".git", ".github", ".vscode", "@types")
+Remove-DirsByName $ReleasePath @("test", "tests", "__tests__", ".cache", "coverage", ".git", ".github", ".vscode", "@types")
 Remove-FilesByExt $ReleasePath @(".map", ".ts", ".tsx", ".d.ts", ".md", ".markdown", ".pdf", ".pdb")
 
 Write-Step "Listo. Carpeta release generada en:"

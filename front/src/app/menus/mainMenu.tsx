@@ -73,6 +73,7 @@ const mainMenu = [
     icon: <HowToReg fontSize="small" />,
     submenu: [
       {
+      {
         id: 2.1,
         title: "Visitantes",
     rol: [1, 2, 4, 5],
@@ -109,6 +110,13 @@ const mainMenu = [
     rol: [1, 11],
     icon: <Engineering fontSize="small" />,
     submenu: [
+      {
+        id: 8.05,
+        title: "Documentos del Contratista",
+        rol: [1, 11],
+        icon: <Engineering fontSize="small" />,
+        path: "/portal-contratistas/documentos",
+      },
       {
         id: 8.1,
         title: "Mi Catálogo",

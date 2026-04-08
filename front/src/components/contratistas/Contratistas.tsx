@@ -47,6 +47,8 @@ import Modal from "@mui/material/Modal";
 import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import Spinner from "../utils/Spinner";
+import { useSelector } from "react-redux";
+import { selectCurrentData } from "../../app/features/config/configSlice";
 
 const pageSizeOptions = [10, 25, 50];
 
@@ -55,15 +57,26 @@ type TContratistaSeleccion = {
   empresa: string;
 };
 
-const DOCUMENTOS_CONTRATISTAS = [
-  { key: "identificacion_oficial", label: "Identificación oficial" },
-  { key: "sua", label: "SUA" },
-  { key: "permiso_entrada", label: "Permiso de entrada" },
-  { key: "lista_articulos", label: "Lista de artículos" },
-  { key: "repse", label: "REPSE" },
-  { key: "soporte_pago_actualizado", label: "Soporte de pago actualizado" },
-  { key: "constancia_vigencia_imss", label: "Constancia de vigencia IMSS" },
-  { key: "constancias_habilidades", label: "Constancias de habilidades" },
+const DOC_LABELS: Record<string, string> = {
+  identificacion_oficial: "Identificación oficial",
+  sua: "SUA",
+  permiso_entrada: "Permiso de entrada",
+  lista_articulos: "Lista de artículos",
+  repse: "REPSE",
+  soporte_pago_actualizado: "Soporte de pago actualizado",
+  constancia_vigencia_imss: "Constancia de vigencia IMSS",
+  constancias_habilidades: "Constancias de habilidades",
+};
+
+const DOC_KEYS = [
+  "identificacion_oficial",
+  "sua",
+  "permiso_entrada",
+  "lista_articulos",
+  "repse",
+  "soporte_pago_actualizado",
+  "constancia_vigencia_imss",
+  "constancias_habilidades",
 ];
 
 const REQUIRED_DOC_KEYS = [
@@ -75,11 +88,20 @@ const REQUIRED_DOC_KEYS = [
   "soporte_pago_actualizado",
 ];
 
-const areDocsComplete = (value?: Record<string, boolean> | null) =>
-  REQUIRED_DOC_KEYS.every((key) => Boolean(value?.[key]));
+const OPTIONAL_DOC_KEYS = ["constancia_vigencia_imss", "constancias_habilidades"];
 
-const createChecks = () =>
-  DOCUMENTOS_CONTRATISTAS.reduce<Record<string, boolean>>((acc, { key }) => {
+const areDocsComplete = (
+  requiredKeys: string[],
+  value?: Record<string, boolean> | null
+) => requiredKeys.every((key) => Boolean(value?.[key]));
+
+const getEstadoLabel = (estado?: number) => {
+  if (estado === 2) return { label: "Verificado", color: "success" as const };
+  if (estado === 3) return { label: "Rechazado", color: "error" as const };
+  return { label: "Pendiente", color: "warning" as const };
+};
+const createChecks = (keys: string[]) =>
+  keys.reduce<Record<string, boolean>>((acc, key) => {
     acc[key] = false;
     return acc;
   }, {});
@@ -90,6 +112,11 @@ export default function Contratistas() {
   const [error, setError] = useState<string>();
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [showVisitantes, setShowVisitantes] = useState(false);
+  const [contratistaDocs, setContratistaDocs] = useState<any | null>(null);
+  const [isLoadingContratistaDocs, setIsLoadingContratistaDocs] = useState(false);
+  const [contratistaInfo, setContratistaInfo] = useState<GridValidRowModel | null>(
+    null
+  );
   const [contratistaSeleccion, setContratistaSeleccion] =
     useState<TContratistaSeleccion | null>(null);
   const [visitantesError, setVisitantesError] = useState<string>();
@@ -100,8 +127,27 @@ export default function Contratistas() {
     useState<GridValidRowModel | null>(null);
   const [showDetalleVisitante, setShowDetalleVisitante] = useState(false);
   const [showVerificarVisitante, setShowVerificarVisitante] = useState(false);
+  const [showRevertirVisitante, setShowRevertirVisitante] = useState(false);
   const [isLoadingDetalle, setIsLoadingDetalle] = useState(false);
   const [isLoadingVerificar, setIsLoadingVerificar] = useState(false);
+  const [isLoadingRevertir, setIsLoadingRevertir] = useState(false);
+  const [showVerificarContratista, setShowVerificarContratista] = useState(false);
+  const [showRevertirContratista, setShowRevertirContratista] = useState(false);
+  const [showMotivoRechazoContratista, setShowMotivoRechazoContratista] =
+    useState(false);
+  const [motivoRechazoContratista, setMotivoRechazoContratista] = useState("");
+  const [isLoadingVerificarContratista, setIsLoadingVerificarContratista] =
+    useState(false);
+  const [isLoadingRevertirContratista, setIsLoadingRevertirContratista] =
+    useState(false);
+  const [isEnviandoRechazoContratista, setIsEnviandoRechazoContratista] =
+    useState(false);
+  const [verifChecksContratista, setVerifChecksContratista] = useState<
+    Record<string, boolean>
+  >({});
+  const [expandedDocKeyContratista, setExpandedDocKeyContratista] = useState<
+    string | false
+  >(false);
   const [verifChecks, setVerifChecks] = useState<Record<string, boolean>>({});
   const [showMotivoRechazo, setShowMotivoRechazo] = useState(false);
   const [motivoRechazo, setMotivoRechazo] = useState("");
@@ -118,6 +164,43 @@ export default function Contratistas() {
   const verifScrollRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const config = useSelector(selectCurrentData);
+  const docsVisitantes = config?.documentos_visitantes || {};
+  const docsContratistasConfig = config?.documentos_contratistas || {};
+  const enabledDocKeys = DOC_KEYS.filter((key) => docsVisitantes[key] !== false);
+  const requiredDocKeys = REQUIRED_DOC_KEYS.filter(
+    (key) => docsVisitantes[key] !== false
+  );
+  const optionalDocKeys = OPTIONAL_DOC_KEYS.filter(
+    (key) => docsVisitantes[key] !== false
+  );
+  const enabledContratistaDocKeys = DOC_KEYS.filter(
+    (key) => docsContratistasConfig[key] !== false
+  );
+  const requiredContratistaDocKeys = REQUIRED_DOC_KEYS.filter(
+    (key) => docsContratistasConfig[key] !== false
+  );
+  const optionalContratistaDocKeys = OPTIONAL_DOC_KEYS.filter(
+    (key) => docsContratistasConfig[key] !== false
+  );
+  const documentosContratistas = enabledDocKeys.map((key) => ({
+    key,
+    label: DOC_LABELS[key],
+  }));
+  const documentosOpcionales = optionalDocKeys.map((key) => ({
+    key,
+    label: DOC_LABELS[key],
+  }));
+  const documentosContratistaAdmin = enabledContratistaDocKeys.map((key) => ({
+    key,
+    label: DOC_LABELS[key],
+  }));
+  const documentosContratistaAdminOpcionales = optionalContratistaDocKeys.map(
+    (key) => ({
+      key,
+      label: DOC_LABELS[key],
+    })
+  );
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -201,13 +284,35 @@ export default function Contratistas() {
           throw error;
         }
 
+        if (contratistaSeleccion?.id) {
+          const contratistaRow: GridValidRowModel = {
+            _id: `contratista-${contratistaSeleccion.id}`,
+            __isContratista: true,
+            nombre_completo: contratistaSeleccion.empresa || "Contratista",
+            correo: contratistaInfo?.correo || "",
+            telefono: contratistaInfo?.telefono || "",
+            estado_validacion: contratistaDocs?.estado_validacion,
+            empresa: contratistaSeleccion.empresa,
+          };
+          rows = [contratistaRow, ...rows];
+          rowCount += 1;
+        }
+
         return {
           rows,
           rowCount,
         };
       },
     }),
-    [contratistaSeleccion?.id, filtroDocs, navigate]
+    [
+      contratistaSeleccion?.id,
+      contratistaSeleccion?.empresa,
+      contratistaDocs?.estado_validacion,
+      contratistaInfo?.correo,
+      contratistaInfo?.telefono,
+      filtroDocs,
+      navigate,
+    ]
   );
 
   const initialState: GridInitialState = useMemo(
@@ -234,10 +339,31 @@ export default function Contratistas() {
     navigate(`detalle-contratista/${ID}`);
   };
 
-  const abrirVisitantes = (id?: string, empresa?: string) => {
-    if (!id || !empresa) return;
-    setContratistaSeleccion({ id, empresa });
+  const cargarContratistaDocs = async (id: string) => {
+    setIsLoadingContratistaDocs(true);
+    try {
+      const res = await clienteAxios.get("/api/contratistas-documentos", {
+        params: { contratista: id },
+      });
+      if (res.data.estado) {
+        setContratistaDocs(res.data.datos || null);
+      } else {
+        setContratistaDocs(null);
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+      setContratistaDocs(null);
+    } finally {
+      setIsLoadingContratistaDocs(false);
+    }
+  };
+  const abrirVisitantes = (row?: GridValidRowModel | null) => {
+    if (!row?._id || !row?.empresa) return;
+    setContratistaSeleccion({ id: String(row._id), empresa: String(row.empresa) });
+    setContratistaInfo(row);
     setShowVisitantes(true);
+    cargarContratistaDocs(String(row._id));
   };
 
   const cerrarVisitantes = () => {
@@ -246,6 +372,11 @@ export default function Contratistas() {
     setSelectedVisitante(null);
     setShowDetalleVisitante(false);
     setShowVerificarVisitante(false);
+    setShowVerificarContratista(false);
+    setContratistaDocs(null);
+    setContratistaInfo(null);
+    setShowRevertirVisitante(false);
+    setShowRevertirContratista(false);
   };
 
   const cambiarEstado = async (ID: string, activo: boolean) => {
@@ -301,13 +432,232 @@ export default function Contratistas() {
   const abrirVerificarVisitante = (row?: GridValidRowModel | null) => {
     const target = row || selectedVisitante;
     if (!target) return;
+    if ((target as any)?.__isContratista) {
+      abrirVerificarContratista();
+      return;
+    }
     setSelectedVisitanteId(String(target._id || target.id));
     setSelectedVisitante(target);
-    setVerifChecks(createChecks());
+    setVerifChecks(createChecks(enabledDocKeys));
     setExpandedDocKey(false);
     setShowVerificarVisitante(true);
     setShowVisitantes(false);
     cargarVisitanteDetalle(String(target._id || target.id), true);
+  };
+
+  const abrirRevertirVisitante = (row?: GridValidRowModel | null) => {
+    const target = row || selectedVisitante;
+    if (!target) return;
+    if ((target as any)?.__isContratista) {
+      setShowRevertirContratista(true);
+      return;
+    }
+    setSelectedVisitanteId(String(target._id || target.id));
+    setSelectedVisitante(target);
+    setShowRevertirVisitante(true);
+  };
+
+  const abrirVerificarContratista = () => {
+    setExpandedDocKeyContratista(false);
+    setVerifChecksContratista(createChecks(enabledContratistaDocKeys));
+    setShowVerificarContratista(true);
+    setShowVisitantes(false);
+  };
+
+  const confirmarVerificacionContratista = async () => {
+    if (!contratistaDocs?._id) return;
+    if (!areDocsComplete(requiredContratistaDocKeys, verifChecksContratista)) {
+      await confirm({
+        title: "Documentos incompletos",
+        description:
+          "Para poder verificar al contratista, se deben tener todos los documentos marcados.",
+        allowClose: true,
+        confirmationText: "Cerrar",
+        hideCancelButton: true,
+      }).catch(() => {});
+      return;
+    }
+
+    try {
+      const result = await confirm({
+        title: "Confirmar verificación",
+        description: `Confirma que los documentos de ${contratistaSeleccion?.empresa || "este contratista"} están completos y vigentes?`,
+        allowClose: true,
+        confirmationText: "Continuar",
+      });
+      if (!result.confirmed) return;
+    } catch {
+      return;
+    }
+
+    setIsLoadingVerificarContratista(true);
+    try {
+      const res = await clienteAxios.patch(
+        `/api/contratistas-documentos/verificar/${contratistaDocs._id}`,
+        { documentos_checks: verifChecksContratista }
+      );
+      if (res.data.estado) {
+        enqueueSnackbar("Contratista verificado.", { variant: "success" });
+        setContratistaDocs(res.data.datos || contratistaDocs);
+        setSelectedVisitante((prev) =>
+          prev && (prev as any).__isContratista
+            ? { ...prev, estado_validacion: 2 }
+            : prev
+        );
+        apiRefVisitantes.current?.dataSource?.fetchRows?.();
+        setShowVerificarContratista(false);
+        setShowVisitantes(true);
+      } else {
+        enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setIsLoadingVerificarContratista(false);
+    }
+  };
+
+  const solicitarCorreccionContratista = async () => {
+    if (!contratistaDocs?._id) return;
+    if (areDocsComplete(requiredContratistaDocKeys, verifChecksContratista)) return;
+    setMotivoRechazoContratista("");
+    setShowMotivoRechazoContratista(true);
+  };
+
+  const confirmarRechazoContratista = async () => {
+    if (!contratistaDocs?._id) return;
+    if (!motivoRechazoContratista.trim()) {
+      enqueueSnackbar("El motivo de rechazo es obligatorio.", {
+        variant: "warning",
+      });
+      return;
+    }
+    setIsEnviandoRechazoContratista(true);
+    try {
+      const res = await clienteAxios.patch(
+        `/api/contratistas-documentos/rechazar/${contratistaDocs._id}`,
+        {
+          documentos_checks: verifChecksContratista,
+          motivo_rechazo: motivoRechazoContratista.trim(),
+        }
+      );
+      if (res.data.estado) {
+        enqueueSnackbar("Documentos enviados a corrección.", {
+          variant: "success",
+        });
+        setContratistaDocs(res.data.datos || contratistaDocs);
+        setSelectedVisitante((prev) =>
+          prev && (prev as any).__isContratista
+            ? { ...prev, estado_validacion: 3 }
+            : prev
+        );
+        apiRefVisitantes.current?.dataSource?.fetchRows?.();
+        setShowMotivoRechazoContratista(false);
+        setShowVerificarContratista(false);
+        setShowVisitantes(true);
+      } else {
+        enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setIsEnviandoRechazoContratista(false);
+    }
+  };
+
+  const confirmarRevertirContratista = async () => {
+    if (!contratistaDocs?._id) return;
+    setIsLoadingRevertirContratista(true);
+    try {
+      const res = await clienteAxios.patch(
+        `/api/contratistas-documentos/revertir/${contratistaDocs._id}`
+      );
+      if (res.data.estado) {
+        enqueueSnackbar("Verificación revertida.", { variant: "success" });
+        setContratistaDocs(res.data.datos || contratistaDocs);
+        setSelectedVisitante((prev) =>
+          prev && (prev as any).__isContratista
+            ? { ...prev, estado_validacion: 1 }
+            : prev
+        );
+        apiRefVisitantes.current?.dataSource?.fetchRows?.();
+        setShowRevertirContratista(false);
+      } else {
+        enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setIsLoadingRevertirContratista(false);
+    }
+  };
+
+  const renderDocPreview = (docUrl?: string, label?: string) => {
+    if (!docUrl) {
+      return <Typography variant="body2">Sin archivo</Typography>;
+    }
+    const lower = docUrl.toLowerCase();
+    const isPdf =
+      lower.endsWith(".pdf") ||
+      lower.includes(".pdf?") ||
+      lower.startsWith("data:application/pdf");
+    if (isPdf) {
+      return (
+        <Box
+          component="iframe"
+          src={docUrl}
+          title={label || "Documento"}
+          sx={{
+            width: "100%",
+            height: 360,
+            borderRadius: 1,
+            border: "1px solid #e0e0e0",
+          }}
+        />
+      );
+    }
+    return (
+      <Box
+        component="img"
+        src={docUrl}
+        alt={label}
+        sx={{
+          maxWidth: "100%",
+          maxHeight: 360,
+          objectFit: "contain",
+          borderRadius: 1,
+          border: "1px solid #e0e0e0",
+        }}
+      />
+    );
+  };
+
+  const confirmarRevertirVisitante = async () => {
+    if (!selectedVisitante?._id) return;
+    setIsLoadingRevertir(true);
+    try {
+      const res = await clienteAxios.patch(
+        `/api/contratistas-visitantes/revertir/${selectedVisitante._id}`
+      );
+      if (res.data.estado) {
+        enqueueSnackbar("Verificación revertida.", { variant: "success" });
+        setSelectedVisitante((prev) =>
+          prev ? { ...prev, estado_validacion: 1 } : prev
+        );
+        apiRefVisitantes.current?.dataSource?.fetchRows?.();
+        setShowRevertirVisitante(false);
+      } else {
+        enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setIsLoadingRevertir(false);
+    }
   };
 
   const cargarVisitanteDetalle = async (
@@ -333,7 +683,7 @@ export default function Contratistas() {
 
   const confirmarVerificacion = async () => {
     if (!selectedVisitante) return;
-    if (!areDocsComplete(verifChecks)) {
+    if (!areDocsComplete(requiredDocKeys, verifChecks)) {
       await confirm({
         title: "Documentos incompletos",
         description:
@@ -369,6 +719,7 @@ export default function Contratistas() {
         );
         apiRefVisitantes.current?.dataSource?.fetchRows?.();
         setShowVerificarVisitante(false);
+            setContratistaDocs(null);
         setShowVisitantes(true);
       } else {
         enqueueSnackbar(res.data.mensaje, { variant: "warning" });
@@ -381,7 +732,7 @@ export default function Contratistas() {
 
   const solicitarCorreccion = async () => {
     if (!selectedVisitante) return;
-    if (areDocsComplete(verifChecks)) return;
+    if (areDocsComplete(requiredDocKeys, verifChecks)) return;
     setMotivoRechazo("");
     setShowMotivoRechazo(true);
   };
@@ -410,6 +761,7 @@ export default function Contratistas() {
         apiRefVisitantes.current?.dataSource?.fetchRows?.();
         setShowMotivoRechazo(false);
         setShowVerificarVisitante(false);
+            setContratistaDocs(null);
         setShowVisitantes(true);
       } else {
         enqueueSnackbar(res.data.mensaje, { variant: "warning" });
@@ -451,6 +803,11 @@ export default function Contratistas() {
     actualizarScrollVerificar();
   }, [showVerificarVisitante, isLoadingVerificar, selectedVisitante, expandedDocKey]);
 
+  const isContratistaSeleccionado = Boolean(
+    (selectedVisitante as any)?.__isContratista
+  );
+  const contratistaPuedeVerificarse = Boolean(contratistaDocs?._id);
+
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
       <DataGrid
@@ -464,7 +821,7 @@ export default function Contratistas() {
         }}
         onRowDoubleClick={(params) => {
           setSelectedRowId(String(params.id));
-          abrirVisitantes(String(params.row._id), String(params.row.empresa));
+          abrirVisitantes(params.row);
         }}
         getRowClassName={(params) =>
           params.id === selectedRowId ? "row-selected" : ""
@@ -621,11 +978,7 @@ export default function Contratistas() {
                           <IconButton
                         onClick={() =>
                           abrirVisitantes(
-                            selectedRowId || undefined,
-                            String(
-                              apiRef.current?.getRow(selectedRowId || "")
-                                ?.empresa || ""
-                            )
+                            apiRef.current?.getRow(selectedRowId || "") || null
                           )
                         }
                         disabled={!selectedRowId}
@@ -742,8 +1095,31 @@ export default function Contratistas() {
                     flex: 1,
                     display: "flex",
                     minWidth: 180,
-                    valueFormatter: (value?: string) =>
-                      value && String(value).trim() ? String(value) : "-",
+                    renderCell: ({ row, value }) => {
+                      if (row?.__isContratista) {
+                        return (
+                          <Box sx={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                textTransform: "uppercase",
+                                letterSpacing: 0.6,
+                                color: "text.secondary",
+                                fontWeight: 700,
+                              }}
+                            >
+                              Contratista
+                            </Typography>
+                            <Typography variant="body2" fontWeight={700}>
+                              {contratistaSeleccion?.empresa || "-"}
+                            </Typography>
+                          </Box>
+                        );
+                      }
+                      const text =
+                        value && String(value).trim() ? String(value) : "-";
+                      return <span>{text}</span>;
+                    },
                   },
                   {
                     headerName: "Correo",
@@ -751,8 +1127,16 @@ export default function Contratistas() {
                     flex: 1,
                     display: "flex",
                     minWidth: 200,
-                    valueFormatter: (value?: string) =>
-                      value && String(value).trim() ? String(value) : "-",
+                    renderCell: ({ row, value }) => {
+                      if (row?.__isContratista) {
+                        const text =
+                          value && String(value).trim() ? String(value) : "-";
+                        return <span>{text}</span>;
+                      }
+                      const text =
+                        value && String(value).trim() ? String(value) : "-";
+                      return <span>{text}</span>;
+                    },
                   },
                   {
                     headerName: "Teléfono",
@@ -760,8 +1144,16 @@ export default function Contratistas() {
                     flex: 1,
                     display: "flex",
                     minWidth: 140,
-                    valueFormatter: (value?: string) =>
-                      value && String(value).trim() ? String(value) : "-",
+                    renderCell: ({ row, value }) => {
+                      if (row?.__isContratista) {
+                        const text =
+                          value && String(value).trim() ? String(value) : "-";
+                        return <span>{text}</span>;
+                      }
+                      const text =
+                        value && String(value).trim() ? String(value) : "-";
+                      return <span>{text}</span>;
+                    },
                   },
                   {
                     headerName: "Estado",
@@ -771,7 +1163,41 @@ export default function Contratistas() {
                     minWidth: 140,
                     headerAlign: "center",
                     align: "center",
-                    renderCell: ({ value }) => {
+                    renderCell: ({ row, value }) => {
+                      if (row?.__isContratista) {
+                        if (isLoadingContratistaDocs) {
+                          return (
+                            <Typography
+                              component="span"
+                              sx={{ fontSize: 12, fontWeight: 600, color: "text.secondary" }}
+                            >
+                              Cargando...
+                            </Typography>
+                          );
+                        }
+                        const estado = getEstadoLabel(
+                          contratistaDocs?.estado_validacion
+                        );
+                        return (
+                          <Typography
+                            component="span"
+                            sx={{
+                              bgcolor: `${estado.color}.main`,
+                              color: "#fff",
+                              px: 1.5,
+                              py: 0.25,
+                              borderRadius: 999,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              minWidth: 100,
+                              textAlign: "center",
+                              display: "inline-block",
+                            }}
+                          >
+                            {estado.label}
+                          </Typography>
+                        );
+                      }
                       const verificado = value === 2;
                       return (
                         <Typography
@@ -819,14 +1245,26 @@ export default function Contratistas() {
                     flex: 1,
                     display: "flex",
                     minWidth: 120,
-                    getActions: ({ row }) => [
-                      <GridActionsCellItem
-                        icon={<Visibility color="primary" />}
-                        onClick={() => abrirDetalleVisitante(row)}
-                        label="Ver"
-                        title="Ver"
-                      />,
-                    ],
+                    getActions: ({ row }) => {
+                      if (row?.__isContratista) {
+                        return [
+                          <GridActionsCellItem
+                            icon={<Visibility color="primary" />}
+                            onClick={() => abrirVerificarContratista()}
+                            label="Ver"
+                            title="Ver"
+                          />,
+                        ];
+                      }
+                      return [
+                        <GridActionsCellItem
+                          icon={<Visibility color="primary" />}
+                          onClick={() => abrirDetalleVisitante(row)}
+                          label="Ver"
+                          title="Ver"
+                        />,
+                      ];
+                    },
                   },
                 ]}
                 disableColumnFilter
@@ -842,14 +1280,24 @@ export default function Contratistas() {
                   const row = params.row;
                   setSelectedVisitanteId(String(params.id));
                   setSelectedVisitante(row);
+                  if (row?.__isContratista) {
+                    abrirVerificarContratista();
+                    return;
+                  }
                   if (row?.estado_validacion === 2) {
                     abrirDetalleVisitante(row);
                   } else {
                     abrirVerificarVisitante(row);
                   }
                 }}
-                getRowClassName={(params) =>
-                  params.id === selectedVisitanteId ? "row-selected" : ""
+                getRowClassName={(params) => {
+                  const classes: string[] = [];
+                  if (params.row?.__isContratista) classes.push("row-contratista");
+                  if (params.id === selectedVisitanteId) classes.push("row-selected");
+                  return classes.join(" ");
+                }}
+                getRowHeight={(params) =>
+                  params.model?.__isContratista ? 60 : null
                 }
                 onDataSourceError={(dataSourceError) => {
                   if (dataSourceError.cause instanceof AxiosError) {
@@ -882,13 +1330,27 @@ export default function Contratistas() {
                               variant="contained"
                               size="small"
                               startIcon={<Verified />}
-                              onClick={() => abrirVerificarVisitante()}
+                              onClick={() => {
+                                if (selectedVisitante?.estado_validacion === 2) {
+                                  abrirRevertirVisitante();
+                                } else {
+                                  if (isContratistaSeleccionado) {
+                                    abrirVerificarContratista();
+                                  } else {
+                                    abrirVerificarVisitante();
+                                  }
+                                }
+                              }}
                               disabled={
                                 !selectedVisitante ||
-                                selectedVisitante?.estado_validacion === 2
+                                isLoadingRevertir ||
+                                isLoadingRevertirContratista ||
+                                (isContratistaSeleccionado && !contratistaPuedeVerificarse)
                               }
                             >
-                              Verificar
+                              {selectedVisitante?.estado_validacion === 2
+                                ? "Revertir verificación"
+                                : "Verificar"}
                             </Button>
                             <Tooltip title="Recargar">
                               <IconButton
@@ -908,6 +1370,9 @@ export default function Contratistas() {
                   "& .row-selected": {
                     outline: "2px solid #7A3DF0",
                     outlineOffset: -2,
+                  },
+                  "& .row-contratista .MuiDataGrid-cell": {
+                    borderBottom: "2px solid #7A3DF0",
                   },
                   "& .MuiDataGrid-cell.MuiDataGrid-cell--focus": {
                     outline: "none",
@@ -1067,7 +1532,7 @@ export default function Contratistas() {
                 >
                   <strong>Documentos</strong>
                 </Typography>
-                {DOCUMENTOS_CONTRATISTAS.filter(
+                {documentosContratistas.filter(
                   ({ key }) =>
                     !["constancia_vigencia_imss", "constancias_habilidades"].includes(
                       key
@@ -1113,22 +1578,7 @@ export default function Contratistas() {
                         </Box>
                       </AccordionSummary>
                       <AccordionDetails>
-                        {docUrl ? (
-                          <Box
-                            component="img"
-                            src={docUrl}
-                            alt={label}
-                            sx={{
-                              maxWidth: "100%",
-                              maxHeight: 360,
-                              objectFit: "contain",
-                              borderRadius: 1,
-                              border: "1px solid #e0e0e0",
-                            }}
-                          />
-                        ) : (
-                          <Typography variant="body2">Sin archivo</Typography>
-                        )}
+                        {renderDocPreview(docUrl, label)}
                       </AccordionDetails>
                     </Accordion>
                   );
@@ -1139,10 +1589,10 @@ export default function Contratistas() {
                     (selectedVisitante as any)?.documentos_urls ||
                     (selectedVisitante as any)?.documentos_archivos ||
                     {};
-                  const opcionales = DOCUMENTOS_CONTRATISTAS.filter(({ key }) =>
-                    ["constancia_vigencia_imss", "constancias_habilidades"].includes(key)
-                  ).filter(({ key }) => Boolean(documentos?.[key]));
-                  if (opcionales.length === 0) return null;
+                      const opcionales = documentosOpcionales.filter(({ key }) =>
+                        Boolean(documentos?.[key])
+                      );
+                      if (opcionales.length === 0) return null;
                   return (
                     <>
                       <Typography
@@ -1198,22 +1648,7 @@ export default function Contratistas() {
                               </Box>
                             </AccordionSummary>
                             <AccordionDetails>
-                              {docUrl ? (
-                                <Box
-                                  component="img"
-                                  src={docUrl}
-                                  alt={label}
-                                  sx={{
-                                    maxWidth: "100%",
-                                    maxHeight: 360,
-                                    objectFit: "contain",
-                                    borderRadius: 1,
-                                    border: "1px solid #e0e0e0",
-                                  }}
-                                />
-                              ) : (
-                                <Typography variant="body2">Sin archivo</Typography>
-                              )}
+                              {renderDocPreview(docUrl, label)}
                             </AccordionDetails>
                           </Accordion>
                         );
@@ -1232,6 +1667,7 @@ export default function Contratistas() {
         onClose={(_, reason) => {
           if (reason === "escapeKeyDown" || reason === "backdropClick") {
             setShowVerificarVisitante(false);
+            setContratistaDocs(null);
             setShowVisitantes(true);
           }
         }}
@@ -1284,6 +1720,7 @@ export default function Contratistas() {
                     <MuiIconButton
                       onClick={() => {
                         setShowVerificarVisitante(false);
+            setContratistaDocs(null);
                         setShowVisitantes(true);
                       }}
                       size="small"
@@ -1380,7 +1817,7 @@ export default function Contratistas() {
                         <ExpandMoreIcon sx={{ transform: "rotate(180deg)" }} />
                       </MuiIconButton>
                     )}
-                    {DOCUMENTOS_CONTRATISTAS.filter(
+                    {documentosContratistas.filter(
                       ({ key }) =>
                         !["constancia_vigencia_imss", "constancias_habilidades"].includes(
                           key
@@ -1438,23 +1875,8 @@ export default function Contratistas() {
                           </Box>
                         </AccordionSummary>
                         <AccordionDetails>
-                          {docUrl ? (
-                            <Box
-                              component="img"
-                              src={docUrl}
-                              alt={label}
-                              sx={{
-                                maxWidth: "100%",
-                                maxHeight: 360,
-                                objectFit: "contain",
-                                borderRadius: 1,
-                                border: "1px solid #e0e0e0",
-                              }}
-                            />
-                          ) : (
-                            <Typography variant="body2">Sin archivo</Typography>
-                        )}
-                      </AccordionDetails>
+                          {renderDocPreview(docUrl, label)}
+                        </AccordionDetails>
                     </Accordion>
                       );
                     })}
@@ -1464,11 +1886,9 @@ export default function Contratistas() {
                         (selectedVisitante as any)?.documentos_urls ||
                         (selectedVisitante as any)?.documentos_archivos ||
                         {};
-                      const opcionales = DOCUMENTOS_CONTRATISTAS.filter(({ key }) =>
-                        ["constancia_vigencia_imss", "constancias_habilidades"].includes(
-                          key
-                        )
-                      ).filter(({ key }) => Boolean(documentos?.[key]));
+                      const opcionales = documentosOpcionales.filter(({ key }) =>
+                        Boolean(documentos?.[key])
+                      );
                       if (opcionales.length === 0) return null;
                       return (
                         <>
@@ -1537,22 +1957,7 @@ export default function Contratistas() {
                                   </Box>
                                 </AccordionSummary>
                                 <AccordionDetails>
-                                  {docUrl ? (
-                                    <Box
-                                      component="img"
-                                      src={docUrl}
-                                      alt={label}
-                                      sx={{
-                                        maxWidth: "100%",
-                                        maxHeight: 360,
-                                        objectFit: "contain",
-                                        borderRadius: 1,
-                                        border: "1px solid #e0e0e0",
-                                      }}
-                                    />
-                                  ) : (
-                                    <Typography variant="body2">Sin archivo</Typography>
-                                  )}
+                                  {renderDocPreview(docUrl, label)}
                                 </AccordionDetails>
                               </Accordion>
                             );
@@ -1582,7 +1987,7 @@ export default function Contratistas() {
                     )}
                   </Box>
                   <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
-                    {areDocsComplete(verifChecks) ? (
+                    {areDocsComplete(requiredDocKeys, verifChecks) ? (
                       <Button
                         variant="contained"
                         startIcon={<Verified />}
@@ -1596,6 +2001,304 @@ export default function Contratistas() {
                         variant="contained"
                         color="warning"
                         onClick={solicitarCorreccion}
+                      >
+                        Solicitar corrección
+                      </Button>
+                    )}
+                  </Box>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </Box>
+      </Modal>
+      <Modal
+        open={showVerificarContratista}
+        onClose={() => {
+          setShowVerificarContratista(false);
+          setShowVisitantes(true);
+        }}
+        sx={{ outline: "none" }}
+      >
+        <Box
+          sx={{
+            height: "100%",
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 2,
+            outline: "none",
+            "&:focus, &:focus-visible": { outline: "none" },
+          }}
+        >
+          <Card
+            sx={{
+              width: "100%",
+              maxWidth: 1200,
+              maxHeight: "80vh",
+              outline: "none",
+              "&:focus, &:focus-visible": { outline: "none" },
+            }}
+          >
+            <CardContent
+              sx={{ maxHeight: "80vh", overflowY: "auto", overflowX: "hidden" }}
+            >
+              {isLoadingContratistaDocs ? (
+                <Spinner />
+              ) : !contratistaDocs ? (
+                <Typography variant="body1">
+                  El contratista no tiene documentos cargados.
+                </Typography>
+              ) : (
+                <>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      mb: 2,
+                    }}
+                  >
+                    <Typography variant="h6" component="h6">
+                      Verificar contratista
+                    </Typography>
+                    <MuiIconButton
+                      onClick={() => {
+                        setShowVerificarContratista(false);
+                        setShowVisitantes(true);
+                      }}
+                      size="small"
+                      sx={{ color: "error.main" }}
+                    >
+                      <CloseIcon fontSize="small" />
+                    </MuiIconButton>
+                  </Box>
+                  <Typography
+                    variant="h6"
+                    component="h6"
+                    color="primary"
+                    bgcolor="#FFFFFF"
+                    sx={(theme) => ({
+                      border: `1px solid ${theme.palette.primary.main}`,
+                      borderRadius: 2,
+                      px: 2,
+                      py: 0.5,
+                    })}
+                    textAlign="center"
+                    mb={2}
+                  >
+                    <strong>Generales</strong>
+                  </Typography>
+                  <Box sx={{ display: "grid", gap: 1.5, mb: 2 }}>
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: "140px 1fr",
+                        gap: 1,
+                      }}
+                    >
+                      <strong>Empresa:</strong>
+                      <span>{contratistaSeleccion?.empresa || "-"}</span>
+                    </Box>
+                  </Box>
+                  <Typography
+                    variant="h6"
+                    component="h6"
+                    color="primary"
+                    bgcolor="#FFFFFF"
+                    sx={(theme) => ({
+                      border: `1px solid ${theme.palette.primary.main}`,
+                      borderRadius: 2,
+                      px: 2,
+                      py: 0.5,
+                    })}
+                    textAlign="center"
+                    mb={2}
+                  >
+                    <strong>Documentos</strong>
+                  </Typography>
+                  <Box sx={{ display: "grid", gap: 1.5 }}>
+                    {documentosContratistaAdmin.filter(
+                      ({ key }) =>
+                        !["constancia_vigencia_imss", "constancias_habilidades"].includes(
+                          key
+                        )
+                    ).map(({ key, label }) => {
+                      const documentos =
+                        (contratistaDocs as any)?.documentos_archivos ||
+                        (contratistaDocs as any)?.documentos_urls ||
+                        {};
+                      const docUrl = documentos?.[key] as string | undefined;
+                      const tieneDoc = Boolean(verifChecksContratista?.[key]);
+                      return (
+                        <Accordion
+                          key={key}
+                          disableGutters
+                          expanded={expandedDocKeyContratista === key}
+                          onChange={(_, isExpanded) =>
+                            setExpandedDocKeyContratista(isExpanded ? key : false)
+                          }
+                        >
+                          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                width: "100%",
+                                pr: 2,
+                              }}
+                            >
+                              <Typography>{label}</Typography>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 1,
+                                }}
+                              >
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: tieneDoc ? "success.main" : "error.main",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  {tieneDoc ? "OK" : "Pendiente de revisión"}
+                                </Typography>
+                                <Checkbox
+                                  size="small"
+                                  checked={tieneDoc}
+                                  onClick={(event) => event.stopPropagation()}
+                                  onChange={(event) =>
+                                    setVerifChecksContratista((prev) => ({
+                                      ...prev,
+                                      [key]: event.target.checked,
+                                    }))
+                                  }
+                                />
+                              </Box>
+                            </Box>
+                          </AccordionSummary>
+                          <AccordionDetails>
+                            {renderDocPreview(docUrl, label)}
+                          </AccordionDetails>
+                        </Accordion>
+                      );
+                    })}
+                    {(() => {
+                      const documentos =
+                        (contratistaDocs as any)?.documentos_archivos ||
+                        (contratistaDocs as any)?.documentos_urls ||
+                        {};
+                      const opcionales = documentosContratistaAdminOpcionales.filter(
+                        ({ key }) => Boolean(documentos?.[key])
+                      );
+                      if (opcionales.length === 0) return null;
+                      return (
+                        <>
+                          <Typography
+                            variant="h6"
+                            component="h6"
+                            color="primary"
+                            bgcolor="#FFFFFF"
+                            sx={(theme) => ({
+                              border: `1px solid ${theme.palette.primary.main}`,
+                              borderRadius: 2,
+                              px: 2,
+                              py: 0.5,
+                              mt: 2,
+                            })}
+                            textAlign="center"
+                            mb={2}
+                          >
+                            <strong>Documentos opcionales</strong>
+                          </Typography>
+                          {opcionales.map(({ key, label }) => {
+                            const docUrl = documentos?.[key] as string | undefined;
+                            const tieneDoc = Boolean(verifChecksContratista?.[key]);
+                            return (
+                              <Accordion
+                                key={key}
+                                disableGutters
+                                expanded={expandedDocKeyContratista === key}
+                                onChange={(_, isExpanded) =>
+                                  setExpandedDocKeyContratista(isExpanded ? key : false)
+                                }
+                              >
+                                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                  <Box
+                                    sx={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "space-between",
+                                      width: "100%",
+                                      pr: 2,
+                                    }}
+                                  >
+                                    <Typography>{label}</Typography>
+                                    <Box
+                                      sx={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 1,
+                                      }}
+                                    >
+                                      <Typography
+                                        variant="caption"
+                                        sx={{
+                                          color: tieneDoc ? "success.main" : "error.main",
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        {tieneDoc ? "OK" : "Pendiente de revisión"}
+                                      </Typography>
+                                      <Checkbox
+                                        size="small"
+                                        checked={tieneDoc}
+                                        onClick={(event) => event.stopPropagation()}
+                                        onChange={(event) =>
+                                          setVerifChecksContratista((prev) => ({
+                                            ...prev,
+                                            [key]: event.target.checked,
+                                          }))
+                                        }
+                                      />
+                                    </Box>
+                                  </Box>
+                                </AccordionSummary>
+                                <AccordionDetails>
+                                  {renderDocPreview(docUrl, label)}
+                                </AccordionDetails>
+                              </Accordion>
+                            );
+                          })}
+                        </>
+                      );
+                    })()}
+                  </Box>
+                  <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+                    {areDocsComplete(
+                      requiredContratistaDocKeys,
+                      verifChecksContratista
+                    ) ? (
+                      <Button
+                        variant="contained"
+                        startIcon={<Verified />}
+                        onClick={confirmarVerificacionContratista}
+                        disabled={
+                          contratistaDocs?.estado_validacion === 2 ||
+                          isLoadingVerificarContratista
+                        }
+                      >
+                        Verificar
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="contained"
+                        color="warning"
+                        onClick={solicitarCorreccionContratista}
                       >
                         Solicitar corrección
                       </Button>
@@ -1624,8 +2327,8 @@ export default function Contratistas() {
             "&:focus, &:focus-visible": { outline: "none" },
           }}
         >
-          <Card sx={{ width: "100%", maxWidth: 600, height: "60vh", maxHeight: "60vh" }}>
-            <CardContent sx={{ height: "100%", overflowY: "auto" }}>
+          <Card sx={{ width: "100%", maxWidth: 520 }}>
+            <CardContent sx={{ overflow: "hidden" }}>
               <Box
                 sx={{
                   display: "flex",
@@ -1649,7 +2352,7 @@ export default function Contratistas() {
                 fullWidth
                 label="Motivo"
                 multiline
-                minRows={3}
+                minRows={2}
                 value={motivoRechazo}
                 onChange={(event) => setMotivoRechazo(event.target.value)}
               />
@@ -1667,6 +2370,211 @@ export default function Contratistas() {
           </Card>
         </Box>
       </Modal>
+      <Modal
+        open={showMotivoRechazoContratista}
+        onClose={() => setShowMotivoRechazoContratista(false)}
+        sx={{ outline: "none" }}
+      >
+        <Box
+          sx={{
+            height: "100%",
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 2,
+            outline: "none",
+            "&:focus, &:focus-visible": { outline: "none" },
+          }}
+        >
+          <Card sx={{ width: "100%", maxWidth: 520 }}>
+            <CardContent sx={{ overflow: "hidden" }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 2,
+                }}
+              >
+                <Typography variant="h6" component="h6">
+                  Motivo de rechazo
+                </Typography>
+                <MuiIconButton
+                  onClick={() => setShowMotivoRechazoContratista(false)}
+                  size="small"
+                  sx={{ color: "error.main" }}
+                >
+                  <CloseIcon fontSize="small" />
+                </MuiIconButton>
+              </Box>
+              <TextField
+                fullWidth
+                label="Motivo"
+                multiline
+                minRows={2}
+                value={motivoRechazoContratista}
+                onChange={(event) =>
+                  setMotivoRechazoContratista(event.target.value)
+                }
+              />
+              <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+                <Button
+                  variant="contained"
+                  color="error"
+                  onClick={confirmarRechazoContratista}
+                  disabled={isEnviandoRechazoContratista}
+                >
+                  Rechazar
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+      </Modal>
+      <Modal
+        open={showRevertirVisitante}
+        onClose={(_, reason) => {
+          if (reason === "escapeKeyDown" || reason === "backdropClick") {
+            setShowRevertirVisitante(false);
+          }
+        }}
+        sx={{ outline: "none" }}
+      >
+        <Box
+          sx={{
+            height: "100%",
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 2,
+            outline: "none",
+            "&:focus, &:focus-visible": { outline: "none" },
+          }}
+        >
+          <Card sx={{ width: "100%", maxWidth: 420 }}>
+            <CardContent>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 2,
+                }}
+              >
+                <Typography variant="h6" component="h6">
+                  Revertir verificación
+                </Typography>
+                <MuiIconButton
+                  onClick={() => setShowRevertirVisitante(false)}
+                  size="small"
+                  sx={{ color: "error.main" }}
+                >
+                  <CloseIcon fontSize="small" />
+                </MuiIconButton>
+              </Box>
+              <Typography variant="body1" sx={{ mb: 3 }}>
+                Seguro que desea quitar la verificación a{" "}
+                <strong>
+                  {selectedVisitante?.nombre_completo ||
+                    [selectedVisitante?.nombre, selectedVisitante?.apellido_pat, selectedVisitante?.apellido_mat]
+                      .filter(Boolean)
+                      .join(" ") ||
+                    selectedVisitante?.correo ||
+                    "este visitante"}
+                </strong>
+                ?
+              </Typography>
+              <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                <Button
+                  variant="contained"
+                  onClick={confirmarRevertirVisitante}
+                  disabled={isLoadingRevertir}
+                >
+                  Si, revertir
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+      </Modal>
+      <Modal
+        open={showRevertirContratista}
+        onClose={(_, reason) => {
+          if (reason === "escapeKeyDown" || reason === "backdropClick") {
+            setShowRevertirContratista(false);
+          }
+        }}
+        sx={{ outline: "none" }}
+      >
+        <Box
+          sx={{
+            height: "100%",
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 2,
+            outline: "none",
+            "&:focus, &:focus-visible": { outline: "none" },
+          }}
+        >
+          <Card sx={{ width: "100%", maxWidth: 420 }}>
+            <CardContent>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 2,
+                }}
+              >
+                <Typography variant="h6" component="h6">
+                  Revertir verificación
+                </Typography>
+                <MuiIconButton
+                  onClick={() => setShowRevertirContratista(false)}
+                  size="small"
+                  sx={{ color: "error.main" }}
+                >
+                  <CloseIcon fontSize="small" />
+                </MuiIconButton>
+              </Box>
+              <Typography variant="body1" sx={{ mb: 3 }}>
+                Seguro que desea quitar la verificación a{" "}
+                <strong>{contratistaSeleccion?.empresa || "este contratista"}</strong>?
+              </Typography>
+              <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                <Button
+                  variant="contained"
+                  onClick={confirmarRevertirContratista}
+                  disabled={isLoadingRevertirContratista}
+                >
+                  Si, revertir
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+      </Modal>
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

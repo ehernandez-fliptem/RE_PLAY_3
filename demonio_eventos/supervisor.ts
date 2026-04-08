@@ -25,8 +25,8 @@ export async function main() {
         if (res.data.estado) {
             const { habilitarIntegracionHv } = res.data.datos;
             if (habilitarIntegracionHv) {
-                log(`${fecha()} 🔓​ Integración habilitada.\n`);
-                log(`${fecha()} 🔑​ Verificando paneles.\n`);
+                log(`${fecha()} 🔓 Integración habilitada.\n`);
+                log(`${fecha()} 🔑 Verificando paneles.\n`);
                 const res = await clienteAxios.get('/api/dispositivos-hikvision/demonio');
                 if (res.data.estado) {
                     const paneles = res.data.datos;
@@ -65,7 +65,7 @@ const sincronizarEventos = async (paneles: IDispositivoHv[]) => {
         }
         const { _id, nombre, direccion_ip, usuario, contrasena, tipo_evento } = paneles[indexPaneles];
         const decryptPass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO)
-        log(`${fecha()} 📱​ Dispositivo: ${nombre} - ${direccion_ip}\n`);
+        log(`${fecha()} 📱 Dispositivo: ${nombre} - ${direccion_ip}\n`);
         let eventosPanel: EventInfo[] = [];
         const fechaParcial = dayjs();
         const inicio = fechaParcial

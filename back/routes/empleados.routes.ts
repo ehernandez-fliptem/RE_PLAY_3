@@ -24,7 +24,7 @@ const router = Router();
 router.get("/", validarTokenYRol([1, 2]), obtenerTodos);
 router.get("/activos", validarTokenYRol([1, 2]), obtenerTodosActivos);
 router.get("/directorio", validarTokenYRol([1, 2]), obtenerTodosDirectorio);
-router.get("/anfitriones", validarTokenYRol([1, 2]), obtenerAnfitriones);
+router.get("/anfitriones", validarTokenYRol([1, 2, 11]), obtenerAnfitriones);
 router.get("/descargar-formato", validarTokenYRol([1, 2]), descargarFormato);
 router.get("/form-nuevo", validarTokenYRol([1, 2]), obtenerFormNuevoEmpleado);
 router.get("/form-editar/:id", validarTokenYRol([1, 2]), obtenerFormEditarEmpleado);

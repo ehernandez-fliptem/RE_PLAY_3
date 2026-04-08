@@ -8,6 +8,7 @@ import { QueryParams } from "../types/queryparams";
 import Contratistas from "../models/Contratistas";
 import Usuarios from "../models/Usuarios";
 import ContratistaVisitantes, { IContratistaVisitante } from "../models/ContratistaVisitantes";
+import Configuracion from "../models/Configuracion";
 import { fecha, log } from "../middlewares/log";
 import { customAggregationForDataGrids, isEmptyObject } from "../utils/utils";
 import { validarModelo } from "../validators/validadores";
@@ -35,8 +36,9 @@ const REQUIRED_DOC_KEYS = [
 ] as const;
 const OPTIONAL_DOC_KEYS = ["constancia_vigencia_imss", "constancias_habilidades"] as const;
 
-type DocChecks = Record<(typeof DOC_KEYS)[number], boolean>;
-type DocFiles = Record<(typeof DOC_KEYS)[number], string>;
+type DocKey = (typeof DOC_KEYS)[number];
+type DocChecks = Record<DocKey, boolean>;
+type DocFiles = Record<DocKey, string>;
 
 const DOC_LABELS: Record<(typeof DOC_KEYS)[number], string> = {
     identificacion_oficial: "Identificación oficial",
@@ -71,8 +73,17 @@ const normalizeDocFiles = (value?: Partial<DocFiles> | null): DocFiles => ({
     constancias_habilidades: String(value?.constancias_habilidades || ""),
 });
 
-const areDocChecksComplete = (value?: Partial<DocChecks> | null): boolean =>
-    REQUIRED_DOC_KEYS.every((key) => Boolean(value?.[key]));
+const areDocChecksComplete = (
+    requiredKeys: DocKey[],
+    value?: Partial<DocChecks> | null
+): boolean => requiredKeys.every((key) => Boolean(value?.[key]));
+
+const resolveRequiredDocKeys = async (): Promise<DocKey[]> => {
+    const config = await Configuracion.findOne({}, "documentos_visitantes").lean();
+    const docConfig =
+        ((config as any)?.documentos_visitantes as Partial<Record<DocKey, boolean>>) || {};
+    return REQUIRED_DOC_KEYS.filter((key) => docConfig[key] !== false);
+};
 
 const calcularHashVisitante = (payload: {
     nombre?: string;
@@ -428,7 +439,8 @@ export async function verificar(req: Request, res: Response): Promise<void> {
         });
 
         const checks = mergedChecks;
-        if (!areDocChecksComplete(checks)) {
+        const requiredKeys = await resolveRequiredDocKeys();
+        if (!areDocChecksComplete(requiredKeys, checks)) {
             res.status(200).json({
                 estado: false,
                 mensaje: "No puedes verificar un visitante sin todos los documentos.",
@@ -446,6 +458,47 @@ export async function verificar(req: Request, res: Response): Promise<void> {
                     fecha_validacion: now,
                     validado_por: id_usuario as any,
                     documentos_checks: checks,
+                },
+            },
+            { new: true }
+        );
+
+        res.status(200).json({ estado: true, datos: actualizado });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function revertir(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const role = (req as UserRequest).role || [];
+        const contratista = role.includes(11)
+            ? await obtenerContratistaDeUsuario(String(id_usuario))
+            : null;
+        if (role.includes(11) && !contratista) {
+            res.status(200).json({ estado: false, mensaje: "Contratista no encontrado." });
+            return;
+        }
+        const registro = await ContratistaVisitantes.findOne(
+            contratista
+                ? { _id: req.params.id, id_contratista: contratista._id }
+                : { _id: req.params.id }
+        );
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Visitante no encontrado." });
+            return;
+        }
+
+        const actualizado = await ContratistaVisitantes.findByIdAndUpdate(
+            registro._id,
+            {
+                $set: {
+                    estado_validacion: 1,
+                    motivo_rechazo: "",
+                    fecha_validacion: null as any,
+                    validado_por: null as any,
                 },
             },
             { new: true }
@@ -513,7 +566,8 @@ export async function rechazar(req: Request, res: Response): Promise<void> {
         }
         correos = Array.from(new Set(correos.map((c) => String(c).trim().toLowerCase()).filter(Boolean)));
 
-        const faltantes = REQUIRED_DOC_KEYS.filter((key) => !checks[key]).map((key) => DOC_LABELS[key]);
+        const requiredKeys = await resolveRequiredDocKeys();
+        const faltantes = requiredKeys.filter((key) => !checks[key]).map((key) => DOC_LABELS[key]);
         if (correos.length > 0) {
             await enviarCorreoRechazoVisitanteContratista({
                 correos,

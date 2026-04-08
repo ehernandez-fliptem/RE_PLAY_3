@@ -54,7 +54,7 @@ export default function Bot() {
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
             <Typography variant="overline" component="h2">
-              <strong> Habilitar cámaras para accesos</strong>
+              <strong>Habilitar cámaras para accesos</strong>
             </Typography>
             <Typography
               variant="body2"

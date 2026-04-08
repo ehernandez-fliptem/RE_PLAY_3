@@ -7,12 +7,59 @@ import Contratistas from "../models/Contratistas";
 import ContratistaVisitantes from "../models/ContratistaVisitantes";
 import ContratistaSolicitudes from "../models/ContratistaSolicitudes";
 import Visitantes from "../models/Visitantes";
+import Empleados from "../models/Empleados";
+import Usuarios from "../models/Usuarios";
 import { fecha, log } from "../middlewares/log";
 import { customAggregationForDataGrids, generarCodigoUnico, isEmptyObject } from "../utils/utils";
 import { validarModelo } from "../validators/validadores";
+import {
+    enviarCorreoAnfitrionSolicitudAprobada,
+    enviarCorreoContratistaSolicitudCreada,
+    enviarCorreoContratistaSolicitudResultado,
+} from "../utils/correos";
 
 const obtenerContratistaDeUsuario = async (id_usuario: string) => {
     return Contratistas.findOne({ id_usuario, activo: true });
+};
+
+const normalizarCorreo = (correo?: string) => String(correo || "").trim().toLowerCase();
+
+const construirNombreCompleto = (registro: {
+    nombre?: string;
+    apellido_pat?: string;
+    apellido_mat?: string;
+}) => [registro.nombre || "", registro.apellido_pat || "", registro.apellido_mat || ""]
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const obtenerCorreosNotificacionContratista = async (contratista: {
+    id_usuario?: Types.ObjectId;
+    correos?: string[];
+}) => {
+    const emails = new Set<string>();
+    (contratista.correos || [])
+        .map((correo) => normalizarCorreo(correo))
+        .filter(Boolean)
+        .forEach((correo) => emails.add(correo));
+
+    if (contratista.id_usuario) {
+        const usuario = await Usuarios.findById(contratista.id_usuario, { correo: 1 }).lean();
+        const correoUsuario = normalizarCorreo((usuario as any)?.correo);
+        if (correoUsuario) emails.add(correoUsuario);
+    }
+    return [...emails];
+};
+
+const enviarCorreoSeguro = async (handler: () => Promise<boolean>, contexto: string) => {
+    try {
+        const ok = await handler();
+        if (!ok) {
+            log(`${fecha()} WARN: No se pudo enviar correo (${contexto}).\n`);
+        }
+    } catch (error: any) {
+        log(`${fecha()} WARN: Error enviando correo (${contexto}): ${error?.message || error}\n`);
+    }
 };
 
 const inicioHoy = () => {
@@ -114,10 +161,11 @@ export async function crearSolicitud(req: Request, res: Response): Promise<void>
             return;
         }
 
-        const { fecha_visita, comentario, visitantes } = req.body as {
+        const { fecha_visita, comentario, visitantes, anfitriones } = req.body as {
             fecha_visita: string;
             comentario?: string;
             visitantes: string[];
+            anfitriones?: string[];
         };
         if (!fecha_visita || !Array.isArray(visitantes) || visitantes.length === 0) {
             res.status(200).json({ estado: false, mensaje: "Faltan datos para crear la solicitud." });
@@ -162,11 +210,36 @@ export async function crearSolicitud(req: Request, res: Response): Promise<void>
             motivo: "",
         }));
 
+        const anfitrionesIds = Array.isArray(anfitriones)
+            ? anfitriones
+                .filter((id) => Types.ObjectId.isValid(id))
+                .map((id) => new Types.ObjectId(id))
+            : [];
+        let anfitrionesValidos: Types.ObjectId[] = [];
+        if (anfitrionesIds.length > 0) {
+            const registrosAnfitriones = await Empleados.find({
+                _id: { $in: anfitrionesIds },
+                id_empresa: contratista.id_empresa,
+                activo: true,
+            })
+                .select("_id")
+                .lean();
+            anfitrionesValidos = registrosAnfitriones.map((item: any) => item._id);
+            if (anfitrionesValidos.length !== anfitrionesIds.length) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: "Hay anfitriones invÃ¡lidos o inactivos.",
+                });
+                return;
+            }
+        }
+
         const nuevaSolicitud = new ContratistaSolicitudes({
             id_contratista: contratista._id,
             id_empresa: contratista.id_empresa,
             fecha_visita: new Date(fecha_visita),
             comentario,
+            anfitriones: anfitrionesValidos,
             estado: 1,
             items,
             enviado_por: id_usuario,
@@ -180,6 +253,29 @@ export async function crearSolicitud(req: Request, res: Response): Promise<void>
         }
 
         await nuevaSolicitud.save();
+
+        const correosDestino = await obtenerCorreosNotificacionContratista(contratista as any);
+        if (correosDestino.length > 0) {
+            const anfitrionesDetalle = anfitrionesValidos.length > 0
+                ? await Empleados.find(
+                    { _id: { $in: anfitrionesValidos }, activo: true },
+                    { nombre: 1, apellido_pat: 1, apellido_mat: 1 }
+                ).lean()
+                : [];
+            await enviarCorreoSeguro(
+                () =>
+                    enviarCorreoContratistaSolicitudCreada({
+                        correos: correosDestino,
+                        empresa: String((contratista as any).empresa || ""),
+                        fecha_visita: new Date(fecha_visita),
+                        visitantes: visitantesValidos.map((v: any) => construirNombreCompleto(v)),
+                        anfitriones: anfitrionesDetalle.map((a: any) => construirNombreCompleto(a)),
+                        comentario: comentario || "",
+                    }),
+                "contratista-solicitud-creada"
+            );
+        }
+
         res.status(200).json({ estado: true, datos: nuevaSolicitud });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -596,7 +692,14 @@ export async function obtenerSolicitud(req: Request, res: Response): Promise<voi
         }
         const visitantesIds = registro.items.map((i) => new Types.ObjectId(i.id_visitante));
         const visitantes = await ContratistaVisitantes.find({ _id: { $in: visitantesIds } }).lean();
-        res.status(200).json({ estado: true, datos: { ...registro, visitantes } });
+        const anfitrionesIds = (registro.anfitriones || []).map((id) => new Types.ObjectId(id));
+        const anfitriones = anfitrionesIds.length > 0
+            ? await Empleados.find(
+                { _id: { $in: anfitrionesIds }, activo: true },
+                { nombre: 1, apellido_pat: 1, apellido_mat: 1, correo: 1 }
+            ).lean()
+            : [];
+        res.status(200).json({ estado: true, datos: { ...registro, visitantes, anfitriones } });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
@@ -709,6 +812,84 @@ export async function revisarSolicitud(req: Request, res: Response): Promise<voi
                 visitante.validado_por = id_usuario as any;
             }
             await visitante.save();
+        }
+
+        const contratista = await Contratistas.findById(solicitud.id_contratista, {
+            empresa: 1,
+            correos: 1,
+            id_usuario: 1,
+        }).lean();
+
+        if (contratista) {
+            const correosDestino = await obtenerCorreosNotificacionContratista(contratista as any);
+            const visitantesIds = actualizados.map((item) => item.id_visitante);
+            const visitantesSolicitud = await ContratistaVisitantes.find(
+                { _id: { $in: visitantesIds } },
+                { nombre: 1, apellido_pat: 1, apellido_mat: 1 }
+            ).lean();
+            const mapaVisitantes = new Map<string, string>(
+                visitantesSolicitud.map((v: any) => [String(v._id), construirNombreCompleto(v)])
+            );
+            const aprobados = actualizados
+                .filter((item) => item.estado === 2)
+                .map((item) => mapaVisitantes.get(String(item.id_visitante)) || String(item.id_visitante));
+            const rechazados = actualizados
+                .filter((item) => item.estado === 3)
+                .map((item) => {
+                    const nombre = mapaVisitantes.get(String(item.id_visitante)) || String(item.id_visitante);
+                    return item.motivo ? `${nombre} (Motivo: ${item.motivo})` : nombre;
+                });
+            const anfitrionesDetalle = (solicitud.anfitriones || []).length > 0
+                ? await Empleados.find(
+                    { _id: { $in: solicitud.anfitriones }, activo: true },
+                    { nombre: 1, apellido_pat: 1, apellido_mat: 1, correo: 1 }
+                ).lean()
+                : [];
+            const anfitrionesNombres = anfitrionesDetalle.map((a: any) => construirNombreCompleto(a));
+
+            if (correosDestino.length > 0) {
+                await enviarCorreoSeguro(
+                    () =>
+                        enviarCorreoContratistaSolicitudResultado({
+                            correos: correosDestino,
+                            empresa: String((contratista as any).empresa || ""),
+                            fecha_visita: solicitud.fecha_visita,
+                            estado: solicitud.estado,
+                            aprobados,
+                            rechazados,
+                            anfitriones: anfitrionesNombres,
+                            comentario: solicitud.comentario || "",
+                        }),
+                    "contratista-solicitud-resultado"
+                );
+            }
+
+            if (aprobados.length > 0 && anfitrionesDetalle.length > 0) {
+                const destinatariosAnfitrion = [
+                    ...new Set(
+                        anfitrionesDetalle
+                            .map((a: any) => normalizarCorreo(a.correo))
+                            .filter(Boolean)
+                    ),
+                ];
+                for await (const correoAnfitrion of destinatariosAnfitrion) {
+                    const anfitrion = anfitrionesDetalle.find(
+                        (a: any) => normalizarCorreo(a.correo) === correoAnfitrion
+                    );
+                    await enviarCorreoSeguro(
+                        () =>
+                            enviarCorreoAnfitrionSolicitudAprobada({
+                                correo: correoAnfitrion,
+                                anfitrion: anfitrion ? construirNombreCompleto(anfitrion as any) : "",
+                                empresa: String((contratista as any).empresa || ""),
+                                fecha_visita: solicitud.fecha_visita,
+                                visitantes_aprobados: aprobados,
+                                comentario: solicitud.comentario || "",
+                            }),
+                        "anfitrion-solicitud-aprobada"
+                    );
+                }
+            }
         }
 
         res.status(200).json({ estado: true });

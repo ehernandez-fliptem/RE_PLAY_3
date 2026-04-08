@@ -19,7 +19,7 @@ export async function obtenerIntegraciones(_req: Request, res: Response): Promis
         console.log("Obteniendo integraciones de configuración...");
         const registro = await Configuracion.findOne(
             {},
-            "habilitarIntegracionHv habilitarIntegracionCdvi habilitarContratistas"
+            "habilitarIntegracionHv habilitarIntegracionCdvi habilitarContratistas documentos_visitantes documentos_contratistas"
         );
         res.status(200).send({ estado: true, datos: registro });
     } catch (error: any) {
@@ -35,14 +35,32 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
             habilitarIntegracionCdvi,
             habilitarCamaras,
             habilitarContratistas,
+            documentos_visitantes,
+            documentos_contratistas,
         } = req.body;
         const { id: id_usuario } = jwt.verify(req.headers["x-access-token"] as string, CONFIG.SECRET) as DecodedTokenUser;
+
+        const normalizeDocConfig = (value?: Record<string, unknown> | null) => {
+            if (!value || typeof value !== "object") return null;
+            return {
+                identificacion_oficial: Boolean((value as any).identificacion_oficial),
+                sua: Boolean((value as any).sua),
+                permiso_entrada: Boolean((value as any).permiso_entrada),
+                lista_articulos: Boolean((value as any).lista_articulos),
+                repse: Boolean((value as any).repse),
+                soporte_pago_actualizado: Boolean((value as any).soporte_pago_actualizado),
+                constancia_vigencia_imss: Boolean((value as any).constancia_vigencia_imss),
+                constancias_habilidades: Boolean((value as any).constancias_habilidades),
+            };
+        };
 
         const update: Record<string, unknown> = {
             habilitarIntegracionHv: !!habilitarIntegracionHv,
             habilitarCamaras: !!habilitarCamaras,
             habilitarContratistas:
                 typeof habilitarContratistas === "boolean" ? habilitarContratistas : undefined,
+            documentos_visitantes: normalizeDocConfig(documentos_visitantes) || undefined,
+            documentos_contratistas: normalizeDocConfig(documentos_contratistas) || undefined,
             modificado_por: id_usuario,
             fecha_modificacion: Date.now(),
         };
@@ -51,6 +69,12 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
         }
         if (update.habilitarContratistas === undefined) {
             delete update.habilitarContratistas;
+        }
+        if (update.documentos_visitantes === undefined) {
+            delete update.documentos_visitantes;
+        }
+        if (update.documentos_contratistas === undefined) {
+            delete update.documentos_contratistas;
         }
 
         await Configuracion.updateOne({}, { $set: update }, { upsert: true, runValidators: false });

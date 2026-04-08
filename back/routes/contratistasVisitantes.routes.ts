@@ -9,6 +9,7 @@ import {
     descargarFormato,
     cargarProgramacionVisitantes,
     verificar,
+    revertir,
     rechazar,
     corregir,
 } from "../controllers/contratistasVisitantes.controller";
@@ -20,6 +21,7 @@ router.get("/descargar-formato", validarTokenYRol([1, 11]), descargarFormato);
 router.post("/cargar-formato", validarTokenYRol([1, 11]), cargarFormato);
 router.post("/programacion", validarTokenYRol([1, 11]), cargarProgramacionVisitantes);
 router.patch("/verificar/:id", validarTokenYRol([1, 11]), verificar);
+router.patch("/revertir/:id", validarTokenYRol([1, 11]), revertir);
 router.patch("/rechazar/:id", validarTokenYRol([1, 11]), rechazar);
 router.patch("/corregir/:id", validarTokenYRol([11]), corregir);
 router.get("/:id", validarTokenYRol([1, 11]), obtenerUno);

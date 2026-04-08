@@ -29,6 +29,8 @@ import { AxiosError } from "axios";
 import { enqueueSnackbar } from "notistack";
 import Spinner from "../../utils/Spinner";
 import InputFileUpload from "../../utils/FileUpload";
+import { useSelector } from "react-redux";
+import { selectCurrentData } from "../../../app/features/config/configSlice";
 
 const pageSizeOptions = [10, 25, 50];
 
@@ -56,6 +58,16 @@ export default function PortalVisitantes() {
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();
   const navigate = useNavigate();
+  const config = useSelector(selectCurrentData);
+  const docsVisitantes = config?.documentos_visitantes || {};
+  const enabledDocKeys = useMemo(
+    () => DOC_KEYS.filter((key) => docsVisitantes[key] !== false),
+    [docsVisitantes]
+  );
+  const enabledOptionalKeys = useMemo(
+    () => OPTIONAL_DOC_KEYS.filter((key) => docsVisitantes[key] !== false),
+    [docsVisitantes]
+  );
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [showCorreccion, setShowCorreccion] = useState(false);
   const [isLoadingCorreccion, setIsLoadingCorreccion] = useState(false);
@@ -73,15 +85,15 @@ export default function PortalVisitantes() {
   }, [apiRef]);
   const rejectedDocKeys = useMemo(() => {
     const checks = (correccionVisitante as any)?.documentos_checks || {};
-    return DOC_KEYS.filter((key) => !checks?.[key]);
-  }, [correccionVisitante]);
+    return enabledDocKeys.filter((key) => !checks?.[key]);
+  }, [correccionVisitante, enabledDocKeys]);
   const rejectedRequiredKeys = useMemo(
-    () => rejectedDocKeys.filter((key) => !OPTIONAL_DOC_KEYS.includes(key)),
-    [rejectedDocKeys]
+    () => rejectedDocKeys.filter((key) => !enabledOptionalKeys.includes(key)),
+    [rejectedDocKeys, enabledOptionalKeys]
   );
   const rejectedOptionalKeys = useMemo(
-    () => rejectedDocKeys.filter((key) => OPTIONAL_DOC_KEYS.includes(key)),
-    [rejectedDocKeys]
+    () => rejectedDocKeys.filter((key) => enabledOptionalKeys.includes(key)),
+    [rejectedDocKeys, enabledOptionalKeys]
   );
 
   const dataSource: GridDataSource = useMemo(

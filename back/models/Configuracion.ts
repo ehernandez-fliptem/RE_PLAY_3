@@ -33,6 +33,26 @@ export interface IConfiguracion extends Document {
     habilitarIntegracionCdvi: boolean;
     habilitarCamaras: boolean;
     habilitarContratistas: boolean;
+    documentos_visitantes?: {
+        identificacion_oficial: boolean;
+        sua: boolean;
+        permiso_entrada: boolean;
+        lista_articulos: boolean;
+        repse: boolean;
+        soporte_pago_actualizado: boolean;
+        constancia_vigencia_imss: boolean;
+        constancias_habilidades: boolean;
+    };
+    documentos_contratistas?: {
+        identificacion_oficial: boolean;
+        sua: boolean;
+        permiso_entrada: boolean;
+        lista_articulos: boolean;
+        repse: boolean;
+        soporte_pago_actualizado: boolean;
+        constancia_vigencia_imss: boolean;
+        constancias_habilidades: boolean;
+    };
 
     autorizacionCheck?: boolean;
     validarHorario?: boolean;
@@ -99,6 +119,26 @@ const configuracionSchema = new Schema<IConfiguracion>({
     habilitarIntegracionCdvi: { type: Boolean, default: false },
     habilitarCamaras: { type: Boolean, default: false },
     habilitarContratistas: { type: Boolean, default: true },
+    documentos_visitantes: {
+        identificacion_oficial: { type: Boolean, default: true },
+        sua: { type: Boolean, default: true },
+        permiso_entrada: { type: Boolean, default: true },
+        lista_articulos: { type: Boolean, default: true },
+        repse: { type: Boolean, default: true },
+        soporte_pago_actualizado: { type: Boolean, default: true },
+        constancia_vigencia_imss: { type: Boolean, default: true },
+        constancias_habilidades: { type: Boolean, default: true },
+    },
+    documentos_contratistas: {
+        identificacion_oficial: { type: Boolean, default: true },
+        sua: { type: Boolean, default: true },
+        permiso_entrada: { type: Boolean, default: true },
+        lista_articulos: { type: Boolean, default: true },
+        repse: { type: Boolean, default: true },
+        soporte_pago_actualizado: { type: Boolean, default: true },
+        constancia_vigencia_imss: { type: Boolean, default: true },
+        constancias_habilidades: { type: Boolean, default: true },
+    },
 
     // 1.4 Apariencia
     palette: {

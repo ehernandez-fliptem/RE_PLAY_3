@@ -16,8 +16,11 @@ $panelDir = Join-Path $BasePath "panel_server"
 $demonioDir = Join-Path $BasePath "demonio_eventos"
 
 $backIndex = Join-Path $backDir "dist\index.js"
+if (!(Test-Path $backIndex)) { $backIndex = Join-Path $backDir "index.js" }
 $panelIndex = Join-Path $panelDir "dist\index.js"
+if (!(Test-Path $panelIndex)) { $panelIndex = Join-Path $panelDir "index.js" }
 $demonioIndex = Join-Path $demonioDir "dist\index.js"
+if (!(Test-Path $demonioIndex)) { $demonioIndex = Join-Path $demonioDir "index.js" }
 
 Assert-Path $backIndex "No se encontro $backIndex"
 Assert-Path $panelIndex "No se encontro $panelIndex"
@@ -47,7 +50,19 @@ Write-Host "Config encontrada  : $configFound"
 Write-Host "Puerto HTTP        : $httpPort"
 Write-Host "Puerto HTTPS       : $httpsPort"
 
-$logsDir = Join-Path $BasePath "logs"
+# Asegurar resolucion de modulos
+$env:NODE_PATH = (Join-Path $backDir "node_modules") + ";" + (Join-Path $panelDir "node_modules") + ";" + (Join-Path $demonioDir "node_modules")
+Write-Host "NODE_PATH          : $env:NODE_PATH"
+
+function Get-LogsDir {
+    $progData = $env:ProgramData
+    if (-not $progData) {
+        $progData = Join-Path $env:USERPROFILE "AppData\Local"
+    }
+    return (Join-Path $progData "RE_PLAY_3\\logs")
+}
+
+$logsDir = Get-LogsDir
 New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
 
 $backOut = Join-Path $logsDir "back.out.log"

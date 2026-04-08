@@ -22,6 +22,8 @@ import type { GridDataSourceApiBase } from "@mui/x-data-grid";
 import { useState, type ChangeEvent } from "react";
 import { REGEX_EMAIL, REGEX_NAME, REGEX_PHONE } from "../../../app/constants/CommonRegex";
 import InputFileUpload from "../../utils/FileUpload";
+import { useSelector } from "react-redux";
+import { selectCurrentData } from "../../../app/features/config/configSlice";
 
 type FormValues = {
   nombre: string;
@@ -79,7 +81,7 @@ const DOC_LABELS: Record<string, string> = {
   constancias_habilidades: "Constancias de Habilidades",
 };
 
-const DOCS_REQUIRED = [
+const DOCS_REQUIRED_KEYS = [
   "identificacion_oficial",
   "sua",
   "permiso_entrada",
@@ -88,7 +90,7 @@ const DOCS_REQUIRED = [
   "soporte_pago_actualizado",
 ];
 
-const DOCS_OPTIONAL = [
+const DOCS_OPTIONAL_KEYS = [
   "constancia_vigencia_imss",
   "constancias_habilidades",
 ];
@@ -110,6 +112,14 @@ export default function NuevoPortalVisitante() {
     Record<string, { name: string; dataUrl: string }>
   >({});
   const [isSaving, setIsSaving] = useState(false);
+  const config = useSelector(selectCurrentData);
+  const docsVisitantes = config?.documentos_visitantes || {};
+  const DOCS_REQUIRED = DOCS_REQUIRED_KEYS.filter(
+    (key) => docsVisitantes[key] !== false
+  );
+  const DOCS_OPTIONAL = DOCS_OPTIONAL_KEYS.filter(
+    (key) => docsVisitantes[key] !== false
+  );
 
   const handleNext = async () => {
     const isValid = await formContext.trigger();

@@ -50,6 +50,7 @@ import documentosRoutes from './routes/documentos.routes';
 import contratistasRoutes from './routes/contratistas.routes';
 import contratistasVisitantesRoutes from './routes/contratistasVisitantes.routes';
 import contratistasSolicitudesRoutes from './routes/contratistasSolicitudes.routes';
+import contratistasDocumentosRoutes from './routes/contratistasDocumentos.routes';
 import empresasRoutes from './routes/empresas.routes';
 import errorRoutes from './routes/error.routes';
 import eventosRoutes from './routes/eventos.routes';
@@ -135,6 +136,7 @@ export default async function Server() {
         app.use('/api/contratistas', contratistasRoutes);
         app.use('/api/contratistas-visitantes', contratistasVisitantesRoutes);
         app.use('/api/contratistas-solicitudes', contratistasSolicitudesRoutes);
+        app.use('/api/contratistas-documentos', contratistasDocumentosRoutes);
         app.use('/api/empresas', empresasRoutes);
         app.use('/api/error', errorRoutes);
         app.use('/api/eventos', eventosRoutes);

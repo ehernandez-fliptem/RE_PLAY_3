@@ -12,6 +12,7 @@ export interface IContratistaSolicitud extends Document {
     id_empresa: mongoose.Types.ObjectId;
     fecha_visita: Date;
     comentario?: string;
+    anfitriones?: mongoose.Types.ObjectId[];
     estado: number; // 1: Pendiente, 2: Aprobado, 3: Rechazado, 4: Parcial
     items: IContratistaSolicitudItem[];
     enviado_por: mongoose.Types.ObjectId;
@@ -35,6 +36,7 @@ const solicitudSchema = new Schema<IContratistaSolicitud>({
     id_empresa: { type: Schema.Types.ObjectId, required: true, ref: "empresas" },
     fecha_visita: { type: Date, required: true },
     comentario: { type: String, default: "" },
+    anfitriones: [{ type: Schema.Types.ObjectId, ref: "empleados" }],
     estado: { type: Number, default: 1 },
     items: { type: [itemSchema], default: [] },
     enviado_por: { type: Schema.Types.ObjectId, required: true, ref: "usuarios" },
