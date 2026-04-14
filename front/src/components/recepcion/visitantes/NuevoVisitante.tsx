@@ -125,6 +125,7 @@ const initialValue: FormValues = {
 
 export default function NuevoVisitante() {
   const [isSaving, setIsSaving] = useState(false);
+  const [showForm, setShowForm] = useState(true);
   const formContext = useForm({
     defaultValues: initialValue,
     resolver: yupResolver(resolver),
@@ -157,6 +158,7 @@ export default function NuevoVisitante() {
 
     if (!res.data.estado && res.data.codigo === "PANEL_SYNC_FAILED") {
       setIsSaving(false);
+      setShowForm(false);
       await Swal.fire({
         icon: "error",
         title: "No se pudo subir la foto",
@@ -168,6 +170,7 @@ export default function NuevoVisitante() {
         showClass: { popup: "swal2-show" },
         hideClass: { popup: "swal2-hide" },
       });
+      setShowForm(true);
       return;
     }
 
@@ -223,6 +226,10 @@ export default function NuevoVisitante() {
   const regresar = () => {
     navigate("/visitantes");
   };
+
+  if (!showForm) {
+    return null;
+  }
 
   return (
     <ModalContainer containerProps={{ maxWidth: "lg" }}>

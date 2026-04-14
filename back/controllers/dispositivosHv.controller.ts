@@ -1289,10 +1289,15 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
       console.log("[SYNC-VIS] createCard resp", { status: cardRes.status, json: cardRes.json, body: cardRes.body });
     }
 
+    const isFaceAlreadyExists = (json: any) =>
+      json?.subStatusCode === "deviceUserAlreadyExistFace" ||
+      json?.statusString === "deviceUserAlreadyExistFace";
+
     const isFaceInvalid = (json: any) =>
-      json?.subStatusCode === "SubpicAnalysisModelingError" ||
-      json?.errorMsg === "saveFacePic" ||
-      json?.statusCode === 6;
+      !isFaceAlreadyExists(json) &&
+      (json?.subStatusCode === "SubpicAnalysisModelingError" ||
+        json?.errorMsg === "saveFacePic" ||
+        json?.statusCode === 6);
 
     // 4) Foto (si hay)
     if (visitante.img_usuario) {
@@ -1301,18 +1306,9 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
         const faceRes = await faceUpload(ip, hvUser, hvPass, employeeNo, fpid, filePath, mime);
 
         faceResponse = faceRes.json ?? faceRes.body ?? faceRes;
-        if (isFaceInvalid(faceRes.json)) {
-          res.status(200).json({
-            estado: false,
-            codigo: "FACE_INVALID",
-            mensaje: "La foto no es válida para el panel. Intenta con otra imagen.",
-            datos: { panel: ip, face_response: faceResponse },
-          });
-          return;
-        }
         if (faceRes.json?.statusString === "OK") {
           face = "OK";
-        } else if (faceRes.json?.subStatusCode === "deviceUserAlreadyExistFace") {
+        } else if (isFaceAlreadyExists(faceRes.json)) {
           face = "ALREADY_EXISTS";
           const delRes = await faceDelete(ip, hvUser, hvPass, fpid);
           faceDeleteResponse = delRes.json ?? delRes.body ?? delRes;
@@ -1328,6 +1324,16 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
           }
           const faceRetry = await faceUpload(ip, hvUser, hvPass, employeeNo, fpid, filePath, mime);
           faceResponse = faceRetry.json ?? faceRetry.body ?? faceRetry;
+          if (isFaceAlreadyExists(faceRetry.json)) {
+            res.status(200).json({
+              estado: false,
+              codigo: "FACE_DELETE_FAILED",
+              mensaje:
+                "El panel no permitiÃ³ reemplazar la foto. Intenta con otra imagen o elimina la foto desde el panel.",
+              datos: { panel: ip, face_response: faceResponse, face_delete_response: faceDeleteResponse },
+            });
+            return;
+          }
           if (isFaceInvalid(faceRetry.json)) {
             res.status(200).json({
               estado: false,
@@ -1343,6 +1349,14 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
             face = "ERROR";
             console.log("[SYNC-VIS] face retry resp", { status: faceRetry.status, json: faceRetry.json, body: faceRetry.body });
           }
+        } else if (isFaceInvalid(faceRes.json)) {
+          res.status(200).json({
+            estado: false,
+            codigo: "FACE_INVALID",
+            mensaje: "La foto no es vÃ¡lida para el panel. Intenta con otra imagen.",
+            datos: { panel: ip, face_response: faceResponse },
+          });
+          return;
         } else {
           face = "ERROR";
           console.log("[SYNC-VIS] face resp", { status: faceRes.status, json: faceRes.json, body: faceRes.body });
