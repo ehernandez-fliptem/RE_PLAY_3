@@ -75,11 +75,16 @@ const tryParseJson = (s: string) => {
   }
 };
 
+const hvLogError = (stage: string, data: Record<string, unknown>) => {
+  log(`${fecha()} [HV][${stage}] ${JSON.stringify(data)}\n`);
+};
+
 async function syncVisitanteEnPaneles(params: {
   id_visitante: number;
   fullName: string;
   cardNo: string;
-}) {
+}): Promise<{ ok: boolean; errores: Array<{ ip: string; stage: string; message: string }> }> {
+  const errores: Array<{ ip: string; stage: string; message: string }> = [];
   const employeeNo = calcEmployeeNo(params.id_visitante);
   const cardNoPrimary = String(params.cardNo || "").trim();
   const cardNoFallback = String(employeeNo || "").trim();
@@ -114,7 +119,17 @@ async function syncVisitanteEnPaneles(params: {
         `http://${ip}/ISAPI/System/deviceInfo`,
       ]);
     } catch {
-      console.log("[HV] OFFLINE:", ip);
+      hvLogError("OFFLINE", {
+        ip,
+        employeeNo,
+        cardNoPrimary,
+        cardNoFallback,
+      });
+      errores.push({
+        ip: String(ip),
+        stage: "OFFLINE",
+        message: "Panel fuera de linea o sin respuesta.",
+      });
       continue;
     }
 
@@ -155,14 +170,24 @@ async function syncVisitanteEnPaneles(params: {
       try {
         await tryAddCard(cardNoPrimary);
       } catch (e: any) {
-        console.log("[HV] WARN card primary:", ip, String(e?.message || e).slice(0, 120));
+        hvLogError("WARN_CARD_PRIMARY", {
+          ip,
+          employeeNo,
+          cardNo: cardNoPrimary,
+          error: String(e?.message || e).slice(0, 200),
+        });
       }
 
       if (cardNoFallback && cardNoFallback !== cardNoPrimary) {
         try {
           await tryAddCard(cardNoFallback);
         } catch (e: any) {
-          console.log("[HV] WARN card fallback:", ip, String(e?.message || e).slice(0, 120));
+          hvLogError("WARN_CARD_FALLBACK", {
+            ip,
+            employeeNo,
+            cardNo: cardNoFallback,
+            error: String(e?.message || e).slice(0, 200),
+          });
         }
       }
 
@@ -187,9 +212,22 @@ async function syncVisitanteEnPaneles(params: {
         }),
       ]);
     } catch (e: any) {
-      console.log("[HV] ERROR panel:", ip, String(e?.message || e).slice(0, 200));
+      hvLogError("SYNC_ERROR", {
+        ip,
+        employeeNo,
+        beginTime,
+        endTime,
+        error: String(e?.message || e).slice(0, 500),
+      });
+      errores.push({
+        ip: String(ip),
+        stage: "SYNC_ERROR",
+        message: String(e?.message || e).slice(0, 500),
+      });
     }
   }
+
+  return { ok: errores.length === 0, errores };
 }
 
 const DOC_CHECK_KEYS = [
@@ -276,6 +314,12 @@ const didDocChecksChange = (
             `http://${ip}/ISAPI/System/deviceInfo`,
         ]);
         } catch {
+        hvLogError("MODIFY_OFFLINE", {
+            ip,
+            employeeNo,
+            beginTime: valid.beginTime,
+            endTime: valid.endTime,
+        });
         continue;
         }
 
@@ -306,7 +350,13 @@ const didDocChecksChange = (
         ]);
         } catch (e: any) {
         // seguimos con el siguiente panel
-        console.log("[HV] Modify ERROR:", ip, String(e?.message || e).slice(0, 200));
+        hvLogError("MODIFY_ERROR", {
+            ip,
+            employeeNo,
+            beginTime: valid.beginTime,
+            endTime: valid.endTime,
+            error: String(e?.message || e).slice(0, 500),
+        });
         }
     }
     }
@@ -869,14 +919,24 @@ export async function crear(req: Request, res: Response): Promise<void> {
           { $set: { card_code: cardNo, verificado: true, bloqueado: false, desbloqueado_hasta: endOfTodayDate } }
         );
 
-        try {
-          await syncVisitanteEnPaneles({
-            id_visitante: Number(reg_saved.id_visitante),
-            fullName,
-            cardNo,
+        const syncRes = await syncVisitanteEnPaneles({
+          id_visitante: Number(reg_saved.id_visitante),
+          fullName,
+          cardNo,
+        });
+
+        if (!syncRes.ok) {
+          await Visitantes.findByIdAndDelete(reg_saved._id);
+          const firstErr = syncRes.errores[0];
+          res.status(200).json({
+            estado: false,
+            codigo: "PANEL_SYNC_FAILED",
+            mensaje:
+              firstErr?.message ||
+              "Error al sincronizar con el panel.",
+            datos: syncRes.errores,
           });
-        } catch (e: any) {
-          console.log("[CREAR] WARN sync panel:", String(e?.message || e).slice(0, 200));
+          return;
         }
 
         // 9) Respuesta
@@ -903,7 +963,7 @@ export async function verificar(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const visitante = await Visitantes.findById(id, "_id id_visitante nombre apellido_pat apellido_mat correo card_code documentos_checks").lean<any>();
+    const visitante = await Visitantes.findById(id, "_id id_visitante nombre apellido_pat apellido_mat correo card_code documentos_checks verificado bloqueado desbloqueado_hasta").lean<any>();
     if (!visitante) {
       res.status(404).json({ estado: false, mensaje: "Visitante no encontrado." });
       return;
@@ -949,11 +1009,35 @@ export async function verificar(req: Request, res: Response): Promise<void> {
       .then((okMail) => console.log("[VERIFICAR] mail HV ok?", okMail))
       .catch((e) => console.log("[VERIFICAR] mail HV error:", e?.message || e));
 
-    await syncVisitanteEnPaneles({
+    const syncRes = await syncVisitanteEnPaneles({
       id_visitante: Number(visitante.id_visitante),
       fullName,
       cardNo,
     });
+
+    if (!syncRes.ok) {
+      await Visitantes.updateOne(
+        { _id: visitante._id },
+        {
+          $set: {
+            card_code: String(visitante.card_code || ""),
+            verificado: Boolean(visitante.verificado),
+            bloqueado: Boolean(visitante.bloqueado),
+            desbloqueado_hasta: visitante.desbloqueado_hasta || null,
+          },
+        }
+      );
+      const firstErr = syncRes.errores[0];
+      res.status(200).json({
+        estado: false,
+        codigo: "PANEL_SYNC_FAILED",
+        mensaje:
+          firstErr?.message ||
+          "Error al sincronizar con el panel.",
+        datos: syncRes.errores,
+      });
+      return;
+    }
 
     res.status(200).json({
       estado: true,

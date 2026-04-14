@@ -45,6 +45,10 @@ import { fecha, log } from "../middlewares/log";
 import { socket } from '../utils/socketClient';
 import { CONFIG } from "../config";
 
+const logHvPanelSyncError = (stage: string, data: Record<string, unknown>) => {
+    log(`${fecha()} [HV][${stage}] ${JSON.stringify(data)}\n`);
+};
+
 export async function obtenerTodos(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;
@@ -1254,11 +1258,21 @@ export async function crear(req: Request, res: Response): Promise<void> {
                     const salida = dayjs().add(12, "hours").add(tiempoSalida, tipoSalida);
 
                     for (const panel of paneles) {
-                        const { direccion_ip, usuario, contrasena } = panel;
-                        const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
-                        const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                        if (img_usuario) await HVPANEL.getTokenValue();
-                        await HVPANEL.saveRegister({ ...registroUpdated, fecha_entrada: entrada.toDate(), fecha_salida: salida.toDate(), activo: true });
+                        try {
+                            const { direccion_ip, usuario, contrasena } = panel;
+                            const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
+                            const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
+                            if (img_usuario) await HVPANEL.getTokenValue();
+                            await HVPANEL.saveRegister({ ...registroUpdated, fecha_entrada: entrada.toDate(), fecha_salida: salida.toDate(), activo: true });
+                        } catch (error: any) {
+                            logHvPanelSyncError("SAVE_REGISTER_ERROR", {
+                                id_registro: String(registroUpdated._id || ""),
+                                id_panel: String(panel?._id || ""),
+                                id_acceso: String(panel?.id_acceso || ""),
+                                ip: panel?.direccion_ip,
+                                error: String(error?.message || error),
+                            });
+                        }
                     }
                 }
                 registrosCreadosWS.push(nuevoRegistro._id.toString());
@@ -1341,16 +1355,26 @@ export async function editarCita(req: Request, res: Response): Promise<void> {
         if (habilitarIntegracionHv) {
             const paneles = await DispositivosHv.find({ activo: true, habilitar_citas: true, tipo_check: { $ne: 0 }, id_acceso: { $in: registroEventoUp.accesos.map((item) => item.id_acceso) } });
             for await (let panel of paneles) {
-                const { direccion_ip, usuario, contrasena } = panel;
-                const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
-                const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                if (validar_registro.img_usuario) await HVPANEL.getTokenValue();
-                await HVPANEL.saveRegister({
-                    ...registroEventoUp,
-                    fecha_entrada: fechaEntrada.toDate(),
-                    fecha_salida: fechaSalida.toDate(),
-                    activo: registroEventoUp.activo
-                });
+                try {
+                    const { direccion_ip, usuario, contrasena } = panel;
+                    const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
+                    const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
+                    if (validar_registro.img_usuario) await HVPANEL.getTokenValue();
+                    await HVPANEL.saveRegister({
+                        ...registroEventoUp,
+                        fecha_entrada: fechaEntrada.toDate(),
+                        fecha_salida: fechaSalida.toDate(),
+                        activo: registroEventoUp.activo
+                    });
+                } catch (error: any) {
+                    logHvPanelSyncError("SAVE_REGISTER_ERROR", {
+                        id_registro: String(registroEventoUp._id || ""),
+                        id_panel: String(panel?._id || ""),
+                        id_acceso: String(panel?.id_acceso || ""),
+                        ip: panel?.direccion_ip,
+                        error: String(error?.message || error),
+                    });
+                }
             }
         }
 
@@ -1406,16 +1430,26 @@ export async function modificarCita(req: Request, res: Response): Promise<void> 
         if (habilitarIntegracionHv) {
             const paneles = await DispositivosHv.find({ activo: true, habilitar_citas: true, tipo_check: { $ne: 0 }, id_acceso: { $in: validar_registro.accesos.map((item) => item.id_acceso) } });
             for await (let panel of paneles) {
-                const { direccion_ip, usuario, contrasena } = panel;
-                const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
-                const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                if (validar_registro.img_usuario) await HVPANEL.getTokenValue();
-                await HVPANEL.saveRegister({
-                    ...validar_registro,
-                    fecha_entrada: fechaEntrada.toDate(),
-                    fecha_salida: fechaSalida.toDate(),
-                    activo: validar_registro.activo
-                });
+                try {
+                    const { direccion_ip, usuario, contrasena } = panel;
+                    const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
+                    const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
+                    if (validar_registro.img_usuario) await HVPANEL.getTokenValue();
+                    await HVPANEL.saveRegister({
+                        ...validar_registro,
+                        fecha_entrada: fechaEntrada.toDate(),
+                        fecha_salida: fechaSalida.toDate(),
+                        activo: validar_registro.activo
+                    });
+                } catch (error: any) {
+                    logHvPanelSyncError("SAVE_REGISTER_ERROR", {
+                        id_registro: String(validar_registro._id || ""),
+                        id_panel: String(panel?._id || ""),
+                        id_acceso: String(panel?.id_acceso || ""),
+                        ip: panel?.direccion_ip,
+                        error: String(error?.message || error),
+                    });
+                }
             }
         }
 
@@ -1581,10 +1615,20 @@ export async function finalizar(req: Request, res: Response): Promise<void> {
         if (habilitarIntegracionHv) {
             const paneles = await DispositivosHv.find({ activo: true, habilitar_citas: true, tipo_check: { $ne: 0 }, id_acceso: { $in: registroUpdated.accesos.map((item) => item.id_acceso) } });
             for await (let panel of paneles) {
-                const { direccion_ip, usuario, contrasena } = panel;
-                const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
-                const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                await HVPANEL.deleteRegister(registroUpdated);
+                try {
+                    const { direccion_ip, usuario, contrasena } = panel;
+                    const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
+                    const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
+                    await HVPANEL.deleteRegister(registroUpdated);
+                } catch (error: any) {
+                    logHvPanelSyncError("DELETE_REGISTER_ERROR", {
+                        id_registro: String(registroUpdated._id || ""),
+                        id_panel: String(panel?._id || ""),
+                        id_acceso: String(panel?.id_acceso || ""),
+                        ip: panel?.direccion_ip,
+                        error: String(error?.message || error),
+                    });
+                }
             }
         }
 
@@ -1652,10 +1696,20 @@ export async function cancelar(req: Request, res: Response): Promise<void> {
         if (habilitarIntegracionHv) {
             const paneles = await DispositivosHv.find({ activo: true, habilitar_citas: true, tipo_check: { $ne: 0 }, id_acceso: { $in: registro.accesos.map((item) => item.id_acceso) } });
             for await (let panel of paneles) {
-                const { direccion_ip, usuario, contrasena } = panel;
-                const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
-                const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                await HVPANEL.deleteRegister(registro);
+                try {
+                    const { direccion_ip, usuario, contrasena } = panel;
+                    const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
+                    const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
+                    await HVPANEL.deleteRegister(registro);
+                } catch (error: any) {
+                    logHvPanelSyncError("DELETE_REGISTER_ERROR", {
+                        id_registro: String(registro._id || ""),
+                        id_panel: String(panel?._id || ""),
+                        id_acceso: String(panel?.id_acceso || ""),
+                        ip: panel?.direccion_ip,
+                        error: String(error?.message || error),
+                    });
+                }
 
             }
         }
@@ -1907,10 +1961,20 @@ export async function crearRegistroVisitante(req: Request, res: Response): Promi
             const salida = dayjs().add(12, "hours").add(tiempoSalida, tipoSalida);
 
             for (const panel of paneles) {
-                const { direccion_ip, usuario, contrasena } = panel;
-                const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
-                const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                await HVPANEL.saveRegister({ ...registroUpdated, fecha_entrada: entrada.toDate(), fecha_salida: salida.toDate(), activo: true });
+                try {
+                    const { direccion_ip, usuario, contrasena } = panel;
+                    const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
+                    const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
+                    await HVPANEL.saveRegister({ ...registroUpdated, fecha_entrada: entrada.toDate(), fecha_salida: salida.toDate(), activo: true });
+                } catch (error: any) {
+                    logHvPanelSyncError("SAVE_REGISTER_ERROR", {
+                        id_registro: String(registroUpdated._id || ""),
+                        id_panel: String(panel?._id || ""),
+                        id_acceso: String(panel?.id_acceso || ""),
+                        ip: panel?.direccion_ip,
+                        error: String(error?.message || error),
+                    });
+                }
             }
         }
         registrosCreadosWS.push(nuevoRegistro._id.toString());

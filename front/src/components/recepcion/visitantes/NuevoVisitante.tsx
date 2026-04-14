@@ -25,6 +25,7 @@ import { setFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
+import Swal from "sweetalert2";
 import {
   DOCUMENTOS_CHECKS_LIST,
   EMPTY_DOCUMENTOS_CHECKS,
@@ -151,6 +152,21 @@ export default function NuevoVisitante() {
     };
     const res = await clienteAxios.post("api/visitantes", payload);
     console.log("RESP CREATE VISITANTE:", res.data);
+
+    if (!res.data.estado && res.data.codigo === "PANEL_SYNC_FAILED") {
+      await Swal.fire({
+        icon: "error",
+        title: "No se pudo subir la foto",
+        text:
+          res.data.mensaje ||
+          "El panel no acepto la foto. Intenta con otra imagen.",
+        showConfirmButton: true,
+        allowOutsideClick: false,
+        showClass: { popup: "swal2-show" },
+        hideClass: { popup: "swal2-hide" },
+      });
+      return;
+    }
 
     if (!res.data.estado) {
       enqueueSnackbar(res.data.mensaje, { variant: "warning" });

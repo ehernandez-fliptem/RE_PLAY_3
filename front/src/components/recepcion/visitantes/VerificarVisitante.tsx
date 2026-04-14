@@ -26,6 +26,7 @@ import {
   normalizeDocumentosChecks,
   type DocumentosChecks,
 } from "./documentosChecks";
+import Swal from "sweetalert2";
 
 type TUsuario = {
   img_usuario: string;
@@ -141,6 +142,18 @@ export default function VerificarVisitante() {
         enqueueSnackbar("Visitante verificado.", { variant: "success" });
         parentGridDataRef?.fetchRows?.();
         navigate("/visitantes");
+      } else if (res.data.codigo === "PANEL_SYNC_FAILED") {
+        await Swal.fire({
+          icon: "error",
+          title: "No se pudo subir la foto",
+          text:
+            res.data.mensaje ||
+            "El panel no acepto la foto. Intenta con otra imagen.",
+          showConfirmButton: true,
+          allowOutsideClick: false,
+          showClass: { popup: "swal2-show" },
+          hideClass: { popup: "swal2-hide" },
+        });
       } else {
         enqueueSnackbar(res.data.mensaje, { variant: "warning" });
       }
