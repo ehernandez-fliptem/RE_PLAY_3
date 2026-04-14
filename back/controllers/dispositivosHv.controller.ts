@@ -1300,61 +1300,40 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
         json?.statusCode === 6);
 
     // 4) Foto (si hay)
+    // Regla para reemplazar: borrar cara actual y luego subir la nueva.
     if (visitante.img_usuario) {
       const { filePath, mime } = await saveBase64ToTemp(visitante.img_usuario, employeeNo);
       try {
-        const faceRes = await faceUpload(ip, hvUser, hvPass, employeeNo, fpid, filePath, mime);
+        const delRes = await faceDelete(ip, hvUser, hvPass, fpid);
+        faceDeleteResponse = delRes.json ?? delRes.body ?? delRes;
+        if (delRes.json?.statusString !== "OK") {
+          res.status(200).json({
+            estado: false,
+            codigo: "FACE_DELETE_FAILED",
+            mensaje: "El panel no permitio limpiar la foto anterior.",
+            datos: { panel: ip, face_delete_response: faceDeleteResponse },
+          });
+          return;
+        }
 
+        const faceRes = await faceUpload(ip, hvUser, hvPass, employeeNo, fpid, filePath, mime);
         faceResponse = faceRes.json ?? faceRes.body ?? faceRes;
         if (faceRes.json?.statusString === "OK") {
           face = "OK";
-        } else if (isFaceAlreadyExists(faceRes.json)) {
-          face = "ALREADY_EXISTS";
-          const delRes = await faceDelete(ip, hvUser, hvPass, fpid);
-          faceDeleteResponse = delRes.json ?? delRes.body ?? delRes;
-          if (delRes.json?.statusString !== "OK") {
-            res.status(200).json({
-              estado: false,
-              codigo: "FACE_DELETE_FAILED",
-              mensaje:
-                "El panel no permitió reemplazar la foto. Intenta con otra imagen o elimina la foto desde el panel.",
-              datos: { panel: ip, face_delete_response: faceDeleteResponse },
-            });
-            return;
-          }
-          const faceRetry = await faceUpload(ip, hvUser, hvPass, employeeNo, fpid, filePath, mime);
-          faceResponse = faceRetry.json ?? faceRetry.body ?? faceRetry;
-          if (isFaceAlreadyExists(faceRetry.json)) {
-            res.status(200).json({
-              estado: false,
-              codigo: "FACE_DELETE_FAILED",
-              mensaje:
-                "El panel no permitiÃ³ reemplazar la foto. Intenta con otra imagen o elimina la foto desde el panel.",
-              datos: { panel: ip, face_response: faceResponse, face_delete_response: faceDeleteResponse },
-            });
-            return;
-          }
-          if (isFaceInvalid(faceRetry.json)) {
-            res.status(200).json({
-              estado: false,
-              codigo: "FACE_INVALID",
-              mensaje: "La foto no es válida para el panel. Intenta con otra imagen.",
-              datos: { panel: ip, face_response: faceResponse, face_delete_response: faceDeleteResponse },
-            });
-            return;
-          }
-          if (faceRetry.json?.statusString === "OK") {
-            face = "OK";
-          } else {
-            face = "ERROR";
-            console.log("[SYNC-VIS] face retry resp", { status: faceRetry.status, json: faceRetry.json, body: faceRetry.body });
-          }
         } else if (isFaceInvalid(faceRes.json)) {
           res.status(200).json({
             estado: false,
             codigo: "FACE_INVALID",
-            mensaje: "La foto no es vÃ¡lida para el panel. Intenta con otra imagen.",
-            datos: { panel: ip, face_response: faceResponse },
+            mensaje: "La foto no es valida para el panel. Intenta con otra imagen.",
+            datos: { panel: ip, face_response: faceResponse, face_delete_response: faceDeleteResponse },
+          });
+          return;
+        } else if (isFaceAlreadyExists(faceRes.json)) {
+          res.status(200).json({
+            estado: false,
+            codigo: "FACE_DELETE_FAILED",
+            mensaje: "El panel no permitio reemplazar la foto.",
+            datos: { panel: ip, face_response: faceResponse, face_delete_response: faceDeleteResponse },
           });
           return;
         } else {

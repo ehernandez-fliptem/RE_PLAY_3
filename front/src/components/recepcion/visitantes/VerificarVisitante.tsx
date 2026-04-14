@@ -27,6 +27,7 @@ import {
   type DocumentosChecks,
 } from "./documentosChecks";
 import Swal from "sweetalert2";
+import { flushSync } from "react-dom";
 
 type TUsuario = {
   img_usuario: string;
@@ -144,8 +145,10 @@ export default function VerificarVisitante() {
         parentGridDataRef?.fetchRows?.();
         navigate("/visitantes");
       } else if (res.data.codigo === "PANEL_SYNC_FAILED") {
-        setIsVerifying(false);
-        setShowForm(false);
+        flushSync(() => {
+          setIsVerifying(false);
+          setShowForm(false);
+        });
         await Swal.fire({
           icon: "error",
           title: "No se pudo subir la foto",
@@ -157,7 +160,9 @@ export default function VerificarVisitante() {
           showClass: { popup: "swal2-show" },
           hideClass: { popup: "swal2-hide" },
         });
-        setShowForm(true);
+        flushSync(() => {
+          setShowForm(true);
+        });
         return;
       } else {
         enqueueSnackbar(res.data.mensaje, { variant: "warning" });

@@ -30,6 +30,7 @@ import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
 import { useConfirm } from "material-ui-confirm";
+import { flushSync } from "react-dom";
 import {
   DOCUMENTOS_CHECKS_LIST,
   EMPTY_DOCUMENTOS_CHECKS,
@@ -263,8 +264,10 @@ export default function EditarVisitante() {
                 // Si falla restauracion en BD, de todas formas mostramos el error principal.
               }
             }
-            setIsSaving(false);
-            setShowForm(false);
+            flushSync(() => {
+              setIsSaving(false);
+              setShowForm(false);
+            });
             await Swal.fire({
               icon: "error",
               title: "No se pudo subir la foto",
@@ -274,7 +277,9 @@ export default function EditarVisitante() {
               showClass: { popup: "swal2-show" },
               hideClass: { popup: "swal2-hide" },
             });
-            setShowForm(true);
+            flushSync(() => {
+              setShowForm(true);
+            });
             return;
           }
         }
