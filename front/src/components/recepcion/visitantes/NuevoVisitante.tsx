@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Close, Save } from "@mui/icons-material";
 import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -124,6 +124,7 @@ const initialValue: FormValues = {
 };
 
 export default function NuevoVisitante() {
+  const [isSaving, setIsSaving] = useState(false);
   const formContext = useForm({
     defaultValues: initialValue,
     resolver: yupResolver(resolver),
@@ -146,6 +147,7 @@ export default function NuevoVisitante() {
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
   try {
+    setIsSaving(true);
     const payload = {
       ...data,
       contrasena: data.contrasena?.trim() ? data.contrasena : generarContrasena(),
@@ -154,6 +156,7 @@ export default function NuevoVisitante() {
     console.log("RESP CREATE VISITANTE:", res.data);
 
     if (!res.data.estado && res.data.codigo === "PANEL_SYNC_FAILED") {
+      setIsSaving(false);
       await Swal.fire({
         icon: "error",
         title: "No se pudo subir la foto",
@@ -184,6 +187,8 @@ export default function NuevoVisitante() {
     const { erroresForm, restartSession } = handlingError(error);
     if (restartSession) navigate("/logout", { replace: true });
     if (erroresForm) setFormErrors(formContext.setError, erroresForm);
+  } finally {
+    setIsSaving(false);
   }
 };
 
@@ -224,7 +229,7 @@ export default function NuevoVisitante() {
       <Box component="section">
         <Card elevation={5}>
           <CardContent>
-            {formContext.formState.isSubmitting ? (
+            {isSaving || formContext.formState.isSubmitting ? (
               <Spinner />
             ) : (
               <FormContainer formContext={formContext} onSuccess={onSubmit}>

@@ -138,6 +138,7 @@ export default function EditarVisitante() {
   const originalDocChecksRef = useRef<DocumentosChecks>({
     ...EMPTY_DOCUMENTOS_CHECKS,
   });
+  const originalFormRef = useRef<FormValues | null>(null);
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -153,6 +154,16 @@ export default function EditarVisitante() {
             ...visitante,
             documentos_checks: normalizedChecks,
           });
+          originalFormRef.current = {
+            img_usuario: visitante.img_usuario || "",
+            nombre: visitante.nombre || "",
+            apellido_pat: visitante.apellido_pat || "",
+            apellido_mat: visitante.apellido_mat || "",
+            empresa: visitante.empresa || "",
+            telefono: visitante.telefono || "",
+            correo: visitante.correo || "",
+            documentos_checks: normalizedChecks,
+          };
           originalDocChecksRef.current = normalizedChecks;
           setIsVerificado(Boolean(visitante.verificado));
           setIsLoading(false);
@@ -192,6 +203,7 @@ export default function EditarVisitante() {
       if (res.data.estado) {
         if (res.data.datos?.verificado) {
           let faceInvalid = false;
+          const syncedPanelIds: string[] = [];
           let faceInvalidMessage =
             "La foto no es válida para el panel. Intenta con otra imagen.";
           try {
@@ -212,6 +224,8 @@ export default function EditarVisitante() {
                     faceInvalidMessage =
                       syncRes.data?.mensaje || faceInvalidMessage;
                     break;
+                  } else {
+                    syncedPanelIds.push(String(panelId));
                   }
                 } catch {
                   // no bloquea si un panel falla
@@ -223,6 +237,24 @@ export default function EditarVisitante() {
             // no bloquea si no se pudieron listar paneles
           }
           if (faceInvalid) {
+            const original = originalFormRef.current;
+            if (original && ID) {
+              try {
+                await clienteAxios.put(`/api/visitantes/${ID}`, original);
+                for (const panelId of syncedPanelIds) {
+                  try {
+                    await clienteAxios.get(
+                      `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${ID}`
+                    );
+                  } catch {
+                    // Si una restauracion de panel falla, no bloquea el modal final.
+                  }
+                }
+              } catch {
+                // Si falla restauracion en BD, de todas formas mostramos el error principal.
+              }
+            }
+            setIsSaving(false);
             await Swal.fire({
               icon: "error",
               title: "No se pudo subir la foto",
@@ -235,6 +267,12 @@ export default function EditarVisitante() {
             return;
           }
         }
+        originalFormRef.current = {
+          ...data,
+          documentos_checks: { ...data.documentos_checks },
+        };
+        originalDocChecksRef.current = { ...data.documentos_checks };
+        setIsVerificado(Boolean(res.data.datos?.verificado));
         if (res.data.datos?.requiereReverificacion) {
           enqueueSnackbar("Se requieren nuevas verificaciones de documentos.", {
             variant: "warning",
