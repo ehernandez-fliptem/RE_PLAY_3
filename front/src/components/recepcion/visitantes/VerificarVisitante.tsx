@@ -50,6 +50,7 @@ export default function VerificarVisitante() {
   const confirm = useConfirm();
   const [isLoading, setIsLoading] = useState(true);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [showForm, setShowForm] = useState(true);
   const [datos, setDatos] = useState<TUsuario>({
     img_usuario: "",
     nombre: "",
@@ -144,6 +145,7 @@ export default function VerificarVisitante() {
         navigate("/visitantes");
       } else if (res.data.codigo === "PANEL_SYNC_FAILED") {
         setIsVerifying(false);
+        setShowForm(false);
         await Swal.fire({
           icon: "error",
           title: "No se pudo subir la foto",
@@ -155,6 +157,7 @@ export default function VerificarVisitante() {
           showClass: { popup: "swal2-show" },
           hideClass: { popup: "swal2-hide" },
         });
+        setShowForm(true);
         return;
       } else {
         enqueueSnackbar(res.data.mensaje, { variant: "warning" });
@@ -166,6 +169,10 @@ export default function VerificarVisitante() {
       setIsVerifying(false);
     }
   };
+
+  if (!showForm) {
+    return null;
+  }
 
   return (
     <ModalContainer containerProps={{ maxWidth: "lg" }}>

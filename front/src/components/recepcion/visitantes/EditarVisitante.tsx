@@ -135,6 +135,7 @@ export default function EditarVisitante() {
   const [isLoading, setIsLoading] = useState(true);
   const [isVerificado, setIsVerificado] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showForm, setShowForm] = useState(true);
   const originalDocChecksRef = useRef<DocumentosChecks>({
     ...EMPTY_DOCUMENTOS_CHECKS,
   });
@@ -204,6 +205,7 @@ export default function EditarVisitante() {
         if (res.data.datos?.verificado) {
           let faceInvalid = false;
           const syncedPanelIds: string[] = [];
+          let failedPanelId: string | null = null;
           let faceInvalidMessage =
             "La foto no es válida para el panel. Intenta con otra imagen.";
           try {
@@ -223,6 +225,7 @@ export default function EditarVisitante() {
                     faceInvalid = true;
                     faceInvalidMessage =
                       syncRes.data?.mensaje || faceInvalidMessage;
+                    failedPanelId = String(panelId);
                     break;
                   } else {
                     syncedPanelIds.push(String(panelId));
@@ -241,7 +244,13 @@ export default function EditarVisitante() {
             if (original && ID) {
               try {
                 await clienteAxios.put(`/api/visitantes/${ID}`, original);
-                for (const panelId of syncedPanelIds) {
+                const panelesARevertir = Array.from(
+                  new Set([
+                    ...syncedPanelIds,
+                    ...(failedPanelId ? [failedPanelId] : []),
+                  ])
+                );
+                for (const panelId of panelesARevertir) {
                   try {
                     await clienteAxios.get(
                       `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${ID}`
@@ -255,6 +264,7 @@ export default function EditarVisitante() {
               }
             }
             setIsSaving(false);
+            setShowForm(false);
             await Swal.fire({
               icon: "error",
               title: "No se pudo subir la foto",
@@ -264,6 +274,7 @@ export default function EditarVisitante() {
               showClass: { popup: "swal2-show" },
               hideClass: { popup: "swal2-hide" },
             });
+            setShowForm(true);
             return;
           }
         }
@@ -301,6 +312,10 @@ export default function EditarVisitante() {
   const regresar = () => {
     navigate("/visitantes");
   };
+
+  if (!showForm) {
+    return null;
+  }
 
   return (
     <ModalContainer containerProps={{ maxWidth: "lg" }}>
