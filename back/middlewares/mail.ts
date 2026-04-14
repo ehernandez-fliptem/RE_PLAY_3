@@ -9,7 +9,7 @@ const MAIL_PASS = process.env.MAIL_PASS || "";
 // - path (ruta local o URL)
 // - dataUrl (data:image/png;base64,...)
 // - content/base64
-type AttachmentInput =
+export type AttachmentInput =
   | { path: string; cid: string; filename?: string }
   | { dataUrl: string; cid: string; filename?: string }
   | { content: Buffer | string; cid: string; filename?: string; encoding?: string; contentType?: string };

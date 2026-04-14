@@ -1,5 +1,5 @@
 import { Types } from "mongoose";
-import { sendEmail } from "../middlewares/mail";
+import { sendEmail, type AttachmentInput } from "../middlewares/mail";
 import Configuracion from "../models/Configuracion";
 import Usuarios, { IUsuario } from "../models/Usuarios";
 import QRCode from "qrcode";
@@ -1831,15 +1831,7 @@ const enviarCorreoPlantillaContratistas = async (params: {
     destinatario: string;
     asunto: string;
     cuerpo: string;
-    plusAttachments?: {
-        path?: string;
-        dataUrl?: string;
-        content?: Buffer | string;
-        cid: string;
-        filename?: string;
-        encoding?: string;
-        contentType?: string;
-    }[];
+    plusAttachments?: AttachmentInput[];
 }): Promise<boolean> => {
     try {
         const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");

@@ -1711,11 +1711,19 @@ export async function obtenerReporteIndividual(req: Request, res: Response): Pro
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 }
+const DEBUG_EVENTOS_PANEL_LOGS = false;
+const panelLog = (...args: unknown[]) => {
+    if (DEBUG_EVENTOS_PANEL_LOGS) console.log(...args);
+};
+const panelWarn = (...args: unknown[]) => {
+    if (DEBUG_EVENTOS_PANEL_LOGS) console.warn(...args);
+};
+
 //Flag guardar Eventos
 //Funcion para guardar eventos en la base de datos desde el demonio
 export async function guardarEventoPanel(req: Request, res: Response): Promise<void> {
     try {
-        console.log("[EVENTOS][PANEL] Guardando evento de panel...");
+        panelLog("[EVENTOS][PANEL] Guardando evento de panel...");
         const { ID, tipo_dispositivo, fecha_creacion, img_check, tipo_check_panel, id_panel } = req.body.datos;
 
         if (!ID) {
@@ -1772,7 +1780,7 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
             };
             if (offsetDetectadoSegundos !== null && offsetDetectadoSegundos !== offsetActualSegundos) {
                 updatePanel.reloj_offset_segundos = offsetDetectadoSegundos;
-                console.warn("[EVENTOS][PANEL] Offset de reloj detectado automaticamente:", {
+                panelWarn("[EVENTOS][PANEL] Offset de reloj detectado automaticamente:", {
                     id_panel: String(panelObjectId),
                     offset_segundos: offsetDetectadoSegundos,
                 });
@@ -1790,7 +1798,7 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
 
         const eventoExistente = await Eventos.exists(panelEventKey);
         if (eventoExistente) {
-            console.log("[EVENTOS][PANEL] Evento duplicado omitido:", panelEventKey);
+            panelLog("[EVENTOS][PANEL] Evento duplicado omitido:", panelEventKey);
             res.status(200).json({ estado: false, mensaje: "Evento ya existe." });
             return;
         }
@@ -1904,7 +1912,7 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
                     id_panel: panelObjectId,
                 });
                 if (analisis.omitir) {
-                    console.log("[EVENTOS][PANEL] Evento omitido por deduplicacion logica:", {
+                    panelLog("[EVENTOS][PANEL] Evento omitido por deduplicacion logica:", {
                         ID,
                         id_panel: panelObjectId ? String(panelObjectId) : null,
                         motivo: analisis.comentario,
@@ -1931,7 +1939,7 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
                     id_panel: panelObjectId,
                 });
                 if (analisis.omitir) {
-                    console.log("[EVENTOS][PANEL] Evento omitido por deduplicacion logica:", {
+                    panelLog("[EVENTOS][PANEL] Evento omitido por deduplicacion logica:", {
                         ID,
                         id_panel: panelObjectId ? String(panelObjectId) : null,
                         motivo: analisis.comentario,
@@ -1950,7 +1958,7 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
 
             // Fallback: no se descarta el evento, se guarda sin relación para auditoría.
             await guardarEvento({ comentario: "ID_NUMERICO_NO_MAPEADO" });
-            console.log("[EVENTOS][PANEL] ID numerico no mapeado, guardado sin relacion:", ID);
+            panelLog("[EVENTOS][PANEL] ID numerico no mapeado, guardado sin relacion:", ID);
             res.status(200).json({ estado: true, mensaje: "Evento guardado sin mapeo de empleado/visitante." });
             return;
         }
@@ -1965,7 +1973,7 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
                     id_panel: panelObjectId,
                 });
                 if (analisis.omitir) {
-                    console.log("[EVENTOS][PANEL] Evento omitido por deduplicacion logica:", {
+                    panelLog("[EVENTOS][PANEL] Evento omitido por deduplicacion logica:", {
                         ID,
                         id_panel: panelObjectId ? String(panelObjectId) : null,
                         motivo: analisis.comentario,
@@ -1984,12 +1992,12 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
 
             // Fallback: no se descarta el evento, se guarda sin relación para auditoría.
             await guardarEvento({ comentario: "CARD_CODE_NO_MAPEADO" });
-            console.log("[EVENTOS][PANEL] Card code no mapeado, guardado sin relacion:", ID);
+            panelLog("[EVENTOS][PANEL] Card code no mapeado, guardado sin relacion:", ID);
             res.status(200).json({ estado: true, mensaje: "Evento guardado sin mapeo de visitante." });
             return;
         }
 
-        console.log("[EVENTOS][PANEL] ID no reconocido:", ID);
+        panelLog("[EVENTOS][PANEL] ID no reconocido:", ID);
         res.status(200).json({ estado: false, mensaje: "ID no reconocido." });
     } catch (error: any) {
         console.error(error);

@@ -31,7 +31,6 @@ Nota: este script limpia procesos viejos de PM2 (pm2 delete all + pm2 save) ante
 ### Actualizacion (build + copia front + restart PM2)
 
 ```
-PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1
 ```
 
 ### Actualizacion por modulo 
