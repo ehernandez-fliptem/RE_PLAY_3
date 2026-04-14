@@ -968,7 +968,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
             esRoot: empresa?.esRoot,
             creado_por: id_usuario
         });
-        const mensajes = await validarModelo(nuevoUsuario);
+        const mensajes = await validarModelo(nuevoUsuario as any);
         if (!isEmptyObject(mensajes)) {
             res.status(400).json({ estado: false, mensaje: 'Revisa que los datos que estás ingresando sean correctos.', mensajes });
             return;
@@ -1371,7 +1371,7 @@ export async function cargarProgramacionEmpleados(req: Request, res: Response): 
         const registros: any[] = [];
         for await (const registro of datos) {
             const nuevoEmpleado = new Empleados({ ...registro });
-            const mensajes = await validarModelo(nuevoEmpleado);
+            const mensajes = await validarModelo(nuevoEmpleado as any);
             if (!isEmptyObject(mensajes)) {
                 registros.push({ ...registro, errores: { ...mensajes } });
                 continue;
@@ -1611,7 +1611,7 @@ export async function cargarFormato(req: Request, res: Response): Promise<void> 
         const registros: any[] = [];
         for await (let usuario of formatDatos) {
             const nuevoUsuario = new Empleados({ ...usuario });
-            const mensajes = await validarModelo(nuevoUsuario);
+            const mensajes = await validarModelo(nuevoUsuario as any);
             if (!isEmptyObject(mensajes)) {
                 registros.push({ ...usuario, errores: mensajes });
                 continue;
@@ -1877,7 +1877,6 @@ const rellenarHojaEmpresasFormato = async ({ isMaster, id_empresa }: { isMaster:
             return workbook.xlsx.writeFile(nameFileExcel);
         });
 }
-
 
 
 
