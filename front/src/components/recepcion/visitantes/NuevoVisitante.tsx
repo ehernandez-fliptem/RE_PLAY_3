@@ -26,6 +26,7 @@ import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
 import Swal from "sweetalert2";
+import { flushSync } from "react-dom";
 import {
   DOCUMENTOS_CHECKS_LIST,
   EMPTY_DOCUMENTOS_CHECKS,
@@ -177,6 +178,62 @@ export default function NuevoVisitante() {
     if (!res.data.estado) {
       enqueueSnackbar(res.data.mensaje, { variant: "warning" });
       return;
+    }
+
+    const createdId = String(res.data?.datos?._id || "");
+    if (createdId && payload.img_usuario) {
+      let faceInvalid = false;
+      let faceInvalidMessage =
+        "La foto no es válida para el panel. Intenta con otra imagen.";
+      try {
+        const pRes = await clienteAxios.get("/api/dispositivos-hikvision/demonio");
+        const paneles = pRes.data?.datos || [];
+        if (Array.isArray(paneles) && paneles.length > 0) {
+          for (const p of paneles) {
+            try {
+              const panelId = p._id;
+              const syncRes = await clienteAxios.get(
+                `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${createdId}`
+              );
+              if (syncRes.data?.estado === false) {
+                faceInvalid = true;
+                faceInvalidMessage = syncRes.data?.mensaje || faceInvalidMessage;
+                break;
+              }
+            } catch {
+              // no bloquea si un panel falla de red
+            }
+            if (faceInvalid) break;
+          }
+        }
+      } catch {
+        // no bloquea si no se pudieron listar paneles
+      }
+
+      if (faceInvalid) {
+        try {
+          await clienteAxios.patch(`/api/visitantes/revertir-creacion/${createdId}`);
+        } catch {
+          // si falla la reversión, de todos modos mostrar error principal
+        }
+        flushSync(() => {
+          setIsSaving(false);
+          setShowForm(false);
+        });
+        await Swal.fire({
+          icon: "error",
+          title: "No se pudo subir la foto",
+          text: faceInvalidMessage,
+          showConfirmButton: true,
+          allowOutsideClick: false,
+          showClass: { popup: "swal2-show" },
+          hideClass: { popup: "swal2-hide" },
+        });
+        flushSync(() => {
+          setShowForm(true);
+        });
+        return;
+      }
     }
 
     enqueueSnackbar("Visitante creado con exito", {

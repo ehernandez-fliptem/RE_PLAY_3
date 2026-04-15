@@ -17,6 +17,7 @@ import {
     obtenerFormEditarVisitante,
     anonimizar,
     verificar,
+    revertirCreacion,
 } from "../controllers/visitantes.controller";
 
 const router = Router();
@@ -36,6 +37,7 @@ router.post("/cargar-formato", validarTokenYRol([1, 2]), cargarFormato);
 router.post("/programacion", validarTokenYRol([1, 2]), cargarProgramacionUsuarios);
 router.put("/:id", validarTokenYRol([1, 2, 4, 5]), modificar);
 // router.patch("/anonimizar/:id", validarTokenYRol([1, 2]), anonimizar);
+router.patch("/revertir-creacion/:id", validarTokenYRol([1, 2, 4, 5]), revertirCreacion);
 router.patch("/bloquear/:id", validarTokenYRol([1, 2]), bloquearBack);
 router.patch("/desbloquear/:id", validarTokenYRol([1, 2]), desbloquearBack);
 router.patch("/:id", validarTokenYRol([1, 2, 4, 5]), modificarEstado);

@@ -1278,6 +1278,30 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
     }
 }
 
+export async function revertirCreacion(req: Request, res: Response): Promise<void> {
+    try {
+        const id = String(req.params?.id || "");
+        if (!id) {
+            res.status(200).json({ estado: false, mensaje: "Falta el id del visitante." });
+            return;
+        }
+
+        const registro = await Visitantes.findById(id, "_id").lean();
+        if (!registro) {
+            res.status(200).json({ estado: true });
+            return;
+        }
+
+        await FaceDescriptors.deleteMany({ id_visitante: id });
+        await Visitantes.findByIdAndDelete(id);
+
+        res.status(200).json({ estado: true });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
 export async function anonimizar(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;
