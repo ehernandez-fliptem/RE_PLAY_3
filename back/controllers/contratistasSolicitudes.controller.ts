@@ -228,7 +228,7 @@ export async function crearSolicitud(req: Request, res: Response): Promise<void>
             if (anfitrionesValidos.length !== anfitrionesIds.length) {
                 res.status(200).json({
                     estado: false,
-                    mensaje: "Hay anfitriones invÃ¡lidos o inactivos.",
+                    mensaje: "Hay anfitriones inválidos o inactivos.",
                 });
                 return;
             }

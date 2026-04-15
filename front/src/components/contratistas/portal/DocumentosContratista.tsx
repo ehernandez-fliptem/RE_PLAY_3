@@ -120,6 +120,7 @@ export default function DocumentosContratista() {
   const [isSaving, setIsSaving] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
   const [showViewer, setShowViewer] = useState(false);
+  const [autoOpenedEditor, setAutoOpenedEditor] = useState(false);
 
   const cargar = async () => {
     setIsLoading(true);
@@ -140,6 +141,26 @@ export default function DocumentosContratista() {
   useEffect(() => {
     cargar();
   }, []);
+
+  useEffect(() => {
+    if (isLoading || autoOpenedEditor || showEditor || showViewer) return;
+    const archivos = registro?.documentos_archivos || {};
+    const tieneAlgunDocumento = Object.values(archivos).some((value) =>
+      Boolean(String(value || "").trim())
+    );
+    if (!tieneAlgunDocumento) {
+      setDocumentosArchivos(
+        Object.fromEntries(
+          Object.entries(archivos).map(([key, value]) => [
+            key,
+            { name: "", dataUrl: String(value || "") },
+          ])
+        )
+      );
+      setShowEditor(true);
+      setAutoOpenedEditor(true);
+    }
+  }, [isLoading, autoOpenedEditor, showEditor, showViewer, registro]);
 
   const abrirEditor = () => {
     const archivos = registro?.documentos_archivos || {};
@@ -716,6 +737,4 @@ export default function DocumentosContratista() {
     </div>
   );
 }
-
-
 

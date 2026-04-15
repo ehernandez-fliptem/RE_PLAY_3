@@ -21,14 +21,14 @@ export async function enviarCorreoUsuario(
     correo: string,
     contrasena: string,
     rol: string,
-    qr: string
+    nombreCompleto: string
 ): Promise<boolean> {
     try {
-        console.log("Entrando a enviarCorreoUsuario");
-        const asunto = "Cuenta nueva";
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay un configuración establecida.")
-        const { saludaCorreo, despedidaCorreo } = config
+        const asunto = "Tu cuenta de recepcion electronica a sido creada";
+        const config = await Configuracion.findOne({}, "despedidaCorreo");
+        if (!config) throw new Error("No hay una configuración establecida.");
+        const { despedidaCorreo } = config;
+
         const response = await sendEmail({
             destinatario: correo,
             asunto,
@@ -39,14 +39,14 @@ export async function enviarCorreoUsuario(
                             <table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
                                 <tr>
                                     <td bgcolor="#ffffff">
-                                        <h1 align="center">${asunto}</h1>
+                                        <h1 align="center">Bienvenido</h1>
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td>${saludaCorreo}</td>
+                                    <td>Estimado ${nombreCompleto}</td>
                                 </tr>
                                 <tr>
-                                    <td><br>Se ha creado una nueva cuenta para usted.</td>
+                                    <td><br>Se a creado una cuenta para usted en recepcion electronica.</td>
                                 </tr>
                                 <tr>
                                     <td><strong>Correo: </strong> ${correo}</td>
@@ -57,22 +57,7 @@ export async function enviarCorreoUsuario(
                                 ${rol ? `
                                 <tr>
                                     <td><strong>Rol: </strong> ${rol}</td>
-                                </tr>`: ''}
-                                <tr>
-                                    <td><br>Para ingresar al sistema haz clic en el siguiente enlace: <a href="${CONFIG.ENDPOINT}"><b>Recepción electrónica</b></a></td>
-                                </tr>
-                                <tr>
-                                    <br>
-                                    <br>
-                                    <td><strong>Código QR para check-in: </strong></td>
-                                    <br>
-                                    <br>
-                                </tr>
-                                <tr>
-                                    <td>
-                                        <div align="center"><img src="cid:qr" style="width:150px"></div>
-                                    </td>
-                                </tr>
+                                </tr>` : ""}
                                 <tr>
                                     <td><div align="center"><p>${despedidaCorreo}</p></div><br></td>
                                 </tr>
@@ -80,18 +65,10 @@ export async function enviarCorreoUsuario(
                         </td>
                     </tr>
                 </table>`,
-            plusAttachments: [
-            {
-                dataUrl: qr,
-                cid: "qr",
-                filename: "qr.png",
-            },
-            ],
         });
-        console.log("Correo enviado con respuesta:", response);
+
         return response;
     } catch (error) {
-        console.error("Error en enviarCorreoUsuario:", error);
         throw error;
     }
 }
@@ -1750,28 +1727,20 @@ export async function enviarCorreoContratistaAcceso(
     correo: string,
     contrasena: string,
     empresa: string,
-    qr: string
+    nombreContratista: string
 ): Promise<boolean> {
     try {
-        const asunto = "Acceso portal de contratistas";
+        const asunto = "Tu cuenta de recepcion electronica para contratista a sido creada";
         const response = await enviarCorreoPlantillaContratistas({
             destinatario: correo,
             asunto,
             cuerpo: `
-                <tr><td><br>Se ha creado una cuenta para el portal de contratistas.</td></tr>
+                <tr><td bgcolor="#ffffff"><h1 align="center">Bienvenido contratista</h1></td></tr>
+                <tr><td><strong>Estimado ${nombreContratista}</strong></td></tr>
+                <tr><td><br>Se a creado una cuenta para usted en recepcion electronica.</td></tr>
                 <tr><td><strong>Empresa: </strong> ${empresa}</td></tr>
                 <tr><td><strong>Correo: </strong> ${correo}</td></tr>
-                <tr><td><strong>Contrase&ntilde;a: </strong> ${contrasena}</td></tr>
-                <tr><td><br>Para ingresar al portal haz clic en el siguiente enlace: <a href="${CONFIG.ENDPOINT}"><b>Portal de contratistas</b></a></td></tr>
-                <tr><td><br><strong>C&oacute;digo QR para check-in:</strong></td></tr>
-                <tr><td><div align="center"><img src="cid:qr" style="width:150px"></div></td></tr>`,
-            plusAttachments: [
-                {
-                    dataUrl: qr,
-                    cid: "qr",
-                    filename: "qr.png",
-                },
-            ],
+                <tr><td><strong>Contrase&ntilde;a: </strong> ${contrasena}</td></tr>`,
         });
         return response;
     } catch (error) {

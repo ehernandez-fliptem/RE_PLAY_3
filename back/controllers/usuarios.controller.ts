@@ -930,15 +930,12 @@ export async function crear(req: Request, res: Response): Promise<void> {
         await nuevoUsuario
             .save()
             .then(async (reg_saved) => {
-                const QR = await QRCode.toDataURL(String(reg_saved.id_general), {
-                    errorCorrectionLevel: 'H',
-                    type: 'image/png',
-                    width: 400,
-                    margin: 2
-                });
                 let roles = await Roles.find({ rol: { $in: rol }, activo: true }, 'nombre')
                 const rolesString = roles.map((item) => item.nombre).join(' - ');
-                const resultEnvioUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, QR);
+                const nombreCompleto = [reg_saved.nombre, reg_saved.apellido_pat, reg_saved.apellido_mat]
+                    .filter(Boolean)
+                    .join(" ");
+                const resultEnvioUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, nombreCompleto);
                 const { habilitarIntegracionHv } = await Configuracion.findOne({}, 'habilitarIntegracionHv') as IConfiguracion;
                 if (habilitarIntegracionHv && habilitarSyncUsuariosPanel) {
                     const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: accesos } });
@@ -1053,6 +1050,59 @@ export async function modificar(req: Request, res: Response): Promise<void> {
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 };
+
+export async function reenviarCorreoAcceso(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const usuario = await Usuarios.findById(
+            req.params.id,
+            'correo nombre apellido_pat apellido_mat rol activo'
+        ).lean();
+
+        if (!usuario) {
+            res.status(200).json({ estado: false, mensaje: 'Usuario no encontrado.' });
+            return;
+        }
+
+        const contrasena = generarCodigoUnico(12, true);
+        const hash = bcrypt.hashSync(contrasena, 10);
+        if (!hash) {
+            res.status(500).json({ estado: false, mensaje: 'Hubo un error al generar la contraseña.' });
+            return;
+        }
+
+        await Usuarios.findByIdAndUpdate(usuario._id, {
+            $set: {
+                contrasena: hash,
+                fecha_modificacion: Date.now(),
+                modificado_por: id_usuario,
+            },
+        });
+
+        const roles = await Roles.find({ rol: { $in: usuario.rol || [] }, activo: true }, 'nombre').lean();
+        const rolesString = roles.map((item) => item.nombre).join(' - ');
+        const nombreCompleto = [usuario.nombre, usuario.apellido_pat, usuario.apellido_mat]
+            .filter(Boolean)
+            .join(' ');
+
+        const resultEnvioUsuario = await enviarCorreoUsuario(
+            String(usuario.correo || ''),
+            contrasena,
+            rolesString,
+            nombreCompleto
+        );
+
+        if (!resultEnvioUsuario) {
+            res.status(200).json({ estado: false, mensaje: 'No se pudo reenviar el correo de acceso.' });
+            return;
+        }
+
+        res.status(200).json({ estado: true, datos: { correoUsuario: true } });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
 
 export async function modificarEstado(req: Request, res: Response): Promise<void> {
     try {
@@ -1202,16 +1252,12 @@ export async function cargarProgramacionUsuarios(req: Request, res: Response): P
             await nuevoUsuario.save();
             if (envioCorreos) {
                 const { correo, contrasena, rol } = registro;
-                const { id_general } = await Usuarios.findById(nuevoUsuario._id, 'id_general') as IUsuario;
-                const QR = await QRCode.toDataURL(String(id_general), {
-                    errorCorrectionLevel: 'H',
-                    type: 'image/png',
-                    width: 400,
-                    margin: 2
-                });
                 let roles = await Roles.find({ rol: { $in: rol }, activo: true }, 'nombre');
                 const rolesString = roles.map((item) => item.nombre).join(' - ');
-                resultCorreoUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, QR);
+                const nombreCompleto = [registro.nombre, registro.apellido_pat, registro.apellido_mat]
+                    .filter(Boolean)
+                    .join(" ");
+                resultCorreoUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, nombreCompleto);
                 if (registrosGuardados) correosEnviados++;
             }
             usuariosCreados++;

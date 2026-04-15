@@ -1149,15 +1149,12 @@ export async function crear(req: Request, res: Response): Promise<void> {
                 await visitante
                     .save()
                     .then(async (reg_saved) => {
-                        const QR = await QRCode.toDataURL(String(reg_saved.id_visitante), {
-                            errorCorrectionLevel: 'H',
-                            type: 'image/png',
-                            width: 400,
-                            margin: 2
-                        });
                         let roles = await Roles.find({ rol: { $in: [10] }, activo: true }, 'nombre');
                         const rolesString = roles.map((item) => item.nombre).join(' - ');
-                        await enviarCorreoUsuario(correo, contrasena, rolesString, QR);
+                        const nombreCompleto = [reg_saved.nombre, reg_saved.apellido_pat, reg_saved.apellido_mat]
+                            .filter(Boolean)
+                            .join(" ");
+                        await enviarCorreoUsuario(correo, contrasena, rolesString, nombreCompleto);
                     })
                     .catch(async (error) => {
                         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);

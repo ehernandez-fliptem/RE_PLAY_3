@@ -1347,17 +1347,13 @@ export async function cargarProgramacionUsuarios(req: Request, res: Response): P
             console.log("envioCorreos:", envioCorreos);
             if (envioCorreos) {
                 const { correo, contrasena } = registro;
-                const { codigo } = await Visitantes.findById(nuevoUsuario._id, 'codigo') as IVisitante;
-                const QR = await QRCode.toDataURL(String(codigo), {
-                    errorCorrectionLevel: 'H',
-                    type: 'image/png',
-                    width: 400,
-                    margin: 2
-                });
                 let roles = await Roles.find({ rol: { $in: [10] }, activo: true }, 'nombre');
                 const rolesString = roles.map((item) => item.nombre).join(' - ');
                 console.log("enviando correo a:", correo);
-                resultCorreoUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, QR);
+                const nombreCompleto = [registro.nombre, registro.apellido_pat, registro.apellido_mat]
+                    .filter(Boolean)
+                    .join(" ");
+                resultCorreoUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, nombreCompleto);
                 console.log("resultado correo:", resultCorreoUsuario);
                 if (registrosGuardados) correosEnviados++;
             }

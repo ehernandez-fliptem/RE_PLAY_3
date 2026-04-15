@@ -42,6 +42,7 @@ export default function DetalleUsuario() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
+  const [isResending, setIsResending] = useState(false);
   const [datos, setDatos] = useState<TUsuario>({
     img_usuario: "",
     nombre: "",
@@ -94,6 +95,26 @@ export default function DetalleUsuario() {
 
   const regresar = () => {
     navigate(`/usuarios`);
+  };
+
+  const reenviarCorreo = async () => {
+    if (!id || isResending) return;
+    try {
+      setIsResending(true);
+      const res = await clienteAxios.patch(`/api/usuarios/reenviar/${id}`);
+      if (res.data?.estado) {
+        enqueueSnackbar("Correo reenviado correctamente.", { variant: "success" });
+      } else {
+        enqueueSnackbar(res.data?.mensaje || "No se pudo reenviar el correo.", {
+          variant: "warning",
+        });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setIsResending(false);
+    }
   };
 
   return (
@@ -322,6 +343,17 @@ export default function DetalleUsuario() {
               justifyContent="end"
               sx={{ width: "100%" }}
             >
+              <Button
+                sx={{ width: { xs: "100%", sm: "auto" } }}
+                type="button"
+                size="medium"
+                variant="contained"
+                color="primary"
+                onClick={reenviarCorreo}
+                disabled={isResending || isLoading}
+              >
+                {isResending ? "Reenviando..." : "Reenviar correo"}
+              </Button>
               <Button
                 sx={{ width: { xs: "100%", sm: "auto" } }}
                 type="button"

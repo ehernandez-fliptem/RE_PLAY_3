@@ -142,7 +142,7 @@ const transporter = nodemailer.createTransport({
   </body>
 </html>`;
 
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: `"Flipbot" <${MAIL_USER}>`,
       to: destinatario,
       subject: asunto,
@@ -150,6 +150,34 @@ const transporter = nodemailer.createTransport({
       html,
       attachments,
     });
+
+    const accepted = Array.isArray(info.accepted) ? info.accepted : [];
+    const rejected = Array.isArray(info.rejected) ? info.rejected : [];
+    const pendiente = Array.isArray((info as any).pending) ? (info as any).pending : [];
+    const acceptedCount = accepted.length;
+
+    log(
+      `${fecha()} MAIL INFO: ${JSON.stringify({
+        to: destinatario,
+        subject: asunto,
+        messageId: info.messageId,
+        response: info.response,
+        accepted,
+        rejected,
+        pending: pendiente,
+      })}\n`
+    );
+
+    if (acceptedCount === 0 || rejected.length > 0) {
+      console.error("MAIL NO CONFIRMADO POR SMTP:", {
+        to: destinatario,
+        accepted,
+        rejected,
+        pending: pendiente,
+        response: info.response,
+      });
+      return false;
+    }
 
     return true;
   } catch (error: any) {

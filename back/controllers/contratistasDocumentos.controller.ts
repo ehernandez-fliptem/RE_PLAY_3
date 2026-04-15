@@ -58,8 +58,27 @@ export async function obtenerMi(req: Request, res: Response): Promise<void> {
             return;
         }
 
-        const registro = await ContratistaDocumentos.findOne({ id_contratista: contratista._id });
-        res.status(200).json({ estado: true, datos: registro });
+        const registro = await ContratistaDocumentos.findOne({ id_contratista: contratista._id }).lean();
+        if (registro) {
+            res.status(200).json({ estado: true, datos: registro });
+            return;
+        }
+
+        res.status(200).json({
+            estado: true,
+            datos: {
+                _id: null,
+                id_contratista: contratista._id,
+                id_empresa: contratista.id_empresa,
+                empresa: contratista.empresa,
+                documentos_archivos: normalizeDocFiles(),
+                documentos_checks: normalizeDocChecks(),
+                estado_validacion: 1,
+                motivo_rechazo: "",
+                fecha_validacion: null,
+                validado_por: null,
+            },
+        });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });

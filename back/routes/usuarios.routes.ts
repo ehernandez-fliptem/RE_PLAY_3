@@ -17,6 +17,7 @@ import {
     obtenerQR,
     obtenerAnfitriones,
     anonimizar,
+    reenviarCorreoAcceso,
 } from "../controllers/usuarios.controller";
 
 const router = Router();
@@ -35,6 +36,7 @@ router.post("/cargar-formato", validarTokenYRol([1]), cargarFormato);
 router.post("/programacion", validarTokenYRol([1]), cargarProgramacionUsuarios);
 router.put("/:id", validarTokenYRol([1]), modificar);
 router.patch('/anonimizar/:id', validarTokenYRol([1]), anonimizar);
+router.patch('/reenviar/:id', validarTokenYRol([1]), reenviarCorreoAcceso);
 router.patch("/desbloquear/:id", validarTokenYRol([1]), desbloquear);
 router.patch("/:id", validarTokenYRol([1]), modificarEstado);
 router.patch("/:id", validarTokenYRol([1]), modificarEstado);

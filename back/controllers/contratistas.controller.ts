@@ -1,12 +1,10 @@
 import { Request, Response } from "express";
 import { PipelineStage, Types } from "mongoose";
 import bcrypt from "bcrypt";
-import QRCode from "qrcode";
 import { UserRequest } from "../types/express";
 import { QueryParams } from "../types/queryparams";
 import Contratistas from "../models/Contratistas";
 import Usuarios, { IUsuario } from "../models/Usuarios";
-import Roles from "../models/Roles";
 import { fecha, log } from "../middlewares/log";
 import { customAggregationForDataGrids, generarCodigoUnico, isEmptyObject, cleanObject } from "../utils/utils";
 import { validarModelo } from "../validators/validadores";
@@ -213,19 +211,11 @@ export async function crear(req: Request, res: Response): Promise<void> {
             throw error;
         }
 
-        const QR = await QRCode.toDataURL(String(userSaved.id_general), {
-            errorCorrectionLevel: "H",
-            type: "image/png",
-            width: 400,
-            margin: 2,
-        });
-        const roles = await Roles.find({ rol: { $in: [ROL_CONTRATISTA] }, activo: true }, "nombre");
-        const rolesString = roles.map((item) => item.nombre).join(" - ");
         const resultEnvioUsuario = await enviarCorreoContratistaAcceso(
             correoNormalizado,
             contrasena,
             empresa,
-            QR
+            `${nombre} ${apellido_pat} ${apellido_mat}`.replace(/\s+/g, " ").trim()
         );
 
         res.status(200).json({ estado: true, datos: { contratista: true, correoUsuario: resultEnvioUsuario } });
@@ -300,6 +290,90 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
         }
         await Usuarios.findByIdAndUpdate(registro.id_usuario, { $set: { activo: !activo } });
         res.status(200).json({ estado: true });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function reenviarCorreoAcceso(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const contratista = await Contratistas.findById(req.params.id, "empresa id_usuario correos").lean();
+        if (!contratista) {
+            res.status(200).json({ estado: false, mensaje: "Contratista no encontrado." });
+            return;
+        }
+
+        const usuario = await Usuarios.findById(
+            contratista.id_usuario,
+            "correo id_general activo nombre apellido_pat apellido_mat"
+        ).lean();
+        if (!usuario) {
+            res.status(200).json({ estado: false, mensaje: "Usuario manager no encontrado." });
+            return;
+        }
+
+        const contrasena = generarCodigoUnico(12, true);
+        const hash = bcrypt.hashSync(contrasena, 10);
+        if (!hash) {
+            res.status(500).json({ estado: false, mensaje: "Hubo un error al generar la contraseña." });
+            return;
+        }
+
+        await Usuarios.findByIdAndUpdate(usuario._id, {
+            $set: {
+                contrasena: hash,
+                fecha_modificacion: Date.now(),
+                modificado_por: id_usuario,
+            },
+        });
+
+        const destinatarios = Array.from(
+            new Set(
+                [
+                    String(usuario.correo || "").trim().toLowerCase(),
+                    ...(Array.isArray(contratista.correos)
+                        ? contratista.correos.map((item: any) =>
+                              String(item || "").trim().toLowerCase()
+                          )
+                        : []),
+                ].filter(Boolean)
+            )
+        );
+
+        if (destinatarios.length === 0) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No hay correos destino configurados para reenviar acceso.",
+            });
+            return;
+        }
+
+        const resultados: { correo: string; enviado: boolean }[] = [];
+        for (const destino of destinatarios) {
+            const enviado = await enviarCorreoContratistaAcceso(
+                destino,
+                contrasena,
+                String(contratista.empresa || ""),
+                `${String((usuario as any).nombre || "")} ${String((usuario as any).apellido_pat || "")} ${String((usuario as any).apellido_mat || "")}`
+                    .replace(/\s+/g, " ")
+                    .trim()
+            );
+            resultados.push({ correo: destino, enviado });
+        }
+
+        const fallidos = resultados.filter((item) => !item.enviado).map((item) => item.correo);
+        if (fallidos.length > 0) {
+            res.status(200).json({
+                estado: false,
+                mensaje: `No se pudo enviar a: ${fallidos.join(", ")}`,
+                datos: { resultados },
+            });
+            return;
+        }
+
+        res.status(200).json({ estado: true, datos: { correoUsuario: true, resultados } });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });

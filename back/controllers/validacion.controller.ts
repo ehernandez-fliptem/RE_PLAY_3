@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import { PipelineStage, Types } from 'mongoose';
-import QRCode from 'qrcode';
 import Visitantes from "../models/Visitantes";
 import Usuarios from "../models/Usuarios";
 import Configuracion from "../models/Configuracion";
@@ -511,15 +510,12 @@ export async function crearUsuario(req: Request, res: Response): Promise<void> {
         await nuevoUsuario
             .save()
             .then(async (reg_saved) => {
-                const QR = await QRCode.toDataURL(String(reg_saved.id_general), {
-                    errorCorrectionLevel: 'H',
-                    type: 'image/png',
-                    width: 400,
-                    margin: 2
-                });
                 let roles = await Roles.find({ rol: { $in: rol }, activo: true }, 'nombre')
                 const rolesString = roles.map((item) => item.nombre).join(' - ');
-                const resultEnvioUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, QR);
+                const nombreCompleto = [reg_saved.nombre, reg_saved.apellido_pat, reg_saved.apellido_mat]
+                    .filter(Boolean)
+                    .join(" ");
+                const resultEnvioUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, nombreCompleto);
                 res.status(200).json({ estado: true, datos: { correoUsuario: resultEnvioUsuario } });
             })
             .catch(async (error) => {

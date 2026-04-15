@@ -100,9 +100,16 @@ export default function NuevoContratista() {
       };
       const res = await clienteAxios.post("api/contratistas", payload);
       if (res.data.estado) {
+        const correoEnviado = Boolean(res.data?.datos?.correoUsuario);
         enqueueSnackbar("El contratista se creo correctamente.", {
           variant: "success",
         });
+        if (!correoEnviado) {
+          enqueueSnackbar(
+            "El contratista se creó, pero no se pudo enviar el correo de acceso.",
+            { variant: "warning" }
+          );
+        }
         parentGridDataRef.fetchRows();
         navigate("/contratistas");
       } else {

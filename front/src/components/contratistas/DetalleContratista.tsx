@@ -11,7 +11,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { ChevronLeft } from "@mui/icons-material";
+import { ChevronLeft, MarkEmailRead } from "@mui/icons-material";
 import ModalContainer from "../utils/ModalContainer";
 import Spinner from "../utils/Spinner";
 import { enqueueSnackbar } from "notistack";
@@ -39,6 +39,7 @@ export default function DetalleContratista() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
+  const [isResending, setIsResending] = useState(false);
   const [datos, setDatos] = useState<TContratista>({
     empresa: "",
     correos: [],
@@ -69,6 +70,29 @@ export default function DetalleContratista() {
 
   const regresar = () => {
     navigate(`/contratistas`);
+  };
+
+  const reenviarCorreo = async () => {
+    if (!id || isResending) return;
+    setIsResending(true);
+    try {
+      const res = await clienteAxios.patch(`api/contratistas/reenviar/${id}`);
+      if (res.data.estado) {
+        enqueueSnackbar("Correo de acceso reenviado correctamente.", {
+          variant: "success",
+        });
+      } else {
+        enqueueSnackbar(
+          res.data.mensaje || "No se pudo reenviar el correo de acceso.",
+          { variant: "warning" }
+        );
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setIsResending(false);
+    }
   };
 
   return (
@@ -238,6 +262,15 @@ export default function DetalleContratista() {
               justifyContent="end"
               sx={{ width: "100%" }}
             >
+              <Button
+                type="button"
+                size="medium"
+                variant="contained"
+                onClick={reenviarCorreo}
+                disabled={isLoading || isResending || !datos.usuario?.correo}
+              >
+                <MarkEmailRead /> Reenviar correo
+              </Button>
               <Button
                 type="button"
                 size="medium"
