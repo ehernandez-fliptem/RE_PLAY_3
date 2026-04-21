@@ -1,48 +1,109 @@
-# Flipbot
+﻿# RE_PLAY_3
 
-## Aspectos generales
+Sistema de recepcion y control de acceso con sincronizacion hacia paneles Hikvision.
 
-Para ejecutar la aplicación debemos preparar nuestro entorno instalando las siguientes aplicaciones y/o librerías:
+## Modulos
 
-Git - [Enlace de descarga](https://git-scm.com/downloads "Git")
+- `back`: API principal y logica de negocio.
+- `front`: interfaz web (Vite/React).
+- `panel_server`: capa de integracion con paneles Hikvision (usuarios, tarjetas, foto, eventos).
+- `demonio_eventos`: proceso de eventos en segundo plano.
 
-* Sistema de control de versiones de código fuente.
-* Versión: **2.49.0**
+## Estructura del repositorio
 
-GitHub Desktop - [Enlace de descarga](https://desktop.github.com/download/ "GitHub Desktop")
+```text
+RE_PLAY_3/
+  back/
+  front/
+  panel_server/
+  demonio_eventos/
+  scripts/
+  tools/
+  GUIA_LEVANTAR_RE_PLAY_3.md
+```
 
-* Aplicación gratuita que permite trabajar con código alojado en GitHub u otros servicios de hospedaje de Git.
+## Requisitos
 
-NVM for Windows - [Enlace de descarga](https://github.com/coreybutler/nvm-windows "NVM for Windows")
+- Node.js (recomendado LTS)
+- MongoDB Community Server
+- PM2 global (`npm i -g pm2`)
+- PowerShell (Windows)
 
-- Aplicación de control de versiones de NodeJS.
+## Levantar desde cero (recomendado)
 
-MongoDB - [Enlace de descarga](https://www.mongodb.com/try/download/community "MongoDB")
+Desde la raiz del repo:
 
-* Sistema de base de datos NoSQL, orientado a documentos y de código abierto.
-* Versión: **5.0.31 en adelante**
+```powershell
+PowerShell -ExecutionPolicy Bypass -File scripts\setup.ps1
+```
 
-Python - [Enlace de descarga](https://www.python.org/downloads/release/python-3129/ "Python")
+Este flujo instala dependencias, compila y levanta procesos con PM2.
 
-* Lenguaje de programación de alto nivel que se usa para crear software, aplicaciones web, y analizar datos
-* Versión: **3.12.9**
+## Actualizacion rapida
 
-## Back
+```powershell
+PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1 -Target all
+```
 
-Para iniciar la aplicación debemos instalar las dependencias necesarias, para esto tenemos que ejecutar el comando:
+Actualizacion por modulo:
 
-`npm i`
+```powershell
+PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1 -Target back
+PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1 -Target panel
+PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1 -Target demonio
+PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1 -Target backfront
+PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1 -Target all
+```
 
-Al concluir la instalación podemos ejecutar la aplicación con el comando:
+## Operacion con PM2
 
-`npm run dev`
+Ver estado:
 
-## Front
+```powershell
+pm2 ls
+```
 
-Para iniciar la aplicación debemos instalar las dependencias necesarias, ejecutando el comando:
+Ver logs:
 
-`npm i --force`
+```powershell
+pm2 logs
+```
 
-Al concluir la instalación podemos ejecutar la aplicación con el comando:
+Reiniciar servicios:
 
-`npm run dev`
+```powershell
+pm2 restart back
+pm2 restart panel_server
+pm2 restart demonio_eventos
+```
+
+Guardar estado actual de PM2:
+
+```powershell
+pm2 save
+```
+
+## Flujo manual (si scripts fallan)
+
+Referencia completa en:
+
+- `GUIA_LEVANTAR_RE_PLAY_3.md`
+
+Resumen:
+
+1. Compilar `front` (`npm run build`).
+2. Copiar build de `front` a `back/dist/dist`.
+3. Compilar `back`, `panel_server`, `demonio_eventos`.
+4. Levantar cada modulo con PM2.
+
+## Notas
+
+- El frontend servido en produccion sale desde `back/dist`.
+- La integracion de paneles se procesa en `panel_server`.
+- Para cambios operativos, usar primero `scripts/update.ps1`.
+
+## Documentacion adicional
+
+- [GUIA_LEVANTAR_RE_PLAY_3.md](./GUIA_LEVANTAR_RE_PLAY_3.md)
+- [GUIA_HTTPS_CAMARA.md](./GUIA_HTTPS_CAMARA.md)
+- [GUIA_SETUP_EXE.md](./GUIA_SETUP_EXE.md)
