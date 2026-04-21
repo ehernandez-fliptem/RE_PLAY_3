@@ -9,6 +9,7 @@ import Empleados from "../models/Empleados";
 import Registros, { IRegistro } from "../models/Registros";
 import Empresas from "../models/Empresas";
 import Visitantes from "../models/Visitantes";
+import RegistrosCampo from "../models/RegistrosCampo";
 import { fecha, log } from "../middlewares/log";
 import {
     validacionRegistroActivo,
@@ -33,6 +34,12 @@ import FaceDescriptors from "../models/FaceDescriptors";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
+
+const KIOSCO_PANEL_MODE = {
+    PANELES: "all",
+    CAMPO: "campo",
+    TODOS: "todos",
+} as const;
 
 export async function obtenerTodosPorFiltro(req: Request, res: Response): Promise<void> {
     try {
@@ -62,11 +69,15 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
             .map((item: any) => String(item.id_empleado))
             .filter((item: string) => item !== "undefined" && item !== "null");
         const { filter, pagination, sort, panel } = req.query as { filter: string; pagination: string; sort: string; panel?: string; };
-        const queryPanel = panel && panel !== "all" ? String(panel) : "";
-        if (queryPanel && !Types.ObjectId.isValid(queryPanel)) {
+        const panelSelector = String(panel || KIOSCO_PANEL_MODE.PANELES);
+        const esCampo = panelSelector === KIOSCO_PANEL_MODE.CAMPO;
+        const esTodos = panelSelector === KIOSCO_PANEL_MODE.TODOS;
+        const esPanelEspecifico = ![KIOSCO_PANEL_MODE.PANELES, KIOSCO_PANEL_MODE.CAMPO, KIOSCO_PANEL_MODE.TODOS].includes(panelSelector as any);
+        if (esPanelEspecifico && !Types.ObjectId.isValid(panelSelector)) {
             res.status(200).json({ estado: false, mensaje: "Panel de busqueda invalido." });
             return;
         }
+        const eventoPanelMatch = esPanelEspecifico ? { id_panel: new Types.ObjectId(panelSelector) } : {};
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
         const querySort = JSON.parse(sort) as QueryParams["sort"];
         const queryPagination = JSON.parse(pagination) as QueryParams["pagination"];
@@ -81,7 +92,7 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
             queryPagination,
             ["fecha_creacion", "usuario", "tipo_dispositivo", "tipo_check", "horario", "ubicacion"]
         );
-        const aggregation: PipelineStage[] = [
+        const aggregationEventosBase: PipelineStage[] = [
             {
                 $match: {
                     $and: [
@@ -96,7 +107,7 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                             : {},
                         dispositivos?.length ? { tipo_dispositivo: { $in: dispositivos.map((item: number) => Number(item)) } } : {},
                         estatus?.length ? { tipo_check: { $in: estatus.filter((item: string | number) => [5, 6, 7].includes(Number(item))).map((item: number) => Number(item)) } } : {},
-                        queryPanel ? { id_panel: new Types.ObjectId(queryPanel) } : {},
+                        eventoPanelMatch,
                         fecha_inicio && fecha_final
                             ? { fecha_creacion: { $gte: entrada, $lte: salida } }
                             : {},
@@ -306,14 +317,122 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                 },
             },
         ];
+
+        const permiteCampoPorDispositivo = !dispositivos?.length || dispositivos.map((item: number) => Number(item)).includes(4);
+        const tiposCampoPermitidos = Array.isArray(estatus)
+            ? estatus
+                .map((item: string | number) => Number(item))
+                .filter((item) => [5, 6].includes(item))
+                .map((item) => (item === 5 ? "IN" : "OUT"))
+            : [];
+
+        const aggregationCampoBase: PipelineStage[] = [
+            {
+                $match: {
+                    $and: [
+                        fecha_inicio && fecha_final
+                            ? { fecha_hora_servidor: { $gte: entrada, $lte: salida } }
+                            : {},
+                        usuariosSeleccionados.length
+                            ? { id_empleado: { $in: usuariosSeleccionados } }
+                            : {},
+                        tiposCampoPermitidos.length
+                            ? { tipo: { $in: tiposCampoPermitidos } }
+                            : {},
+                        permiteCampoPorDispositivo ? {} : { _id: null },
+                    ],
+                },
+            },
+            {
+                $lookup: {
+                    from: "empleados",
+                    localField: "id_empleado",
+                    foreignField: "_id",
+                    as: "empleado",
+                    pipeline: [
+                        {
+                            $project: {
+                                id_empresa: 1,
+                                nombre: {
+                                    $trim: {
+                                        input: { $concat: ["$nombre", " ", "$apellido_pat", " ", { $ifNull: ["$apellido_mat", ""] }] },
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                $lookup: {
+                    from: "usuarios",
+                    localField: "id_usuario",
+                    foreignField: "_id",
+                    as: "creado_por",
+                    pipeline: [
+                        {
+                            $project: {
+                                nombre: {
+                                    $trim: {
+                                        input: { $concat: ["$nombre", " ", "$apellido_pat", " ", { $ifNull: ["$apellido_mat", ""] }] },
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                $set: {
+                    empleado: { $arrayElemAt: ["$empleado", -1] },
+                    creado_por: { $arrayElemAt: ["$creado_por", -1] },
+                },
+            },
+            {
+                $set: {
+                    id_empresa: "$empleado.id_empresa",
+                    tipo_dispositivo: 4,
+                    usuario: "$empleado.nombre",
+                    estatus: { $cond: [{ $eq: ["$tipo", "IN"] }, 5, 6] },
+                    ubicacion: {
+                        $concat: [{ $toString: "$latitud" }, ", ", { $toString: "$longitud" }],
+                    },
+                    creado_por: "$creado_por.nombre",
+                    fecha_creacion: "$fecha_hora_servidor",
+                    panel: "Registro de Campo",
+                },
+            },
+            {
+                $match: {
+                    $and: [
+                        empresas?.length
+                            ? { id_empresa: { $in: empresas.map((item: string) => new Types.ObjectId(item)) } }
+                            : {},
+                    ],
+                },
+            },
+            {
+                $project: {
+                    tipo_dispositivo: 1,
+                    usuario: 1,
+                    estatus: 1,
+                    ubicacion: 1,
+                    creado_por: 1,
+                    fecha_creacion: 1,
+                    panel: 1,
+                },
+            },
+        ];
+
+        const aggregationTail: PipelineStage[] = [];
         if (filterMDB.length > 0) {
-            aggregation.push({
+            aggregationTail.push({
                 $match: {
                     $or: filterMDB
                 }
-            });
+            } as PipelineStage);
         }
-        aggregation.push(
+        aggregationTail.push(
             {
                 $sort: sortMDB ? sortMDB : { fecha_creacion: -1 }
             },
@@ -327,8 +446,25 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                     ]
                 }
             }
-        )
-        const registros = await Eventos.aggregate(aggregation);
+        );
+
+        let registros: any[] = [];
+        if (esCampo) {
+            registros = await RegistrosCampo.aggregate([...aggregationCampoBase, ...aggregationTail]);
+        } else if (esTodos) {
+            registros = await Eventos.aggregate([
+                ...aggregationEventosBase,
+                ({
+                    $unionWith: {
+                        coll: RegistrosCampo.collection.name,
+                        pipeline: aggregationCampoBase as any
+                    }
+                } as PipelineStage),
+                ...aggregationTail
+            ]);
+        } else {
+            registros = await Eventos.aggregate([...aggregationEventosBase, ...aggregationTail]);
+        }
         res.status(200).json({ estado: true, datos: registros[0] });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -339,7 +475,7 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
     try {
         const id_usuario = (req as UserRequest).userId;
         const isMaster = (req as UserRequest).isMaster;
-        const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario
+        const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
 
         const { filter, pagination, sort, date, panel } = req.query as {
             filter: string;
@@ -348,14 +484,18 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
             date: string;
             panel?: string;
         };
+        const panelSelector = String(panel || KIOSCO_PANEL_MODE.PANELES);
+        const esCampo = panelSelector === KIOSCO_PANEL_MODE.CAMPO;
+        const esTodos = panelSelector === KIOSCO_PANEL_MODE.TODOS;
+        const esPanelEspecifico = ![KIOSCO_PANEL_MODE.PANELES, KIOSCO_PANEL_MODE.CAMPO, KIOSCO_PANEL_MODE.TODOS].includes(panelSelector as any);
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
         const querySort = JSON.parse(sort) as QueryParams["sort"];
         const queryPagination = JSON.parse(pagination) as QueryParams["pagination"];
         const queryDate = date as QueryParams["date"];
-        const queryPanel = panel && panel !== "all" ? String(panel) : "";
+        const queryPanel = esPanelEspecifico ? panelSelector : "";
 
         const fecha_busqueda = dayjs(queryDate);
-        if (queryPanel && !Types.ObjectId.isValid(queryPanel)) {
+        if (esPanelEspecifico && !Types.ObjectId.isValid(queryPanel)) {
             res.status(200).json({ estado: false, mensaje: "Panel de busqueda invalido." });
             return;
         }
@@ -373,7 +513,7 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
             pagination: paginationMDB,
         } = customAggregationForDataGrids(queryFilter, querySort, queryPagination, ["anfitrion", "nombre", "panel", "acceso"]);
 
-        const aggregation: PipelineStage[] = [
+        const eventosBase: PipelineStage[] = [
             {
                 $match: {
                     $and: [
@@ -610,15 +750,69 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
             }
         ];
 
+        const campoBase: PipelineStage[] = [
+            {
+                $match: {
+                    $and: [
+                        date ? { fecha_hora_servidor: { $gte: entrada, $lte: salida } } : {},
+                        { tipo: { $in: ["IN", "OUT"] } },
+                    ],
+                },
+            },
+            {
+                $lookup: {
+                    from: "empleados",
+                    localField: "id_empleado",
+                    foreignField: "_id",
+                    as: "empleado",
+                    pipeline: [
+                        {
+                            $project: {
+                                id_empresa: 1,
+                                nombre: {
+                                    $trim: {
+                                        input: { $concat: ["$nombre", " ", "$apellido_pat", " ", { $ifNull: ["$apellido_mat", ""] }] },
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                $set: {
+                    empleado: { $arrayElemAt: ["$empleado", -1] },
+                },
+            },
+            { $match: isMaster ? {} : { "empleado.id_empresa": id_empresa } },
+            {
+                $project: {
+                    img_usuario: "$foto",
+                    anfitrion: "",
+                    nombre: "$empleado.nombre",
+                    tipo_check: { $cond: [{ $eq: ["$tipo", "IN"] }, 5, 6] },
+                    fecha_creacion: "$fecha_hora_servidor",
+                    tipo_origen: 1,
+                    panel: "Registro de Campo",
+                    acceso: "Campo Web",
+                    id_registro: null,
+                    id_visitante: null,
+                    id_usuario: "$id_usuario",
+                    id_empleado: "$id_empleado",
+                },
+            },
+        ];
+
+        const aggregationTail: PipelineStage[] = [];
         if (filterMDB.length > 0) {
-            aggregation.push({
+            aggregationTail.push({
                 $match: {
                     $or: filterMDB,
                 },
-            });
+            } as PipelineStage);
         }
 
-        aggregation.push(
+        aggregationTail.push(
             {
                 $setWindowFields: {
                     sortBy: { fecha_creacion: -1 }, // Para el firstRecord
@@ -716,7 +910,23 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
             }
         );
 
-        const registros = await Eventos.aggregate(aggregation);
+        let registros: any[] = [];
+        if (esCampo) {
+            registros = await RegistrosCampo.aggregate([...campoBase, ...aggregationTail]);
+        } else if (esTodos) {
+            registros = await Eventos.aggregate([
+                ...eventosBase,
+                ({
+                    $unionWith: {
+                        coll: RegistrosCampo.collection.name,
+                        pipeline: campoBase as any,
+                    },
+                } as PipelineStage),
+                ...aggregationTail,
+            ]);
+        } else {
+            registros = await Eventos.aggregate([...eventosBase, ...aggregationTail]);
+        }
 
         res.status(200).json({ estado: true, datos: registros[0] });
     } catch (error: any) {

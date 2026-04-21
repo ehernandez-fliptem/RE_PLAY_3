@@ -18,13 +18,13 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { CameraAlt, Login, Logout, Visibility } from "@mui/icons-material";
+import { CameraAlt, Close, Login, Logout, Visibility } from "@mui/icons-material";
 import Webcam from "react-webcam";
 import { enqueueSnackbar } from "notistack";
 import { useNavigate } from "react-router-dom";
 import { clienteAxios, handlingError } from "../../app/config/axios";
 import { useSelector } from "react-redux";
-import { IRootState } from "../../app/store";
+import type { IRootState } from "../../app/store";
 import Spinner from "../utils/Spinner";
 
 type EstadoCampo = {
@@ -334,25 +334,33 @@ export default function Campo() {
       </Dialog>
 
       <Dialog open={openMapa} fullWidth maxWidth="lg" onClose={() => setOpenMapa(false)}>
-        <DialogTitle>Ubicación del movimiento</DialogTitle>
+        <DialogTitle sx={{ position: "relative" }}>
+          <IconButton
+            size="small"
+            onClick={() => setOpenMapa(false)}
+            sx={{ position: "absolute", right: 10, top: 10, color: "error.main" }}
+          >
+            <Close fontSize="small" />
+          </IconButton>
+          <Typography variant="h5" textAlign="center">
+            Ubicación del movimiento
+          </Typography>
+        </DialogTitle>
         <DialogContent>
           {registroMapa && (
             <Stack spacing={1}>
-              <Typography variant="body2">
+              <Typography variant="body1" sx={{ fontSize: "1.05rem" }}>
                 {registroMapa.tipo} - {new Date(registroMapa.fecha_hora_servidor).toLocaleString()}
               </Typography>
               <Box
                 component="iframe"
                 src={urlMapaEmbed}
-                sx={{ width: "100%", height: 560, border: 0, borderRadius: 1 }}
+                sx={{ width: "100%", height: 560, border: 0, borderRadius: 2 }}
               />
             </Stack>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenMapa(false)} color="secondary">
-            Cerrar
-          </Button>
           {registroMapa && (
             <Button
               component="a"

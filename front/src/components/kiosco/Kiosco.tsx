@@ -38,6 +38,7 @@ import {
 import ErrorOverlay from "../error/DataGridError";
 import SearchInput from "../recepcion/bitacora/utils/SearchInput";
 import { DatePicker } from "@mui/x-date-pickers";
+import imgSinFoto from "../../assets/img/app/NotFile.png";
 
 const StyledStack = styled(Stack)(({ theme }) => ({
   width: "100%",
@@ -500,19 +501,16 @@ export default function Kiosco() {
                                 title={firstRecord.nombre}
                               />
                             ) : (
-                              <Box
+                              <CardMedia
+                                component="img"
                                 sx={(theme) => ({
                                   bgcolor: theme.palette.grey[200],
                                   height: { xs: 150, md: 150, lg: 180, xl: 250 },
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  color: theme.palette.text.secondary,
-                                  fontWeight: 600,
+                                  objectFit: "contain",
                                 })}
-                              >
-                                Sin foto
-                              </Box>
+                                src={imgSinFoto}
+                                title="Sin foto"
+                              />
                             )}
                           </CardActionArea>
                           <CardContent>
@@ -897,19 +895,16 @@ export default function Kiosco() {
                                   title={item.nombre}
                                 />
                               ) : (
-                                <Box
+                                <CardMedia
+                                  component="img"
                                   sx={(theme) => ({
                                     bgcolor: theme.palette.grey[200],
                                     height: { xs: 120, xl: 150 },
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    color: theme.palette.text.secondary,
-                                    fontWeight: 600,
+                                    objectFit: "contain",
                                   })}
-                                >
-                                  Sin foto
-                                </Box>
+                                  src={imgSinFoto}
+                                  title="Sin foto"
+                                />
                               )}
                             </CardActionArea>
                               <CardContent>
@@ -1059,19 +1054,16 @@ export default function Kiosco() {
             <Box component="img" width={"100%"} src={selectedReg?.img_usuario} />
           ) : (
             <Box
+              component="img"
+              src={imgSinFoto}
+              alt="Sin foto"
               sx={(theme) => ({
                 width: "100%",
                 minHeight: 200,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
                 bgcolor: theme.palette.grey[200],
-                color: theme.palette.text.secondary,
-                fontWeight: 600,
+                objectFit: "contain",
               })}
-            >
-              Sin foto
-            </Box>
+            />
           )}
         </DialogContent>
       </Dialog>

@@ -1,7 +1,9 @@
 import { DoorFront, MeetingRoom } from "@mui/icons-material";
 import { Box, MenuItem, Select, type SelectChangeEvent } from "@mui/material";
 import { useCallback, useEffect, useState } from "react";
+import { useSelector } from "react-redux";
 import { clienteAxios } from "../../app/config/axios";
+import type { IRootState } from "../../app/store";
 
 type IPanel = {
   _id: string;
@@ -11,8 +13,12 @@ type IPanel = {
 const STORAGE_KEY = "SELECTED_KIOSCO_PANEL";
 
 export default function KioscoPanel() {
-  const SELECTED = localStorage.getItem(STORAGE_KEY) || "all";
-  const [panel, setPanel] = useState(SELECTED);
+  const { habilitarRegistroCampo } = useSelector(
+    (state: IRootState) => state.config.data
+  );
+  const [panel, setPanel] = useState(
+    habilitarRegistroCampo ? "campo" : "all"
+  );
   const [open, setOpen] = useState(false);
   const [paneles, setPaneles] = useState<IPanel[]>([]);
 
@@ -31,14 +37,21 @@ export default function KioscoPanel() {
     obtenerPaneles();
   }, [obtenerPaneles]);
 
+  useEffect(() => {
+    const nextValue = habilitarRegistroCampo ? "campo" : "all";
+    localStorage.setItem(STORAGE_KEY, nextValue);
+    setPanel(nextValue);
+  }, [habilitarRegistroCampo]);
+
   const handleChangePanel = (event: SelectChangeEvent) => {
+    const oldValue = localStorage.getItem(STORAGE_KEY);
     const value = String(event.target.value || "all");
     localStorage.setItem(STORAGE_KEY, value);
     setPanel(value);
     window.dispatchEvent(
       new StorageEvent("storage", {
         key: STORAGE_KEY,
-        oldValue: SELECTED,
+        oldValue,
         newValue: value,
       })
     );
@@ -88,6 +101,9 @@ export default function KioscoPanel() {
         }}
       >
         <MenuItem value="all">Todos los paneles</MenuItem>
+        {habilitarRegistroCampo && (
+          <MenuItem value="campo">Registro de Campo</MenuItem>
+        )}
         {paneles.map((item) => (
           <MenuItem key={item._id} value={item._id}>
             {item.nombre}

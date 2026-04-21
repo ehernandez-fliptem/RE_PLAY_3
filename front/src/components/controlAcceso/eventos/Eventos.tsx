@@ -26,8 +26,13 @@ import {
   Card,
   CardContent,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   Grid,
+  IconButton,
   lighten,
   Stack,
   Typography,
@@ -38,7 +43,13 @@ import {
   FormContainer,
   SelectElement,
 } from "react-hook-form-mui";
-import { ClearAll, LocationOn, Search, Visibility } from "@mui/icons-material";
+import {
+  ClearAll,
+  Close,
+  LocationOn,
+  Search,
+  Visibility,
+} from "@mui/icons-material";
 import { enqueueSnackbar } from "notistack";
 import { DateTimePicker } from "@mui/x-date-pickers";
 import { useSelector } from "react-redux";
@@ -106,7 +117,7 @@ const initialValue: FormValues = {
 };
 
 export default function Eventos() {
-  const { tipos_eventos, tipos_dispositivos } = useSelector(
+  const { tipos_eventos, tipos_dispositivos, habilitarRegistroCampo } = useSelector(
     (state: IRootState) => state.config.data
   );
 
@@ -143,6 +154,11 @@ export default function Eventos() {
   const [paneles, setPaneles] = useState<Panel[]>([]);
   const [canSearch, setCanSearch] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [openDetalleCampo, setOpenDetalleCampo] = useState(false);
+  const [openMapa, setOpenMapa] = useState(false);
+  const [eventoSeleccionado, setEventoSeleccionado] =
+    useState<GridValidRowModel | null>(null);
+  const [eventoMapa, setEventoMapa] = useState<GridValidRowModel | null>(null);
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -275,6 +291,51 @@ export default function Eventos() {
     navigate(`detalle-evento/${ID}`);
   };
 
+  const esEventoCampo = (row: GridValidRowModel) =>
+    Number(row?.tipo_dispositivo) === 4 ||
+    String(row?.panel || "").toLowerCase().includes("campo");
+
+  const obtenerCoords = (ubicacion: unknown) => {
+    const raw = String(ubicacion || "");
+    const [latRaw, lngRaw] = raw.split(",").map((item) => item?.trim());
+    const lat = Number(latRaw);
+    const lng = Number(lngRaw);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat, lng };
+  };
+
+  const abrirMapa = (row: GridValidRowModel) => {
+    const coords = obtenerCoords(row?.ubicacion);
+    if (!coords) {
+      enqueueSnackbar("El evento no tiene ubicación válida.", {
+        variant: "warning",
+      });
+      return;
+    }
+    setEventoMapa(row);
+    setOpenMapa(true);
+  };
+
+  const verEvento = (row: GridValidRowModel) => {
+    if (esEventoCampo(row)) {
+      setEventoSeleccionado(row);
+      setOpenDetalleCampo(true);
+      return;
+    }
+    verRegistro(String(row._id));
+  };
+
+  const urlMapaEmbed = (() => {
+    const coords = obtenerCoords(eventoMapa?.ubicacion);
+    if (!coords) return "";
+    const delta = 0.005;
+    const left = coords.lng - delta;
+    const right = coords.lng + delta;
+    const top = coords.lat + delta;
+    const bottom = coords.lat - delta;
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${coords.lat}%2C${coords.lng}`;
+  })();
+
   return (
     <Fragment>
       <Box component="section" sx={{ mb: 4 }}>
@@ -399,13 +460,25 @@ export default function Eventos() {
                       name="panel"
                       label="Panel"
                       matchId
-                      options={[
-                        { id: "all", label: "Todos los paneles" },
-                        ...paneles.map((item) => ({
-                          id: item._id,
-                          label: item.nombre,
-                        })),
-                      ]}
+                      options={
+                        habilitarRegistroCampo
+                          ? [
+                              { id: "all", label: "Paneles" },
+                              { id: "todos", label: "Todos" },
+                              { id: "campo", label: "Campo" },
+                              ...paneles.map((item) => ({
+                                id: item._id,
+                                label: item.nombre,
+                              })),
+                            ]
+                          : [
+                              { id: "all", label: "Todos los paneles" },
+                              ...paneles.map((item) => ({
+                                id: item._id,
+                                label: item.nombre,
+                              })),
+                            ]
+                      }
                       textFieldProps={{
                         margin: "normal",
                       }}
@@ -570,7 +643,7 @@ export default function Eventos() {
                 );
               },
               valueFormatter: (value) => {
-                return tipos_dispositivos[value].nombre;
+                return tipos_dispositivos[value]?.nombre || "Campo";
               },
             },
             {
@@ -588,9 +661,7 @@ export default function Eventos() {
                     <GridActionsCellItem
                       icon={<LocationOn color="primary" />}
                       onClick={() =>
-                        window.open(
-                          `https://www.google.com.mx/maps/place/${row.ubicacion}`
-                        )
+                        abrirMapa(row)
                       }
                       label="Ver"
                       title="Ver"
@@ -613,7 +684,7 @@ export default function Eventos() {
                 gridActions.push(
                   <GridActionsCellItem
                     icon={<Visibility color="primary" />}
-                    onClick={() => verRegistro(row._id)}
+                    onClick={() => verEvento(row)}
                     label="Ver"
                     title="Ver"
                   />
@@ -662,6 +733,171 @@ export default function Eventos() {
         )}
         <Outlet />
       </div>
+
+      <Dialog
+        open={openDetalleCampo}
+        fullWidth
+        maxWidth="md"
+        onClose={() => setOpenDetalleCampo(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            overflow: "hidden",
+            width: { xs: "95vw", sm: "82vw", md: "70vw" },
+            maxWidth: 860,
+          },
+        }}
+      >
+        <DialogTitle sx={{ pb: 1, position: "relative" }}>
+          <IconButton
+            size="small"
+            onClick={() => setOpenDetalleCampo(false)}
+            sx={{ position: "absolute", right: 10, top: 10, color: "error.main" }}
+          >
+            <Close fontSize="small" />
+          </IconButton>
+          <Typography variant="h5" textAlign="center">
+            Evento de Campo
+          </Typography>
+          <Box
+            sx={(theme) => ({
+              mt: 1,
+              border: `1px solid ${theme.palette.primary.main}`,
+              borderRadius: 2,
+              px: 1.5,
+              py: 0.4,
+              textAlign: "center",
+              color: "primary.main",
+              fontWeight: 700,
+              fontSize: 16,
+            })}
+          >
+            Evento de Campo
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1.5, pb: 1 }}>
+          <Stack spacing={1.5} sx={{ mt: 0.75 }}>
+            <Typography variant="body1" sx={{ fontSize: "1.05rem" }}>
+              <strong>Fecha:</strong>{" "}
+              {eventoSeleccionado?.fecha_creacion
+                ? dayjs(eventoSeleccionado.fecha_creacion).format(
+                    "DD/MM/YYYY, HH:mm:ss a"
+                  )
+                : "-"}
+            </Typography>
+            <Typography variant="body1" sx={{ fontSize: "1.05rem" }}>
+              <strong>Usuario:</strong> {String(eventoSeleccionado?.usuario || "-")}
+            </Typography>
+            <Typography variant="body1" sx={{ fontSize: "1.05rem" }}>
+              <strong>Tipo:</strong>{" "}
+              {tipos_eventos[Number(eventoSeleccionado?.estatus)]?.nombre || "-"}
+            </Typography>
+            <Typography variant="body1" sx={{ fontSize: "1.05rem" }}>
+              <strong>Dispositivo:</strong>{" "}
+              {String(eventoSeleccionado?.panel || "Registro de Campo")}
+            </Typography>
+            <Typography variant="body1" sx={{ fontSize: "1.05rem" }}>
+              <strong>Creado por:</strong>{" "}
+              {String(eventoSeleccionado?.creado_por || "Sistema")}
+            </Typography>
+            <Typography variant="body1" sx={{ fontSize: "1.05rem" }}>
+              <strong>Ubicación:</strong>{" "}
+              {String(eventoSeleccionado?.ubicacion || "No disponible")}
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            variant="contained"
+            onClick={() => {
+              if (!eventoSeleccionado) return;
+              abrirMapa(eventoSeleccionado);
+            }}
+          >
+            Ver ubicación
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={openMapa}
+        fullWidth
+        maxWidth="lg"
+        onClose={() => setOpenMapa(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            overflow: "hidden",
+          },
+        }}
+      >
+        <DialogTitle sx={{ pb: 1, position: "relative" }}>
+          <IconButton
+            size="small"
+            onClick={() => setOpenMapa(false)}
+            sx={{ position: "absolute", right: 10, top: 10, color: "error.main" }}
+          >
+            <Close fontSize="small" />
+          </IconButton>
+          <Typography variant="h5" textAlign="center">
+            Ubicación del Evento
+          </Typography>
+          <Box
+            sx={(theme) => ({
+              mt: 1,
+              border: `1px solid ${theme.palette.primary.main}`,
+              borderRadius: 2,
+              px: 1.5,
+              py: 0.4,
+              textAlign: "center",
+              color: "primary.main",
+              fontWeight: 700,
+              fontSize: 16,
+            })}
+          >
+            Ubicación del Evento
+          </Box>
+          <Typography variant="subtitle1" textAlign="center" sx={{ mt: 0.5 }}>
+            Mapa
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          {eventoMapa && urlMapaEmbed ? (
+            <Stack spacing={1}>
+              <Typography variant="body1" sx={{ fontSize: "1.05rem" }}>
+                {String(eventoMapa?.usuario || "-")} -{" "}
+                {eventoMapa?.fecha_creacion
+                  ? dayjs(eventoMapa.fecha_creacion).format("DD/MM/YYYY, HH:mm:ss a")
+                  : "-"}
+              </Typography>
+              <Box
+                component="iframe"
+                src={urlMapaEmbed}
+                sx={{ width: "100%", height: 560, border: 0, borderRadius: 2 }}
+              />
+            </Stack>
+          ) : (
+            <Typography variant="body1" color="text.secondary" sx={{ fontSize: "1.05rem" }}>
+              El evento no tiene una ubicación válida para mostrar en mapa.
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          {eventoMapa && obtenerCoords(eventoMapa?.ubicacion) && (
+            <Button
+              component="a"
+              href={`https://www.google.com/maps?q=${
+                obtenerCoords(eventoMapa?.ubicacion)?.lat
+              },${obtenerCoords(eventoMapa?.ubicacion)?.lng}`}
+              target="_blank"
+              rel="noreferrer"
+              variant="contained"
+            >
+              Abrir en Google Maps
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </Fragment>
   );
 }
