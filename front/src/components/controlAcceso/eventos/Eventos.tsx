@@ -760,9 +760,6 @@ export default function Eventos() {
           >
             <Close fontSize="small" />
           </IconButton>
-          <Typography variant="h5" textAlign="center">
-            Evento de Campo
-          </Typography>
           <Box
             sx={(theme) => ({
               mt: 1,
@@ -843,9 +840,6 @@ export default function Eventos() {
           >
             <Close fontSize="small" />
           </IconButton>
-          <Typography variant="h5" textAlign="center">
-            Ubicación del Evento
-          </Typography>
           <Box
             sx={(theme) => ({
               mt: 1,
