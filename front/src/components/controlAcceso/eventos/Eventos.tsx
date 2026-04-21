@@ -594,19 +594,21 @@ export default function Eventos() {
               minWidth: 150,
               renderCell: ({ value }) => (
                 <Chip
-                  label={tipos_eventos[value].nombre}
+                  label={tipos_eventos[value]?.nombre || "Sin tipo"}
                   size="small"
-                  sx={(theme) => ({
-                    width: "100%",
-                    bgcolor: tipos_eventos[value].color || "secondary.main",
-                    color: theme.palette.getContrastText(
-                      tipos_eventos[value].color || "secondary.main"
-                    ),
-                  })}
+                  sx={(theme) => {
+                    const colorBase =
+                      tipos_eventos[value]?.color || theme.palette.secondary.main;
+                    return {
+                      width: "100%",
+                      bgcolor: colorBase,
+                      color: theme.palette.getContrastText(colorBase),
+                    };
+                  }}
                 />
               ),
               valueFormatter: (value) => {
-                return tipos_eventos[value].nombre;
+                return tipos_eventos[value]?.nombre || "Sin tipo";
               },
             },
             {
@@ -631,14 +633,16 @@ export default function Eventos() {
                   <Chip
                     label={label}
                     size="small"
-                    sx={(theme) => ({
-                      width: "100%",
-                      bgcolor:
-                        tipos_dispositivos[value]?.color || "secondary.main",
-                      color: theme.palette.getContrastText(
-                        tipos_dispositivos[value]?.color || "secondary.main"
-                      ),
-                    })}
+                    sx={(theme) => {
+                      const colorBase =
+                        tipos_dispositivos[value]?.color ||
+                        theme.palette.secondary.main;
+                      return {
+                        width: "100%",
+                        bgcolor: colorBase,
+                        color: theme.palette.getContrastText(colorBase),
+                      };
+                    }}
                   />
                 );
               },
