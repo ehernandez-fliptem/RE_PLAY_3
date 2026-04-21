@@ -92,7 +92,11 @@ export default function Login() {
           localStorage.removeItem("rememberedPassword");
         }
         dispatch(addAuth(res.data.datos));
-        navigate("/", { replace: true });
+        const roles = Array.isArray(res.data?.datos?.rol)
+          ? (res.data.datos.rol as number[])
+          : [];
+        const esSoloCampo = roles.length > 0 && roles.every((item) => item === 12);
+        navigate(esSoloCampo ? "/campo" : "/", { replace: true });
       } else {
         const mensaje = String(res.data.mensaje || "");
         const mensajeLower = mensaje.toLowerCase();
