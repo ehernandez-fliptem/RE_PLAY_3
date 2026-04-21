@@ -13,6 +13,7 @@ export interface IDispositivoHv extends Document {
     habilitar_citas: boolean;
     tipo_evento: number;
     id_acceso: mongoose.Types.ObjectId;
+    es_panel_maestro?: boolean;
     reloj_offset_segundos?: number;
     reloj_alerta_activa?: boolean;
     reloj_ultimo_desfase_segundos?: number;
@@ -49,6 +50,7 @@ const dispositivosHvSchema = new Schema<IDispositivoHv>({
     habilitar_citas: { type: Boolean, default: false },
     tipo_evento: { type: Number, required: true, ref: 'tipos_eventos' },
     id_acceso: { type: Schema.Types.ObjectId, required: [true, 'El acceso es obligatorio.'], ref: 'accesos' },
+    es_panel_maestro: { type: Boolean, default: false, index: true },
     reloj_offset_segundos: { type: Number, default: 0 },
     reloj_alerta_activa: { type: Boolean, default: false },
     reloj_ultimo_desfase_segundos: { type: Number, default: 0 },

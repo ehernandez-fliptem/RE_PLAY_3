@@ -85,6 +85,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                     habilitar_citas: 1,
                     acceso: 1,
                     tipo_evento: 1,
+                    es_panel_maestro: 1,
                     activo: 1,
                 },
             },
@@ -112,7 +113,7 @@ export async function obtenerTodosDemonio(req: Request, res: Response): Promise<
     try {
         const registros = await DispositivosHv.find(
             { activo: true },
-            "nombre usuario direccion_ip contrasena tipo_evento"
+            "nombre usuario direccion_ip contrasena tipo_evento es_panel_maestro"
         );
         res.status(200).json({ estado: true, datos: registros });
     } catch (error: any) {
@@ -240,7 +241,10 @@ export async function obtenerUnoFormEditar(req: Request, res: Response): Promise
 
 export async function crear(req: Request, res: Response): Promise<void> {
     try {
-        const { nombre, direccion_ip, usuario, contrasena, habilitar_citas, tipo_evento, id_acceso } = req.body;
+        const { nombre, direccion_ip, usuario, contrasena, habilitar_citas, tipo_evento, id_acceso, es_panel_maestro } = req.body;
+        const config = await Configuracion.findOne({}, "habilitarIntegracionHvBiometria");
+        const permitePanelMaestro = !!config?.habilitarIntegracionHvBiometria;
+        const panelMaestroSolicitado = permitePanelMaestro ? !!es_panel_maestro : false;
         const creado_porID = jwt.verify(req.headers["x-access-token"] as string, CONFIG.SECRET) as DecodedTokenUser;
         const nuevoRegistro = new DispositivosHv({
             nombre,
@@ -250,6 +254,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
             habilitar_citas,
             tipo_evento,
             id_acceso,
+            es_panel_maestro: panelMaestroSolicitado,
             creado_por: creado_porID.id,
             fecha_creacion: Date.now(),
         });
@@ -265,6 +270,12 @@ export async function crear(req: Request, res: Response): Promise<void> {
         }
 
         await nuevoRegistro.save();
+        if (nuevoRegistro.es_panel_maestro) {
+            await DispositivosHv.updateMany(
+                { _id: { $ne: nuevoRegistro._id } },
+                { $set: { es_panel_maestro: false } }
+            );
+        }
         await Accesos.updateMany(
             { _id: { $in: id_acceso } },
             { $addToSet: { hikvision_dispositivos: nuevoRegistro._id } }
@@ -278,7 +289,10 @@ export async function crear(req: Request, res: Response): Promise<void> {
 
 export async function modificar(req: Request, res: Response): Promise<void> {
     try {
-        const { nombre, direccion_ip, usuario, contrasena, habilitar_citas, tipo_evento, id_acceso } = req.body;
+        const { nombre, direccion_ip, usuario, contrasena, habilitar_citas, tipo_evento, id_acceso, es_panel_maestro } = req.body;
+        const config = await Configuracion.findOne({}, "habilitarIntegracionHvBiometria");
+        const permitePanelMaestro = !!config?.habilitarIntegracionHvBiometria;
+        const panelMaestroSolicitado = permitePanelMaestro ? !!es_panel_maestro : false;
         const modificado_porID = jwt.verify(req.headers["x-access-token"] as string, CONFIG.SECRET) as DecodedTokenUser;
         const updateData: any = {
             nombre,
@@ -287,6 +301,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             habilitar_citas,
             tipo_evento,
             id_acceso,
+            es_panel_maestro: panelMaestroSolicitado,
             fecha_modificacion: Date.now(),
             modificado_por: modificado_porID.id,
         };
@@ -331,6 +346,12 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                             { $addToSet: { hikvision_dispositivos: req.params.id } }
                         );
                     }
+                }
+                if (panelMaestroSolicitado) {
+                    await DispositivosHv.updateMany(
+                        { _id: { $ne: req.params.id } },
+                        { $set: { es_panel_maestro: false } }
+                    );
                 }
                 res.status(200).json({ estado: true });
             })

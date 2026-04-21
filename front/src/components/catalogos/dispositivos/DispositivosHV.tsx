@@ -32,6 +32,11 @@ import type { IRootState } from "../../../app/store";
 const pageSizeOptions = [10, 25, 50];
 
 export default function DispositivoHV() {
+  const { rol } = useSelector((state: IRootState) => state.auth.data);
+  const { habilitarIntegracionHvBiometria } = useSelector(
+    (state: IRootState) => state.config.data
+  );
+  const esSuperAdmin = rol.includes(1);
   const { tipos_eventos } = useSelector(
     (state: IRootState) => state.config.data
   );
@@ -354,13 +359,32 @@ export default function DispositivoHV() {
               />
             ),
           },
+          ...(esSuperAdmin && habilitarIntegracionHvBiometria
+            ? [
+                {
+                  headerName: "Panel maestro",
+                  field: "es_panel_maestro",
+                  flex: 1,
+                  display: "flex" as const,
+                  minWidth: 150,
+                  renderCell: (params: any) => (
+                    <Chip
+                      label={params.value ? "Maestro" : "No"}
+                      color={params.value ? "primary" : "default"}
+                      size="small"
+                      sx={{ width: "100%" }}
+                    />
+                  ),
+                },
+              ]
+            : []),
           {
             headerName: "Sincronizar",
             field: "sync",
             type: "actions",
             align: "center",
             flex: 1,
-            display: "flex",
+            display: "flex" as const,
             minWidth: 100,
             getActions: ({ row }) => 
               row.activo ? [
@@ -378,7 +402,7 @@ export default function DispositivoHV() {
             type: "actions",
             align: "center",
             flex: 1,
-            display: "flex",
+            display: "flex" as const,
             minWidth: 150,
             getActions: ({ row }) => {
               const gridActions = [];

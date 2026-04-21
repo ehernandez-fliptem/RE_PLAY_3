@@ -1,4 +1,4 @@
-﻿import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
   Button,
   Grid,
@@ -19,7 +19,7 @@ import { updateConfig } from "../../../../app/features/config/configSlice";
 import Swal from "sweetalert2";
 
 export default function Integraciones() {
-  const { getValues, watch } = useFormContext();
+  const { getValues, watch, setValue } = useFormContext();
   const [isSaving, setIsSaving] = useState(false);
   const [expandedDocs, setExpandedDocs] = useState<
     "contratistas" | "visitantes" | false
@@ -27,12 +27,22 @@ export default function Integraciones() {
   const dispatch = useDispatch();
   const habilitarContratistas = watch("habilitarContratistas");
   const habilitarRegistroCampo = watch("habilitarRegistroCampo");
+  const habilitarIntegracionHv = watch("habilitarIntegracionHv");
+
+  useEffect(() => {
+    if (!habilitarIntegracionHv) {
+      setValue("habilitarIntegracionHvBiometria", false, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+  }, [habilitarIntegracionHv, setValue]);
 
   const DOC_LABELS: Record<string, string> = {
-    identificacion_oficial: "Identificación oficial",
+    identificacion_oficial: "Identificacion oficial",
     sua: "SUA",
     permiso_entrada: "Permiso de entrada",
-    lista_articulos: "Lista de artículos",
+    lista_articulos: "Lista de articulos",
     repse: "REPSE",
     soporte_pago_actualizado: "Soporte de pago actualizado",
     constancia_vigencia_imss: "Constancia de Vigencia IMSS",
@@ -58,6 +68,7 @@ export default function Integraciones() {
       setIsSaving(true);
       const {
         habilitarIntegracionHv,
+        habilitarIntegracionHvBiometria,
         habilitarCamaras,
         habilitarContratistas,
         habilitarRegistroCampo,
@@ -66,6 +77,7 @@ export default function Integraciones() {
       } = getValues();
       const res = await clienteAxios.put("/api/configuracion/integraciones", {
         habilitarIntegracionHv,
+        habilitarIntegracionHvBiometria,
         habilitarCamaras,
         habilitarContratistas,
         habilitarRegistroCampo,
@@ -76,6 +88,7 @@ export default function Integraciones() {
         dispatch(
           updateConfig({
             habilitarIntegracionHv,
+            habilitarIntegracionHvBiometria,
             habilitarCamaras,
             habilitarContratistas,
             habilitarRegistroCampo,
@@ -99,7 +112,7 @@ export default function Integraciones() {
       await guardarIntegraciones();
       await Swal.fire({
         icon: "success",
-        title: "Enviado con éxito",
+        title: "Enviado con exito",
         confirmButtonText: "OK",
         allowOutsideClick: false,
       });
@@ -132,7 +145,8 @@ export default function Integraciones() {
               sx={{ ml: { xs: 0, sm: 2 } }}
             >
               <small>
-                Activa el módulo para permitir check in/check out de campo por ubicación y foto.
+                Activa el modulo para permitir check in/check out de campo por
+                ubicacion y foto.
               </small>
             </Typography>
           </Stack>
@@ -145,14 +159,18 @@ export default function Integraciones() {
             justifyContent: { xs: "center", sm: "end" },
           }}
         >
-          <SwitchElement label="" labelPlacement="start" name="habilitarRegistroCampo" />
+          <SwitchElement
+            label=""
+            labelPlacement="start"
+            name="habilitarRegistroCampo"
+          />
         </Grid>
       </Grid>
       <Grid container spacing={2} sx={{ my: 2 }}>
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
             <Typography variant="overline" component="h2">
-              <strong>Integración con Control de accesos de Hikvision</strong>
+              <strong>Integracion con Control de accesos de Hikvision</strong>
             </Typography>
             <Typography
               variant="body2"
@@ -160,7 +178,7 @@ export default function Integraciones() {
               sx={{ ml: { xs: 0, sm: 2 } }}
             >
               <small>
-                Esta opción habilita el uso de los dispositivos de
+                Esta opcion habilita el uso de los dispositivos de
                 reconocimiento facial de la marca Hikvision.
               </small>
             </Typography>
@@ -174,9 +192,49 @@ export default function Integraciones() {
             justifyContent: { xs: "center", sm: "end" },
           }}
         >
-          <SwitchElement label="" labelPlacement="start" name="habilitarIntegracionHv" />
+          <SwitchElement
+            label=""
+            labelPlacement="start"
+            name="habilitarIntegracionHv"
+          />
         </Grid>
       </Grid>
+      {habilitarIntegracionHv && (
+        <Grid container spacing={2} sx={{ my: 1, ml: { xs: 0, sm: 2 } }}>
+          <Grid size={{ xs: 12, sm: 10 }}>
+            <Stack spacing={0}>
+              <Typography variant="overline" component="h2">
+                <strong>Huella y tarjeta (Hikvision)</strong>
+              </Typography>
+              <Typography
+                variant="body2"
+                component="span"
+                sx={{ ml: { xs: 0, sm: 2 } }}
+              >
+                <small>
+                  Activa funciones biometricas y de tarjeta. Esta opcion
+                  habilita el uso de panel maestro para operaciones de
+                  huella/tarjeta.
+                </small>
+              </Typography>
+            </Stack>
+          </Grid>
+          <Grid
+            size={{ xs: 12, sm: 2 }}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: { xs: "center", sm: "end" },
+            }}
+          >
+            <SwitchElement
+              label=""
+              labelPlacement="start"
+              name="habilitarIntegracionHvBiometria"
+            />
+          </Grid>
+        </Grid>
+      )}
       <Grid container spacing={2} sx={{ my: 2 }}>
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
@@ -212,7 +270,14 @@ export default function Integraciones() {
                 </Typography>
               </AccordionSummary>
               <AccordionDetails>
-                <Box sx={{ mt: 1.5, p: 1.5, border: "1px solid #e6e6e6", borderRadius: 1 }}>
+                <Box
+                  sx={{
+                    mt: 1.5,
+                    p: 1.5,
+                    border: "1px solid #e6e6e6",
+                    borderRadius: 1,
+                  }}
+                >
                   <Typography variant="subtitle2" sx={{ mb: 1 }}>
                     Documentos obligatorios
                   </Typography>
@@ -264,7 +329,14 @@ export default function Integraciones() {
                 </Typography>
               </AccordionSummary>
               <AccordionDetails>
-                <Box sx={{ mt: 1.5, p: 1.5, border: "1px solid #e6e6e6", borderRadius: 1 }}>
+                <Box
+                  sx={{
+                    mt: 1.5,
+                    p: 1.5,
+                    border: "1px solid #e6e6e6",
+                    borderRadius: 1,
+                  }}
+                >
                   <Typography variant="subtitle2" sx={{ mb: 1 }}>
                     Documentos obligatorios
                   </Typography>
@@ -312,7 +384,7 @@ export default function Integraciones() {
         component="span"
         sx={{ ml: { xs: 0, sm: 2 }, display: "block", mt: 1 }}
       >
-        <small>Habilita o deshabilita el módulo de contratistas en el sistema.</small>
+        <small>Habilita o deshabilita el modulo de contratistas en el sistema.</small>
       </Typography>
       <Box
         sx={{
@@ -321,14 +393,18 @@ export default function Integraciones() {
           mt: 1,
         }}
       >
-        <SwitchElement label="" labelPlacement="start" name="habilitarContratistas" />
+        <SwitchElement
+          label=""
+          labelPlacement="start"
+          name="habilitarContratistas"
+        />
       </Box>
       {!habilitarRegistroCampo && (
         <Typography
           variant="caption"
           sx={{ display: "block", mt: 1, textAlign: { xs: "center", sm: "right" } }}
         >
-          {/* El acceso de empleados de campo quedará deshabilitado. */}
+          {/* El acceso de empleados de campo quedara deshabilitado. */}
         </Typography>
       )}
       <Grid container spacing={2} sx={{ my: 1 }}>
@@ -349,6 +425,3 @@ export default function Integraciones() {
     </Fragment>
   );
 }
-
-
-

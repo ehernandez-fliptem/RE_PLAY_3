@@ -43,6 +43,8 @@ import Spinner from "../../utils/Spinner";
 import PasswordValidAdornment from "../../utils/PasswordValidAdornment";
 import { setFormErrors } from "../../helpers/formHelper";
 import { enqueueSnackbar } from "notistack";
+import { useSelector } from "react-redux";
+import type { IRootState } from "../../../app/store";
 
 type TEvento = {
   _id: string;
@@ -63,6 +65,7 @@ type FormValues = {
   habilitar_citas: boolean;
   tipo_evento: number;
   id_acceso: string;
+  es_panel_maestro: boolean;
 };
 
 const resolver = yup.object().shape({
@@ -96,6 +99,7 @@ const resolver = yup.object().shape({
   habilitar_citas: yup.boolean(),
   tipo_evento: yup.number().required("Este campo es obligatorio"),
   id_acceso: yup.string().required("Este campo es obligatorio"),
+  es_panel_maestro: yup.boolean(),
 }) as yup.ObjectSchema<FormValues>;
 
 const initialValue: FormValues = {
@@ -106,9 +110,15 @@ const initialValue: FormValues = {
   habilitar_citas: false,
   tipo_evento: 0,
   id_acceso: "",
+  es_panel_maestro: false,
 };
 
 export default function NuevoDispositivoHV() {
+  const { rol } = useSelector((state: IRootState) => state.auth.data);
+  const { habilitarIntegracionHvBiometria } = useSelector(
+    (state: IRootState) => state.config.data
+  );
+  const esSuperAdmin = rol.includes(1);
   const formContext = useForm({
     defaultValues: initialValue,
     resolver: yupResolver(resolver),
@@ -245,7 +255,14 @@ const testConnection: SubmitHandler<FormValues> = async (data) => {
 //////////////////////////
 const onSubmit: SubmitHandler<FormValues> = async (data) => {
   try {
-    const res = await clienteAxios.post("/api/dispositivos-hikvision", data);
+    const payload = {
+      ...data,
+      es_panel_maestro:
+        esSuperAdmin && habilitarIntegracionHvBiometria
+          ? !!data.es_panel_maestro
+          : false,
+    };
+    const res = await clienteAxios.post("/api/dispositivos-hikvision", payload);
 
     if (res?.data?.estado) {
       enqueueSnackbar("El dispositivo se creó correctamente.", {
@@ -409,6 +426,41 @@ const onSubmit: SubmitHandler<FormValues> = async (data) => {
                     />
                   </Grid>
                 </Grid>
+                {esSuperAdmin && habilitarIntegracionHvBiometria && (
+                  <Grid container spacing={2} sx={{ my: 2 }}>
+                    <Grid size={{ xs: 12, sm: 10 }}>
+                      <Stack spacing={0}>
+                        <Typography variant="overline" component="h2">
+                          <strong>Definir como panel maestro</strong>
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          component="span"
+                          sx={{ ml: { xs: 0, sm: 2 } }}
+                        >
+                          <small>
+                            El panel maestro se usar&aacute; para las
+                            operaciones centralizadas (por ejemplo huella).
+                          </small>
+                        </Typography>
+                      </Stack>
+                    </Grid>
+                    <Grid
+                      size={{ xs: 12, sm: 2 }}
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: { xs: "center", sm: "end" },
+                      }}
+                    >
+                      <SwitchElement
+                        label=""
+                        labelPlacement="start"
+                        name="es_panel_maestro"
+                      />
+                    </Grid>
+                  </Grid>
+                )}
                 <Divider sx={{ my: 2 }} />
                 <Box
                   component="footer"

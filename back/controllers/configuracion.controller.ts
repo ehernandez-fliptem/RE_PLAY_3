@@ -13,13 +13,14 @@ import TiposEventos from "../models/TiposEventos";
 import Roles from "../models/Roles";
 import TiposDispositivos from "../models/TiposDispositivos";
 import Usuarios from "../models/Usuarios";
+import DispositivosHv from "../models/DispositivosHv";
 
 export async function obtenerIntegraciones(_req: Request, res: Response): Promise<void> {
     try {
         console.log("Obteniendo integraciones de configuración...");
         const registro = await Configuracion.findOne(
             {},
-            "habilitarIntegracionHv habilitarIntegracionCdvi habilitarContratistas habilitarRegistroCampo documentos_visitantes documentos_contratistas"
+            "habilitarIntegracionHv habilitarIntegracionHvBiometria habilitarIntegracionCdvi habilitarContratistas habilitarRegistroCampo documentos_visitantes documentos_contratistas"
         );
         res.status(200).send({ estado: true, datos: registro });
     } catch (error: any) {
@@ -32,6 +33,7 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
     try {
         const {
             habilitarIntegracionHv,
+            habilitarIntegracionHvBiometria,
             habilitarIntegracionCdvi,
             habilitarCamaras,
             habilitarContratistas,
@@ -57,6 +59,8 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
 
         const update: Record<string, unknown> = {
             habilitarIntegracionHv: !!habilitarIntegracionHv,
+            habilitarIntegracionHvBiometria:
+                typeof habilitarIntegracionHvBiometria === "boolean" ? habilitarIntegracionHvBiometria : undefined,
             habilitarCamaras: !!habilitarCamaras,
             habilitarContratistas:
                 typeof habilitarContratistas === "boolean" ? habilitarContratistas : undefined,
@@ -68,6 +72,12 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
         };
         if (typeof habilitarIntegracionCdvi === "boolean") {
             update.habilitarIntegracionCdvi = habilitarIntegracionCdvi;
+        }
+        if (update.habilitarIntegracionHvBiometria === undefined) {
+            delete update.habilitarIntegracionHvBiometria;
+        }
+        if (!update.habilitarIntegracionHv) {
+            update.habilitarIntegracionHvBiometria = false;
         }
         if (update.habilitarContratistas === undefined) {
             delete update.habilitarContratistas;
@@ -83,6 +93,10 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
         }
 
         await Configuracion.updateOne({}, { $set: update }, { upsert: true, runValidators: false });
+
+        if (update.habilitarIntegracionHvBiometria === false) {
+            await DispositivosHv.updateMany({}, { $set: { es_panel_maestro: false } });
+        }
 
         if (typeof habilitarContratistas === "boolean") {
             await Usuarios.updateMany(

@@ -30,6 +30,7 @@ export interface IConfiguracion extends Document {
     tiempoToleranciaEntrada: string;
     tiempoToleranciaSalida: string;
     habilitarIntegracionHv: boolean;
+    habilitarIntegracionHvBiometria: boolean;
     habilitarIntegracionCdvi: boolean;
     habilitarCamaras: boolean;
     habilitarContratistas: boolean;
@@ -117,6 +118,7 @@ const configuracionSchema = new Schema<IConfiguracion>({
     tiempoToleranciaEntrada: { type: String, default: '1/m' },
     tiempoToleranciaSalida: { type: String, default: '1/m' },
     habilitarIntegracionHv: { type: Boolean, default: false },
+    habilitarIntegracionHvBiometria: { type: Boolean, default: false },
     habilitarIntegracionCdvi: { type: Boolean, default: false },
     habilitarCamaras: { type: Boolean, default: false },
     habilitarContratistas: { type: Boolean, default: true },
