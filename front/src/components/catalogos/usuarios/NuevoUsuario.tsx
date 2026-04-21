@@ -162,9 +162,17 @@ const initialValue: FormValues = {
 };
 
 export default function NuevoUsuario() {
-  const { roles } = useSelector((state: IRootState) => state.config.data);
+  const { roles, habilitarContratistas, habilitarRegistroCampo } = useSelector(
+    (state: IRootState) => state.config.data
+  );
   const ROLES = Object.entries(roles)
-    .filter((item) => [1, 2, 4, 5].includes(Number(item[0])))
+    .filter((item) => {
+      const rol = Number(item[0]);
+      if ([1, 2, 4, 5].includes(rol)) return true;
+      if (rol === 11) return habilitarContratistas;
+      if (rol === 12) return habilitarRegistroCampo;
+      return false;
+    })
     .map((item) => {
       return {
         id: Number(item[0]),

@@ -4,6 +4,7 @@ import jwt, { SignOptions } from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import Usuarios from "../models/Usuarios";
 import Visitantes from "../models/Visitantes";
+import Empleados from "../models/Empleados";
 import Configuracion from "../models/Configuracion";
 import Empresas from "../models/Empresas";
 import { fecha, log } from "../middlewares/log";
@@ -23,7 +24,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     try {
         const { correo, contrasena } = req.body;
         const device_type = (req as UserRequest).device.type
-        const configuracion = await Configuracion.findOne({}, "habilitarContratistas appNombre");
+        const configuracion = await Configuracion.findOne({}, "habilitarContratistas habilitarRegistroCampo appNombre");
         if (!REGEX_EMAIL.test(correo)) {
             res.status(400).json({
                 estado: false,
@@ -130,6 +131,31 @@ export async function login(req: Request, res: Response): Promise<void> {
                 }
             });
             return;
+        }
+
+        const esSoloCampo =
+            Array.isArray(documento.rol) &&
+            documento.rol.includes(12) &&
+            documento.rol.every((item: number) => item === 12);
+        if (esSoloCampo) {
+            if (!configuracion?.habilitarRegistroCampo) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: "El módulo de registro de campo está desactivado. Contacta con tu administrador.",
+                });
+                return;
+            }
+            const empleadoCampo = await Empleados.findOne(
+                { correo: correo?.trim().toLowerCase(), activo: true },
+                { acceso_campo: 1, nombre: 1, apellido_pat: 1, apellido_mat: 1 }
+            ).lean();
+            if (!empleadoCampo || !empleadoCampo.acceso_campo) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: "Tu cuenta no tiene acceso al módulo de campo.",
+                });
+                return;
+            }
         }
 
         const result = await bcrypt.compareSync(contrasena, documento.contrasena);

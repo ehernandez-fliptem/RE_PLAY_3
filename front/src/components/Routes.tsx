@@ -97,10 +97,11 @@ import Camaras from "./catalogos/camaras/Camaras";
 import NuevaCamara from "./catalogos/camaras/NuevaCamara";
 import DetalleCamara from "./catalogos/camaras/DetalleCamara";
 import EditarCamara from "./catalogos/camaras/EditarCamara";
+import Campo from "./campo/Campo";
 
 export default function Routes() {
   const { rol } = useSelector((state: IRootState) => state.auth.data);
-  const { habilitarCamaras, habilitarIntegracionHv, habilitarContratistas } =
+  const { habilitarCamaras, habilitarIntegracionHv, habilitarContratistas, habilitarRegistroCampo } =
     useSelector(
     (state: IRootState) => state.config.data
   );
@@ -110,10 +111,11 @@ export default function Routes() {
   const esRecep = rol.includes(5);
   const esVisit = rol.includes(10);
   const esContratista = rol.includes(11);
+  const esCampo = rol.includes(12);
   const puedeAdmin = esSuper || esAdmin;
   const puedeKiosco = esSuper || esAdmin || esRecep;
   const puedeVisitantes = esSuper || esAdmin || esAnfitrion || esRecep;
-  const usuarioSistema = esSuper || esAdmin || esAnfitrion || esRecep || esContratista;
+  const usuarioSistema = esSuper || esAdmin || esAnfitrion || esRecep || esContratista || esCampo;
 
   return useRoutes([
     {
@@ -121,6 +123,8 @@ export default function Routes() {
       element: usuarioSistema ? (
         esContratista && habilitarContratistas ? (
           <Navigate to="/portal-contratistas/visitantes" replace />
+        ) : esCampo && habilitarRegistroCampo ? (
+          <Navigate to="/campo" replace />
         ) : (
           <Dashboard />
         )
@@ -139,6 +143,10 @@ export default function Routes() {
     {
       path: "/check",
       element: puedeAdmin ? <Check /> : <Unauthorized />,
+    },
+    {
+      path: "/campo",
+      element: (esSuper || esCampo) && habilitarRegistroCampo ? <Campo /> : <Unauthorized />,
     },
     {
       path: "/kiosco",

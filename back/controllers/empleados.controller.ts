@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import bcrypt from 'bcrypt';
 import Excel, { CellFormulaValue, CellHyperlinkValue, CellValue, Column } from 'exceljs';
 import fs from 'fs';
 import { Types, PipelineStage } from 'mongoose';
@@ -12,9 +13,11 @@ import { IPiso } from '../models/Pisos';
 import { IAcceso } from '../models/Accesos';
 import DispositivosHv from '../models/DispositivosHv';
 import Configuracion, { IConfiguracion } from '../models/Configuracion';
+import Roles from '../models/Roles';
 import Hikvision from '../classes/Hikvision';
 import { generarCodigoUnico, isEmptyObject, decryptPassword, resizeImage, customAggregationForDataGrids, marcarDuplicados } from '../utils/utils';
 import { validarModelo } from '../validators/validadores';
+import { enviarCorreoUsuario } from '../utils/correos';
 import { fecha, log } from "../middlewares/log";
 
 import { CONFIG } from "../config";
@@ -944,9 +947,106 @@ const mapEmpleadoToPanel = (registro: any) => {
     };
 };
 
+const normalizarCorreo = (correo?: string) => String(correo || "").trim().toLowerCase();
+
+const sincronizarUsuarioCampo = async ({
+    empleado,
+    accesoCampo,
+    idUsuarioModif,
+}: {
+    empleado: IEmpleado;
+    accesoCampo: boolean;
+    idUsuarioModif: string | Types.ObjectId;
+}) => {
+    const correo = normalizarCorreo(empleado.correo);
+    if (!correo) {
+        return;
+    }
+
+    const nombreCompleto = [empleado.nombre, empleado.apellido_pat, empleado.apellido_mat]
+        .filter(Boolean)
+        .join(" ");
+
+    const usuarioExistente = await Usuarios.findOne({ correo });
+    if (accesoCampo) {
+        if (!usuarioExistente) {
+            const contrasena = generarCodigoUnico(12, true);
+            const hash = bcrypt.hashSync(contrasena, 10);
+            if (!hash) {
+                throw new Error("Hubo un error al generar la contraseña para el usuario de campo.");
+            }
+            const nuevoUsuario = new Usuarios({
+                nombre: empleado.nombre,
+                apellido_pat: empleado.apellido_pat,
+                apellido_mat: empleado.apellido_mat,
+                correo,
+                contrasena: hash,
+                rol: [12],
+                telefono: empleado.telefono || "",
+                movil: empleado.movil || "",
+                extension: empleado.extension || "",
+                id_empresa: empleado.id_empresa,
+                id_piso: empleado.id_piso,
+                accesos: empleado.accesos || [],
+                esRoot: !!empleado.esRoot,
+                creado_por: idUsuarioModif,
+                activo: true,
+            });
+            await nuevoUsuario.save();
+            const roles = await Roles.find({ rol: { $in: [12] }, activo: true }, "nombre").lean();
+            const rolesString = roles.map((item) => item.nombre).join(" - ");
+            await enviarCorreoUsuario(correo, contrasena, rolesString, nombreCompleto);
+            await Empleados.findByIdAndUpdate(empleado._id, { $set: { usuario_campo_activo: true } });
+            return;
+        }
+
+        const rolActual = Array.isArray(usuarioExistente.rol) ? usuarioExistente.rol : [];
+        const nuevoRol = rolActual.includes(12) ? rolActual : [...rolActual, 12];
+        await Usuarios.findByIdAndUpdate(usuarioExistente._id, {
+            $set: {
+                nombre: empleado.nombre,
+                apellido_pat: empleado.apellido_pat,
+                apellido_mat: empleado.apellido_mat || "",
+                telefono: empleado.telefono || "",
+                movil: empleado.movil || "",
+                extension: empleado.extension || "",
+                id_empresa: empleado.id_empresa,
+                id_piso: empleado.id_piso,
+                accesos: empleado.accesos || [],
+                rol: nuevoRol,
+                activo: true,
+                fecha_modificacion: Date.now(),
+                modificado_por: idUsuarioModif,
+            },
+        });
+        await Empleados.findByIdAndUpdate(empleado._id, { $set: { usuario_campo_activo: true } });
+        return;
+    }
+
+    if (!usuarioExistente) {
+        await Empleados.findByIdAndUpdate(empleado._id, { $set: { usuario_campo_activo: false } });
+        return;
+    }
+
+    const rolesActuales = Array.isArray(usuarioExistente.rol) ? usuarioExistente.rol : [];
+    const rolesSinCampo = rolesActuales.filter((item) => item !== 12);
+    const sinMasRoles = rolesSinCampo.length === 0;
+    await Usuarios.findByIdAndUpdate(usuarioExistente._id, {
+        $set: {
+            rol: sinMasRoles ? [12] : rolesSinCampo,
+            activo: sinMasRoles ? false : !!usuarioExistente.activo,
+            token_web: "",
+            token_app: "",
+            fecha_modificacion: Date.now(),
+            modificado_por: idUsuarioModif,
+        },
+    });
+    await Empleados.findByIdAndUpdate(empleado._id, { $set: { usuario_campo_activo: false } });
+};
+
 export async function crear(req: Request, res: Response): Promise<void> {
     try {
-        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo } = req.body;
+        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, acceso_campo } = req.body;
         const id_usuario = (req as UserRequest).userId;
         const empresa = await Empresas.findById(id_empresa, 'pisos accesos esRoot activo');
 
@@ -965,6 +1065,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
             telefono,
             extension,
             correo,
+            acceso_campo: !!acceso_campo,
             esRoot: empresa?.esRoot,
             creado_por: id_usuario
         });
@@ -1014,6 +1115,11 @@ export async function crear(req: Request, res: Response): Promise<void> {
                         }
                     }
                 }
+                await sincronizarUsuarioCampo({
+                    empleado: reg_saved,
+                    accesoCampo: !!acceso_campo,
+                    idUsuarioModif: id_usuario,
+                });
                 res.status(200).json({ estado: true, datos: { usuario: true } });
                 setTimeout(() => {
                     (async () => {
@@ -1043,7 +1149,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
 };
 export async function modificar(req: Request, res: Response): Promise<void> {
     try {
-        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo } = req.body;
+        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, acceso_campo } = req.body;
         const id_usuario = (req as UserRequest).userId;
         const empresa = await Empresas.findById(id_empresa, 'esRoot');
 
@@ -1062,6 +1168,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             id_puesto,
             id_departamento,
             id_cubiculo,
+            acceso_campo: !!acceso_campo,
             fecha_modificacion: Date.now(),
             modificado_por: id_usuario,
         };
@@ -1223,6 +1330,11 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                 }
             }
         }
+        await sincronizarUsuarioCampo({
+            empleado: registro as IEmpleado,
+            accesoCampo: !!acceso_campo,
+            idUsuarioModif: id_usuario,
+        });
         res.status(200).json({ estado: true });
         setTimeout(() => {
             (async () => {

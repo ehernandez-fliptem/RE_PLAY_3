@@ -2,6 +2,7 @@ const PROD_ROUTES = [
     '/',
     '/logout',
     '/perfil',
+    '/campo',
     '/check',
     '/restablecer',
     '/nuevo-registro-visitante',

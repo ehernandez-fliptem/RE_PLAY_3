@@ -19,6 +19,7 @@ interface ConfigState {
     habilitarIntegracionCdvi: boolean;
     habilitarCamaras: boolean;
     habilitarContratistas: boolean;
+    habilitarRegistroCampo: boolean;
     documentos_visitantes: Record<string, boolean>;
     documentos_contratistas: Record<string, boolean>;
     tipos_dispositivos: { [key: number]: { nombre: string; color: string } };
@@ -58,6 +59,7 @@ const initialState = {
     habilitarIntegracionCdvi: false,
     habilitarCamaras: false,
     habilitarContratistas: true,
+    habilitarRegistroCampo: false,
     documentos_visitantes: {},
     documentos_contratistas: {},
     tipos_dispositivos: {} as {

@@ -23,7 +23,7 @@ import {
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
 import { getRoleLabel } from "../../../app/utils/roleLabels";
-import { Avatar, Chip, Grid, IconButton, Tooltip } from "@mui/material";
+import { Avatar, Chip, FormControl, Grid, IconButton, InputLabel, MenuItem, Select, Tooltip } from "@mui/material";
 import { enqueueSnackbar } from "notistack";
 import { useConfirm } from "material-ui-confirm";
 import { AxiosError } from "axios";
@@ -32,9 +32,12 @@ import ErrorOverlay from "../../error/DataGridError";
 const pageSizeOptions = [25, 50, 100];
 
 export default function Usuarios() {
-  const { roles } = useSelector((state: IRootState) => state.config.data);
+  const { roles, habilitarContratistas, habilitarRegistroCampo } = useSelector(
+    (state: IRootState) => state.config.data
+  );
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();
+  const [tipoVista, setTipoVista] = useState<"sistema" | "contratistas" | "campo">("sistema");
   const navigate = useNavigate();
   const confirm = useConfirm();
   // QR y desbloqueo deshabilitados temporalmente junto con columnas ocultas
@@ -50,6 +53,7 @@ export default function Usuarios() {
             filter: JSON.stringify(params.filterModel.quickFilterValues),
             pagination: JSON.stringify(params.paginationModel),
             sort: JSON.stringify(params.sortModel),
+            scope: tipoVista,
           });
           const res = await clienteAxios.get(
             "/api/usuarios?" + urlParams.toString()
@@ -77,7 +81,7 @@ export default function Usuarios() {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [tipoVista]
   );
 
   const initialState: GridInitialState = useMemo(
@@ -95,6 +99,13 @@ export default function Usuarios() {
   const nuevoRegistro = () => {
     navigate("nuevo-usuario");
   };
+
+  const opcionesVista = [
+    { id: "sistema", label: "Usuarios normales" },
+    ...(habilitarContratistas ? [{ id: "contratistas", label: "Contratistas" }] : []),
+    ...(habilitarRegistroCampo ? [{ id: "campo", label: "Empleados campo" }] : []),
+  ];
+  const mostrarSelector = habilitarContratistas || habilitarRegistroCampo;
 
   const editarRegistro = (ID: string) => {
     navigate(`editar-usuario/${ID}`);
@@ -363,9 +374,26 @@ export default function Usuarios() {
         slots={{
           toolbar: () => (
             <DataGridToolbar
-              tableTitle="Roles y Permisos"
+              tableTitle="Usuarios del sistema"
               customActionButtons={
                 <Fragment>
+                  {mostrarSelector && (
+                    <FormControl size="small" sx={{ minWidth: 220, mr: 1 }}>
+                      <InputLabel id="vista-usuarios-label">Vista</InputLabel>
+                      <Select
+                        labelId="vista-usuarios-label"
+                        value={tipoVista}
+                        label="Vista"
+                        onChange={(e) => setTipoVista(e.target.value as typeof tipoVista)}
+                      >
+                        {opcionesVista.map((item) => (
+                          <MenuItem key={item.id} value={item.id}>
+                            {item.label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  )}
                   <Tooltip title="Agregar">
                     <IconButton onClick={nuevoRegistro}>
                       <Add fontSize="small" />

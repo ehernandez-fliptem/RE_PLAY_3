@@ -64,6 +64,7 @@ type FormValues = {
   habilitarIntegracionHv: boolean;
   habilitarCamaras: boolean;
   habilitarContratistas: boolean;
+  habilitarRegistroCampo: boolean;
   documentos_visitantes: DocChecks;
   documentos_contratistas: DocChecks;
   validarHorario: boolean;
@@ -132,6 +133,7 @@ const resolver = yup.object().shape({
   habilitarIntegracionHv: yup.boolean().required("Este campo es obligatorio."),
   habilitarCamaras: yup.boolean().required("Este campo es obligatorio."),
   habilitarContratistas: yup.boolean().required("Este campo es obligatorio."),
+  habilitarRegistroCampo: yup.boolean().required("Este campo es obligatorio."),
   documentos_visitantes: yup
     .object()
     .shape({
@@ -186,6 +188,7 @@ const initialValue: FormValues = {
   habilitarIntegracionHv: false,
   habilitarCamaras: false,
   habilitarContratistas: true,
+  habilitarRegistroCampo: false,
   documentos_visitantes: {
     identificacion_oficial: true,
     sua: true,

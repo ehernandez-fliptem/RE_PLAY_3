@@ -4,7 +4,7 @@ import { validarTokenYRol } from "../middlewares/validarToken";
 
 const router = Router();
 
-router.get("/", validarTokenYRol([1, 2, 4, 5, 10]), obtenerUno);
-router.put("/", validarTokenYRol([1, 2, 4, 5, 10]), redirijirUserVisit);
+router.get("/", validarTokenYRol([1, 2, 4, 5, 10, 12]), obtenerUno);
+router.put("/", validarTokenYRol([1, 2, 4, 5, 10, 12]), redirijirUserVisit);
 
 export default router;

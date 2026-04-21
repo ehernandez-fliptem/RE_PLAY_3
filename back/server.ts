@@ -67,6 +67,7 @@ import usuariosRoutes from './routes/usuarios.routes';
 import empleadosRoutes from './routes/empleados.routes';
 import validacionRoutes from './routes/validacion.routes';
 import visitantesRoutes from './routes/visitantes.routes';
+import campoRoutes from './routes/campo.routes';
 
 import { CONFIG } from './config';
 
@@ -153,6 +154,7 @@ export default async function Server() {
         app.use('/api/empleados', empleadosRoutes);
         app.use('/api/validacion', validacionRoutes);
         app.use('/api/visitantes', visitantesRoutes);
+        app.use('/api/campo', campoRoutes);
 
         // Rutas no encontradas
         app.use(limiter404, (_req: Request, res: Response) => {

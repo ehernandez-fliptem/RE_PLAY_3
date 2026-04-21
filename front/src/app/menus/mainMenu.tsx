@@ -31,6 +31,7 @@ import {
   WebStories,
   VideoCameraFront,
   Engineering,
+  Place,
 } from "@mui/icons-material";
 
 const mainMenu = [
@@ -44,7 +45,7 @@ const mainMenu = [
   // },
   {
     id: 0.5,
-    title: "Roles y Permisos",
+    title: "Usuarios",
     rol: [1],
     icon: <PeopleAlt fontSize="small" />,
     path: "/usuarios",
@@ -62,6 +63,13 @@ const mainMenu = [
     rol: [1, 2],
     icon: <Badge fontSize="small" />,
     path: "/empleados",
+  },
+  {
+    id: 0.65,
+    title: "Registro Campo",
+    rol: [1, 12],
+    icon: <Place fontSize="small" />,
+    path: "/campo",
   },
   // --- Catálogos movido abajo de Directorio ---
   // FLAG: Recepción oculto temporalmente - Lo que interesa ya está afuera

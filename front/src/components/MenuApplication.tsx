@@ -122,6 +122,7 @@ export default function MenuApplication({ children }: MenuProps) {
     habilitarIntegracionHv,
     habilitarCamaras,
     habilitarContratistas,
+    habilitarRegistroCampo,
     roles,
     imgCorreo,
   } = useSelector((state: IRootState) => state.config.data);
@@ -132,6 +133,7 @@ export default function MenuApplication({ children }: MenuProps) {
   const esRecep = rol.includes(5);
   const esVisit = rol.includes(10);
   const esContratista = rol.includes(11);
+  const esCampo = rol.includes(12);
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -184,6 +186,8 @@ export default function MenuApplication({ children }: MenuProps) {
           navigate("/portal-contratistas/visitantes");
         } else if (esAnfitrion) {
           navigate("/visitantes");
+        } else if (esCampo && habilitarRegistroCampo) {
+          navigate("/campo");
         } else if (esRecep) {
           navigate("/eventos");
         } else {
@@ -458,6 +462,9 @@ export default function MenuApplication({ children }: MenuProps) {
               seeItem =
                 rol.includes(1) &&
                 (habilitarIntegracionHv || habilitarCamaras);
+            if (item.id === 0.65) {
+              seeItem = seeItem && habilitarRegistroCampo;
+            }
             if (item.id === 8 || item.id === 9) {
               seeItem = seeItem && habilitarContratistas;
             }

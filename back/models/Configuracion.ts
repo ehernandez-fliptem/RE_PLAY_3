@@ -33,6 +33,7 @@ export interface IConfiguracion extends Document {
     habilitarIntegracionCdvi: boolean;
     habilitarCamaras: boolean;
     habilitarContratistas: boolean;
+    habilitarRegistroCampo: boolean;
     documentos_visitantes?: {
         identificacion_oficial: boolean;
         sua: boolean;
@@ -119,6 +120,7 @@ const configuracionSchema = new Schema<IConfiguracion>({
     habilitarIntegracionCdvi: { type: Boolean, default: false },
     habilitarCamaras: { type: Boolean, default: false },
     habilitarContratistas: { type: Boolean, default: true },
+    habilitarRegistroCampo: { type: Boolean, default: false },
     documentos_visitantes: {
         identificacion_oficial: { type: Boolean, default: true },
         sua: { type: Boolean, default: true },

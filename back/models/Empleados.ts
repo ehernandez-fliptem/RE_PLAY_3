@@ -26,6 +26,8 @@ export interface IEmpleado extends Document {
     id_piso: mongoose.Types.ObjectId;
     id_horario?: mongoose.Types.ObjectId;
     accesos: mongoose.Types.ObjectId[];
+    acceso_campo: boolean;
+    usuario_campo_activo: boolean;
     esRoot: boolean;
     insignias: number[];
     token_web?: string;
@@ -113,6 +115,8 @@ const empleadoSchema = new Schema<IEmpleado>({
     id_piso: { type: Schema.Types.ObjectId, required: [true, "Este campo es obligatorio"], ref: 'pisos' },
     id_horario: { type: Schema.Types.ObjectId, default: null, ref: 'horarios' },
     accesos: [{ type: Schema.Types.ObjectId, required: true, ref: 'accesos' }],
+    acceso_campo: { type: Boolean, default: false },
+    usuario_campo_activo: { type: Boolean, default: false },
     esRoot: { type: Boolean, require: true, default: false },
     insignias: {
         type: [Number],

@@ -32,7 +32,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
         const isMaster = (req as UserRequest).isMaster;
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario
 
-        const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
+        const { filter, pagination, sort, scope } = req.query as { filter: string; pagination: string; sort: string; scope?: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
         const querySort = JSON.parse(sort) as QueryParams["sort"];
         const queryPagination = JSON.parse(pagination) as QueryParams["pagination"];
@@ -47,11 +47,18 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
             queryPagination,
             ["id_general", "empresa", "nombre", "correo", "puesto", "departamento", "cubiculo", "rolesNombre", "telefono", "movil"]
         );
+        const scopeMatch =
+            scope === "contratistas"
+                ? { rol: 11 }
+                : scope === "campo"
+                    ? { rol: 12 }
+                    : { rol: { $nin: [11, 12] } };
         const aggregation: PipelineStage[] = [
             {
                 $match: {
                     $and: [
-                        isMaster ? {} : { id_empresa: new Types.ObjectId(id_empresa) }
+                        isMaster ? {} : { id_empresa: new Types.ObjectId(id_empresa) },
+                        scopeMatch
                     ]
                 }
             },

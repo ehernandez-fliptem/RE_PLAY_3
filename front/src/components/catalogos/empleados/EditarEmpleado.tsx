@@ -4,7 +4,7 @@ import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { Box, Button, Card, CardContent, Divider, Stack, Typography } from "@mui/material";
-import { AutocompleteElement, FormContainer, TextFieldElement } from "react-hook-form-mui";
+import { AutocompleteElement, FormContainer, SwitchElement, TextFieldElement } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
 import Swal from "sweetalert2";
 import { REGEX_BASE64, REGEX_NAME } from "../../../app/constants/CommonRegex";
@@ -16,6 +16,8 @@ import { setFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
+import { useSelector } from "react-redux";
+import type { IRootState } from "../../../app/store";
 
 const ProfilePicture = lazy(() => import("../../utils/ProfilePicture"));
 
@@ -69,6 +71,7 @@ type FormValues = {
   id_departamento?: string;
   id_cubiculo?: string;
   correo: string;
+  acceso_campo: boolean;
 };
 
 const resolver = yup.object().shape({
@@ -131,6 +134,7 @@ const resolver = yup.object().shape({
     .string()
     .required("Este campo es obligatorio.")
     .email("Formato de correo inválido."),
+  acceso_campo: yup.boolean().required(),
 }) as yup.ObjectSchema<FormValues>;
 
 const initialValue: FormValues = {
@@ -148,9 +152,13 @@ const initialValue: FormValues = {
   telefono: "",
   extension: "",
   correo: "",
+  acceso_campo: false,
 };
 
 export default function EditarEmpleado() {
+  const { habilitarRegistroCampo } = useSelector(
+    (state: IRootState) => state.config.data
+  );
   const { id: ID } = useParams();
   const formContext = useForm({
     defaultValues: initialValue,
@@ -207,6 +215,7 @@ export default function EditarEmpleado() {
             id_puesto: usuario?.id_puesto ?? "",
             id_departamento: usuario?.id_departamento ?? "",
             id_cubiculo: usuario?.id_cubiculo ?? "",
+            acceso_campo: habilitarRegistroCampo ? !!usuario?.acceso_campo : false,
           };
           formContext.reset(usuarioForm);
           formContext.trigger();
@@ -221,7 +230,13 @@ export default function EditarEmpleado() {
       }
     };
     obtenerRegistro();
-  }, [formContext, ID]);
+  }, [formContext, ID, habilitarRegistroCampo]);
+
+  useEffect(() => {
+    if (!habilitarRegistroCampo) {
+      formContext.setValue("acceso_campo", false, { shouldValidate: true });
+    }
+  }, [habilitarRegistroCampo, formContext]);
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
@@ -244,6 +259,7 @@ export default function EditarEmpleado() {
           initial.telefono === data.telefono &&
           initial.extension === data.extension &&
           initial.correo === data.correo &&
+          initial.acceso_campo === data.acceso_campo &&
           sameAccesos;
         if (noChanges) {
           navigate("/empleados");
@@ -509,6 +525,13 @@ export default function EditarEmpleado() {
                       margin="normal"
                       type="email"
                     />
+                    {habilitarRegistroCampo && (
+                      <SwitchElement
+                        name="acceso_campo"
+                        label="Habilitar acceso de campo para este empleado"
+                        labelPlacement="end"
+                      />
+                    )}
                   </Fragment>
                 )}
                 <Divider sx={{ my: 2 }} />

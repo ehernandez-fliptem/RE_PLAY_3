@@ -19,7 +19,7 @@ export async function obtenerIntegraciones(_req: Request, res: Response): Promis
         console.log("Obteniendo integraciones de configuración...");
         const registro = await Configuracion.findOne(
             {},
-            "habilitarIntegracionHv habilitarIntegracionCdvi habilitarContratistas documentos_visitantes documentos_contratistas"
+            "habilitarIntegracionHv habilitarIntegracionCdvi habilitarContratistas habilitarRegistroCampo documentos_visitantes documentos_contratistas"
         );
         res.status(200).send({ estado: true, datos: registro });
     } catch (error: any) {
@@ -35,6 +35,7 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
             habilitarIntegracionCdvi,
             habilitarCamaras,
             habilitarContratistas,
+            habilitarRegistroCampo,
             documentos_visitantes,
             documentos_contratistas,
         } = req.body;
@@ -59,6 +60,7 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
             habilitarCamaras: !!habilitarCamaras,
             habilitarContratistas:
                 typeof habilitarContratistas === "boolean" ? habilitarContratistas : undefined,
+            habilitarRegistroCampo: typeof habilitarRegistroCampo === "boolean" ? habilitarRegistroCampo : undefined,
             documentos_visitantes: normalizeDocConfig(documentos_visitantes) || undefined,
             documentos_contratistas: normalizeDocConfig(documentos_contratistas) || undefined,
             modificado_por: id_usuario,
@@ -69,6 +71,9 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
         }
         if (update.habilitarContratistas === undefined) {
             delete update.habilitarContratistas;
+        }
+        if (update.habilitarRegistroCampo === undefined) {
+            delete update.habilitarRegistroCampo;
         }
         if (update.documentos_visitantes === undefined) {
             delete update.documentos_visitantes;
@@ -85,6 +90,18 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
                 {
                     $set: {
                         activo: habilitarContratistas,
+                        token_web: "",
+                        token_app: "",
+                    },
+                }
+            );
+        }
+        if (typeof habilitarRegistroCampo === "boolean") {
+            await Usuarios.updateMany(
+                habilitarRegistroCampo ? { rol: 12 } : { rol: [12] },
+                {
+                    $set: {
+                        activo: habilitarRegistroCampo,
                         token_web: "",
                         token_app: "",
                     },

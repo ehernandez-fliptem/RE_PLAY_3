@@ -26,6 +26,7 @@ export default function Integraciones() {
   >(false);
   const dispatch = useDispatch();
   const habilitarContratistas = watch("habilitarContratistas");
+  const habilitarRegistroCampo = watch("habilitarRegistroCampo");
 
   const DOC_LABELS: Record<string, string> = {
     identificacion_oficial: "Identificación oficial",
@@ -59,6 +60,7 @@ export default function Integraciones() {
         habilitarIntegracionHv,
         habilitarCamaras,
         habilitarContratistas,
+        habilitarRegistroCampo,
         documentos_visitantes,
         documentos_contratistas,
       } = getValues();
@@ -66,6 +68,7 @@ export default function Integraciones() {
         habilitarIntegracionHv,
         habilitarCamaras,
         habilitarContratistas,
+        habilitarRegistroCampo,
         documentos_visitantes,
         documentos_contratistas,
       });
@@ -75,6 +78,7 @@ export default function Integraciones() {
             habilitarIntegracionHv,
             habilitarCamaras,
             habilitarContratistas,
+            habilitarRegistroCampo,
             documentos_visitantes,
             documentos_contratistas,
           })
@@ -116,6 +120,34 @@ export default function Integraciones() {
         <Devices color="primary" sx={{ mr: 1 }} />{" "}
         <strong>Integraciones</strong>
       </Typography>
+      <Grid container spacing={2} sx={{ my: 2 }}>
+        <Grid size={{ xs: 12, sm: 10 }}>
+          <Stack spacing={0}>
+            <Typography variant="overline" component="h2">
+              <strong>Registro de campo para empleados</strong>
+            </Typography>
+            <Typography
+              variant="body2"
+              component="span"
+              sx={{ ml: { xs: 0, sm: 2 } }}
+            >
+              <small>
+                Activa el módulo para permitir check in/check out de campo por ubicación y foto.
+              </small>
+            </Typography>
+          </Stack>
+        </Grid>
+        <Grid
+          size={{ xs: 12, sm: 2 }}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: { xs: "center", sm: "end" },
+          }}
+        >
+          <SwitchElement label="" labelPlacement="start" name="habilitarRegistroCampo" />
+        </Grid>
+      </Grid>
       <Grid container spacing={2} sx={{ my: 2 }}>
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
@@ -291,6 +323,14 @@ export default function Integraciones() {
       >
         <SwitchElement label="" labelPlacement="start" name="habilitarContratistas" />
       </Box>
+      {!habilitarRegistroCampo && (
+        <Typography
+          variant="caption"
+          sx={{ display: "block", mt: 1, textAlign: { xs: "center", sm: "right" } }}
+        >
+          {/* El acceso de empleados de campo quedará deshabilitado. */}
+        </Typography>
+      )}
       <Grid container spacing={2} sx={{ my: 1 }}>
         <Grid
           size={{ xs: 12 }}
