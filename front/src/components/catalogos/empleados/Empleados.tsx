@@ -867,7 +867,6 @@ export default function Empleados() {
                                   >
                                     <Box
                                       onClick={() => {
-                                        if (biometriaStep === "espera") return;
                                         setSelectedFinger(fingerShape.id);
                                       }}
                                       sx={{
