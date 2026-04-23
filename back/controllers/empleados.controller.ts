@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import Excel, { CellFormulaValue, CellHyperlinkValue, CellValue, Column } from 'exceljs';
 import fs from 'fs';
+import { execFile } from "child_process";
 import { Types, PipelineStage } from 'mongoose';
 import QRCode from 'qrcode';
 import { UserRequest } from '../types/express';
@@ -950,6 +951,139 @@ const mapEmpleadoToPanel = (registro: any) => {
     };
 };
 
+const runCurlText = (args: string[]): Promise<{ statusCode: number; body: string; }> =>
+    new Promise((resolve, reject) => {
+        execFile(
+            "curl",
+            [...args, "-w", "\n__HTTP_STATUS__:%{http_code}"],
+            { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 },
+            (error, stdout, stderr) => {
+                if (error) {
+                    return reject(new Error(String(stderr || error.message || "Error ejecutando curl").trim()));
+                }
+                const out = String(stdout || "").trim();
+                const marker = "__HTTP_STATUS__:";
+                const markerIdx = out.lastIndexOf(marker);
+                if (markerIdx < 0) {
+                    return resolve({ statusCode: 0, body: out });
+                }
+                const body = out.slice(0, markerIdx).trim();
+                const statusCode = Number(out.slice(markerIdx + marker.length).trim()) || 0;
+                resolve({ statusCode, body });
+            }
+        );
+    });
+
+const xmlTagValue = (xml: string, tag: string): string => {
+    const match = String(xml || "").match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
+    return String(match?.[1] || "").trim();
+};
+
+const parseXmlStatus = (xml: string) => ({
+    statusString: xmlTagValue(xml, "statusString"),
+    subStatusCode: xmlTagValue(xml, "subStatusCode"),
+    errorMsg: xmlTagValue(xml, "errorMsg"),
+});
+
+const captureFingerprintFromPanel = async (ip: string, user: string, pass: string, fingerNo: number) => {
+    const xmlPayload =
+        `<?xml version="1.0" encoding="UTF-8"?>` +
+        `<CaptureFingerPrintCond version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">` +
+        `<fingerNo>${fingerNo}</fingerNo>` +
+        `</CaptureFingerPrintCond>`;
+    let response: { statusCode: number; body: string; } | null = null;
+    let lastError: any = null;
+    for (const protocol of ["https", "http"]) {
+        try {
+            response = await runCurlText([
+                "-k",
+                "--digest",
+                "-u",
+                `${user}:${pass}`,
+                "-H",
+                "Content-Type: application/xml",
+                "-X",
+                "POST",
+                `${protocol}://${ip}/ISAPI/AccessControl/CaptureFingerPrint`,
+                "-d",
+                xmlPayload,
+            ]);
+            break;
+        } catch (error: any) {
+            lastError = error;
+        }
+    }
+    if (!response) {
+        throw new Error(lastError?.message || "No se pudo conectar al panel maestro para capturar huella.");
+    }
+    const { statusCode, body } = response;
+    const fingerData = xmlTagValue(body, "fingerData");
+    const fingerPrintQuality = Number(xmlTagValue(body, "fingerPrintQuality")) || 0;
+    if (statusCode >= 400 || !fingerData) {
+        const parsed = parseXmlStatus(body);
+        const timeout = parsed.subStatusCode === "captureTimeout" || parsed.errorMsg === "captureTimeout";
+        throw new Error(
+            timeout
+                ? "No se detectó la huella a tiempo. Intenta de nuevo y coloca el dedo en el lector."
+                : parsed.errorMsg || parsed.subStatusCode || parsed.statusString || "No se pudo capturar la huella en el panel maestro."
+        );
+    }
+    return { fingerData, fingerPrintQuality };
+};
+
+const setupFingerprintOnPanel = async (ip: string, user: string, pass: string, employeeNo: string, fingerNo: number, fingerData: string) => {
+    const payload = {
+        FingerPrintCfg: {
+            employeeNo: String(employeeNo),
+            fingerPrintID: Number(fingerNo),
+            fingerType: "normalFP",
+            fingerData: String(fingerData),
+            enableCardReader: [1, 2],
+        },
+    };
+    let response: { statusCode: number; body: string; } | null = null;
+    let lastError: any = null;
+    for (const protocol of ["https", "http"]) {
+        try {
+            response = await runCurlText([
+                "-k",
+                "--digest",
+                "-u",
+                `${user}:${pass}`,
+                "-H",
+                "Content-Type: application/json",
+                "-X",
+                "POST",
+                `${protocol}://${ip}/ISAPI/AccessControl/FingerPrint/SetUp?format=json`,
+                "-d",
+                JSON.stringify(payload),
+            ]);
+            break;
+        } catch (error: any) {
+            lastError = error;
+        }
+    }
+    if (!response) {
+        throw new Error(lastError?.message || "No se pudo conectar al panel para aplicar huella.");
+    }
+    const { statusCode, body } = response;
+    if (statusCode >= 400) {
+        throw new Error("El panel rechazó la configuración de huella.");
+    }
+
+    let parsed: any = null;
+    try {
+        parsed = JSON.parse(body);
+    } catch {
+        parsed = null;
+    }
+
+    const statusList = Array.isArray(parsed?.FingerPrintStatus?.StatusList) ? parsed.FingerPrintStatus.StatusList : [];
+    const okReaders = statusList.filter((item: any) => Number(item?.cardReaderRecvStatus) === 1).length;
+    const applied = statusList.length === 0 ? true : okReaders > 0;
+    return { applied, statusList };
+};
+
 export async function obtenerBiometriaEmpleado(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;
@@ -1032,6 +1166,150 @@ export async function registrarHuellaEmpleado(req: Request, res: Response): Prom
             datos: {
                 huellas_registradas: huellas,
                 huellas_total: huellas.length,
+            },
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function registrarHuellaEmpleadoPanel(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const isMaster = (req as UserRequest).isMaster;
+        const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
+        const dedo = Number(req.body?.dedo);
+
+        if (!Number.isInteger(dedo) || dedo < 1 || dedo > 10) {
+            res.status(400).json({ estado: false, mensaje: "El dedo es inválido. Usa un valor entre 1 y 10." });
+            return;
+        }
+
+        const config = await Configuracion.findOne({}, "habilitarIntegracionHv habilitarIntegracionHvBiometria");
+        if (!config?.habilitarIntegracionHv || !config?.habilitarIntegracionHvBiometria) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "La integración biométrica de Hikvision está desactivada.",
+            });
+            return;
+        }
+
+        const filtro: any = { _id: req.params.id };
+        if (!isMaster) filtro.id_empresa = id_empresa;
+
+        const registro = await Empleados.findOne(filtro);
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
+            return;
+        }
+
+        const panelMaestro = await DispositivosHv.findOne({ activo: true, es_panel_maestro: true }).lean();
+        if (!panelMaestro) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No hay panel maestro configurado para captura de huella.",
+            });
+            return;
+        }
+
+        const panelesAcceso = await DispositivosHv.find({
+            activo: true,
+            tipo_evento: { $in: [5, 6, 7] },
+            id_acceso: { $in: Array.isArray(registro.accesos) ? registro.accesos : [] },
+        }).lean();
+
+        const panelesDestinoMap = new Map<string, any>();
+        panelesDestinoMap.set(String(panelMaestro._id), panelMaestro);
+        for (const panel of panelesAcceso) {
+            panelesDestinoMap.set(String(panel._id), panel);
+        }
+        const panelesDestino = Array.from(panelesDestinoMap.values());
+        if (panelesDestino.length === 0) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No hay paneles destino disponibles para aplicar la huella.",
+            });
+            return;
+        }
+
+        const employeeNo = String(registro.id_empleado);
+        const masterUser = String(panelMaestro.usuario || "").trim();
+        const masterPass = decryptPassword(String(panelMaestro.contrasena || ""), CONFIG.SECRET_CRYPTO);
+        const { fingerData, fingerPrintQuality } = await captureFingerprintFromPanel(
+            String(panelMaestro.direccion_ip),
+            masterUser,
+            masterPass,
+            dedo
+        );
+
+        const paneles_aplicados: string[] = [];
+        const paneles_fallidos: Array<{ panel: string; mensaje: string; }> = [];
+
+        for (const panel of panelesDestino) {
+            const panelNombre = String(panel.nombre || panel.direccion_ip || panel._id);
+            try {
+                const panelUser = String(panel.usuario || "").trim();
+                const panelPass = decryptPassword(String(panel.contrasena || ""), CONFIG.SECRET_CRYPTO);
+                const setupRes = await setupFingerprintOnPanel(
+                    String(panel.direccion_ip),
+                    panelUser,
+                    panelPass,
+                    employeeNo,
+                    dedo,
+                    fingerData
+                );
+                if (setupRes.applied) {
+                    paneles_aplicados.push(panelNombre);
+                } else {
+                    paneles_fallidos.push({
+                        panel: panelNombre,
+                        mensaje: "El panel no confirmó la aplicación de la huella.",
+                    });
+                }
+            } catch (error: any) {
+                paneles_fallidos.push({
+                    panel: panelNombre,
+                    mensaje: error?.message || "Error al aplicar huella en panel.",
+                });
+            }
+        }
+
+        if (paneles_aplicados.length === 0) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No se pudo aplicar la huella en ningún panel.",
+                datos: { paneles_fallidos },
+            });
+            return;
+        }
+
+        const huellasActuales = Array.isArray(registro.huellas_registradas) ? registro.huellas_registradas : [];
+        const huellas = Array.from(new Set([...huellasActuales, dedo])).sort((a, b) => a - b);
+
+        await Empleados.findByIdAndUpdate(
+            req.params.id,
+            {
+                $set: {
+                    huellas_registradas: huellas,
+                    modificado_por: id_usuario,
+                    fecha_modificacion: Date.now(),
+                },
+            },
+            { runValidators: true }
+        );
+
+        res.status(200).json({
+            estado: true,
+            mensaje: paneles_fallidos.length > 0
+                ? `Huella registrada. Aplicada en ${paneles_aplicados.length} panel(es) y con fallas en ${paneles_fallidos.length}.`
+                : "Huella registrada correctamente.",
+            datos: {
+                huellas_registradas: huellas,
+                huellas_total: huellas.length,
+                finger_quality: fingerPrintQuality,
+                paneles_aplicados,
+                paneles_fallidos,
             },
         });
     } catch (error: any) {
