@@ -16,7 +16,7 @@ import DispositivosHv from '../models/DispositivosHv';
 import Configuracion, { IConfiguracion } from '../models/Configuracion';
 import Roles from '../models/Roles';
 import Hikvision from '../classes/Hikvision';
-import { generarCodigoUnico, isEmptyObject, decryptPassword, resizeImage, customAggregationForDataGrids, marcarDuplicados } from '../utils/utils';
+import { generarCodigoUnico, isEmptyObject, decryptPassword, encryptPassword, resizeImage, customAggregationForDataGrids, marcarDuplicados } from '../utils/utils';
 import { validarModelo } from '../validators/validadores';
 import { enviarCorreoUsuario } from '../utils/correos';
 import { fecha, log } from "../middlewares/log";
@@ -951,6 +951,8 @@ const mapEmpleadoToPanel = (registro: any) => {
     };
 };
 
+const DEV_HUELLA_REPLAY_ENABLED = String(process.env.DEV_HUELLA_REPLAY || "").toLowerCase() === "true";
+
 const runCurlText = (args: string[]): Promise<{ statusCode: number; body: string; }> =>
     new Promise((resolve, reject) => {
         execFile(
@@ -1106,6 +1108,11 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
         const nombreCompleto = `${registro.nombre || ""} ${registro.apellido_pat || ""} ${registro.apellido_mat || ""}`.trim();
         const huellas = Array.isArray(registro.huellas_registradas) ? registro.huellas_registradas : [];
         const tarjetas = Array.isArray(registro.tarjetas_registradas) ? registro.tarjetas_registradas : [];
+        const huellasTemplateDev = (registro as any)?.huellas_template_dev || {};
+        const huellasTemplateDevKeys = Object.keys(huellasTemplateDev)
+            .map((key) => Number(key))
+            .filter((key) => Number.isInteger(key) && key >= 1 && key <= 10)
+            .sort((a, b) => a - b);
 
         res.status(200).json({
             estado: true,
@@ -1116,6 +1123,8 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
                 tarjetas_registradas: tarjetas,
                 huellas_total: huellas.length,
                 tarjetas_total: tarjetas.length,
+                dev_huella_replay_enabled: DEV_HUELLA_REPLAY_ENABLED,
+                huellas_template_dev: DEV_HUELLA_REPLAY_ENABLED ? huellasTemplateDevKeys : [],
             },
         });
     } catch (error: any) {
@@ -1286,12 +1295,22 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
 
         const huellasActuales = Array.isArray(registro.huellas_registradas) ? registro.huellas_registradas : [];
         const huellas = Array.from(new Set([...huellasActuales, dedo])).sort((a, b) => a - b);
+        const huellasTemplateDevActual = (registro as any)?.huellas_template_dev
+            ? { ...(registro as any).huellas_template_dev.toObject?.() || (registro as any).huellas_template_dev }
+            : {};
+        const huellasTemplateDev = DEV_HUELLA_REPLAY_ENABLED
+            ? {
+                ...huellasTemplateDevActual,
+                [String(dedo)]: encryptPassword(String(fingerData), CONFIG.SECRET_CRYPTO),
+            }
+            : huellasTemplateDevActual;
 
         await Empleados.findByIdAndUpdate(
             req.params.id,
             {
                 $set: {
                     huellas_registradas: huellas,
+                    huellas_template_dev: huellasTemplateDev,
                     modificado_por: id_usuario,
                     fecha_modificacion: Date.now(),
                 },
@@ -1308,6 +1327,128 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
                 huellas_registradas: huellas,
                 huellas_total: huellas.length,
                 finger_quality: fingerPrintQuality,
+                paneles_aplicados,
+                paneles_fallidos,
+                dev_huella_replay_enabled: DEV_HUELLA_REPLAY_ENABLED,
+                huellas_template_dev: DEV_HUELLA_REPLAY_ENABLED ? Object.keys(huellasTemplateDev).map(Number).sort((a, b) => a - b) : [],
+            },
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): Promise<void> {
+    try {
+        if (!DEV_HUELLA_REPLAY_ENABLED) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "La bandera DEV_HUELLA_REPLAY está desactivada.",
+            });
+            return;
+        }
+
+        const id_usuario = (req as UserRequest).userId;
+        const isMaster = (req as UserRequest).isMaster;
+        const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
+        const dedo = Number(req.body?.dedo);
+
+        if (!Number.isInteger(dedo) || dedo < 1 || dedo > 10) {
+            res.status(400).json({ estado: false, mensaje: "El dedo es inválido. Usa un valor entre 1 y 10." });
+            return;
+        }
+
+        const filtro: any = { _id: req.params.id };
+        if (!isMaster) filtro.id_empresa = id_empresa;
+
+        const registro = await Empleados.findOne(filtro);
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
+            return;
+        }
+
+        const templates = (registro as any)?.huellas_template_dev
+            ? { ...(registro as any).huellas_template_dev.toObject?.() || (registro as any).huellas_template_dev }
+            : {};
+        const templateEncrypted = templates[String(dedo)];
+        if (!templateEncrypted) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No hay plantilla guardada para ese dedo.",
+            });
+            return;
+        }
+        const fingerData = decryptPassword(String(templateEncrypted), CONFIG.SECRET_CRYPTO);
+        if (!fingerData) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No se pudo leer la plantilla guardada.",
+            });
+            return;
+        }
+
+        const panelesAcceso = await DispositivosHv.find({
+            activo: true,
+            tipo_evento: { $in: [5, 6, 7] },
+            id_acceso: { $in: Array.isArray(registro.accesos) ? registro.accesos : [] },
+        }).lean();
+        if (panelesAcceso.length === 0) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No hay paneles destino disponibles para reenviar la huella.",
+            });
+            return;
+        }
+
+        const employeeNo = String(registro.id_empleado);
+        const paneles_aplicados: string[] = [];
+        const paneles_fallidos: Array<{ panel: string; mensaje: string; }> = [];
+
+        for (const panel of panelesAcceso) {
+            const panelNombre = String(panel.nombre || panel.direccion_ip || panel._id);
+            try {
+                const panelUser = String(panel.usuario || "").trim();
+                const panelPass = decryptPassword(String(panel.contrasena || ""), CONFIG.SECRET_CRYPTO);
+                const setupRes = await setupFingerprintOnPanel(
+                    String(panel.direccion_ip),
+                    panelUser,
+                    panelPass,
+                    employeeNo,
+                    dedo,
+                    fingerData
+                );
+                if (setupRes.applied) {
+                    paneles_aplicados.push(panelNombre);
+                } else {
+                    paneles_fallidos.push({
+                        panel: panelNombre,
+                        mensaje: "El panel no confirmó la aplicación de la huella.",
+                    });
+                }
+            } catch (error: any) {
+                paneles_fallidos.push({
+                    panel: panelNombre,
+                    mensaje: error?.message || "Error al aplicar huella en panel.",
+                });
+            }
+        }
+
+        if (paneles_aplicados.length === 0) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No se pudo reenviar la huella a ningún panel.",
+                datos: { paneles_fallidos },
+            });
+            return;
+        }
+
+        res.status(200).json({
+            estado: true,
+            mensaje: paneles_fallidos.length > 0
+                ? `Huella reenviada en ${paneles_aplicados.length} panel(es) y con fallas en ${paneles_fallidos.length}.`
+                : "Huella reenviada correctamente.",
+            datos: {
                 paneles_aplicados,
                 paneles_fallidos,
             },

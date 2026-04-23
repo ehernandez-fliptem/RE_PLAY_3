@@ -19,6 +19,7 @@ import {
     anonimizar,
     obtenerBiometriaEmpleado,
     registrarHuellaEmpleadoPanel,
+    reenviarHuellaEmpleadoPanel,
 } from "../controllers/empleados.controller";
 
 const router = Router();
@@ -38,6 +39,7 @@ router.post("/cargar-formato", validarTokenYRol([1, 2]), cargarFormato);
 router.post("/programacion", validarTokenYRol([1, 2]), cargarProgramacionEmpleados);
 router.put("/:id", validarTokenYRol([1, 2]), modificar);
 router.put("/biometria/huella/:id", validarTokenYRol([1, 2]), registrarHuellaEmpleadoPanel);
+router.put("/biometria/huella/reenviar/:id", validarTokenYRol([1, 2]), reenviarHuellaEmpleadoPanel);
 router.patch('/anonimizar/:id', validarTokenYRol([1, 2]), anonimizar);
 router.patch("/desbloquear/:id", validarTokenYRol([1, 2]), desbloquear);
 router.patch("/:id", validarTokenYRol([1, 2]), modificarEstado);

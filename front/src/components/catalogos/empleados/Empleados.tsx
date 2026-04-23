@@ -91,6 +91,9 @@ const LEFT_TO_RIGHT_ID_MAP: Record<number, number> = {
 };
 
 export default function Empleados() {
+  const devHuellaReplayUIEnabled =
+    String((import.meta as any)?.env?.VITE_DEV_HUELLA_REPLAY || "").toLowerCase() ===
+    "true";
   const { habilitarIntegracionHvBiometria } = useSelector(
     (state: IRootState) => state.config.data
   );
@@ -237,6 +240,33 @@ export default function Empleados() {
     }
   };
 
+  const reenviarHuellaGuardada = async () => {
+    if (!biometriaEmpleado?._id) return;
+    const MIN_WAIT_MS = 2000;
+    const waitMin = new Promise((resolve) => setTimeout(resolve, MIN_WAIT_MS));
+    try {
+      setBiometriaStep("espera");
+      const resPromise = clienteAxios.put(
+        `/api/empleados/biometria/huella/reenviar/${biometriaEmpleado._id}`,
+        { dedo: selectedFinger }
+      );
+      const [res] = await Promise.all([resPromise, waitMin]);
+      if (res.data.estado) {
+        setBiometriaMensaje(res.data.mensaje || "Huella reenviada correctamente.");
+        setBiometriaStep("ok");
+      } else {
+        setBiometriaMensaje(res.data.mensaje || "No se pudo reenviar la huella.");
+        setBiometriaStep("error");
+      }
+    } catch (error) {
+      await waitMin;
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+      setBiometriaMensaje("No se pudo reenviar la huella.");
+      setBiometriaStep("error");
+    }
+  };
+
   useEffect(() => {
     const state = location.state as any;
     if (
@@ -252,6 +282,17 @@ export default function Empleados() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state, habilitarIntegracionHvBiometria]);
+
+  const devReplayEnabled =
+    devHuellaReplayUIEnabled && !!biometriaEmpleado?.dev_huella_replay_enabled;
+  const devTemplateFingers: number[] = Array.isArray(
+    biometriaEmpleado?.huellas_template_dev
+  )
+    ? biometriaEmpleado.huellas_template_dev.map((v: any) => Number(v))
+    : [];
+  const selectedFingerHasTemplate = devTemplateFingers.includes(
+    Number(selectedFinger)
+  );
 
   const getHandTransform = (side: "L" | "R") => {
     const rotate = side === "L" ? rotateLeft : -rotateLeft + mirrorAdjustRotate;
@@ -953,6 +994,18 @@ export default function Empleados() {
         </DialogContent>
         <DialogActions>
           {biometriaStep === "huella" && (
+            <>
+              {devReplayEnabled && (
+                <Button
+                  variant="outlined"
+                  color="warning"
+                  onClick={reenviarHuellaGuardada}
+                  disabled={!selectedFingerHasTemplate}
+                  sx={{ fontWeight: 700 }}
+                >
+                  Reenviar huella (DEV)
+                </Button>
+              )}
               <Button
                 variant="contained"
                 onClick={iniciarCapturaHuella}
@@ -960,6 +1013,7 @@ export default function Empleados() {
               >
                 Siguiente
               </Button>
+            </>
           )}
           {biometriaStep === "ok" && (
             <Button
