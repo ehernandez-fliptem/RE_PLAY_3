@@ -987,6 +987,21 @@ const parseXmlStatus = (xml: string) => ({
     errorMsg: xmlTagValue(xml, "errorMsg"),
 });
 
+const normalizeHuellaTemplateMap = (value: any): Record<string, string> => {
+    if (!value) return {};
+    if (value instanceof Map) {
+        return Object.fromEntries(Array.from(value.entries()).map(([k, v]) => [String(k), String(v)]));
+    }
+    if (typeof value?.toObject === "function") {
+        const obj = value.toObject();
+        if (obj && typeof obj === "object") return obj as Record<string, string>;
+    }
+    if (typeof value === "object") {
+        return value as Record<string, string>;
+    }
+    return {};
+};
+
 const captureFingerprintFromPanel = async (ip: string, user: string, pass: string, fingerNo: number) => {
     const xmlPayload =
         `<?xml version="1.0" encoding="UTF-8"?>` +
@@ -1108,7 +1123,7 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
         const nombreCompleto = `${registro.nombre || ""} ${registro.apellido_pat || ""} ${registro.apellido_mat || ""}`.trim();
         const huellas = Array.isArray(registro.huellas_registradas) ? registro.huellas_registradas : [];
         const tarjetas = Array.isArray(registro.tarjetas_registradas) ? registro.tarjetas_registradas : [];
-        const huellasTemplateDev = (registro as any)?.huellas_template_dev || {};
+        const huellasTemplateDev = normalizeHuellaTemplateMap((registro as any)?.huellas_template_dev);
         const huellasTemplateDevKeys = Object.keys(huellasTemplateDev)
             .map((key) => Number(key))
             .filter((key) => Number.isInteger(key) && key >= 1 && key <= 10)
@@ -1295,9 +1310,7 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
 
         const huellasActuales = Array.isArray(registro.huellas_registradas) ? registro.huellas_registradas : [];
         const huellas = Array.from(new Set([...huellasActuales, dedo])).sort((a, b) => a - b);
-        const huellasTemplateDevActual = (registro as any)?.huellas_template_dev
-            ? { ...(registro as any).huellas_template_dev.toObject?.() || (registro as any).huellas_template_dev }
-            : {};
+        const huellasTemplateDevActual = normalizeHuellaTemplateMap((registro as any)?.huellas_template_dev);
         const huellasTemplateDev = {
             ...huellasTemplateDevActual,
             [String(dedo)]: encryptPassword(String(fingerData), CONFIG.SECRET_CRYPTO),
@@ -1358,9 +1371,7 @@ export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): 
             return;
         }
 
-        const templates = (registro as any)?.huellas_template_dev
-            ? { ...(registro as any).huellas_template_dev.toObject?.() || (registro as any).huellas_template_dev }
-            : {};
+        const templates = normalizeHuellaTemplateMap((registro as any)?.huellas_template_dev);
         const templateEncrypted = templates[String(dedo)];
         if (!templateEncrypted) {
             res.status(200).json({
