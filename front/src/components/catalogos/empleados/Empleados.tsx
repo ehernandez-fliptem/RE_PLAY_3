@@ -280,15 +280,7 @@ export default function Empleados() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state, habilitarIntegracionHvBiometria]);
 
-  const devReplayEnabled = true;
-  const devTemplateFingers: number[] = Array.isArray(
-    biometriaEmpleado?.huellas_template_dev
-  )
-    ? biometriaEmpleado.huellas_template_dev.map((v: any) => Number(v))
-    : [];
-  const selectedFingerHasTemplate = devTemplateFingers.includes(
-    Number(selectedFinger)
-  );
+  const devReplayEnabled = false;
 
   const getHandTransform = (side: "L" | "R") => {
     const rotate = side === "L" ? rotateLeft : -rotateLeft + mirrorAdjustRotate;
@@ -996,7 +988,6 @@ export default function Empleados() {
                   variant="outlined"
                   color="warning"
                   onClick={reenviarHuellaGuardada}
-                  disabled={!selectedFingerHasTemplate}
                   sx={{ fontWeight: 700 }}
                 >
                   Reenviar huella (DEV)
