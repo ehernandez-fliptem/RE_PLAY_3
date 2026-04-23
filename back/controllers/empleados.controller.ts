@@ -951,7 +951,7 @@ const mapEmpleadoToPanel = (registro: any) => {
     };
 };
 
-const DEV_HUELLA_REPLAY_ENABLED = String(process.env.DEV_HUELLA_REPLAY || "").toLowerCase() === "true";
+const DEV_HUELLA_REPLAY_ENABLED = true;
 
 const runCurlText = (args: string[]): Promise<{ statusCode: number; body: string; }> =>
     new Promise((resolve, reject) => {
@@ -1123,8 +1123,8 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
                 tarjetas_registradas: tarjetas,
                 huellas_total: huellas.length,
                 tarjetas_total: tarjetas.length,
-                dev_huella_replay_enabled: DEV_HUELLA_REPLAY_ENABLED,
-                huellas_template_dev: DEV_HUELLA_REPLAY_ENABLED ? huellasTemplateDevKeys : [],
+                dev_huella_replay_enabled: true,
+                huellas_template_dev: huellasTemplateDevKeys,
             },
         });
     } catch (error: any) {
@@ -1298,12 +1298,10 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
         const huellasTemplateDevActual = (registro as any)?.huellas_template_dev
             ? { ...(registro as any).huellas_template_dev.toObject?.() || (registro as any).huellas_template_dev }
             : {};
-        const huellasTemplateDev = DEV_HUELLA_REPLAY_ENABLED
-            ? {
-                ...huellasTemplateDevActual,
-                [String(dedo)]: encryptPassword(String(fingerData), CONFIG.SECRET_CRYPTO),
-            }
-            : huellasTemplateDevActual;
+        const huellasTemplateDev = {
+            ...huellasTemplateDevActual,
+            [String(dedo)]: encryptPassword(String(fingerData), CONFIG.SECRET_CRYPTO),
+        };
 
         await Empleados.findByIdAndUpdate(
             req.params.id,
@@ -1329,8 +1327,8 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
                 finger_quality: fingerPrintQuality,
                 paneles_aplicados,
                 paneles_fallidos,
-                dev_huella_replay_enabled: DEV_HUELLA_REPLAY_ENABLED,
-                huellas_template_dev: DEV_HUELLA_REPLAY_ENABLED ? Object.keys(huellasTemplateDev).map(Number).sort((a, b) => a - b) : [],
+                dev_huella_replay_enabled: true,
+                huellas_template_dev: Object.keys(huellasTemplateDev).map(Number).sort((a, b) => a - b),
             },
         });
     } catch (error: any) {
@@ -1341,14 +1339,6 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
 
 export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): Promise<void> {
     try {
-        if (!DEV_HUELLA_REPLAY_ENABLED) {
-            res.status(200).json({
-                estado: false,
-                mensaje: "La bandera DEV_HUELLA_REPLAY está desactivada.",
-            });
-            return;
-        }
-
         const id_usuario = (req as UserRequest).userId;
         const isMaster = (req as UserRequest).isMaster;
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;

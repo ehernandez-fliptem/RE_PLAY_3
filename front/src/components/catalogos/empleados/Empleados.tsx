@@ -91,9 +91,6 @@ const LEFT_TO_RIGHT_ID_MAP: Record<number, number> = {
 };
 
 export default function Empleados() {
-  const devHuellaReplayUIEnabled =
-    String((import.meta as any)?.env?.VITE_DEV_HUELLA_REPLAY || "").toLowerCase() ===
-    "true";
   const { habilitarIntegracionHvBiometria } = useSelector(
     (state: IRootState) => state.config.data
   );
@@ -283,8 +280,7 @@ export default function Empleados() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state, habilitarIntegracionHvBiometria]);
 
-  const devReplayEnabled =
-    devHuellaReplayUIEnabled && !!biometriaEmpleado?.dev_huella_replay_enabled;
+  const devReplayEnabled = true;
   const devTemplateFingers: number[] = Array.isArray(
     biometriaEmpleado?.huellas_template_dev
   )
