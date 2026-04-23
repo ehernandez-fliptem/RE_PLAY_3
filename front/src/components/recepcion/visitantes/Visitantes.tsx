@@ -536,7 +536,12 @@ const accionBloquear = (ID: string) => {
                     label={verified ? "Verificado" : "No verificado"}
                     color={verified ? "success" : "error"}
                     size="small"
-                    sx={{ minWidth: 110, justifyContent: "center" }}
+                    sx={{
+                      minWidth: 110,
+                      justifyContent: "center",
+                      color: "common.white",
+                      fontWeight: 700,
+                    }}
                   />
                 </div>
               );

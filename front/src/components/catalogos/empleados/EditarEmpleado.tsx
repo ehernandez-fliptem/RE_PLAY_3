@@ -3,7 +3,20 @@ import { Close, Save } from "@mui/icons-material";
 import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import { Box, Button, Card, CardContent, Divider, Stack, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  IconButton,
+  Stack,
+  Typography,
+} from "@mui/material";
 import { AutocompleteElement, FormContainer, SwitchElement, TextFieldElement } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
 import Swal from "sweetalert2";
@@ -181,6 +194,10 @@ export default function EditarEmpleado() {
   const [cubiculos, setCubiculos] = useState<TCubiculos[]>([]);
   const [esUsuarioMaestro, setEsUsuarioMaestro] = useState(false);
   const initialFormRef = useRef<FormValues | null>(null);
+  const [postSaveOpen, setPostSaveOpen] = useState(false);
+  const [postSaveStep, setPostSaveStep] = useState<"huella" | "tarjeta">(
+    "huella"
+  );
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -273,7 +290,8 @@ export default function EditarEmpleado() {
           variant: "success",
         });
         parentGridDataRef.fetchRows();
-        navigate("/empleados");
+        setPostSaveStep("huella");
+        setPostSaveOpen(true);
       } else if (res.data.codigo === "PANEL_SYNC_FAILED") {
         setIsSaving(false);
         setShowForm(false);
@@ -307,6 +325,25 @@ export default function EditarEmpleado() {
 
   const regresar = () => {
     navigate("/empleados");
+  };
+
+  const cerrarFlujoPostSave = () => {
+    setPostSaveOpen(false);
+    navigate("/empleados");
+  };
+
+  const abrirConfigHuella = () => {
+    setPostSaveOpen(false);
+    navigate("/empleados", {
+      state: { openBiometriaFor: ID, biometriaStep: "huella" },
+    });
+  };
+
+  const abrirConfigTarjeta = () => {
+    setPostSaveOpen(false);
+    navigate("/empleados", {
+      state: { openBiometriaFor: ID, biometriaStep: "tarjeta" },
+    });
   };
 
   if (!showForm) {
@@ -575,6 +612,56 @@ export default function EditarEmpleado() {
           </CardContent>
         </Card>
       </Box>
+      <Dialog
+        open={postSaveOpen}
+        onClose={cerrarFlujoPostSave}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          {postSaveStep === "huella"
+            ? "Configurar huella"
+            : "Configurar tarjeta"}
+          <IconButton
+            onClick={cerrarFlujoPostSave}
+            sx={{ position: "absolute", right: 8, top: 8 }}
+            size="small"
+            color="error"
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          {postSaveStep === "huella" ? (
+            <Typography>
+              El empleado se guardo correctamente. Quieres configurar su huella
+              ahora?
+            </Typography>
+          ) : (
+            <Typography>
+              Configuracion de tarjeta (esqueleto): este paso se habilitara en
+              la siguiente fase.
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          {postSaveStep === "huella" ? (
+            <Fragment>
+              <Button onClick={() => setPostSaveStep("tarjeta")}>Omitir</Button>
+              <Button variant="contained" onClick={abrirConfigHuella}>
+                Configurar huella
+              </Button>
+            </Fragment>
+          ) : (
+            <Fragment>
+              <Button onClick={cerrarFlujoPostSave}>Omitir</Button>
+              <Button variant="contained" onClick={abrirConfigTarjeta}>
+                Configurar tarjeta
+              </Button>
+            </Fragment>
+          )}
+        </DialogActions>
+      </Dialog>
     </ModalContainer>
   );
 }

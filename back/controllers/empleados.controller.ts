@@ -97,6 +97,8 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                             else: true
                         }
                     },
+                    huellas_total: { $size: { $ifNull: ["$huellas_registradas", []] } },
+                    tarjetas_total: { $size: { $ifNull: ["$tarjetas_registradas", []] } },
                 }
             },
             {
@@ -123,7 +125,8 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                     creado_por: 0,
                     fecha_modificacion: 0,
                     modificado_por: 0,
-                    
+                    huellas_registradas: 0,
+                    tarjetas_registradas: 0,
                 }
             },
         ];
@@ -946,6 +949,96 @@ const mapEmpleadoToPanel = (registro: any) => {
         id_general: base?.id_empleado ?? base?.id_general
     };
 };
+
+export async function obtenerBiometriaEmpleado(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const isMaster = (req as UserRequest).isMaster;
+        const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
+
+        const filtro: any = { _id: req.params.id };
+        if (!isMaster) filtro.id_empresa = id_empresa;
+
+        const registro = await Empleados.findOne(
+            filtro,
+            "nombre apellido_pat apellido_mat huellas_registradas tarjetas_registradas"
+        ).lean();
+
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
+            return;
+        }
+
+        const nombreCompleto = `${registro.nombre || ""} ${registro.apellido_pat || ""} ${registro.apellido_mat || ""}`.trim();
+        const huellas = Array.isArray(registro.huellas_registradas) ? registro.huellas_registradas : [];
+        const tarjetas = Array.isArray(registro.tarjetas_registradas) ? registro.tarjetas_registradas : [];
+
+        res.status(200).json({
+            estado: true,
+            datos: {
+                _id: registro._id,
+                nombre: nombreCompleto,
+                huellas_registradas: huellas.sort((a, b) => a - b),
+                tarjetas_registradas: tarjetas,
+                huellas_total: huellas.length,
+                tarjetas_total: tarjetas.length,
+            },
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function registrarHuellaEmpleado(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const isMaster = (req as UserRequest).isMaster;
+        const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
+        const dedo = Number(req.body?.dedo);
+
+        if (!Number.isInteger(dedo) || dedo < 1 || dedo > 10) {
+            res.status(400).json({ estado: false, mensaje: "El dedo es inválido. Usa un valor entre 1 y 10." });
+            return;
+        }
+
+        const filtro: any = { _id: req.params.id };
+        if (!isMaster) filtro.id_empresa = id_empresa;
+
+        const registro = await Empleados.findOne(filtro);
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
+            return;
+        }
+
+        const huellasActuales = Array.isArray(registro.huellas_registradas) ? registro.huellas_registradas : [];
+        const huellas = Array.from(new Set([...huellasActuales, dedo])).sort((a, b) => a - b);
+
+        await Empleados.findByIdAndUpdate(
+            req.params.id,
+            {
+                $set: {
+                    huellas_registradas: huellas,
+                    modificado_por: id_usuario,
+                    fecha_modificacion: Date.now(),
+                },
+            },
+            { runValidators: true }
+        );
+
+        res.status(200).json({
+            estado: true,
+            mensaje: "Huella registrada correctamente.",
+            datos: {
+                huellas_registradas: huellas,
+                huellas_total: huellas.length,
+            },
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
 
 const normalizarCorreo = (correo?: string) => String(correo || "").trim().toLowerCase();
 

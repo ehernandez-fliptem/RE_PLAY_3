@@ -12,7 +12,6 @@ import * as faceapi from 'face-api.js';
 
 import registrosHandlers from './handlers/registros.handlers';
 import eventosHandlers from './handlers/eventos.handlers';
-import PROD_ROUTES from './middlewares/prodRoutes';
 import { limiter404 } from './middlewares/limiters';
 import { validarTokenWS } from './middlewares/validarTokenWS';
 import { logRequest } from "./middlewares/logRequest";
@@ -119,11 +118,6 @@ export default async function Server() {
         app.use(express.static(path.join(__dirname, 'dist/')));
         // app.use('/models', express.static(path.join(__dirname, 'public/models')));
 
-        if (ENV == "PROD")
-            app.get(PROD_ROUTES, (_req, res) => {
-                res.sendFile(path.join(__dirname, 'dist/', 'index.html'));
-            });
-
         app.use('/api/accesos', accesosRoutes);
         app.use('/api/auth', authRoutes);
         app.use('/api/asignaciones', asignacionesRoutes);
@@ -155,6 +149,20 @@ export default async function Server() {
         app.use('/api/validacion', validacionRoutes);
         app.use('/api/visitantes', visitantesRoutes);
         app.use('/api/campo', campoRoutes);
+
+        // Fallback de SPA para refresh (F5) en rutas del front.
+        // Evita "Recurso no encontrado" cuando se entra directo a modales por URL.
+        if (ENV == "PROD") {
+            app.get('/{*any}', (req, res, next) => {
+                if (req.path.startsWith('/api/')) {
+                    return next();
+                }
+                if (path.extname(req.path)) {
+                    return next();
+                }
+                return res.sendFile(path.join(__dirname, 'dist/', 'index.html'));
+            });
+        }
 
         // Rutas no encontradas
         app.use(limiter404, (_req: Request, res: Response) => {
