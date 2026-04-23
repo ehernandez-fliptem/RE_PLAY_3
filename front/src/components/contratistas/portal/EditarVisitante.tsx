@@ -24,6 +24,7 @@ import { REGEX_EMAIL, REGEX_NAME, REGEX_PHONE } from "../../../app/constants/Com
 import InputFileUpload from "../../utils/FileUpload";
 import { useSelector } from "react-redux";
 import { selectCurrentData } from "../../../app/features/config/configSlice";
+import { getDocumentosConfig } from "../utils/documentosConfig";
 
 type FormValues = {
   nombre: string;
@@ -70,31 +71,6 @@ const initialValue: FormValues = {
   telefono: "",
 };
 
-const DOC_LABELS: Record<string, string> = {
-  identificacion_oficial: "Identificación oficial",
-  sua: "SUA",
-  permiso_entrada: "Permiso de entrada",
-  lista_articulos: "Lista de artículos",
-  repse: "REPSE",
-  soporte_pago_actualizado: "Soporte de pago actualizado",
-  constancia_vigencia_imss: "Constancia de Vigencia IMSS",
-  constancias_habilidades: "Constancias de Habilidades",
-};
-
-const DOCS_REQUIRED_KEYS = [
-  "identificacion_oficial",
-  "sua",
-  "permiso_entrada",
-  "lista_articulos",
-  "repse",
-  "soporte_pago_actualizado",
-];
-
-const DOCS_OPTIONAL_KEYS = [
-  "constancia_vigencia_imss",
-  "constancias_habilidades",
-];
-
 export default function EditarPortalVisitante() {
   const { id } = useParams();
   const formContext = useForm({
@@ -118,13 +94,10 @@ export default function EditarPortalVisitante() {
   );
   const [isSaving, setIsSaving] = useState(false);
   const config = useSelector(selectCurrentData);
-  const docsVisitantes = config?.documentos_visitantes || {};
-  const DOCS_REQUIRED = DOCS_REQUIRED_KEYS.filter(
-    (key) => docsVisitantes[key] !== false
-  );
-  const DOCS_OPTIONAL = DOCS_OPTIONAL_KEYS.filter(
-    (key) => docsVisitantes[key] !== false
-  );
+  const [configDocs, setConfigDocs] = useState<any>(config);
+  const docsCfg = getDocumentosConfig(configDocs, "visitantes");
+  const DOCS_REQUIRED = docsCfg.required.map((d) => d.key);
+  const DOCS_OPTIONAL = docsCfg.optional.map((d) => d.key);
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -156,6 +129,24 @@ export default function EditarPortalVisitante() {
     };
     obtenerRegistro();
   }, [formContext, id, navigate]);
+
+  useEffect(() => {
+    setConfigDocs(config);
+  }, [config]);
+
+  useEffect(() => {
+    const refreshConfig = async () => {
+      try {
+        const res = await clienteAxios.get("/api/validacion/session-config");
+        if (res.data?.estado) {
+          setConfigDocs(res.data?.datos?.configuracion || config);
+        }
+      } catch {
+        // Si falla, se mantiene config de redux
+      }
+    };
+    refreshConfig();
+  }, [config]);
 
   const handleNext = async () => {
     const isValid = await formContext.trigger();
@@ -342,7 +333,7 @@ export default function EditarPortalVisitante() {
                             pb: 1,
                           }}
                         >
-                          <Typography>{DOC_LABELS[key]}</Typography>
+                          <Typography>{docsCfg.labelByKey[key] || key}</Typography>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                             <Typography variant="caption">
                               {documentosArchivos[key]?.name
@@ -390,7 +381,7 @@ export default function EditarPortalVisitante() {
                             pb: 1,
                           }}
                         >
-                          <Typography>{DOC_LABELS[key]}</Typography>
+                          <Typography>{docsCfg.labelByKey[key] || key}</Typography>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                             <Typography variant="caption">
                               {documentosArchivos[key]?.name
@@ -461,3 +452,5 @@ export default function EditarPortalVisitante() {
     </ModalContainer>
   );
 }
+
+

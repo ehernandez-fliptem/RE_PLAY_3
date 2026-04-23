@@ -31,22 +31,9 @@ import Spinner from "../../utils/Spinner";
 import InputFileUpload from "../../utils/FileUpload";
 import { useSelector } from "react-redux";
 import { selectCurrentData } from "../../../app/features/config/configSlice";
+import { getDocumentosConfig } from "../utils/documentosConfig";
 
 const pageSizeOptions = [10, 25, 50];
-
-const DOC_LABELS: Record<string, string> = {
-  identificacion_oficial: "Identificación oficial",
-  sua: "SUA",
-  permiso_entrada: "Permiso de entrada",
-  lista_articulos: "Lista de artículos",
-  repse: "REPSE",
-  soporte_pago_actualizado: "Soporte de pago actualizado",
-  constancia_vigencia_imss: "Constancia de Vigencia IMSS",
-  constancias_habilidades: "Constancias de Habilidades",
-};
-
-const DOC_KEYS = Object.keys(DOC_LABELS);
-const OPTIONAL_DOC_KEYS = ["constancia_vigencia_imss", "constancias_habilidades"];
 
 const getEstadoLabel = (estado?: number) => {
   if (estado === 2) return { label: "Verificado", color: "success" as const };
@@ -59,15 +46,10 @@ export default function PortalVisitantes() {
   const [error, setError] = useState<string>();
   const navigate = useNavigate();
   const config = useSelector(selectCurrentData);
-  const docsVisitantes = config?.documentos_visitantes || {};
-  const enabledDocKeys = useMemo(
-    () => DOC_KEYS.filter((key) => docsVisitantes[key] !== false),
-    [docsVisitantes]
-  );
-  const enabledOptionalKeys = useMemo(
-    () => OPTIONAL_DOC_KEYS.filter((key) => docsVisitantes[key] !== false),
-    [docsVisitantes]
-  );
+  const [configDocs, setConfigDocs] = useState<any>(config);
+  const docsCfg = useMemo(() => getDocumentosConfig(configDocs, "visitantes"), [configDocs]);
+  const enabledDocKeys = useMemo(() => docsCfg.required.map((d) => d.key).concat(docsCfg.optional.map((d) => d.key)), [docsCfg]);
+  const enabledOptionalKeys = useMemo(() => docsCfg.optional.map((d) => d.key), [docsCfg]);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [showCorreccion, setShowCorreccion] = useState(false);
   const [isLoadingCorreccion, setIsLoadingCorreccion] = useState(false);
@@ -83,6 +65,24 @@ export default function PortalVisitantes() {
     }, 10 * 60 * 1000);
     return () => clearInterval(interval);
   }, [apiRef]);
+
+  useEffect(() => {
+    setConfigDocs(config);
+  }, [config]);
+
+  useEffect(() => {
+    const refreshConfig = async () => {
+      try {
+        const res = await clienteAxios.get("/api/validacion/session-config");
+        if (res.data?.estado) {
+          setConfigDocs(res.data?.datos?.configuracion || config);
+        }
+      } catch {
+        // Si falla, se mantiene config de redux
+      }
+    };
+    refreshConfig();
+  }, [config]);
   const rejectedDocKeys = useMemo(() => {
     const checks = (correccionVisitante as any)?.documentos_checks || {};
     return enabledDocKeys.filter((key) => !checks?.[key]);
@@ -542,7 +542,7 @@ export default function PortalVisitantes() {
                           pb: 1,
                         }}
                       >
-                        <Typography>{DOC_LABELS[key]}</Typography>
+                        <Typography>{docsCfg.labelByKey[key] || key}</Typography>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           <Typography variant="caption">
                             {documentosCorreccion[key]?.name || "-"}
@@ -602,7 +602,7 @@ export default function PortalVisitantes() {
                               pb: 1,
                             }}
                           >
-                            <Typography>{DOC_LABELS[key]}</Typography>
+                            <Typography>{docsCfg.labelByKey[key] || key}</Typography>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                               <Typography variant="caption">
                                 {documentosCorreccion[key]?.name || "-"}
@@ -642,3 +642,4 @@ export default function PortalVisitantes() {
     </div>
   );
 }
+

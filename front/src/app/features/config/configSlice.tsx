@@ -23,6 +23,16 @@ interface ConfigState {
     habilitarRegistroCampo: boolean;
     documentos_visitantes: Record<string, boolean>;
     documentos_contratistas: Record<string, boolean>;
+    documentos_personalizados: {
+      contratistas: {
+        obligatorios: { id: string; nombre: string; activo: boolean }[];
+        opcionales: { id: string; nombre: string; activo: boolean }[];
+      };
+      visitantes: {
+        obligatorios: { id: string; nombre: string; activo: boolean }[];
+        opcionales: { id: string; nombre: string; activo: boolean }[];
+      };
+    };
     tipos_dispositivos: { [key: number]: { nombre: string; color: string } };
     tipos_eventos: { [key: number]: { nombre: string; color: string } };
     roles: { [key: number]: { nombre: string; color: string } };
@@ -64,6 +74,10 @@ const initialState = {
     habilitarRegistroCampo: false,
     documentos_visitantes: {},
     documentos_contratistas: {},
+    documentos_personalizados: {
+      contratistas: { obligatorios: [], opcionales: [] },
+      visitantes: { obligatorios: [], opcionales: [] },
+    },
     tipos_dispositivos: {} as {
       [key: number]: { nombre: string; color: string };
     },
@@ -105,6 +119,8 @@ export const configSlice = createSlice({
           action.payload.documentos_visitantes || state.data.documentos_visitantes,
         documentos_contratistas:
           action.payload.documentos_contratistas || state.data.documentos_contratistas,
+        documentos_personalizados:
+          action.payload.documentos_personalizados || state.data.documentos_personalizados,
         tipos_dispositivos: action.payload.tipos_dispositivos || state.data.tipos_dispositivos,
         tipos_eventos: action.payload.tipos_eventos || state.data.tipos_eventos,
         roles: action.payload.roles || state.data.roles,

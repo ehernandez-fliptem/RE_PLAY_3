@@ -20,6 +20,9 @@ import ModalContainer from "../../utils/ModalContainer";
 import Spinner from "../../utils/Spinner";
 import { enqueueSnackbar } from "notistack";
 import dayjs from "dayjs";
+import { useSelector } from "react-redux";
+import { selectCurrentData } from "../../../app/features/config/configSlice";
+import { getDocumentosConfig } from "../utils/documentosConfig";
 
 type Visitante = {
   _id: string;
@@ -45,19 +48,6 @@ type Solicitud = {
   items: Item[];
   visitantes: Visitante[];
 };
-
-const DOC_LABELS: Record<string, string> = {
-  identificacion_oficial: "Identificacion oficial",
-  sua: "SUA",
-  permiso_entrada: "Permiso de entrada",
-  lista_articulos: "Lista de articulos",
-  repse: "REPSE",
-  soporte_pago_actualizado: "Soporte de pago actualizado",
-  constancia_vigencia_imss: "Constancia de Vigencia IMSS",
-  constancias_habilidades: "Constancias de Habilidades",
-};
-
-const DOC_KEYS = Object.keys(DOC_LABELS);
 
 const getEstadoLabel = (estado?: number) => {
   if (estado === 2) return { label: "Aprobada", color: "success" as const };
@@ -86,6 +76,9 @@ export default function DetalleContratistasSolicitud() {
   });
   const [items, setItems] = useState<Item[]>([]);
   const [expandedVisitanteId, setExpandedVisitanteId] = useState<string | false>(false);
+  const config = useSelector(selectCurrentData);
+  const docsCfg = useMemo(() => getDocumentosConfig(config, "visitantes"), [config]);
+  const enabledDocKeys = useMemo(() => docsCfg.required.map((d) => d.key).concat(docsCfg.optional.map((d) => d.key)), [docsCfg]);
   const isAprobarMode = new URLSearchParams(location.search).get("modo") === "aprobar";
 
   useEffect(() => {
@@ -287,7 +280,7 @@ export default function DetalleContratistasSolicitud() {
                       </Box>
                     </AccordionSummary>
                     <AccordionDetails>
-                      {DOC_KEYS.map((key) => {
+                      {enabledDocKeys.map((key) => {
                         const tieneArchivo = Boolean(archivos?.[key]);
                         const check = checks?.[key];
                         const estadoDoc =
@@ -312,7 +305,7 @@ export default function DetalleContratistasSolicitud() {
                               mb: 1,
                             }}
                           >
-                            <Typography>{DOC_LABELS[key]}</Typography>
+                            <Typography>{docsCfg.labelByKey[key] || key}</Typography>
                             <Typography
                               variant="caption"
                               sx={{
@@ -381,6 +374,7 @@ export default function DetalleContratistasSolicitud() {
     </ModalContainer>
   );
 }
+
 
 
 

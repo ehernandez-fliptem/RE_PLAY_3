@@ -18,6 +18,9 @@ import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { useSelector } from "react-redux";
+import { selectCurrentData } from "../../../app/features/config/configSlice";
+import { getDocumentosConfig } from "../utils/documentosConfig";
 
 type FormValues = {
   nombre: string;
@@ -45,25 +48,16 @@ const initialValue: FormValues = {
   documentos_archivos: {},
 };
 
-const DOC_LABELS: Record<string, string> = {
-  identificacion_oficial: "Identificación oficial",
-  sua: "SUA",
-  permiso_entrada: "Permiso de entrada",
-  lista_articulos: "Lista de artículos",
-  repse: "REPSE",
-  soporte_pago_actualizado: "Soporte de pago actualizado",
-  constancia_vigencia_imss: "Constancia de Vigencia IMSS",
-  constancias_habilidades: "Constancias de Habilidades",
-};
-
-const DOC_KEYS = Object.keys(DOC_LABELS);
-
 export default function DetallePortalVisitante() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [datos, setDatos] = useState<FormValues>(initialValue);
   const [expandedDocKey, setExpandedDocKey] = useState<string | false>(false);
+  const config = useSelector(selectCurrentData);
+  const docsCfg = getDocumentosConfig(config, "visitantes");
+  const enabledDocKeys = docsCfg.required.map((d) => d.key).concat(docsCfg.optional.map((d) => d.key));
+  const enabledOptionalKeys = docsCfg.optional.map((d) => d.key);
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -184,8 +178,8 @@ export default function DetallePortalVisitante() {
                   >
                     <strong>Documentos</strong>
                   </Typography>
-                  {DOC_KEYS.filter(
-                    (key) => !["constancia_vigencia_imss", "constancias_habilidades"].includes(key)
+                  {enabledDocKeys.filter(
+                    (key) => !enabledOptionalKeys.includes(key)
                   ).map((key) => {
                     const docUrl = datos.documentos_archivos?.[key];
                     const check = datos.documentos_checks?.[key];
@@ -223,7 +217,7 @@ export default function DetallePortalVisitante() {
                               pr: 2,
                             }}
                           >
-                            <Typography>{DOC_LABELS[key]}</Typography>
+                            <Typography>{docsCfg.labelByKey[key] || key}</Typography>
                             <Typography
                               variant="caption"
                               sx={{
@@ -240,7 +234,7 @@ export default function DetallePortalVisitante() {
                             <Box
                               component="img"
                               src={docUrl}
-                              alt={DOC_LABELS[key]}
+                              alt={docsCfg.labelByKey[key] || key}
                               sx={{
                                 maxWidth: "100%",
                                 maxHeight: 360,
@@ -257,9 +251,9 @@ export default function DetallePortalVisitante() {
                     );
                   })}
                   {(() => {
-                    const opcionales = DOC_KEYS.filter((key) =>
-                      ["constancia_vigencia_imss", "constancias_habilidades"].includes(key)
-                    ).filter((key) => Boolean(datos.documentos_archivos?.[key]));
+                    const opcionales = enabledOptionalKeys.filter((key) =>
+                      Boolean(datos.documentos_archivos?.[key])
+                    );
                     if (opcionales.length === 0) return null;
                     return (
                       <>
@@ -318,7 +312,7 @@ export default function DetallePortalVisitante() {
                                     pr: 2,
                                   }}
                                 >
-                                  <Typography>{DOC_LABELS[key]}</Typography>
+                                  <Typography>{docsCfg.labelByKey[key] || key}</Typography>
                                   <Typography
                                     variant="caption"
                                     sx={{
@@ -335,7 +329,7 @@ export default function DetallePortalVisitante() {
                                   <Box
                                     component="img"
                                     src={docUrl}
-                                    alt={DOC_LABELS[key]}
+                                    alt={docsCfg.labelByKey[key] || key}
                                     sx={{
                                       maxWidth: "100%",
                                       maxHeight: 360,
@@ -390,3 +384,4 @@ export default function DetallePortalVisitante() {
     </ModalContainer>
   );
 }
+

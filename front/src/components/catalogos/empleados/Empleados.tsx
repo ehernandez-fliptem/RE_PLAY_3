@@ -421,6 +421,7 @@ export default function Empleados() {
   }, [location.state, habilitarIntegracionHvBiometria]);
 
   const devReplayEnabled = false;
+  const biometriaBadgeWidth = 126;
 
   const getHandTransform = (side: "L" | "R") => {
     const rotate = side === "L" ? rotateLeft : -rotateLeft + mirrorAdjustRotate;
@@ -702,22 +703,28 @@ export default function Empleados() {
                   renderCell: ({ row, value }: any) => {
                     const total = Number(value || 0);
                     return (
-                      <Button
-                        size="small"
-                        variant={total > 0 ? "contained" : "outlined"}
-                        onClick={() => abrirBiometria(row._id, "huella")}
-                        sx={{
-                          bgcolor: total > 0 ? "success.main" : "#fff",
-                          color: total > 0 ? "#fff" : "text.secondary",
-                          borderColor: total > 0 ? "success.main" : "grey.500",
-                          "&:hover": {
-                            bgcolor: total > 0 ? "success.dark" : "#fff",
-                            borderColor: total > 0 ? "success.dark" : "grey.700",
-                          },
-                        }}
-                      >
-                        {total > 0 ? `${total} huella(s)` : "Sin huellas"}
-                      </Button>
+                      <Box sx={{ width: "100%", display: "flex", justifyContent: "center" }}>
+                        <Button
+                          size="small"
+                          variant={total > 0 ? "contained" : "outlined"}
+                          onClick={() => abrirBiometria(row._id, "huella")}
+                          sx={{
+                            width: biometriaBadgeWidth,
+                            minWidth: biometriaBadgeWidth,
+                            maxWidth: biometriaBadgeWidth,
+                            whiteSpace: "nowrap",
+                            bgcolor: total > 0 ? "success.main" : "#fff",
+                            color: total > 0 ? "#fff" : "text.secondary",
+                            borderColor: total > 0 ? "success.main" : "grey.500",
+                            "&:hover": {
+                              bgcolor: total > 0 ? "success.dark" : "#fff",
+                              borderColor: total > 0 ? "success.dark" : "grey.700",
+                            },
+                          }}
+                        >
+                          {total > 0 ? `${total} huella(s)` : "Sin huellas"}
+                        </Button>
+                      </Box>
                     );
                   },
                 },
@@ -731,22 +738,28 @@ export default function Empleados() {
                   renderCell: ({ row, value }: any) => {
                     const total = Number(value || 0);
                     return (
-                      <Button
-                        size="small"
-                        variant={total > 0 ? "contained" : "outlined"}
-                        onClick={() => abrirBiometria(row._id, "tarjeta")}
-                        sx={{
-                          bgcolor: total > 0 ? "success.main" : "#fff",
-                          color: total > 0 ? "#fff" : "text.secondary",
-                          borderColor: total > 0 ? "success.main" : "grey.500",
-                          "&:hover": {
-                            bgcolor: total > 0 ? "success.dark" : "#fff",
-                            borderColor: total > 0 ? "success.dark" : "grey.700",
-                          },
-                        }}
-                      >
-                        {total > 0 ? `${total} tarjeta(s)` : "Sin tarjetas"}
-                      </Button>
+                      <Box sx={{ width: "100%", display: "flex", justifyContent: "center" }}>
+                        <Button
+                          size="small"
+                          variant={total > 0 ? "contained" : "outlined"}
+                          onClick={() => abrirBiometria(row._id, "tarjeta")}
+                          sx={{
+                            width: biometriaBadgeWidth,
+                            minWidth: biometriaBadgeWidth,
+                            maxWidth: biometriaBadgeWidth,
+                            whiteSpace: "nowrap",
+                            bgcolor: total > 0 ? "success.main" : "#fff",
+                            color: total > 0 ? "#fff" : "text.secondary",
+                            borderColor: total > 0 ? "success.main" : "grey.500",
+                            "&:hover": {
+                              bgcolor: total > 0 ? "success.dark" : "#fff",
+                              borderColor: total > 0 ? "success.dark" : "grey.700",
+                            },
+                          }}
+                        >
+                          {total > 0 ? `${total} tarjeta(s)` : "Sin tarjetas"}
+                        </Button>
+                      </Box>
                     );
                   },
                 },

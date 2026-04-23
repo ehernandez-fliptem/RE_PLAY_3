@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { UserRequest } from "../types/express";
 import Contratistas from "../models/Contratistas";
 import ContratistaDocumentos from "../models/ContratistaDocumentos";
+import Configuracion from "../models/Configuracion";
 import { fecha, log } from "../middlewares/log";
 
 const DOC_KEYS = [
@@ -15,30 +16,46 @@ const DOC_KEYS = [
     "constancias_habilidades",
 ] as const;
 
-type DocChecks = Record<(typeof DOC_KEYS)[number], boolean>;
-type DocFiles = Record<(typeof DOC_KEYS)[number], string>;
+type DocChecks = Record<string, boolean>;
+type DocFiles = Record<string, string>;
 
-const normalizeDocChecks = (value?: Partial<DocChecks> | null): DocChecks => ({
-    identificacion_oficial: Boolean(value?.identificacion_oficial),
-    sua: Boolean(value?.sua),
-    permiso_entrada: Boolean(value?.permiso_entrada),
-    lista_articulos: Boolean(value?.lista_articulos),
-    repse: Boolean(value?.repse),
-    soporte_pago_actualizado: Boolean(value?.soporte_pago_actualizado),
-    constancia_vigencia_imss: Boolean(value?.constancia_vigencia_imss),
-    constancias_habilidades: Boolean(value?.constancias_habilidades),
-});
+const normalizeDocChecks = (value?: Partial<DocChecks> | null): DocChecks => {
+    const result: DocChecks = {};
+    if (!value || typeof value !== "object") return result;
+    Object.entries(value).forEach(([key, v]) => {
+        result[key] = Boolean(v);
+    });
+    return result;
+};
 
-const normalizeDocFiles = (value?: Partial<DocFiles> | null): DocFiles => ({
-    identificacion_oficial: String(value?.identificacion_oficial || ""),
-    sua: String(value?.sua || ""),
-    permiso_entrada: String(value?.permiso_entrada || ""),
-    lista_articulos: String(value?.lista_articulos || ""),
-    repse: String(value?.repse || ""),
-    soporte_pago_actualizado: String(value?.soporte_pago_actualizado || ""),
-    constancia_vigencia_imss: String(value?.constancia_vigencia_imss || ""),
-    constancias_habilidades: String(value?.constancias_habilidades || ""),
-});
+const normalizeDocFiles = (value?: Partial<DocFiles> | null): DocFiles => {
+    const result: DocFiles = {};
+    if (!value || typeof value !== "object") return result;
+    Object.entries(value).forEach(([key, v]) => {
+        result[key] = String(v || "");
+    });
+    return result;
+};
+
+const resolveDocKeysContratistas = async (): Promise<string[]> => {
+    const config = await Configuracion.findOne(
+        { activo: true },
+        "documentos_contratistas documentos_personalizados"
+    )
+        .sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 })
+        .lean();
+    const docConfig = ((config as any)?.documentos_contratistas || {}) as Record<string, boolean>;
+    const defaultEnabled = DOC_KEYS.filter((key) => docConfig[key] !== false);
+    const customRequired =
+        (((config as any)?.documentos_personalizados?.contratistas?.obligatorios || []) as any[])
+            .filter((d) => d?.activo !== false && d?.id)
+            .map((d) => String(d.id));
+    const customOptional =
+        (((config as any)?.documentos_personalizados?.contratistas?.opcionales || []) as any[])
+            .filter((d) => d?.activo !== false && d?.id)
+            .map((d) => String(d.id));
+    return [...defaultEnabled, ...customRequired, ...customOptional];
+};
 
 const obtenerContratistaDeUsuario = async (id_usuario: string) => {
     return Contratistas.findOne({ id_usuario, activo: true });
@@ -71,8 +88,8 @@ export async function obtenerMi(req: Request, res: Response): Promise<void> {
                 id_contratista: contratista._id,
                 id_empresa: contratista.id_empresa,
                 empresa: contratista.empresa,
-                documentos_archivos: normalizeDocFiles(),
-                documentos_checks: normalizeDocChecks(),
+                documentos_archivos: {},
+                documentos_checks: {},
                 estado_validacion: 1,
                 motivo_rechazo: "",
                 fecha_validacion: null,
@@ -95,9 +112,10 @@ export async function guardarMi(req: Request, res: Response): Promise<void> {
         }
 
         const documentos_archivos = normalizeDocFiles(req.body?.documentos_archivos || {});
+        const docKeys = await resolveDocKeysContratistas();
         const documentos_checks = normalizeDocChecks(
             Object.fromEntries(
-                DOC_KEYS.map((key) => [key, Boolean(documentos_archivos[key])])
+                docKeys.map((key) => [key, Boolean(documentos_archivos[key])])
             ) as Partial<DocChecks>
         );
 

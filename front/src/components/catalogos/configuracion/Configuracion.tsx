@@ -51,6 +51,23 @@ type DocChecks = {
   constancias_habilidades: boolean;
 };
 
+type DocCustom = {
+  id: string;
+  nombre: string;
+  activo: boolean;
+};
+
+type DocCustomConfig = {
+  contratistas: {
+    obligatorios: DocCustom[];
+    opcionales: DocCustom[];
+  };
+  visitantes: {
+    obligatorios: DocCustom[];
+    opcionales: DocCustom[];
+  };
+};
+
 type FormValues = {
   appNombre: string;
   zonaHoraria: string;
@@ -68,6 +85,7 @@ type FormValues = {
   habilitarRegistroCampo: boolean;
   documentos_visitantes: DocChecks;
   documentos_contratistas: DocChecks;
+  documentos_personalizados: DocCustomConfig;
   validarHorario: boolean;
   notificarCheck: boolean;
   autorizacionCheck: boolean;
@@ -164,6 +182,61 @@ const resolver = yup.object().shape({
       constancias_habilidades: yup.boolean().required(),
     })
     .required(),
+  documentos_personalizados: yup
+    .object()
+    .shape({
+      contratistas: yup
+        .object()
+        .shape({
+          obligatorios: yup
+            .array()
+            .of(
+              yup.object().shape({
+                id: yup.string().required(),
+                nombre: yup.string().required(),
+                activo: yup.boolean().required(),
+              })
+            )
+            .required(),
+          opcionales: yup
+            .array()
+            .of(
+              yup.object().shape({
+                id: yup.string().required(),
+                nombre: yup.string().required(),
+                activo: yup.boolean().required(),
+              })
+            )
+            .required(),
+        })
+        .required(),
+      visitantes: yup
+        .object()
+        .shape({
+          obligatorios: yup
+            .array()
+            .of(
+              yup.object().shape({
+                id: yup.string().required(),
+                nombre: yup.string().required(),
+                activo: yup.boolean().required(),
+              })
+            )
+            .required(),
+          opcionales: yup
+            .array()
+            .of(
+              yup.object().shape({
+                id: yup.string().required(),
+                nombre: yup.string().required(),
+                activo: yup.boolean().required(),
+              })
+            )
+            .required(),
+        })
+        .required(),
+    })
+    .required(),
   validarHorario: yup.boolean().required("Este campo es obligatorio."),
   notificarCheck: yup.boolean().required("Este campo es obligatorio."),
   autorizacionCheck: yup.boolean().required("Este campo es obligatorio."),
@@ -213,6 +286,16 @@ const initialValue: FormValues = {
     soporte_pago_actualizado: true,
     constancia_vigencia_imss: true,
     constancias_habilidades: true,
+  },
+  documentos_personalizados: {
+    contratistas: {
+      obligatorios: [],
+      opcionales: [],
+    },
+    visitantes: {
+      obligatorios: [],
+      opcionales: [],
+    },
   },
 
   validarHorario: false,

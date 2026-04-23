@@ -49,6 +49,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import Spinner from "../utils/Spinner";
 import { useSelector } from "react-redux";
 import { selectCurrentData } from "../../app/features/config/configSlice";
+import { getDocumentosConfig } from "./utils/documentosConfig";
 
 const pageSizeOptions = [10, 25, 50];
 
@@ -56,39 +57,6 @@ type TContratistaSeleccion = {
   id: string;
   empresa: string;
 };
-
-const DOC_LABELS: Record<string, string> = {
-  identificacion_oficial: "Identificación oficial",
-  sua: "SUA",
-  permiso_entrada: "Permiso de entrada",
-  lista_articulos: "Lista de artículos",
-  repse: "REPSE",
-  soporte_pago_actualizado: "Soporte de pago actualizado",
-  constancia_vigencia_imss: "Constancia de vigencia IMSS",
-  constancias_habilidades: "Constancias de habilidades",
-};
-
-const DOC_KEYS = [
-  "identificacion_oficial",
-  "sua",
-  "permiso_entrada",
-  "lista_articulos",
-  "repse",
-  "soporte_pago_actualizado",
-  "constancia_vigencia_imss",
-  "constancias_habilidades",
-];
-
-const REQUIRED_DOC_KEYS = [
-  "identificacion_oficial",
-  "sua",
-  "permiso_entrada",
-  "lista_articulos",
-  "repse",
-  "soporte_pago_actualizado",
-];
-
-const OPTIONAL_DOC_KEYS = ["constancia_vigencia_imss", "constancias_habilidades"];
 
 const areDocsComplete = (
   requiredKeys: string[],
@@ -165,42 +133,18 @@ export default function Contratistas() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const config = useSelector(selectCurrentData);
-  const docsVisitantes = config?.documentos_visitantes || {};
-  const docsContratistasConfig = config?.documentos_contratistas || {};
-  const enabledDocKeys = DOC_KEYS.filter((key) => docsVisitantes[key] !== false);
-  const requiredDocKeys = REQUIRED_DOC_KEYS.filter(
-    (key) => docsVisitantes[key] !== false
-  );
-  const optionalDocKeys = OPTIONAL_DOC_KEYS.filter(
-    (key) => docsVisitantes[key] !== false
-  );
-  const enabledContratistaDocKeys = DOC_KEYS.filter(
-    (key) => docsContratistasConfig[key] !== false
-  );
-  const requiredContratistaDocKeys = REQUIRED_DOC_KEYS.filter(
-    (key) => docsContratistasConfig[key] !== false
-  );
-  const optionalContratistaDocKeys = OPTIONAL_DOC_KEYS.filter(
-    (key) => docsContratistasConfig[key] !== false
-  );
-  const documentosContratistas = enabledDocKeys.map((key) => ({
-    key,
-    label: DOC_LABELS[key],
-  }));
-  const documentosOpcionales = optionalDocKeys.map((key) => ({
-    key,
-    label: DOC_LABELS[key],
-  }));
-  const documentosContratistaAdmin = enabledContratistaDocKeys.map((key) => ({
-    key,
-    label: DOC_LABELS[key],
-  }));
-  const documentosContratistaAdminOpcionales = optionalContratistaDocKeys.map(
-    (key) => ({
-      key,
-      label: DOC_LABELS[key],
-    })
-  );
+  const docsVisitantesCfg = useMemo(() => getDocumentosConfig(config, "visitantes"), [config]);
+  const docsContratistasCfg = useMemo(() => getDocumentosConfig(config, "contratistas"), [config]);
+  const enabledDocKeys = docsVisitantesCfg.required.map((d) => d.key).concat(docsVisitantesCfg.optional.map((d) => d.key));
+  const requiredDocKeys = docsVisitantesCfg.required.map((d) => d.key);
+  const optionalDocKeys = docsVisitantesCfg.optional.map((d) => d.key);
+  const enabledContratistaDocKeys = docsContratistasCfg.required.map((d) => d.key).concat(docsContratistasCfg.optional.map((d) => d.key));
+  const requiredContratistaDocKeys = docsContratistasCfg.required.map((d) => d.key);
+  const optionalContratistaDocKeys = docsContratistasCfg.optional.map((d) => d.key);
+  const documentosContratistas = enabledDocKeys.map((key) => ({ key, label: docsVisitantesCfg.labelByKey[key] || key }));
+  const documentosOpcionales = optionalDocKeys.map((key) => ({ key, label: docsVisitantesCfg.labelByKey[key] || key }));
+  const documentosContratistaAdmin = enabledContratistaDocKeys.map((key) => ({ key, label: docsContratistasCfg.labelByKey[key] || key }));
+  const documentosContratistaAdminOpcionales = optionalContratistaDocKeys.map((key) => ({ key, label: docsContratistasCfg.labelByKey[key] || key }));
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1532,11 +1476,8 @@ export default function Contratistas() {
                 >
                   <strong>Documentos</strong>
                 </Typography>
-                {documentosContratistas.filter(
-                  ({ key }) =>
-                    !["constancia_vigencia_imss", "constancias_habilidades"].includes(
-                      key
-                    )
+                  {documentosContratistas.filter(
+                  ({ key }) => !optionalDocKeys.includes(key)
                 ).map(({ key, label }) => {
                   const documentos =
                     (selectedVisitante as any)?.documentos ||
@@ -1818,10 +1759,7 @@ export default function Contratistas() {
                       </MuiIconButton>
                     )}
                     {documentosContratistas.filter(
-                      ({ key }) =>
-                        !["constancia_vigencia_imss", "constancias_habilidades"].includes(
-                          key
-                        )
+                      ({ key }) => !optionalDocKeys.includes(key)
                     ).map(({ key, label }) => {
                       const documentos =
                         (selectedVisitante as any)?.documentos ||
@@ -2120,10 +2058,7 @@ export default function Contratistas() {
                   </Typography>
                   <Box sx={{ display: "grid", gap: 1.5 }}>
                     {documentosContratistaAdmin.filter(
-                      ({ key }) =>
-                        !["constancia_vigencia_imss", "constancias_habilidades"].includes(
-                          key
-                        )
+                      ({ key }) => !optionalContratistaDocKeys.includes(key)
                     ).map(({ key, label }) => {
                       const documentos =
                         (contratistaDocs as any)?.documentos_archivos ||
@@ -2561,6 +2496,7 @@ export default function Contratistas() {
     </div>
   );
 }
+
 
 
 

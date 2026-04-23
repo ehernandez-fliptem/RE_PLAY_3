@@ -251,19 +251,19 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: esSuper && habilitarContratistas ? <Contratistas /> : <Unauthorized />,
+          element: puedeAdmin && habilitarContratistas ? <Contratistas /> : <Unauthorized />,
           children: [
             {
               path: "nuevo-contratista",
-              element: esSuper && habilitarContratistas ? <NuevoContratista /> : <Unauthorized />,
+              element: puedeAdmin && habilitarContratistas ? <NuevoContratista /> : <Unauthorized />,
             },
             {
               path: "editar-contratista/:id",
-              element: esSuper && habilitarContratistas ? <EditarContratista /> : <Unauthorized />,
+              element: puedeAdmin && habilitarContratistas ? <EditarContratista /> : <Unauthorized />,
             },
             {
               path: "detalle-contratista/:id",
-              element: esSuper && habilitarContratistas ? <DetalleContratista /> : <Unauthorized />,
+              element: puedeAdmin && habilitarContratistas ? <DetalleContratista /> : <Unauthorized />,
             },
           ],
         },

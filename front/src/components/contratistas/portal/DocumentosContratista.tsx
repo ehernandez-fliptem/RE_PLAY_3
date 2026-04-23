@@ -27,31 +27,10 @@ import { enqueueSnackbar } from "notistack";
 import { useSelector } from "react-redux";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { selectCurrentData } from "../../../app/features/config/configSlice";
+import { getDocumentosConfig } from "../utils/documentosConfig";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import InputFileUpload from "../../utils/FileUpload";
 import Spinner from "../../utils/Spinner";
-
-const DOC_LABELS: Record<string, string> = {
-  identificacion_oficial: "Identificación oficial",
-  sua: "SUA",
-  permiso_entrada: "Permiso de entrada",
-  lista_articulos: "Lista de artículos",
-  repse: "REPSE",
-  soporte_pago_actualizado: "Soporte de pago actualizado",
-  constancia_vigencia_imss: "Constancia de Vigencia IMSS",
-  constancias_habilidades: "Constancias de Habilidades",
-};
-
-const DOCS_REQUIRED_KEYS = [
-  "identificacion_oficial",
-  "sua",
-  "permiso_entrada",
-  "lista_articulos",
-  "repse",
-  "soporte_pago_actualizado",
-];
-
-const DOCS_OPTIONAL_KEYS = ["constancia_vigencia_imss", "constancias_habilidades"];
 
 const getEstadoLabel = (estado?: number) => {
   if (estado === 2) return { label: "Verificado", color: "success" as const };
@@ -101,15 +80,10 @@ const renderDocPreview = (docUrl?: string, label?: string) => {
 
 export default function DocumentosContratista() {
   const config = useSelector(selectCurrentData);
-  const docsContratista = config?.documentos_contratistas || {};
-  const requiredKeys = useMemo(
-    () => DOCS_REQUIRED_KEYS.filter((key) => docsContratista[key] !== false),
-    [docsContratista]
-  );
-  const optionalKeys = useMemo(
-    () => DOCS_OPTIONAL_KEYS.filter((key) => docsContratista[key] !== false),
-    [docsContratista]
-  );
+  const [configDocs, setConfigDocs] = useState<any>(config);
+  const docsCfg = useMemo(() => getDocumentosConfig(configDocs, "contratistas"), [configDocs]);
+  const requiredKeys = useMemo(() => docsCfg.required.map((d) => d.key), [docsCfg]);
+  const optionalKeys = useMemo(() => docsCfg.optional.map((d) => d.key), [docsCfg]);
 
   const [registro, setRegistro] = useState<any | null>(null);
   const [documentosArchivos, setDocumentosArchivos] = useState<
@@ -141,6 +115,24 @@ export default function DocumentosContratista() {
   useEffect(() => {
     cargar();
   }, []);
+
+  useEffect(() => {
+    setConfigDocs(config);
+  }, [config]);
+
+  useEffect(() => {
+    const refreshConfig = async () => {
+      try {
+        const res = await clienteAxios.get("/api/validacion/session-config");
+        if (res.data?.estado) {
+          setConfigDocs(res.data?.datos?.configuracion || config);
+        }
+      } catch {
+        // Si falla, se mantiene config de redux
+      }
+    };
+    refreshConfig();
+  }, [config]);
 
   useEffect(() => {
     if (isLoading || autoOpenedEditor || showEditor || showViewer) return;
@@ -406,7 +398,7 @@ export default function DocumentosContratista() {
                           pb: 1,
                         }}
                       >
-                        <Typography>{DOC_LABELS[key]}</Typography>
+                        <Typography>{docsCfg.labelByKey[key] || key}</Typography>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           <Typography variant="caption">
                             {documentosArchivos[key]?.name
@@ -457,7 +449,7 @@ export default function DocumentosContratista() {
                           pb: 1,
                         }}
                       >
-                        <Typography>{DOC_LABELS[key]}</Typography>
+                        <Typography>{docsCfg.labelByKey[key] || key}</Typography>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           <Typography variant="caption">
                             {documentosArchivos[key]?.name
@@ -608,7 +600,7 @@ export default function DocumentosContratista() {
                             pr: 2,
                           }}
                         >
-                          <Typography>{DOC_LABELS[key]}</Typography>
+                          <Typography>{docsCfg.labelByKey[key] || key}</Typography>
                           <Typography
                             variant="caption"
                             sx={{ color: estadoDoc.color, fontWeight: 600 }}
@@ -618,7 +610,7 @@ export default function DocumentosContratista() {
                         </Box>
                       </AccordionSummary>
                       <AccordionDetails>
-                        {renderDocPreview(docUrl, DOC_LABELS[key])}
+                        {renderDocPreview(docUrl, docsCfg.labelByKey[key] || key)}
                       </AccordionDetails>
                     </Accordion>
                   );
@@ -684,7 +676,7 @@ export default function DocumentosContratista() {
                                   pr: 2,
                                 }}
                               >
-                                <Typography>{DOC_LABELS[key]}</Typography>
+                                <Typography>{docsCfg.labelByKey[key] || key}</Typography>
                                 <Typography
                                   variant="caption"
                                   sx={{ color: estadoDoc.color, fontWeight: 600 }}
@@ -694,7 +686,7 @@ export default function DocumentosContratista() {
                               </Box>
                             </AccordionSummary>
                             <AccordionDetails>
-                              {renderDocPreview(docUrl, DOC_LABELS[key])}
+                              {renderDocPreview(docUrl, docsCfg.labelByKey[key] || key)}
                             </AccordionDetails>
                           </Accordion>
                         );
@@ -737,4 +729,6 @@ export default function DocumentosContratista() {
     </div>
   );
 }
+
+
 

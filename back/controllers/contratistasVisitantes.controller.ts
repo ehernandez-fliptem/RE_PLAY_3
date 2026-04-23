@@ -37,10 +37,10 @@ const REQUIRED_DOC_KEYS = [
 const OPTIONAL_DOC_KEYS = ["constancia_vigencia_imss", "constancias_habilidades"] as const;
 
 type DocKey = (typeof DOC_KEYS)[number];
-type DocChecks = Record<DocKey, boolean>;
-type DocFiles = Record<DocKey, string>;
+type DocChecks = Record<string, boolean>;
+type DocFiles = Record<string, string>;
 
-const DOC_LABELS: Record<(typeof DOC_KEYS)[number], string> = {
+const DOC_LABELS: Record<string, string> = {
     identificacion_oficial: "Identificación oficial",
     sua: "SUA",
     permiso_entrada: "Permiso de entrada",
@@ -51,38 +51,59 @@ const DOC_LABELS: Record<(typeof DOC_KEYS)[number], string> = {
     constancias_habilidades: "Constancias de habilidades",
 };
 
-const normalizeDocChecks = (value?: Partial<DocChecks> | null): DocChecks => ({
-    identificacion_oficial: Boolean(value?.identificacion_oficial),
-    sua: Boolean(value?.sua),
-    permiso_entrada: Boolean(value?.permiso_entrada),
-    lista_articulos: Boolean(value?.lista_articulos),
-    repse: Boolean(value?.repse),
-    soporte_pago_actualizado: Boolean(value?.soporte_pago_actualizado),
-    constancia_vigencia_imss: Boolean(value?.constancia_vigencia_imss),
-    constancias_habilidades: Boolean(value?.constancias_habilidades),
-});
+const normalizeDocChecks = (value?: Partial<DocChecks> | null): DocChecks => {
+    const result: DocChecks = {};
+    if (!value || typeof value !== "object") return result;
+    Object.entries(value).forEach(([key, v]) => {
+        result[key] = Boolean(v);
+    });
+    return result;
+};
 
-const normalizeDocFiles = (value?: Partial<DocFiles> | null): DocFiles => ({
-    identificacion_oficial: String(value?.identificacion_oficial || ""),
-    sua: String(value?.sua || ""),
-    permiso_entrada: String(value?.permiso_entrada || ""),
-    lista_articulos: String(value?.lista_articulos || ""),
-    repse: String(value?.repse || ""),
-    soporte_pago_actualizado: String(value?.soporte_pago_actualizado || ""),
-    constancia_vigencia_imss: String(value?.constancia_vigencia_imss || ""),
-    constancias_habilidades: String(value?.constancias_habilidades || ""),
-});
+const normalizeDocFiles = (value?: Partial<DocFiles> | null): DocFiles => {
+    const result: DocFiles = {};
+    if (!value || typeof value !== "object") return result;
+    Object.entries(value).forEach(([key, v]) => {
+        result[key] = String(v || "");
+    });
+    return result;
+};
 
 const areDocChecksComplete = (
-    requiredKeys: DocKey[],
+    requiredKeys: string[],
     value?: Partial<DocChecks> | null
 ): boolean => requiredKeys.every((key) => Boolean(value?.[key]));
 
-const resolveRequiredDocKeys = async (): Promise<DocKey[]> => {
-    const config = await Configuracion.findOne({}, "documentos_visitantes").lean();
+const resolveDocConfigVisitantes = async (): Promise<{
+    requiredKeys: string[];
+    optionalKeys: string[];
+}> => {
+    const config = await Configuracion.findOne(
+        { activo: true },
+        "documentos_visitantes documentos_personalizados"
+    )
+        .sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 })
+        .lean();
     const docConfig =
         ((config as any)?.documentos_visitantes as Partial<Record<DocKey, boolean>>) || {};
-    return REQUIRED_DOC_KEYS.filter((key) => docConfig[key] !== false);
+    const customRequired =
+        (((config as any)?.documentos_personalizados?.visitantes?.obligatorios || []) as Array<any>)
+            .filter((d) => d?.activo !== false && d?.id)
+            .map((d) => String(d.id));
+    const customOptional =
+        (((config as any)?.documentos_personalizados?.visitantes?.opcionales || []) as Array<any>)
+            .filter((d) => d?.activo !== false && d?.id)
+            .map((d) => String(d.id));
+    return {
+        requiredKeys: [
+            ...REQUIRED_DOC_KEYS.filter((key) => docConfig[key] !== false),
+            ...customRequired,
+        ],
+        optionalKeys: [
+            ...OPTIONAL_DOC_KEYS.filter((key) => docConfig[key] !== false),
+            ...customOptional,
+        ],
+    };
 };
 
 const calcularHashVisitante = (payload: {
@@ -147,6 +168,16 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                 "empresa",
             ]);
 
+        const { requiredKeys } = await resolveDocConfigVisitantes();
+        const docsCompletosExpr =
+            requiredKeys.length === 0
+                ? true
+                : {
+                    $and: requiredKeys.map((key) => ({
+                        $ifNull: [`$documentos_archivos.${key}`, ""],
+                    })),
+                };
+
         const aggregation: PipelineStage[] = [
             { $match: contratista ? { id_contratista: contratista._id } : {} },
             {
@@ -157,16 +188,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                         },
                     },
                     docs_completos: {
-                        $and: [
-                            { $ifNull: ["$documentos_archivos.identificacion_oficial", ""] },
-                            { $ifNull: ["$documentos_archivos.sua", ""] },
-                            { $ifNull: ["$documentos_archivos.permiso_entrada", ""] },
-                            { $ifNull: ["$documentos_archivos.lista_articulos", ""] },
-                            { $ifNull: ["$documentos_archivos.repse", ""] },
-                            { $ifNull: ["$documentos_archivos.soporte_pago_actualizado", ""] },
-                            { $ifNull: ["$documentos_archivos.constancia_vigencia_imss", ""] },
-                            { $ifNull: ["$documentos_archivos.constancias_habilidades", ""] },
-                        ],
+                        $cond: [{ $eq: [requiredKeys.length, 0] }, true, docsCompletosExpr],
                     },
                 },
             },
@@ -347,8 +369,12 @@ export async function modificar(req: Request, res: Response): Promise<void> {
         const hash_datos = calcularHashVisitante({ nombre, apellido_pat, apellido_mat, correo, telefono, documentos_checks });
 
         const normalizedIncomingFiles = normalizeDocFiles(documentos_archivos);
-        const normalizedPrevFiles = normalizeDocFiles(registro.documentos_archivos);
-        let filesChanged = DOC_KEYS.some(
+        const normalizedPrevFiles = normalizeDocFiles(registro.documentos_archivos as any);
+        const allDocKeys = Array.from(new Set([
+            ...Object.keys(normalizedIncomingFiles),
+            ...Object.keys(normalizedPrevFiles),
+        ]));
+        let filesChanged = allDocKeys.some(
             (key) => normalizedIncomingFiles[key] !== normalizedPrevFiles[key]
         );
         if (Array.isArray(documentos_actualizados) && documentos_actualizados.length > 0) {
@@ -439,7 +465,7 @@ export async function verificar(req: Request, res: Response): Promise<void> {
         });
 
         const checks = mergedChecks;
-        const requiredKeys = await resolveRequiredDocKeys();
+        const { requiredKeys } = await resolveDocConfigVisitantes();
         if (!areDocChecksComplete(requiredKeys, checks)) {
             res.status(200).json({
                 estado: false,
@@ -566,8 +592,8 @@ export async function rechazar(req: Request, res: Response): Promise<void> {
         }
         correos = Array.from(new Set(correos.map((c) => String(c).trim().toLowerCase()).filter(Boolean)));
 
-        const requiredKeys = await resolveRequiredDocKeys();
-        const faltantes = requiredKeys.filter((key) => !checks[key]).map((key) => DOC_LABELS[key]);
+        const { requiredKeys } = await resolveDocConfigVisitantes();
+        const faltantes = requiredKeys.filter((key) => !checks[key]).map((key) => DOC_LABELS[key] || key);
         if (correos.length > 0) {
             await enviarCorreoRechazoVisitanteContratista({
                 correos,
@@ -623,7 +649,8 @@ export async function corregir(req: Request, res: Response): Promise<void> {
                 (nextChecks as any)[key] = false;
             }
         });
-        OPTIONAL_DOC_KEYS.forEach((key) => {
+        const { optionalKeys } = await resolveDocConfigVisitantes();
+        optionalKeys.forEach((key) => {
             if (!(key in (incomingFiles as any))) {
                 (mergedFiles as any)[key] = "";
                 (nextChecks as any)[key] = false;

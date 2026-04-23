@@ -143,7 +143,7 @@ export async function obtenerInformacioAppYSesion(req: Request, res: Response): 
         const configuracion = await Configuracion.findOne(
             { activo: true },
             { _id: 0, activo: 0, creado_por: 0, fecha_creacion: 0, modificado_por: 0, fecha_modificacion: 0 }
-        );
+        ).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
         const tipos_eventos = await TiposEventos.find(
             { activo: true },
             { _id: 0, activo: 0, creado_por: 0, fecha_creacion: 0, modificado_por: 0, fecha_modificacion: 0 }

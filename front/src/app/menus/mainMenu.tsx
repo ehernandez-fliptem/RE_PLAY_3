@@ -144,13 +144,13 @@ const mainMenu = [
   {
     id: 9,
     title: "Contratistas",
-    rol: [1],
+    rol: [1, 2],
     icon: <Engineering fontSize="small" />,
     submenu: [
       {
         id: 9.1,
         title: "Alta de Contratistas",
-        rol: [1],
+        rol: [1, 2],
         icon: <Engineering fontSize="small" />,
         path: "/contratistas",
       },

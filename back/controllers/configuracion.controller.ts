@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { DecodedTokenUser } from '../types/jsonwebtoken';
 import Configuracion from "../models/Configuracion";
@@ -17,11 +17,11 @@ import DispositivosHv from "../models/DispositivosHv";
 
 export async function obtenerIntegraciones(_req: Request, res: Response): Promise<void> {
     try {
-        console.log("Obteniendo integraciones de configuración...");
+        console.log("Obteniendo integraciones de configuraciÃ³n...");
         const registro = await Configuracion.findOne(
-            {},
-            "habilitarIntegracionHv habilitarIntegracionHvBiometria habilitarIntegracionCdvi habilitarContratistas habilitarRegistroCampo documentos_visitantes documentos_contratistas"
-        );
+            { activo: true },
+            "habilitarIntegracionHv habilitarIntegracionHvBiometria habilitarIntegracionCdvi habilitarContratistas habilitarRegistroCampo documentos_visitantes documentos_contratistas documentos_personalizados"
+        ).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
         res.status(200).send({ estado: true, datos: registro });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -40,6 +40,7 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
             habilitarRegistroCampo,
             documentos_visitantes,
             documentos_contratistas,
+            documentos_personalizados,
         } = req.body;
         const { id: id_usuario } = jwt.verify(req.headers["x-access-token"] as string, CONFIG.SECRET) as DecodedTokenUser;
 
@@ -56,6 +57,34 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
                 constancias_habilidades: Boolean((value as any).constancias_habilidades),
             };
         };
+        const normalizeCustomDocsList = (value?: unknown) => {
+            if (!Array.isArray(value)) return [];
+            return value
+                .map((item: any) => {
+                    const nombre = String(item?.nombre || "").trim();
+                    const id = String(item?.id || "").trim();
+                    if (!nombre || !id) return null;
+                    return {
+                        id,
+                        nombre,
+                        activo: Boolean(item?.activo),
+                    };
+                })
+                .filter(Boolean);
+        };
+        const normalizeCustomDocsConfig = (value?: Record<string, any> | null) => {
+            if (!value || typeof value !== "object") return null;
+            return {
+                contratistas: {
+                    obligatorios: normalizeCustomDocsList((value as any)?.contratistas?.obligatorios),
+                    opcionales: normalizeCustomDocsList((value as any)?.contratistas?.opcionales),
+                },
+                visitantes: {
+                    obligatorios: normalizeCustomDocsList((value as any)?.visitantes?.obligatorios),
+                    opcionales: normalizeCustomDocsList((value as any)?.visitantes?.opcionales),
+                },
+            };
+        };
 
         const update: Record<string, unknown> = {
             habilitarIntegracionHv: !!habilitarIntegracionHv,
@@ -67,6 +96,7 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
             habilitarRegistroCampo: typeof habilitarRegistroCampo === "boolean" ? habilitarRegistroCampo : undefined,
             documentos_visitantes: normalizeDocConfig(documentos_visitantes) || undefined,
             documentos_contratistas: normalizeDocConfig(documentos_contratistas) || undefined,
+            documentos_personalizados: normalizeCustomDocsConfig(documentos_personalizados) || undefined,
             modificado_por: id_usuario,
             fecha_modificacion: Date.now(),
         };
@@ -91,8 +121,33 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
         if (update.documentos_contratistas === undefined) {
             delete update.documentos_contratistas;
         }
+        if (update.documentos_personalizados === undefined) {
+            delete update.documentos_personalizados;
+        }
 
-        await Configuracion.updateOne({}, { $set: update }, { upsert: true, runValidators: false });
+        const configActiva = await Configuracion.findOne(
+            { activo: true },
+            "_id"
+        ).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
+        if (!configActiva?._id) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No se encontró una configuración activa para actualizar integraciones.",
+            });
+            return;
+        }
+        const result = await Configuracion.updateOne(
+            { _id: configActiva._id },
+            { $set: update },
+            { runValidators: false }
+        );
+        if (!result.matchedCount) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No se encontró una configuración activa para actualizar integraciones.",
+            });
+            return;
+        }
 
         if (update.habilitarIntegracionHvBiometria === false) {
             await DispositivosHv.updateMany({}, { $set: { es_panel_maestro: false } });
@@ -135,7 +190,7 @@ export async function obtener(_req: Request, res: Response): Promise<void> {
         const configuracion = await Configuracion.findOne(
             { activo: true },
             { activo: 0, creado_por: 0, fecha_creacion: 0, modificado_por: 0, fecha_modificacion: 0 }
-        );
+        ).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
         const tipos_eventos = await TiposEventos.find(
             { activo: true },
             { activo: 0, creado_por: 0, fecha_creacion: 0, modificado_por: 0, fecha_modificacion: 0 }
@@ -182,7 +237,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             const registro = new Configuracion({ ...configuracion, creado_por: id_usuario, fecha_creacion: Date.now(), imgCorreo: await resizeImage(configuracion.imgCorreo) });
             const mensajes = await validarModelo(registro);
             if (!isEmptyObject(mensajes)) {
-                res.status(400).json({ estado: false, mensaje: "Revisa que los datos que estás ingresando sean correctos.", mensajes });
+                res.status(400).json({ estado: false, mensaje: "Revisa que los datos que estÃ¡s ingresando sean correctos.", mensajes });
                 return;
             }
             await registro.save();
@@ -195,7 +250,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                 .catch(async (err) => {
                     const mensajes = await validarModelo(err, true);
                     if (!isEmptyObject(mensajes)) {
-                        res.status(400).json({ estado: false, mensaje: "Revisa que los datos que estás ingresando sean correctos.", mensajes });
+                        res.status(400).json({ estado: false, mensaje: "Revisa que los datos que estÃ¡s ingresando sean correctos.", mensajes });
                         return;
                     }
                     res.status(500).send({ estado: false, mensaje: `${err.name}: ${err.message}` });
@@ -305,7 +360,7 @@ export async function modificarColecciones(req: Request, res: Response): Promise
         const mensajes = flattenErrors(Object.assign({}, ...resultTyped));
         const existError = Object.values(mensajes).length > 0;
         if (existError) {
-            res.status(400).json({ estado: false, mensaje: 'Revisa que los datos que estás ingresando sean correctos.', mensajes });
+            res.status(400).json({ estado: false, mensaje: 'Revisa que los datos que estÃ¡s ingresando sean correctos.', mensajes });
             return;
         }
 
@@ -345,3 +400,4 @@ export async function modificarColecciones(req: Request, res: Response): Promise
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 }
+

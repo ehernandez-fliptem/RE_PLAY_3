@@ -55,6 +55,16 @@ export interface IConfiguracion extends Document {
         constancia_vigencia_imss: boolean;
         constancias_habilidades: boolean;
     };
+    documentos_personalizados?: {
+        contratistas: {
+            obligatorios: { id: string; nombre: string; activo: boolean }[];
+            opcionales: { id: string; nombre: string; activo: boolean }[];
+        };
+        visitantes: {
+            obligatorios: { id: string; nombre: string; activo: boolean }[];
+            opcionales: { id: string; nombre: string; activo: boolean }[];
+        };
+    };
 
     autorizacionCheck?: boolean;
     validarHorario?: boolean;
@@ -142,6 +152,36 @@ const configuracionSchema = new Schema<IConfiguracion>({
         soporte_pago_actualizado: { type: Boolean, default: true },
         constancia_vigencia_imss: { type: Boolean, default: true },
         constancias_habilidades: { type: Boolean, default: true },
+    },
+    documentos_personalizados: {
+        contratistas: {
+            obligatorios: [{
+                _id: false,
+                id: { type: String, required: true },
+                nombre: { type: String, required: true },
+                activo: { type: Boolean, default: true },
+            }],
+            opcionales: [{
+                _id: false,
+                id: { type: String, required: true },
+                nombre: { type: String, required: true },
+                activo: { type: Boolean, default: true },
+            }],
+        },
+        visitantes: {
+            obligatorios: [{
+                _id: false,
+                id: { type: String, required: true },
+                nombre: { type: String, required: true },
+                activo: { type: Boolean, default: true },
+            }],
+            opcionales: [{
+                _id: false,
+                id: { type: String, required: true },
+                nombre: { type: String, required: true },
+                activo: { type: Boolean, default: true },
+            }],
+        },
     },
 
     // 1.4 Apariencia

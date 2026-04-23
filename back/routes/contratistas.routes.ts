@@ -12,12 +12,12 @@ import {
 
 const router = Router();
 
-router.get("/", validarTokenYRol([1]), obtenerTodos);
-router.get("/activos", validarTokenYRol([1]), obtenerTodosActivos);
-router.get("/:id", validarTokenYRol([1]), obtenerUno);
-router.post("/", validarTokenYRol([1]), crear);
-router.patch("/reenviar/:id", validarTokenYRol([1]), reenviarCorreoAcceso);
-router.put("/:id", validarTokenYRol([1]), modificar);
-router.patch("/:id", validarTokenYRol([1]), modificarEstado);
+router.get("/", validarTokenYRol([1, 2]), obtenerTodos);
+router.get("/activos", validarTokenYRol([1, 2]), obtenerTodosActivos);
+router.get("/:id", validarTokenYRol([1, 2]), obtenerUno);
+router.post("/", validarTokenYRol([1, 2]), crear);
+router.patch("/reenviar/:id", validarTokenYRol([1, 2]), reenviarCorreoAcceso);
+router.put("/:id", validarTokenYRol([1, 2]), modificar);
+router.patch("/:id", validarTokenYRol([1, 2]), modificarEstado);
 
 export default router;
