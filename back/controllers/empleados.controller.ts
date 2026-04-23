@@ -956,7 +956,7 @@ const runCurlText = (args: string[]): Promise<{ statusCode: number; body: string
         execFile(
             "curl",
             [...args, "-w", "\n__HTTP_STATUS__:%{http_code}"],
-            { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 },
+            { encoding: "utf8", maxBuffer: 10 * 1024 * 1024, windowsHide: true },
             (error, stdout, stderr) => {
                 if (error) {
                     return reject(new Error(String(stderr || error.message || "Error ejecutando curl").trim()));
