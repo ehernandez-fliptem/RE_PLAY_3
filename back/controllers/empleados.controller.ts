@@ -1097,7 +1097,7 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
 
         const registro = await Empleados.findOne(
             filtro,
-            "nombre apellido_pat apellido_mat huellas_registradas tarjetas_registradas"
+            "nombre apellido_pat apellido_mat huellas_registradas huellas_template_dev tarjetas_registradas"
         ).lean();
 
         if (!registro) {
