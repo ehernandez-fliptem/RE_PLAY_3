@@ -951,8 +951,6 @@ const mapEmpleadoToPanel = (registro: any) => {
     };
 };
 
-const DEV_HUELLA_REPLAY_ENABLED = true;
-
 const runCurlText = (args: string[]): Promise<{ statusCode: number; body: string; }> =>
     new Promise((resolve, reject) => {
         execFile(
@@ -987,6 +985,14 @@ const parseXmlStatus = (xml: string) => ({
     errorMsg: xmlTagValue(xml, "errorMsg"),
 });
 
+type TarjetaWeb = {
+    id: string;
+    nombre: string;
+    descripcion?: string;
+    card_no: string;
+    fecha_creacion: Date;
+};
+
 const normalizeHuellaTemplateMap = (value: any): Record<string, string> => {
     if (!value) return {};
     if (value instanceof Map) {
@@ -1000,6 +1006,41 @@ const normalizeHuellaTemplateMap = (value: any): Record<string, string> => {
         return value as Record<string, string>;
     }
     return {};
+};
+
+const normalizeTarjetasWeb = (value: any): TarjetaWeb[] => {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map((item) => ({
+            id: String(item?.id || ""),
+            nombre: String(item?.nombre || "").trim(),
+            descripcion: String(item?.descripcion || "").trim(),
+            card_no: String(item?.card_no || "").trim(),
+            fecha_creacion: item?.fecha_creacion ? new Date(item.fecha_creacion) : new Date(),
+        }))
+        .filter((item) => item.id && item.nombre && item.card_no);
+};
+
+const findFirstStringByKeys = (value: any, keys: string[]): string => {
+    if (!value || typeof value !== "object") return "";
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const result = findFirstStringByKeys(item, keys);
+            if (result) return result;
+        }
+        return "";
+    }
+    for (const key of keys) {
+        const direct = value?.[key];
+        if (typeof direct === "string" && direct.trim()) {
+            return direct.trim();
+        }
+    }
+    for (const key of Object.keys(value)) {
+        const result = findFirstStringByKeys(value[key], keys);
+        if (result) return result;
+    }
+    return "";
 };
 
 const captureFingerprintFromPanel = async (ip: string, user: string, pass: string, fingerNo: number) => {
@@ -1101,6 +1142,120 @@ const setupFingerprintOnPanel = async (ip: string, user: string, pass: string, e
     return { applied, statusList };
 };
 
+const captureCardFromPanel = async (ip: string, user: string, pass: string) => {
+    let response: { statusCode: number; body: string; } | null = null;
+    let lastError: any = null;
+    for (const protocol of ["https", "http"]) {
+        try {
+            response = await runCurlText([
+                "-k",
+                "--digest",
+                "-u",
+                `${user}:${pass}`,
+                "-X",
+                "GET",
+                `${protocol}://${ip}/ISAPI/AccessControl/CaptureCardInfo?format=json`,
+            ]);
+            break;
+        } catch (error: any) {
+            lastError = error;
+        }
+    }
+
+    if (!response) {
+        throw new Error(lastError?.message || "No se pudo conectar al panel maestro para capturar tarjeta.");
+    }
+
+    const { statusCode, body } = response;
+    let parsed: any = null;
+    try {
+        parsed = JSON.parse(body);
+    } catch {
+        parsed = null;
+    }
+
+    const cardNo = findFirstStringByKeys(parsed, ["cardNo", "CardNo", "cardNumber", "card_id"]);
+    if (statusCode >= 400 || !cardNo) {
+        const subStatusCode = String(parsed?.subStatusCode || "").trim();
+        const errorMsg = String(parsed?.errorMsg || "").trim();
+        const timeout = subStatusCode.toLowerCase().includes("timeout") || errorMsg.toLowerCase().includes("timeout");
+        throw new Error(
+            timeout
+                ? "No se detectó la tarjeta a tiempo. Intenta de nuevo y acércala al lector."
+                : errorMsg || subStatusCode || String(parsed?.statusString || "").trim() || "No se pudo capturar la tarjeta en el panel maestro."
+        );
+    }
+
+    return { cardNo };
+};
+
+const setupCardOnPanel = async (
+    ip: string,
+    user: string,
+    pass: string,
+    employeeNo: string,
+    cardNo: string
+) => {
+    const payload = {
+        CardInfo: {
+            employeeNo: String(employeeNo),
+            cardNo: String(cardNo),
+            cardType: "normalCard",
+        },
+    };
+
+    let response: { statusCode: number; body: string; } | null = null;
+    let lastError: any = null;
+    for (const protocol of ["https", "http"]) {
+        try {
+            response = await runCurlText([
+                "-k",
+                "--digest",
+                "-u",
+                `${user}:${pass}`,
+                "-H",
+                "Content-Type: application/json",
+                "-X",
+                "POST",
+                `${protocol}://${ip}/ISAPI/AccessControl/CardInfo/Record?format=json`,
+                "-d",
+                JSON.stringify(payload),
+            ]);
+            break;
+        } catch (error: any) {
+            lastError = error;
+        }
+    }
+
+    if (!response) {
+        throw new Error(lastError?.message || "No se pudo conectar al panel para aplicar tarjeta.");
+    }
+
+    const { statusCode, body } = response;
+    let parsed: any = null;
+    try {
+        parsed = JSON.parse(body);
+    } catch {
+        parsed = null;
+    }
+
+    if (statusCode >= 400) {
+        throw new Error("El panel rechazó la configuración de tarjeta.");
+    }
+
+    const subStatusCode = String(parsed?.subStatusCode || "").trim();
+    const alreadyExist = subStatusCode === "cardNoAlreadyExist";
+    const ok = !parsed?.statusCode || Number(parsed?.statusCode) === 1 || alreadyExist;
+
+    if (!ok) {
+        throw new Error(
+            String(parsed?.errorMsg || parsed?.statusString || subStatusCode || "El panel no confirmó la configuración de tarjeta.")
+        );
+    }
+
+    return { applied: true };
+};
+
 export async function obtenerBiometriaEmpleado(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;
@@ -1112,7 +1267,7 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
 
         const registro = await Empleados.findOne(
             filtro,
-            "nombre apellido_pat apellido_mat huellas_registradas huellas_template_dev tarjetas_registradas"
+            "nombre apellido_pat apellido_mat huellas_registradas huellas_template_dev tarjetas_registradas tarjetas_web"
         ).lean();
 
         if (!registro) {
@@ -1123,6 +1278,7 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
         const nombreCompleto = `${registro.nombre || ""} ${registro.apellido_pat || ""} ${registro.apellido_mat || ""}`.trim();
         const huellas = Array.isArray(registro.huellas_registradas) ? registro.huellas_registradas : [];
         const tarjetas = Array.isArray(registro.tarjetas_registradas) ? registro.tarjetas_registradas : [];
+        const tarjetasWeb = normalizeTarjetasWeb((registro as any)?.tarjetas_web);
         const huellasTemplateDev = normalizeHuellaTemplateMap((registro as any)?.huellas_template_dev);
         const huellasTemplateDevKeys = Object.keys(huellasTemplateDev)
             .map((key) => Number(key))
@@ -1136,6 +1292,7 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
                 nombre: nombreCompleto,
                 huellas_registradas: huellas.sort((a, b) => a - b),
                 tarjetas_registradas: tarjetas,
+                tarjetas_web: tarjetasWeb,
                 huellas_total: huellas.length,
                 tarjetas_total: tarjetas.length,
                 dev_huella_replay_enabled: true,
@@ -1452,6 +1609,223 @@ export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): 
             datos: {
                 paneles_aplicados,
                 paneles_fallidos,
+            },
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function registrarTarjetaEmpleadoPanel(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const isMaster = (req as UserRequest).isMaster;
+        const { id_empresa } = await Usuarios.findById(id_usuario, "id_empresa") as IUsuario;
+
+        const nombre = String(req.body?.nombre || "").trim();
+        const descripcion = String(req.body?.descripcion || "").trim();
+        if (!nombre) {
+            res.status(400).json({ estado: false, mensaje: "El nombre de la tarjeta es obligatorio." });
+            return;
+        }
+
+        const config = await Configuracion.findOne({}, "habilitarIntegracionHv habilitarIntegracionHvBiometria");
+        if (!config?.habilitarIntegracionHv || !config?.habilitarIntegracionHvBiometria) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "La integración biométrica de Hikvision está desactivada.",
+            });
+            return;
+        }
+
+        const filtro: any = { _id: req.params.id };
+        if (!isMaster) filtro.id_empresa = id_empresa;
+
+        const registro = await Empleados.findOne(filtro);
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
+            return;
+        }
+
+        const tarjetasWebActual = normalizeTarjetasWeb((registro as any)?.tarjetas_web);
+        if (tarjetasWebActual.length >= 10) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "Se alcanzó el límite de 10 tarjetas. Borra una tarjeta para continuar.",
+            });
+            return;
+        }
+
+        const panelMaestro = await DispositivosHv.findOne({ activo: true, es_panel_maestro: true }).lean();
+        if (!panelMaestro) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No hay panel maestro configurado para captura de tarjeta.",
+            });
+            return;
+        }
+
+        const panelesAcceso = await DispositivosHv.find({
+            activo: true,
+            tipo_evento: { $in: [5, 6, 7] },
+            id_acceso: { $in: Array.isArray(registro.accesos) ? registro.accesos : [] },
+        }).lean();
+
+        const panelesDestinoMap = new Map<string, any>();
+        panelesDestinoMap.set(String(panelMaestro._id), panelMaestro);
+        for (const panel of panelesAcceso) {
+            panelesDestinoMap.set(String(panel._id), panel);
+        }
+        const panelesDestino = Array.from(panelesDestinoMap.values());
+        if (panelesDestino.length === 0) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No hay paneles destino disponibles para aplicar la tarjeta.",
+            });
+            return;
+        }
+
+        const masterUser = String(panelMaestro.usuario || "").trim();
+        const masterPass = decryptPassword(String(panelMaestro.contrasena || ""), CONFIG.SECRET_CRYPTO);
+        const { cardNo } = await captureCardFromPanel(
+            String(panelMaestro.direccion_ip),
+            masterUser,
+            masterPass
+        );
+
+        const employeeNo = String(registro.id_empleado);
+        const paneles_aplicados: string[] = [];
+        const paneles_fallidos: Array<{ panel: string; mensaje: string; }> = [];
+
+        for (const panel of panelesDestino) {
+            const panelNombre = String(panel.nombre || panel.direccion_ip || panel._id);
+            try {
+                const panelUser = String(panel.usuario || "").trim();
+                const panelPass = decryptPassword(String(panel.contrasena || ""), CONFIG.SECRET_CRYPTO);
+                await setupCardOnPanel(
+                    String(panel.direccion_ip),
+                    panelUser,
+                    panelPass,
+                    employeeNo,
+                    cardNo
+                );
+                paneles_aplicados.push(panelNombre);
+            } catch (error: any) {
+                paneles_fallidos.push({
+                    panel: panelNombre,
+                    mensaje: error?.message || "Error al aplicar tarjeta en panel.",
+                });
+            }
+        }
+
+        if (paneles_aplicados.length === 0) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "No se pudo aplicar la tarjeta en ningún panel.",
+                datos: { paneles_fallidos },
+            });
+            return;
+        }
+
+        const nuevaTarjeta: TarjetaWeb = {
+            id: `TW-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+            nombre,
+            descripcion,
+            card_no: String(cardNo),
+            fecha_creacion: new Date(),
+        };
+        const tarjetasWeb = [...tarjetasWebActual, nuevaTarjeta];
+        const tarjetasRegistradas = Array.from(
+            new Set([
+                ...(Array.isArray(registro.tarjetas_registradas) ? registro.tarjetas_registradas : []),
+                String(cardNo),
+            ])
+        );
+
+        await Empleados.findByIdAndUpdate(
+            req.params.id,
+            {
+                $set: {
+                    tarjetas_web: tarjetasWeb,
+                    tarjetas_registradas: tarjetasRegistradas,
+                    modificado_por: id_usuario,
+                    fecha_modificacion: Date.now(),
+                },
+            },
+            { runValidators: true }
+        );
+
+        res.status(200).json({
+            estado: true,
+            mensaje: paneles_fallidos.length > 0
+                ? `Tarjeta registrada. Aplicada en ${paneles_aplicados.length} panel(es) y con fallas en ${paneles_fallidos.length}.`
+                : "Tarjeta registrada correctamente.",
+            datos: {
+                tarjetas_web: tarjetasWeb,
+                tarjetas_registradas: tarjetasRegistradas,
+                tarjetas_total: tarjetasRegistradas.length,
+                paneles_aplicados,
+                paneles_fallidos,
+            },
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function eliminarTarjetaEmpleadoPanel(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const isMaster = (req as UserRequest).isMaster;
+        const { id_empresa } = await Usuarios.findById(id_usuario, "id_empresa") as IUsuario;
+        const tarjetaId = String(req.params.tarjetaId || "").trim();
+
+        if (!tarjetaId) {
+            res.status(400).json({ estado: false, mensaje: "Identificador de tarjeta inválido." });
+            return;
+        }
+
+        const filtro: any = { _id: req.params.id };
+        if (!isMaster) filtro.id_empresa = id_empresa;
+
+        const registro = await Empleados.findOne(filtro);
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
+            return;
+        }
+
+        const tarjetasWebActual = normalizeTarjetasWeb((registro as any)?.tarjetas_web);
+        const tarjeta = tarjetasWebActual.find((item) => item.id === tarjetaId);
+        if (!tarjeta) {
+            res.status(200).json({ estado: false, mensaje: "Tarjeta no encontrada." });
+            return;
+        }
+
+        const tarjetasWeb = tarjetasWebActual.filter((item) => item.id !== tarjetaId);
+        const tarjetasRegistradas = tarjetasWeb.map((item) => item.card_no);
+
+        await Empleados.findByIdAndUpdate(
+            req.params.id,
+            {
+                $set: {
+                    tarjetas_web: tarjetasWeb,
+                    tarjetas_registradas: tarjetasRegistradas,
+                    modificado_por: id_usuario,
+                    fecha_modificacion: Date.now(),
+                },
+            },
+            { runValidators: true }
+        );
+
+        res.status(200).json({
+            estado: true,
+            mensaje: "Tarjeta eliminada correctamente.",
+            datos: {
+                tarjetas_web: tarjetasWeb,
+                tarjetas_registradas: tarjetasRegistradas,
+                tarjetas_total: tarjetasRegistradas.length,
             },
         });
     } catch (error: any) {

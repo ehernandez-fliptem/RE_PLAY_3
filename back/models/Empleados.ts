@@ -29,6 +29,13 @@ export interface IEmpleado extends Document {
     huellas_registradas: number[];
     huellas_template_dev?: Record<string, string>;
     tarjetas_registradas: string[];
+    tarjetas_web?: Array<{
+        id: string;
+        nombre: string;
+        descripcion?: string;
+        card_no: string;
+        fecha_creacion: Date;
+    }>;
     acceso_campo: boolean;
     usuario_campo_activo: boolean;
     esRoot: boolean;
@@ -121,6 +128,18 @@ const empleadoSchema = new Schema<IEmpleado>({
     huellas_registradas: { type: [Number], default: [] },
     huellas_template_dev: { type: Map, of: String, default: {} },
     tarjetas_registradas: { type: [String], default: [] },
+    tarjetas_web: {
+        type: [
+            {
+                id: { type: String, required: true },
+                nombre: { type: String, required: true },
+                descripcion: { type: String, default: "" },
+                card_no: { type: String, required: true },
+                fecha_creacion: { type: Date, default: Date.now },
+            },
+        ],
+        default: [],
+    },
     acceso_campo: { type: Boolean, default: false },
     usuario_campo_activo: { type: Boolean, default: false },
     esRoot: { type: Boolean, require: true, default: false },

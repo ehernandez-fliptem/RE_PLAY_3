@@ -34,6 +34,7 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  TextField,
   Tooltip,
 } from "@mui/material";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -112,6 +113,12 @@ export default function Empleados() {
   >("huella");
   const [selectedFinger, setSelectedFinger] = useState<number>(2);
   const [biometriaMensaje, setBiometriaMensaje] = useState("");
+  const [tarjetaStep, setTarjetaStep] = useState<
+    "lista" | "form" | "espera" | "ok" | "error"
+  >("lista");
+  const [tarjetaNombre, setTarjetaNombre] = useState("");
+  const [tarjetaDescripcion, setTarjetaDescripcion] = useState("");
+  const [tarjetaMensaje, setTarjetaMensaje] = useState("");
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
 
@@ -128,6 +135,7 @@ export default function Empleados() {
     { id: 10, label: "Menique Der" },
   ];
   const fingerPriorityOrder = [2, 7, 1, 6, 4, 9, 5, 10, 3, 8];
+  const tarjetasMaximas = 10;
   const getNextDefaultFinger = (registeredRaw: number[] = []) => {
     const registered = new Set(
       (registeredRaw || []).map((v) => Number(v)).filter((v) => v >= 1 && v <= 10)
@@ -174,6 +182,10 @@ export default function Empleados() {
       const defaultFinger = getNextDefaultFinger(huellas);
       setSelectedFinger(defaultFinger);
       setBiometriaStep(step);
+      setTarjetaStep("lista");
+      setTarjetaNombre("");
+      setTarjetaDescripcion("");
+      setTarjetaMensaje("");
       setBiometriaMensaje("");
       setBiometriaOpen(true);
     } catch (error) {
@@ -189,6 +201,10 @@ export default function Empleados() {
     setBiometriaStep("huella");
     setBiometriaEmpleado(null);
     setBiometriaMensaje("");
+    setTarjetaStep("lista");
+    setTarjetaNombre("");
+    setTarjetaDescripcion("");
+    setTarjetaMensaje("");
   };
 
   const iniciarCapturaHuella = async () => {
@@ -261,6 +277,130 @@ export default function Empleados() {
       if (restartSession) navigate("/logout", { replace: true });
       setBiometriaMensaje("No se pudo reenviar la huella.");
       setBiometriaStep("error");
+    }
+  };
+
+  const tarjetasWeb = Array.isArray(biometriaEmpleado?.tarjetas_web)
+    ? biometriaEmpleado.tarjetas_web
+    : [];
+  const tarjetasActuales = tarjetasWeb.length;
+  const puedeAgregarTarjeta = tarjetasActuales < tarjetasMaximas;
+
+  const abrirFormularioTarjeta = () => {
+    if (!puedeAgregarTarjeta) return;
+    setTarjetaNombre("");
+    setTarjetaDescripcion("");
+    setTarjetaMensaje("");
+    setTarjetaStep("form");
+  };
+
+  const regresarListaTarjetas = () => {
+    setTarjetaStep("lista");
+    setTarjetaMensaje("");
+  };
+
+  const iniciarCapturaTarjeta = async () => {
+    if (!biometriaEmpleado?._id) return;
+    const nombre = tarjetaNombre.trim();
+    if (!nombre) {
+      enqueueSnackbar("El nombre de la tarjeta es obligatorio.", {
+        variant: "warning",
+      });
+      return;
+    }
+    const MIN_WAIT_MS = 2000;
+    const waitMin = new Promise((resolve) => setTimeout(resolve, MIN_WAIT_MS));
+    try {
+      setTarjetaStep("espera");
+      const resPromise = clienteAxios.put(
+        `/api/empleados/biometria/tarjeta/${biometriaEmpleado._id}`,
+        {
+          nombre,
+          descripcion: tarjetaDescripcion.trim(),
+        }
+      );
+      const [res] = await Promise.all([resPromise, waitMin]);
+      if (res.data.estado) {
+        const tarjetas = Array.isArray(res.data.datos?.tarjetas_web)
+          ? res.data.datos.tarjetas_web
+          : [];
+        const total =
+          res.data.datos?.tarjetas_total ??
+          (Array.isArray(res.data.datos?.tarjetas_registradas)
+            ? res.data.datos.tarjetas_registradas.length
+            : tarjetas.length);
+        setBiometriaEmpleado((prev: any) => ({
+          ...prev,
+          tarjetas_web: tarjetas,
+          tarjetas_registradas: res.data.datos?.tarjetas_registradas || [],
+          tarjetas_total: total,
+        }));
+        apiRef.current?.updateRows([
+          {
+            _id: biometriaEmpleado._id,
+            tarjetas_total: total,
+          },
+        ]);
+        setTarjetaMensaje(
+          res.data.mensaje || "Tarjeta registrada correctamente."
+        );
+        setTarjetaStep("ok");
+      } else {
+        setTarjetaMensaje(
+          res.data.mensaje || "No se pudo registrar la tarjeta."
+        );
+        setTarjetaStep("error");
+      }
+    } catch (error) {
+      await waitMin;
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+      setTarjetaMensaje("No se pudo registrar la tarjeta.");
+      setTarjetaStep("error");
+    }
+  };
+
+  const eliminarTarjeta = async (tarjeta: any) => {
+    if (!biometriaEmpleado?._id || !tarjeta?.id) return;
+    try {
+      await confirm({
+        title: "Eliminar tarjeta",
+        description: `Seguro que deseas borrar "${tarjeta.nombre}"?`,
+      });
+      const res = await clienteAxios.delete(
+        `/api/empleados/biometria/tarjeta/${biometriaEmpleado._id}/${tarjeta.id}`
+      );
+      if (!res.data.estado) {
+        enqueueSnackbar(res.data.mensaje || "No se pudo eliminar la tarjeta.", {
+          variant: "warning",
+        });
+        return;
+      }
+      const tarjetas = Array.isArray(res.data.datos?.tarjetas_web)
+        ? res.data.datos.tarjetas_web
+        : [];
+      const total =
+        res.data.datos?.tarjetas_total ??
+        (Array.isArray(res.data.datos?.tarjetas_registradas)
+          ? res.data.datos.tarjetas_registradas.length
+          : tarjetas.length);
+      setBiometriaEmpleado((prev: any) => ({
+        ...prev,
+        tarjetas_web: tarjetas,
+        tarjetas_registradas: res.data.datos?.tarjetas_registradas || [],
+        tarjetas_total: total,
+      }));
+      apiRef.current?.updateRows([
+        {
+          _id: biometriaEmpleado._id,
+          tarjetas_total: total,
+        },
+      ]);
+      enqueueSnackbar(res.data.mensaje || "Tarjeta eliminada correctamente.", {
+        variant: "success",
+      });
+    } catch {
+      // cancelado por usuario
     }
   };
 
@@ -807,7 +947,7 @@ export default function Empleados() {
         }}
       >
         <DialogTitle sx={{ fontWeight: 700, fontSize: "1.1rem", color: "text.primary" }}>
-          Configurar huella / tarjeta
+          {biometriaStep === "tarjeta" ? "Configurar tarjeta" : "Configurar huella"}
           <IconButton
             onClick={cerrarBiometria}
             sx={{ position: "absolute", right: 8, top: 8 }}
@@ -972,10 +1112,139 @@ export default function Empleados() {
               )}
 
               {biometriaStep === "tarjeta" && (
-                <Alert severity="info">
-                  Configuracion de tarjeta: esqueleto listo (implementacion en
-                  siguiente fase).
-                </Alert>
+                <Box>
+                  {tarjetaStep === "lista" && (
+                    <Box>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          mb: 1.5,
+                        }}
+                      >
+                        <Box sx={{ fontWeight: 700, fontSize: "0.95rem" }}>
+                          Tarjetas de web ({tarjetasActuales}/{tarjetasMaximas})
+                        </Box>
+                        <Tooltip
+                          title={
+                            puedeAgregarTarjeta
+                              ? "Registrar nueva tarjeta"
+                              : "No puedes agregar más de 10 tarjetas. Borra una para continuar."
+                          }
+                        >
+                          <span>
+                            <Button
+                              variant="contained"
+                              size="small"
+                              onClick={abrirFormularioTarjeta}
+                              disabled={!puedeAgregarTarjeta}
+                              sx={{ fontWeight: 700, color: "common.white" }}
+                            >
+                              Registrar nueva
+                            </Button>
+                          </span>
+                        </Tooltip>
+                      </Box>
+                      <Box
+                        sx={{
+                          border: "1px solid rgba(0,0,0,0.12)",
+                          borderRadius: 1,
+                          overflow: "hidden",
+                        }}
+                      >
+                        {tarjetasWeb.length === 0 && (
+                          <Box sx={{ p: 2, color: "text.secondary", fontSize: "0.92rem" }}>
+                            Aún no hay tarjetas registradas en este módulo.
+                          </Box>
+                        )}
+                        {tarjetasWeb.map((tarjeta: any) => (
+                          <Box
+                            key={tarjeta.id}
+                            sx={{
+                              p: 1.2,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              borderBottom: "1px solid rgba(0,0,0,0.08)",
+                              "&:last-of-type": { borderBottom: "none" },
+                            }}
+                          >
+                            <Box sx={{ pr: 2 }}>
+                              <Box sx={{ fontWeight: 700, fontSize: "0.92rem" }}>
+                                {tarjeta.nombre}
+                              </Box>
+                              <Box sx={{ fontSize: "0.86rem", color: "text.secondary" }}>
+                                {tarjeta.descripcion || "Sin descripción"}
+                              </Box>
+                              <Box sx={{ fontSize: "0.8rem", color: "text.disabled", mt: 0.3 }}>
+                                ID: {String(tarjeta.card_no || "").slice(-8)}
+                              </Box>
+                            </Box>
+                            <Tooltip title="Eliminar tarjeta">
+                              <IconButton
+                                color="error"
+                                size="small"
+                                onClick={() => eliminarTarjeta(tarjeta)}
+                              >
+                                <Delete fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+
+                  {tarjetaStep === "form" && (
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                      <TextField
+                        label="Nombre de la tarjeta"
+                        value={tarjetaNombre}
+                        onChange={(e) => setTarjetaNombre(e.target.value)}
+                        size="small"
+                        fullWidth
+                        required
+                        autoFocus
+                        inputProps={{ maxLength: 60 }}
+                      />
+                      <TextField
+                        label="Descripción (opcional)"
+                        value={tarjetaDescripcion}
+                        onChange={(e) => setTarjetaDescripcion(e.target.value)}
+                        size="small"
+                        fullWidth
+                        multiline
+                        minRows={2}
+                        inputProps={{ maxLength: 140 }}
+                      />
+                    </Box>
+                  )}
+
+                  {tarjetaStep === "espera" && (
+                    <Box sx={{ py: 4, textAlign: "center" }}>
+                      <CircularProgress size={40} sx={{ mb: 2 }} />
+                      <Box sx={{ fontSize: "1rem", fontWeight: 700, mb: 0.5 }}>
+                        Registrando tarjeta...
+                      </Box>
+                      <Box sx={{ color: "text.secondary" }}>
+                        Revisa el panel y acerca la tarjeta al lector.
+                      </Box>
+                    </Box>
+                  )}
+
+                  {tarjetaStep === "ok" && (
+                    <Alert icon={<CheckCircleOutline />} severity="success" sx={{ mt: 1 }}>
+                      {tarjetaMensaje || "Tarjeta registrada correctamente."}
+                    </Alert>
+                  )}
+
+                  {tarjetaStep === "error" && (
+                    <Alert icon={<ErrorOutline />} severity="error" sx={{ mt: 1 }}>
+                      {tarjetaMensaje || "No se pudo registrar la tarjeta."}
+                    </Alert>
+                  )}
+                </Box>
               )}
             </Box>
           )}
@@ -1040,14 +1309,70 @@ export default function Empleados() {
               Cerrar
             </Button>
           )}
-          {biometriaStep === "tarjeta" && (
+          {biometriaStep === "tarjeta" && tarjetaStep === "lista" && (
             <Button
-              variant="contained"
+              variant="outlined"
               onClick={cerrarBiometria}
-              sx={{ fontWeight: 700, color: "common.white" }}
+              sx={{ fontWeight: 700 }}
             >
-              Omitir y salir
+              Cerrar
             </Button>
+          )}
+          {biometriaStep === "tarjeta" && tarjetaStep === "form" && (
+            <>
+              <Button
+                variant="outlined"
+                onClick={regresarListaTarjetas}
+                sx={{ fontWeight: 700 }}
+              >
+                Regresar
+              </Button>
+              <Button
+                variant="contained"
+                onClick={iniciarCapturaTarjeta}
+                sx={{ fontWeight: 700, color: "common.white" }}
+              >
+                Crear
+              </Button>
+            </>
+          )}
+          {biometriaStep === "tarjeta" && tarjetaStep === "ok" && (
+            <>
+              <Button
+                variant="contained"
+                onClick={abrirFormularioTarjeta}
+                disabled={!puedeAgregarTarjeta}
+                sx={{ fontWeight: 700, color: "common.white" }}
+              >
+                Registrar otra
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={cerrarBiometria}
+                sx={{ fontWeight: 700 }}
+              >
+                Cerrar
+              </Button>
+            </>
+          )}
+          {biometriaStep === "tarjeta" && tarjetaStep === "error" && (
+            <>
+              <Button
+                variant="contained"
+                color="warning"
+                onClick={abrirFormularioTarjeta}
+                sx={{ fontWeight: 700, color: "common.white" }}
+              >
+                Volver a intentar
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={cerrarBiometria}
+                sx={{ fontWeight: 700 }}
+              >
+                Cerrar
+              </Button>
+            </>
           )}
         </DialogActions>
       </Dialog>
