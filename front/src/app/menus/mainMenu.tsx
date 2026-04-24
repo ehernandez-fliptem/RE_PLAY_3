@@ -1,9 +1,9 @@
-import {
+﻿import {
   // AccessTime, // FLAG: Reporte de horas oculto temporalmente - No borrar
   Devices,
   VideoLabel,
   // Apps, // FLAG: Checador oculto temporalmente - No borrar
-  // Assignment, // FLAG: Bitácora oculta temporalmente - No borrar
+  // Assignment, // FLAG: BitÃ¡cora oculta temporalmente - No borrar
   Business,
   Security,
   Contacts,
@@ -13,7 +13,7 @@ import {
   EventNote,
   //ExitToApp,
   Folder,
-  // HowToReg, // FLAG: Recepción oculta temporalmente - No borrar
+  // HowToReg, // FLAG: RecepciÃ³n oculta temporalmente - No borrar
   Badge,
   Group,
   PeopleAlt,
@@ -35,10 +35,10 @@ import {
 } from "@mui/icons-material";
 
 const mainMenu = [
-  // FLAG: Bitácora oculta temporalmente - No borrar
+  // FLAG: BitÃ¡cora oculta temporalmente - No borrar
   // {
   //   id: 0,
-  //   title: "Bitácora",
+  //   title: "BitÃ¡cora",
   //   rol: [1, 2, 4, 5, 6, 7, 10],
   //   icon: <Assignment fontSize="small" />,
   //   path: "/bitacora",
@@ -71,12 +71,12 @@ const mainMenu = [
     icon: <Place fontSize="small" />,
     path: "/campo",
   },
-  // --- Catálogos movido abajo de Directorio ---
-  // FLAG: Recepción oculto temporalmente - Lo que interesa ya está afuera
+  // --- CatÃ¡logos movido abajo de Directorio ---
+  // FLAG: RecepciÃ³n oculto temporalmente - Lo que interesa ya estÃ¡ afuera
   /*
   {
     id: 2,
-    title: "Recepción",
+    title: "RecepciÃ³n",
     rol: [1, 2, 4, 5, 6, 7],
     icon: <HowToReg fontSize="small" />,
     submenu: [
@@ -127,14 +127,14 @@ const mainMenu = [
       },
       {
         id: 8.1,
-        title: "Mi Catálogo",
+        title: "Visitantes",
         rol: [1, 11],
         icon: <Engineering fontSize="small" />,
         path: "/portal-contratistas/visitantes",
       },
       {
         id: 8.2,
-        title: "Solicitudes",
+        title: "Solicitud de Visita",
         rol: [1, 11],
         icon: <Engineering fontSize="small" />,
         path: "/portal-contratistas/solicitudes",
@@ -179,7 +179,7 @@ const mainMenu = [
   },
   {
     id: 1,
-    title: "Catálogos",
+    title: "CatÃ¡logos",
     rol: [1, 2],
     icon: <Folder fontSize="small" />,
     submenu: [
@@ -243,7 +243,7 @@ const mainMenu = [
   // submenu: [
   // {
   // id: 3.1,
-  // title: "Validación",
+  // title: "ValidaciÃ³n",
   // rol: [1, 2],
   // icon: <LibraryAddCheck fontSize="small" />,
   // path: "/validacion-documentos",
@@ -257,7 +257,7 @@ const mainMenu = [
   // },
   // ],
   // },
-  // // FLAG: Checador oculto temporalmente - Se sacó Eventos
+  // // FLAG: Checador oculto temporalmente - Se sacÃ³ Eventos
   /*
   {
     id: 4,
@@ -346,7 +346,7 @@ const mainMenu = [
       },
       {
         id: 99.2,
-        title: "Cámaras",
+        title: "CÃ¡maras",
         rol: [1],
         icon: <VideoCameraFront fontSize="small" />,
         path: "/camaras",
@@ -356,7 +356,7 @@ const mainMenu = [
 
   {
     id: 100,
-    title: "Configuración",
+    title: "ConfiguraciÃ³n",
     rol: [0],
     icon: <Settings fontSize="small" />,
     path: "/configuracion",
@@ -364,6 +364,7 @@ const mainMenu = [
 ];
 
 export default mainMenu;
+
 
 
 

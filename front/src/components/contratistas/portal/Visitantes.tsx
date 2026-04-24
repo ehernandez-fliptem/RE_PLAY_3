@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment, type ChangeEvent, useEffect } from "react";
+﻿import { useState, useMemo, Fragment, type ChangeEvent, useEffect } from "react";
 import {
   DataGrid,
   useGridApiRef,
@@ -249,7 +249,7 @@ export default function PortalVisitantes() {
         payload
       );
       if (res.data.estado) {
-        enqueueSnackbar("Corrección enviada.", { variant: "success" });
+        enqueueSnackbar("CorrecciÃ³n enviada.", { variant: "success" });
         apiRef.current?.dataSource?.fetchRows?.();
         cerrarCorreccion();
       } else {
@@ -287,7 +287,7 @@ export default function PortalVisitantes() {
               value && String(value).trim() ? String(value) : "-",
           },
           {
-            headerName: "Teléfono",
+            headerName: "TelÃ©fono",
             field: "telefono",
             flex: 1,
             display: "flex",
@@ -417,7 +417,7 @@ export default function PortalVisitantes() {
         slots={{
           toolbar: () => (
             <DataGridToolbar
-              tableTitle="Mi Catálogo de Visitantes"
+              tableTitle="Visitantes"
               customActionButtons={
                 <Fragment>
                   <Tooltip title="Agregar">
@@ -475,7 +475,7 @@ export default function PortalVisitantes() {
                     }}
                   >
                     <Typography variant="h4" component="h2" sx={{ flex: 1 }} textAlign="center">
-                      Corrección de documentos
+                      CorrecciÃ³n de documentos
                     </Typography>
                     <IconButton onClick={cerrarCorreccion} size="small" sx={{ color: "error.main" }}>
                       <Close fontSize="small" />
@@ -569,7 +569,7 @@ export default function PortalVisitantes() {
                     ))}
                     {rejectedRequiredKeys.length === 0 && (
                       <Typography variant="body2" color="text.secondary">
-                        No hay documentos pendientes de corrección.
+                        No hay documentos pendientes de correcciÃ³n.
                       </Typography>
                     )}
                   </Box>
@@ -641,7 +641,7 @@ export default function PortalVisitantes() {
                         )
                       }
                     >
-                      Enviar corrección
+                      Enviar correcciÃ³n
                     </Button>
                   </Box>
                 </>
@@ -653,4 +653,5 @@ export default function PortalVisitantes() {
     </div>
   );
 }
+
 
