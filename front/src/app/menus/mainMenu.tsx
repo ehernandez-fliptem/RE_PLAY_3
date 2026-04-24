@@ -3,7 +3,7 @@
   Devices,
   VideoLabel,
   // Apps, // FLAG: Checador oculto temporalmente - No borrar
-  // Assignment, // FLAG: BitÃ¡cora oculta temporalmente - No borrar
+  // Assignment, // FLAG: Bitácora oculta temporalmente - No borrar
   Business,
   Security,
   Contacts,
@@ -13,7 +13,7 @@
   EventNote,
   //ExitToApp,
   Folder,
-  // HowToReg, // FLAG: RecepciÃ³n oculta temporalmente - No borrar
+  // HowToReg, // FLAG: Recepción oculta temporalmente - No borrar
   Badge,
   Group,
   PeopleAlt,
@@ -35,10 +35,10 @@
 } from "@mui/icons-material";
 
 const mainMenu = [
-  // FLAG: BitÃ¡cora oculta temporalmente - No borrar
+  // FLAG: Bitácora oculta temporalmente - No borrar
   // {
   //   id: 0,
-  //   title: "BitÃ¡cora",
+  //   title: "Bitácora",
   //   rol: [1, 2, 4, 5, 6, 7, 10],
   //   icon: <Assignment fontSize="small" />,
   //   path: "/bitacora",
@@ -71,12 +71,12 @@ const mainMenu = [
     icon: <Place fontSize="small" />,
     path: "/campo",
   },
-  // --- CatÃ¡logos movido abajo de Directorio ---
-  // FLAG: RecepciÃ³n oculto temporalmente - Lo que interesa ya estÃ¡ afuera
+  // --- Catálogos movido abajo de Directorio ---
+  // FLAG: Recepción oculto temporalmente - Lo que interesa ya está afuera
   /*
   {
     id: 2,
-    title: "RecepciÃ³n",
+    title: "Recepción",
     rol: [1, 2, 4, 5, 6, 7],
     icon: <HowToReg fontSize="small" />,
     submenu: [
@@ -179,7 +179,7 @@ const mainMenu = [
   },
   {
     id: 1,
-    title: "CatÃ¡logos",
+    title: "Catálogos",
     rol: [1, 2],
     icon: <Folder fontSize="small" />,
     submenu: [
@@ -243,7 +243,7 @@ const mainMenu = [
   // submenu: [
   // {
   // id: 3.1,
-  // title: "ValidaciÃ³n",
+  // title: "Validación",
   // rol: [1, 2],
   // icon: <LibraryAddCheck fontSize="small" />,
   // path: "/validacion-documentos",
@@ -257,7 +257,7 @@ const mainMenu = [
   // },
   // ],
   // },
-  // // FLAG: Checador oculto temporalmente - Se sacÃ³ Eventos
+  // // FLAG: Checador oculto temporalmente - Se sacó Eventos
   /*
   {
     id: 4,
@@ -346,7 +346,7 @@ const mainMenu = [
       },
       {
         id: 99.2,
-        title: "CÃ¡maras",
+        title: "Cámaras",
         rol: [1],
         icon: <VideoCameraFront fontSize="small" />,
         path: "/camaras",
@@ -356,7 +356,7 @@ const mainMenu = [
 
   {
     id: 100,
-    title: "ConfiguraciÃ³n",
+    title: "Configuración",
     rol: [0],
     icon: <Settings fontSize="small" />,
     path: "/configuracion",

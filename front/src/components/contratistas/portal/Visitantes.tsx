@@ -249,7 +249,7 @@ export default function PortalVisitantes() {
         payload
       );
       if (res.data.estado) {
-        enqueueSnackbar("CorrecciÃ³n enviada.", { variant: "success" });
+        enqueueSnackbar("Corrección enviada.", { variant: "success" });
         apiRef.current?.dataSource?.fetchRows?.();
         cerrarCorreccion();
       } else {
@@ -287,7 +287,7 @@ export default function PortalVisitantes() {
               value && String(value).trim() ? String(value) : "-",
           },
           {
-            headerName: "TelÃ©fono",
+            headerName: "Teléfono",
             field: "telefono",
             flex: 1,
             display: "flex",
@@ -475,7 +475,7 @@ export default function PortalVisitantes() {
                     }}
                   >
                     <Typography variant="h4" component="h2" sx={{ flex: 1 }} textAlign="center">
-                      CorrecciÃ³n de documentos
+                      Corrección de documentos
                     </Typography>
                     <IconButton onClick={cerrarCorreccion} size="small" sx={{ color: "error.main" }}>
                       <Close fontSize="small" />
@@ -569,7 +569,7 @@ export default function PortalVisitantes() {
                     ))}
                     {rejectedRequiredKeys.length === 0 && (
                       <Typography variant="body2" color="text.secondary">
-                        No hay documentos pendientes de correcciÃ³n.
+                        No hay documentos pendientes de corrección.
                       </Typography>
                     )}
                   </Box>
@@ -641,7 +641,7 @@ export default function PortalVisitantes() {
                         )
                       }
                     >
-                      Enviar correcciÃ³n
+                      Enviar corrección
                     </Button>
                   </Box>
                 </>

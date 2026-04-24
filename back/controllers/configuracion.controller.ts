@@ -17,7 +17,7 @@ import DispositivosHv from "../models/DispositivosHv";
 
 export async function obtenerIntegraciones(_req: Request, res: Response): Promise<void> {
     try {
-        console.log("Obteniendo integraciones de configuraciÃ³n...");
+        console.log("Obteniendo integraciones de configuración...");
         const registro = await Configuracion.findOne(
             { activo: true },
             "habilitarIntegracionHv habilitarIntegracionHvBiometria habilitarIntegracionCdvi habilitarContratistas habilitarRegistroCampo documentos_visitantes documentos_contratistas documentos_personalizados"
@@ -237,7 +237,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             const registro = new Configuracion({ ...configuracion, creado_por: id_usuario, fecha_creacion: Date.now(), imgCorreo: await resizeImage(configuracion.imgCorreo) });
             const mensajes = await validarModelo(registro);
             if (!isEmptyObject(mensajes)) {
-                res.status(400).json({ estado: false, mensaje: "Revisa que los datos que estÃ¡s ingresando sean correctos.", mensajes });
+                res.status(400).json({ estado: false, mensaje: "Revisa que los datos que estás ingresando sean correctos.", mensajes });
                 return;
             }
             await registro.save();
@@ -250,7 +250,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                 .catch(async (err) => {
                     const mensajes = await validarModelo(err, true);
                     if (!isEmptyObject(mensajes)) {
-                        res.status(400).json({ estado: false, mensaje: "Revisa que los datos que estÃ¡s ingresando sean correctos.", mensajes });
+                        res.status(400).json({ estado: false, mensaje: "Revisa que los datos que estás ingresando sean correctos.", mensajes });
                         return;
                     }
                     res.status(500).send({ estado: false, mensaje: `${err.name}: ${err.message}` });
@@ -360,7 +360,7 @@ export async function modificarColecciones(req: Request, res: Response): Promise
         const mensajes = flattenErrors(Object.assign({}, ...resultTyped));
         const existError = Object.values(mensajes).length > 0;
         if (existError) {
-            res.status(400).json({ estado: false, mensaje: 'Revisa que los datos que estÃ¡s ingresando sean correctos.', mensajes });
+            res.status(400).json({ estado: false, mensaje: 'Revisa que los datos que estás ingresando sean correctos.', mensajes });
             return;
         }
 
