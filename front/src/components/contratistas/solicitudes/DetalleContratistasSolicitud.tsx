@@ -77,7 +77,8 @@ export default function DetalleContratistasSolicitud() {
   const [items, setItems] = useState<Item[]>([]);
   const [expandedVisitanteId, setExpandedVisitanteId] = useState<string | false>(false);
   const config = useSelector(selectCurrentData);
-  const docsCfg = useMemo(() => getDocumentosConfig(config, "visitantes"), [config]);
+  const [configDocs, setConfigDocs] = useState<any>(config);
+  const docsCfg = useMemo(() => getDocumentosConfig(configDocs, "visitantes"), [configDocs]);
   const enabledDocKeys = useMemo(() => docsCfg.required.map((d) => d.key).concat(docsCfg.optional.map((d) => d.key)), [docsCfg]);
   const isAprobarMode = new URLSearchParams(location.search).get("modo") === "aprobar";
 
@@ -99,6 +100,24 @@ export default function DetalleContratistasSolicitud() {
     };
     obtenerRegistro();
   }, [id, navigate]);
+
+  useEffect(() => {
+    setConfigDocs(config);
+  }, [config]);
+
+  useEffect(() => {
+    const refreshConfig = async () => {
+      try {
+        const res = await clienteAxios.get("/api/validacion/session-config");
+        if (res.data?.estado) {
+          setConfigDocs(res.data?.datos?.configuracion || config);
+        }
+      } catch {
+        // fallback a config actual de redux
+      }
+    };
+    refreshConfig();
+  }, [config]);
 
   const estadoSolicitud = getEstadoLabel(datos.estado);
 

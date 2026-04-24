@@ -16,6 +16,7 @@ import {
   Add,
   Delete,
   Edit,
+  FileDownload,
   PeopleAlt,
   Refresh,
   RestoreFromTrash,
@@ -50,6 +51,7 @@ import Spinner from "../utils/Spinner";
 import { useSelector } from "react-redux";
 import { selectCurrentData } from "../../app/features/config/configSlice";
 import { getDocumentosConfig } from "./utils/documentosConfig";
+import DocumentPreview from "./utils/DocumentPreview";
 
 const pageSizeOptions = [10, 25, 50];
 
@@ -127,14 +129,37 @@ export default function Contratistas() {
   const [filtroDocs, setFiltroDocs] = useState<
     "todos" | "pendientes_completos" | "pendientes_incompletos"
   >("todos");
+
+  const descargarDocumento = (docUrl?: string, label?: string) => {
+    if (!docUrl) {
+      enqueueSnackbar("No hay archivo para descargar.", { variant: "warning" });
+      return;
+    }
+
+    const anchor = document.createElement("a");
+    anchor.href = docUrl;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+    anchor.download = (label || "documento").replace(/\s+/g, "_");
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  };
   const [canScrollUp, setCanScrollUp] = useState(false);
   const [canScrollDown, setCanScrollDown] = useState(false);
   const verifScrollRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const confirm = useConfirm();
   const config = useSelector(selectCurrentData);
-  const docsVisitantesCfg = useMemo(() => getDocumentosConfig(config, "visitantes"), [config]);
-  const docsContratistasCfg = useMemo(() => getDocumentosConfig(config, "contratistas"), [config]);
+  const [configDocs, setConfigDocs] = useState<any>(config);
+  const docsVisitantesCfg = useMemo(
+    () => getDocumentosConfig(configDocs, "visitantes"),
+    [configDocs]
+  );
+  const docsContratistasCfg = useMemo(
+    () => getDocumentosConfig(configDocs, "contratistas"),
+    [configDocs]
+  );
   const enabledDocKeys = docsVisitantesCfg.required.map((d) => d.key).concat(docsVisitantesCfg.optional.map((d) => d.key));
   const requiredDocKeys = docsVisitantesCfg.required.map((d) => d.key);
   const optionalDocKeys = docsVisitantesCfg.optional.map((d) => d.key);
@@ -155,6 +180,24 @@ export default function Contratistas() {
     }, 10 * 60 * 1000);
     return () => clearInterval(interval);
   }, [apiRef, apiRefVisitantes, showVisitantes]);
+
+  useEffect(() => {
+    setConfigDocs(config);
+  }, [config]);
+
+  useEffect(() => {
+    const refreshConfig = async () => {
+      try {
+        const res = await clienteAxios.get("/api/validacion/session-config");
+        if (res.data?.estado) {
+          setConfigDocs(res.data?.datos?.configuracion || config);
+        }
+      } catch {
+        // fallback a config actual de redux
+      }
+    };
+    refreshConfig();
+  }, [config]);
 
   const dataSource: GridDataSource = useMemo(
     () => ({
@@ -539,46 +582,6 @@ export default function Contratistas() {
     }
   };
 
-  const renderDocPreview = (docUrl?: string, label?: string) => {
-    if (!docUrl) {
-      return <Typography variant="body2">Sin archivo</Typography>;
-    }
-    const lower = docUrl.toLowerCase();
-    const isPdf =
-      lower.endsWith(".pdf") ||
-      lower.includes(".pdf?") ||
-      lower.startsWith("data:application/pdf");
-    if (isPdf) {
-      return (
-        <Box
-          component="iframe"
-          src={docUrl}
-          title={label || "Documento"}
-          sx={{
-            width: "100%",
-            height: 360,
-            borderRadius: 1,
-            border: "1px solid #e0e0e0",
-          }}
-        />
-      );
-    }
-    return (
-      <Box
-        component="img"
-        src={docUrl}
-        alt={label}
-        sx={{
-          maxWidth: "100%",
-          maxHeight: 360,
-          objectFit: "contain",
-          borderRadius: 1,
-          border: "1px solid #e0e0e0",
-        }}
-      />
-    );
-  };
-
   const confirmarRevertirVisitante = async () => {
     if (!selectedVisitante?._id) return;
     setIsLoadingRevertir(true);
@@ -777,6 +780,8 @@ export default function Contratistas() {
             flex: 1,
             display: "flex",
             minWidth: 180,
+            valueFormatter: (value?: string) =>
+              value && String(value).trim() ? String(value) : "-",
           },
           {
             headerName: "Manager",
@@ -784,6 +789,8 @@ export default function Contratistas() {
             flex: 1,
             display: "flex",
             minWidth: 180,
+            valueFormatter: (value?: string) =>
+              value && String(value).trim() ? String(value) : "-",
           },
           {
             headerName: "Correo",
@@ -791,6 +798,8 @@ export default function Contratistas() {
             flex: 1,
             display: "flex",
             minWidth: 220,
+            valueFormatter: (value?: string) =>
+              value && String(value).trim() ? String(value) : "-",
           },
           {
             headerName: "Correos",
@@ -799,7 +808,7 @@ export default function Contratistas() {
             display: "flex",
             minWidth: 220,
             valueFormatter: (value: string[]) =>
-              Array.isArray(value) ? value.join(", ") : "",
+              Array.isArray(value) && value.length > 0 ? value.join(", ") : "-",
           },
           {
             headerName: "Telefono",
@@ -807,6 +816,8 @@ export default function Contratistas() {
             flex: 1,
             display: "flex",
             minWidth: 140,
+            valueFormatter: (value?: string) =>
+              value && String(value).trim() ? String(value) : "-",
           },
           {
             headerName: "Acciones",
@@ -1519,7 +1530,7 @@ export default function Contratistas() {
                         </Box>
                       </AccordionSummary>
                       <AccordionDetails>
-                        {renderDocPreview(docUrl, label)}
+                        <DocumentPreview docUrl={docUrl} label={label} />
                       </AccordionDetails>
                     </Accordion>
                   );
@@ -1589,7 +1600,7 @@ export default function Contratistas() {
                               </Box>
                             </AccordionSummary>
                             <AccordionDetails>
-                              {renderDocPreview(docUrl, label)}
+                              <DocumentPreview docUrl={docUrl} label={label} />
                             </AccordionDetails>
                           </Accordion>
                         );
@@ -1789,6 +1800,20 @@ export default function Contratistas() {
                           >
                             <Typography>{label}</Typography>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <Tooltip title={docUrl ? "Descargar archivo" : "Sin archivo"}>
+                                <span>
+                                  <MuiIconButton
+                                    size="small"
+                                    disabled={!docUrl}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      descargarDocumento(docUrl, label);
+                                    }}
+                                  >
+                                    <FileDownload fontSize="small" />
+                                  </MuiIconButton>
+                                </span>
+                              </Tooltip>
                               <Typography
                                 variant="caption"
                                 sx={{
@@ -1813,7 +1838,7 @@ export default function Contratistas() {
                           </Box>
                         </AccordionSummary>
                         <AccordionDetails>
-                          {renderDocPreview(docUrl, label)}
+                          <DocumentPreview docUrl={docUrl} label={label} />
                         </AccordionDetails>
                     </Accordion>
                       );
@@ -1871,6 +1896,20 @@ export default function Contratistas() {
                                   >
                                     <Typography>{label}</Typography>
                                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                      <Tooltip title={docUrl ? "Descargar archivo" : "Sin archivo"}>
+                                        <span>
+                                          <MuiIconButton
+                                            size="small"
+                                            disabled={!docUrl}
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              descargarDocumento(docUrl, label);
+                                            }}
+                                          >
+                                            <FileDownload fontSize="small" />
+                                          </MuiIconButton>
+                                        </span>
+                                      </Tooltip>
                                       <Typography
                                         variant="caption"
                                         sx={{
@@ -1895,7 +1934,7 @@ export default function Contratistas() {
                                   </Box>
                                 </AccordionSummary>
                                 <AccordionDetails>
-                                  {renderDocPreview(docUrl, label)}
+                                  <DocumentPreview docUrl={docUrl} label={label} />
                                 </AccordionDetails>
                               </Accordion>
                             );
@@ -2093,6 +2132,20 @@ export default function Contratistas() {
                                   gap: 1,
                                 }}
                               >
+                                <Tooltip title={docUrl ? "Descargar archivo" : "Sin archivo"}>
+                                  <span>
+                                    <MuiIconButton
+                                      size="small"
+                                      disabled={!docUrl}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        descargarDocumento(docUrl, label);
+                                      }}
+                                    >
+                                      <FileDownload fontSize="small" />
+                                    </MuiIconButton>
+                                  </span>
+                                </Tooltip>
                                 <Typography
                                   variant="caption"
                                   sx={{
@@ -2117,7 +2170,7 @@ export default function Contratistas() {
                             </Box>
                           </AccordionSummary>
                           <AccordionDetails>
-                            {renderDocPreview(docUrl, label)}
+                            <DocumentPreview docUrl={docUrl} label={label} />
                           </AccordionDetails>
                         </Accordion>
                       );
@@ -2180,6 +2233,20 @@ export default function Contratistas() {
                                         gap: 1,
                                       }}
                                     >
+                                      <Tooltip title={docUrl ? "Descargar archivo" : "Sin archivo"}>
+                                        <span>
+                                          <MuiIconButton
+                                            size="small"
+                                            disabled={!docUrl}
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              descargarDocumento(docUrl, label);
+                                            }}
+                                          >
+                                            <FileDownload fontSize="small" />
+                                          </MuiIconButton>
+                                        </span>
+                                      </Tooltip>
                                       <Typography
                                         variant="caption"
                                         sx={{
@@ -2204,7 +2271,7 @@ export default function Contratistas() {
                                   </Box>
                                 </AccordionSummary>
                                 <AccordionDetails>
-                                  {renderDocPreview(docUrl, label)}
+                                  <DocumentPreview docUrl={docUrl} label={label} />
                                 </AccordionDetails>
                               </Accordion>
                             );

@@ -21,6 +21,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { useSelector } from "react-redux";
 import { selectCurrentData } from "../../../app/features/config/configSlice";
 import { getDocumentosConfig } from "../utils/documentosConfig";
+import DocumentPreview from "../utils/DocumentPreview";
 
 type FormValues = {
   nombre: string;
@@ -55,7 +56,8 @@ export default function DetallePortalVisitante() {
   const [datos, setDatos] = useState<FormValues>(initialValue);
   const [expandedDocKey, setExpandedDocKey] = useState<string | false>(false);
   const config = useSelector(selectCurrentData);
-  const docsCfg = getDocumentosConfig(config, "visitantes");
+  const [configDocs, setConfigDocs] = useState<any>(config);
+  const docsCfg = getDocumentosConfig(configDocs, "visitantes");
   const enabledDocKeys = docsCfg.required.map((d) => d.key).concat(docsCfg.optional.map((d) => d.key));
   const enabledOptionalKeys = docsCfg.optional.map((d) => d.key);
 
@@ -76,6 +78,24 @@ export default function DetallePortalVisitante() {
     };
     obtenerRegistro();
   }, [id, navigate]);
+
+  useEffect(() => {
+    setConfigDocs(config);
+  }, [config]);
+
+  useEffect(() => {
+    const refreshConfig = async () => {
+      try {
+        const res = await clienteAxios.get("/api/validacion/session-config");
+        if (res.data?.estado) {
+          setConfigDocs(res.data?.datos?.configuracion || config);
+        }
+      } catch {
+        // fallback a config actual de redux
+      }
+    };
+    refreshConfig();
+  }, [config]);
 
   const regresar = () => {
     navigate("/portal-contratistas/visitantes");
@@ -230,22 +250,10 @@ export default function DetallePortalVisitante() {
                           </Box>
                         </AccordionSummary>
                         <AccordionDetails>
-                          {docUrl ? (
-                            <Box
-                              component="img"
-                              src={docUrl}
-                              alt={docsCfg.labelByKey[key] || key}
-                              sx={{
-                                maxWidth: "100%",
-                                maxHeight: 360,
-                                objectFit: "contain",
-                                borderRadius: 1,
-                                border: "1px solid #e0e0e0",
-                              }}
-                            />
-                          ) : (
-                            <Typography variant="body2">Sin archivo</Typography>
-                          )}
+                          <DocumentPreview
+                            docUrl={docUrl}
+                            label={docsCfg.labelByKey[key] || key}
+                          />
                         </AccordionDetails>
                       </Accordion>
                     );
@@ -325,22 +333,10 @@ export default function DetallePortalVisitante() {
                                 </Box>
                               </AccordionSummary>
                               <AccordionDetails>
-                                {docUrl ? (
-                                  <Box
-                                    component="img"
-                                    src={docUrl}
-                                    alt={docsCfg.labelByKey[key] || key}
-                                    sx={{
-                                      maxWidth: "100%",
-                                      maxHeight: 360,
-                                      objectFit: "contain",
-                                      borderRadius: 1,
-                                      border: "1px solid #e0e0e0",
-                                    }}
-                                  />
-                                ) : (
-                                  <Typography variant="body2">Sin archivo</Typography>
-                                )}
+                                <DocumentPreview
+                                  docUrl={docUrl}
+                                  label={docsCfg.labelByKey[key] || key}
+                                />
                               </AccordionDetails>
                             </Accordion>
                           );

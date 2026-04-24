@@ -41,6 +41,12 @@ const getEstadoLabel = (estado?: number) => {
   return { label: "Pendiente", color: "warning" as const };
 };
 
+const getEstadoOrden = (estado?: number) => {
+  if (estado === 3) return 0; // Rechazado
+  if (estado === 2) return 2; // Verificado
+  return 1; // Pendiente
+};
+
 export default function PortalVisitantes() {
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();
@@ -113,6 +119,11 @@ export default function PortalVisitantes() {
           if (res.data.estado) {
             setError("");
             rows = res.data.datos.paginatedResults || [];
+            rows = [...rows].sort(
+              (a, b) =>
+                getEstadoOrden(a?.estado_validacion) -
+                getEstadoOrden(b?.estado_validacion)
+            );
             rowCount = res.data.datos.totalCount[0]?.count || 0;
           }
         } catch (error) {

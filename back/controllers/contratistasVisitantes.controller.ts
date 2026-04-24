@@ -13,7 +13,10 @@ import { fecha, log } from "../middlewares/log";
 import { customAggregationForDataGrids, isEmptyObject } from "../utils/utils";
 import { validarModelo } from "../validators/validadores";
 import { CONFIG } from "../config";
-import { enviarCorreoRechazoVisitanteContratista } from "../utils/correos";
+import {
+    enviarCorreoRechazoVisitanteContratista,
+    enviarCorreoVisitanteRegistradoPorContratista,
+} from "../utils/correos";
 
 const DOC_KEYS = [
     "identificacion_oficial",
@@ -40,6 +43,16 @@ type DocKey = (typeof DOC_KEYS)[number];
 type DocChecks = Record<string, boolean>;
 type DocFiles = Record<string, string>;
 
+const mapToPlainObject = (value: unknown): Record<string, unknown> => {
+    if (!value) return {};
+    if (value instanceof Map) return Object.fromEntries(value.entries());
+    if (typeof (value as any)?.toObject === "function") {
+        return (value as any).toObject();
+    }
+    if (typeof value === "object") return value as Record<string, unknown>;
+    return {};
+};
+
 const DOC_LABELS: Record<string, string> = {
     identificacion_oficial: "Identificación oficial",
     sua: "SUA",
@@ -53,8 +66,8 @@ const DOC_LABELS: Record<string, string> = {
 
 const normalizeDocChecks = (value?: Partial<DocChecks> | null): DocChecks => {
     const result: DocChecks = {};
-    if (!value || typeof value !== "object") return result;
-    Object.entries(value).forEach(([key, v]) => {
+    const plain = mapToPlainObject(value);
+    Object.entries(plain).forEach(([key, v]) => {
         result[key] = Boolean(v);
     });
     return result;
@@ -62,8 +75,8 @@ const normalizeDocChecks = (value?: Partial<DocChecks> | null): DocChecks => {
 
 const normalizeDocFiles = (value?: Partial<DocFiles> | null): DocFiles => {
     const result: DocFiles = {};
-    if (!value || typeof value !== "object") return result;
-    Object.entries(value).forEach(([key, v]) => {
+    const plain = mapToPlainObject(value);
+    Object.entries(plain).forEach(([key, v]) => {
         result[key] = String(v || "");
     });
     return result;
@@ -322,6 +335,44 @@ export async function crear(req: Request, res: Response): Promise<void> {
         }
 
         await nuevoVisitante.save();
+
+        const archivosNormalizados = normalizeDocFiles(documentos_archivos);
+        const keysConArchivo = Object.entries(archivosNormalizados)
+            .filter(([, value]) => Boolean(String(value || "").trim()))
+            .map(([key]) => key);
+
+        const configDocs = await Configuracion.findOne(
+            { activo: true },
+            "documentos_personalizados"
+        )
+            .sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 })
+            .lean();
+
+        const customVisitantes = [
+            ...(((configDocs as any)?.documentos_personalizados?.visitantes?.obligatorios || []) as Array<any>),
+            ...(((configDocs as any)?.documentos_personalizados?.visitantes?.opcionales || []) as Array<any>),
+        ];
+
+        const customLabelById = customVisitantes.reduce<Record<string, string>>((acc, item) => {
+            const id = String(item?.id || "").trim();
+            if (!id) return acc;
+            acc[id] = String(item?.label || id);
+            return acc;
+        }, {});
+
+        const docsCargados = keysConArchivo.map((key) => customLabelById[key] || DOC_LABELS[key] || key);
+        const nombreVisitante = [nombre, apellido_pat, apellido_mat].filter(Boolean).join(" ").trim();
+
+        if (String(correo || "").trim()) {
+            await enviarCorreoVisitanteRegistradoPorContratista({
+                correo: String(correo).trim().toLowerCase(),
+                visitante: nombreVisitante || "Visitante",
+                contratista: String(contratista.empresa || "Contratista"),
+                empresa: String(contratista.empresa || "No especificada"),
+                documentos: docsCargados,
+            });
+        }
+
         res.status(200).json({ estado: true, datos: nuevoVisitante });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -370,12 +421,16 @@ export async function modificar(req: Request, res: Response): Promise<void> {
 
         const normalizedIncomingFiles = normalizeDocFiles(documentos_archivos);
         const normalizedPrevFiles = normalizeDocFiles(registro.documentos_archivos as any);
+        const mergedFiles = normalizeDocFiles({
+            ...normalizedPrevFiles,
+            ...normalizedIncomingFiles,
+        });
         const allDocKeys = Array.from(new Set([
-            ...Object.keys(normalizedIncomingFiles),
+            ...Object.keys(mergedFiles),
             ...Object.keys(normalizedPrevFiles),
         ]));
         let filesChanged = allDocKeys.some(
-            (key) => normalizedIncomingFiles[key] !== normalizedPrevFiles[key]
+            (key) => mergedFiles[key] !== normalizedPrevFiles[key]
         );
         if (Array.isArray(documentos_actualizados) && documentos_actualizados.length > 0) {
             filesChanged = true;
@@ -409,7 +464,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             correo,
             telefono,
             documentos_checks: normalizeDocChecks(documentos_checks),
-            documentos_archivos: normalizedIncomingFiles,
+            documentos_archivos: mergedFiles,
             hash_datos,
             fecha_modificacion: new Date(),
             modificado_por: id_usuario as any,
@@ -460,8 +515,8 @@ export async function verificar(req: Request, res: Response): Promise<void> {
         }
 
         const mergedChecks = normalizeDocChecks({
-            ...(registro.documentos_checks || {}),
-            ...(req.body?.documentos_checks || {}),
+            ...normalizeDocChecks(registro.documentos_checks as any),
+            ...normalizeDocChecks(req.body?.documentos_checks as any),
         });
 
         const checks = mergedChecks;
@@ -565,8 +620,8 @@ export async function rechazar(req: Request, res: Response): Promise<void> {
         }
 
         const checks = normalizeDocChecks({
-            ...(registro.documentos_checks || {}),
-            ...(req.body?.documentos_checks || {}),
+            ...normalizeDocChecks(registro.documentos_checks as any),
+            ...normalizeDocChecks(req.body?.documentos_checks as any),
         });
 
         const now = new Date();
@@ -638,20 +693,22 @@ export async function corregir(req: Request, res: Response): Promise<void> {
             return;
         }
 
+        const normalizedIncomingFiles = normalizeDocFiles(incomingFiles);
+        const normalizedPrevFiles = normalizeDocFiles(registro.documentos_archivos as any);
         const mergedFiles = normalizeDocFiles({
-            ...(registro.documentos_archivos || {}),
-            ...incomingFiles,
+            ...normalizedPrevFiles,
+            ...normalizedIncomingFiles,
         });
 
         const nextChecks = normalizeDocChecks(registro.documentos_checks || {});
-        Object.keys(incomingFiles).forEach((key) => {
-            if ((incomingFiles as any)[key]) {
+        Object.keys(normalizedIncomingFiles).forEach((key) => {
+            if ((normalizedIncomingFiles as any)[key]) {
                 (nextChecks as any)[key] = false;
             }
         });
         const { optionalKeys } = await resolveDocConfigVisitantes();
         optionalKeys.forEach((key) => {
-            if (!(key in (incomingFiles as any))) {
+            if (!(key in (normalizedIncomingFiles as any))) {
                 (mergedFiles as any)[key] = "";
                 (nextChecks as any)[key] = false;
             }

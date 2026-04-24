@@ -1782,6 +1782,44 @@ export async function enviarCorreoRechazoVisitanteContratista(datos: {
         return false;
     }
 }
+
+/**
+ * @function
+ * @name enviarCorreoVisitanteRegistradoPorContratista
+ * @description Notifica al visitante que fue registrado en RE por un contratista.
+ */
+export async function enviarCorreoVisitanteRegistradoPorContratista(datos: {
+    correo: string;
+    visitante: string;
+    contratista: string;
+    empresa: string;
+    documentos: string[];
+}): Promise<boolean> {
+    try {
+        const asunto = "Fuiste registrado en Recepcion Electronica";
+        const docsHtml = datos.documentos?.length
+            ? `<ul>${datos.documentos.map((doc) => `<li>${doc}</li>`).join("")}</ul>`
+            : "<p>Sin documentos adjuntos.</p>";
+
+        const response = await enviarCorreoPlantillaContratistas({
+            destinatario: datos.correo,
+            asunto,
+            cuerpo: `
+                <tr><td><strong>Estimado ${datos.visitante || "visitante"},</strong></td></tr>
+                <tr><td><br>Se registro tu informacion en Recepcion Electronica por parte de un contratista.</td></tr>
+                <tr><td><strong>Contratista: </strong>${datos.contratista || "No especificado"}</td></tr>
+                <tr><td><strong>Empresa: </strong>${datos.empresa || "No especificada"}</td></tr>
+                <tr><td><strong>Fecha de registro: </strong>${dayjs().format("DD/MM/YYYY HH:mm:ss")}</td></tr>
+                <tr><td><strong>Documentos cargados:</strong>${docsHtml}</td></tr>
+                <tr><td><br>Este correo es informativo. Si detectas algun dato incorrecto, contacta a tu contratista.</td></tr>`,
+        });
+
+        return response;
+    } catch (error) {
+        console.error("Error en enviarCorreoVisitanteRegistradoPorContratista:", error);
+        return false;
+    }
+}
 type CorreoSolicitudContratistaBase = {
     correos: string[];
     empresa: string;

@@ -28,6 +28,7 @@ import { useSelector } from "react-redux";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { selectCurrentData } from "../../../app/features/config/configSlice";
 import { getDocumentosConfig } from "../utils/documentosConfig";
+import DocumentPreview from "../utils/DocumentPreview";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import InputFileUpload from "../../utils/FileUpload";
 import Spinner from "../../utils/Spinner";
@@ -36,46 +37,6 @@ const getEstadoLabel = (estado?: number) => {
   if (estado === 2) return { label: "Verificado", color: "success" as const };
   if (estado === 3) return { label: "Rechazado", color: "error" as const };
   return { label: "Pendiente", color: "warning" as const };
-};
-
-const renderDocPreview = (docUrl?: string, label?: string) => {
-  if (!docUrl) {
-    return <Typography variant="body2">Sin archivo</Typography>;
-  }
-  const lower = docUrl.toLowerCase();
-  const isPdf =
-    lower.endsWith(".pdf") ||
-    lower.includes(".pdf?") ||
-    lower.startsWith("data:application/pdf");
-  if (isPdf) {
-    return (
-      <Box
-        component="iframe"
-        src={docUrl}
-        title={label || "Documento"}
-        sx={{
-          width: "100%",
-          height: 360,
-          borderRadius: 1,
-          border: "1px solid #e0e0e0",
-        }}
-      />
-    );
-  }
-  return (
-    <Box
-      component="img"
-      src={docUrl}
-      alt={label}
-      sx={{
-        maxWidth: "100%",
-        maxHeight: 360,
-        objectFit: "contain",
-        borderRadius: 1,
-        border: "1px solid #e0e0e0",
-      }}
-    />
-  );
 };
 
 export default function DocumentosContratista() {
@@ -610,7 +571,10 @@ export default function DocumentosContratista() {
                         </Box>
                       </AccordionSummary>
                       <AccordionDetails>
-                        {renderDocPreview(docUrl, docsCfg.labelByKey[key] || key)}
+                        <DocumentPreview
+                          docUrl={docUrl}
+                          label={docsCfg.labelByKey[key] || key}
+                        />
                       </AccordionDetails>
                     </Accordion>
                   );
@@ -686,7 +650,10 @@ export default function DocumentosContratista() {
                               </Box>
                             </AccordionSummary>
                             <AccordionDetails>
-                              {renderDocPreview(docUrl, docsCfg.labelByKey[key] || key)}
+                              <DocumentPreview
+                                docUrl={docUrl}
+                                label={docsCfg.labelByKey[key] || key}
+                              />
                             </AccordionDetails>
                           </Accordion>
                         );

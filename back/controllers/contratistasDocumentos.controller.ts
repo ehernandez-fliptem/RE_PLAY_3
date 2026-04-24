@@ -19,10 +19,20 @@ const DOC_KEYS = [
 type DocChecks = Record<string, boolean>;
 type DocFiles = Record<string, string>;
 
+const mapToPlainObject = (value: unknown): Record<string, unknown> => {
+    if (!value) return {};
+    if (value instanceof Map) return Object.fromEntries(value.entries());
+    if (typeof (value as any)?.toObject === "function") {
+        return (value as any).toObject();
+    }
+    if (typeof value === "object") return value as Record<string, unknown>;
+    return {};
+};
+
 const normalizeDocChecks = (value?: Partial<DocChecks> | null): DocChecks => {
     const result: DocChecks = {};
-    if (!value || typeof value !== "object") return result;
-    Object.entries(value).forEach(([key, v]) => {
+    const plain = mapToPlainObject(value);
+    Object.entries(plain).forEach(([key, v]) => {
         result[key] = Boolean(v);
     });
     return result;
@@ -30,8 +40,8 @@ const normalizeDocChecks = (value?: Partial<DocChecks> | null): DocChecks => {
 
 const normalizeDocFiles = (value?: Partial<DocFiles> | null): DocFiles => {
     const result: DocFiles = {};
-    if (!value || typeof value !== "object") return result;
-    Object.entries(value).forEach(([key, v]) => {
+    const plain = mapToPlainObject(value);
+    Object.entries(plain).forEach(([key, v]) => {
         result[key] = String(v || "");
     });
     return result;
@@ -111,7 +121,16 @@ export async function guardarMi(req: Request, res: Response): Promise<void> {
             return;
         }
 
-        const documentos_archivos = normalizeDocFiles(req.body?.documentos_archivos || {});
+        const incomingFiles = normalizeDocFiles(req.body?.documentos_archivos || {});
+        const prevRegistro = await ContratistaDocumentos.findOne(
+            { id_contratista: contratista._id },
+            "documentos_archivos"
+        ).lean();
+        const prevFiles = normalizeDocFiles((prevRegistro as any)?.documentos_archivos || {});
+        const documentos_archivos = normalizeDocFiles({
+            ...prevFiles,
+            ...incomingFiles,
+        });
         const docKeys = await resolveDocKeysContratistas();
         const documentos_checks = normalizeDocChecks(
             Object.fromEntries(
