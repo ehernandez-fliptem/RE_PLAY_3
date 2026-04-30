@@ -32,12 +32,6 @@ export async function obtenerIntegraciones(_req: Request, res: Response): Promis
 export async function modificarIntegraciones(req: Request, res: Response): Promise<void> {
     try {
         const {
-            habilitarIntegracionHv,
-            habilitarIntegracionHvBiometria,
-            habilitarIntegracionCdvi,
-            habilitarCamaras,
-            habilitarContratistas,
-            habilitarRegistroCampo,
             documentos_visitantes,
             documentos_contratistas,
             documentos_personalizados,
@@ -87,34 +81,19 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
         };
 
         const update: Record<string, unknown> = {
-            habilitarIntegracionHv: !!habilitarIntegracionHv,
-            habilitarIntegracionHvBiometria:
-                typeof habilitarIntegracionHvBiometria === "boolean" ? habilitarIntegracionHvBiometria : undefined,
-            habilitarCamaras: !!habilitarCamaras,
-            habilitarContratistas:
-                typeof habilitarContratistas === "boolean" ? habilitarContratistas : undefined,
-            habilitarRegistroCampo: typeof habilitarRegistroCampo === "boolean" ? habilitarRegistroCampo : undefined,
+            // Hardcode temporal: solo se mantiene activa la integración base de Hikvision.
+            habilitarIntegracionHv: true,
+            habilitarIntegracionHvBiometria: false,
+            habilitarIntegracionCdvi: false,
+            habilitarCamaras: false,
+            habilitarContratistas: false,
+            habilitarRegistroCampo: false,
             documentos_visitantes: normalizeDocConfig(documentos_visitantes) || undefined,
             documentos_contratistas: normalizeDocConfig(documentos_contratistas) || undefined,
             documentos_personalizados: normalizeCustomDocsConfig(documentos_personalizados) || undefined,
             modificado_por: id_usuario,
             fecha_modificacion: Date.now(),
         };
-        if (typeof habilitarIntegracionCdvi === "boolean") {
-            update.habilitarIntegracionCdvi = habilitarIntegracionCdvi;
-        }
-        if (update.habilitarIntegracionHvBiometria === undefined) {
-            delete update.habilitarIntegracionHvBiometria;
-        }
-        if (!update.habilitarIntegracionHv) {
-            update.habilitarIntegracionHvBiometria = false;
-        }
-        if (update.habilitarContratistas === undefined) {
-            delete update.habilitarContratistas;
-        }
-        if (update.habilitarRegistroCampo === undefined) {
-            delete update.habilitarRegistroCampo;
-        }
         if (update.documentos_visitantes === undefined) {
             delete update.documentos_visitantes;
         }
@@ -153,30 +132,26 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
             await DispositivosHv.updateMany({}, { $set: { es_panel_maestro: false } });
         }
 
-        if (typeof habilitarContratistas === "boolean") {
-            await Usuarios.updateMany(
-                { rol: 11 },
-                {
-                    $set: {
-                        activo: habilitarContratistas,
-                        token_web: "",
-                        token_app: "",
-                    },
-                }
-            );
-        }
-        if (typeof habilitarRegistroCampo === "boolean") {
-            await Usuarios.updateMany(
-                habilitarRegistroCampo ? { rol: 12 } : { rol: [12] },
-                {
-                    $set: {
-                        activo: habilitarRegistroCampo,
-                        token_web: "",
-                        token_app: "",
-                    },
-                }
-            );
-        }
+        await Usuarios.updateMany(
+            { rol: 11 },
+            {
+                $set: {
+                    activo: false,
+                    token_web: "",
+                    token_app: "",
+                },
+            }
+        );
+        await Usuarios.updateMany(
+            { rol: 12 },
+            {
+                $set: {
+                    activo: false,
+                    token_web: "",
+                    token_app: "",
+                },
+            }
+        );
 
         res.status(200).json({ estado: true, datos: update });
     } catch (error: any) {

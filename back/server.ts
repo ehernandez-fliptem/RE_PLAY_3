@@ -69,6 +69,9 @@ import visitantesRoutes from './routes/visitantes.routes';
 import campoRoutes from './routes/campo.routes';
 
 import { CONFIG } from './config';
+import Configuracion from './models/Configuracion';
+import Usuarios from './models/Usuarios';
+import DispositivosHv from './models/DispositivosHv';
 
 const ENV = CONFIG.NODE_ENV as "DEV" | "PROD";
 if (!ENV) throw new Error("Entorno por definir");
@@ -87,6 +90,8 @@ const options: CertificateManagerOptions = {
 
 export default async function Server() {
     try {
+        await forzarIntegracionesTemporales();
+
         const app = express();
         const httpServer = http.createServer(app);
 
@@ -210,6 +215,37 @@ export default async function Server() {
     } catch (error: any) {
         throw error;
     }
+}
+
+async function forzarIntegracionesTemporales() {
+    // Hardcode temporal: apagar todo excepto la integración base de Hikvision.
+    await Configuracion.updateMany(
+        { activo: true },
+        {
+            $set: {
+                habilitarIntegracionHv: true,
+                habilitarIntegracionHvBiometria: false,
+                habilitarIntegracionCdvi: false,
+                habilitarCamaras: false,
+                habilitarContratistas: false,
+                habilitarRegistroCampo: false,
+                fecha_modificacion: Date.now(),
+            },
+        }
+    );
+
+    await DispositivosHv.updateMany({}, { $set: { es_panel_maestro: false } });
+
+    await Usuarios.updateMany(
+        { rol: { $in: [11, 12] } },
+        {
+            $set: {
+                activo: false,
+                token_web: "",
+                token_app: "",
+            },
+        }
+    );
 }
 
 async function loadModels() {
