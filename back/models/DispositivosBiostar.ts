@@ -38,7 +38,7 @@ const dispositivosBiostarSchema = new Schema<IDispositivoBiostar>({
       message: (props: { value: string }) => `'${props.value}' es una direccion IP invalida.`,
     },
   },
-  puerto: { type: Number, required: true, default: 443 },
+  puerto: { type: Number, required: true, default: CONFIG.BIOSTAR_PORT },
   usuario: { type: String, required: true, default: '' },
   contrasena: { type: String, required: true, default: '' },
   session_id: { type: String, default: '' },

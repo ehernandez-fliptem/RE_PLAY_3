@@ -43,6 +43,7 @@ const envSchema = z.object({
     URL_HYUNDAI: z.string().url(),
     PUERTO_HTTP: z.coerce.number(),
     PUERTO_HTTPS: z.coerce.number(),
+    BIOSTAR_PORT: z.coerce.number().default(443),
     MONGODB_URI: z.string(),
 
     SECRET_HYUNDAI: z.string(),

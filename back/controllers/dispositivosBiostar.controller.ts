@@ -125,7 +125,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
     const nuevoRegistro = new DispositivosBiostar({
       nombre,
       direccion_ip,
-      puerto: Number(puerto) || 443,
+      puerto: Number(puerto) || CONFIG.BIOSTAR_PORT,
       usuario,
       contrasena,
       creado_por: creado_porID.id,
@@ -164,7 +164,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
     const update: Record<string, unknown> = {
       nombre,
       direccion_ip,
-      puerto: Number(puerto) || 443,
+      puerto: Number(puerto) || CONFIG.BIOSTAR_PORT,
       usuario,
       modificado_por: modificado_porID.id,
       fecha_modificacion: Date.now(),
@@ -229,7 +229,7 @@ export async function probarConexion(req: Request, res: Response): Promise<void>
         _id: new Types.ObjectId(),
         nombre: nombre || "temp",
         direccion_ip,
-        puerto: Number(puerto) || 443,
+        puerto: Number(puerto) || CONFIG.BIOSTAR_PORT,
         usuario,
         contrasena: encryptPassword(String(contrasena || ""), CONFIG.SECRET_CRYPTO),
       };
