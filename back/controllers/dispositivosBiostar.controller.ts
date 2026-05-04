@@ -168,6 +168,10 @@ export async function crear(req: Request, res: Response): Promise<void> {
     }
 
     await nuevoRegistro.save();
+
+    // Al crear, intentar dejar una sesion activa desde el inicio.
+    await probarConexionBiostar(nuevoRegistro);
+
     res.status(200).json({ estado: true });
   } catch (error: any) {
     log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);

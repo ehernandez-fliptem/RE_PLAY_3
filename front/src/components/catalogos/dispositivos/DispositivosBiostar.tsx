@@ -7,7 +7,7 @@ import {
   useGridApiRef,
 } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
-import { Add, Delete, Edit, Visibility } from "@mui/icons-material";
+import { Add, Delete, Edit, NetworkCheck, Visibility } from "@mui/icons-material";
 import { Chip, IconButton, Tooltip } from "@mui/material";
 import { Outlet, useNavigate } from "react-router-dom";
 import type { AxiosError } from "axios";
@@ -97,6 +97,48 @@ export default function DispositivosBiostar() {
     }
   };
 
+  const probarConexion = async (ID: string, ip: string) => {
+    try {
+      Swal.fire({
+        title: `Probando conexion ${ip}...`,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      const res = await clienteAxios.post(`/api/dispositivos-biostar/probar-conexion/${ID}`, {});
+      Swal.close();
+
+      if (res.data.estado) {
+        await Swal.fire({
+          icon: "success",
+          title: "Conexion correcta",
+          text: res.data.mensaje || "El dispositivo se conecto correctamente.",
+        });
+      } else {
+        await Swal.fire({
+          icon: "error",
+          title: "Sin conexion",
+          text: res.data.mensaje || "No se pudo conectar con el dispositivo.",
+        });
+      }
+
+      apiRef.current?.dataSource?.fetchRows?.();
+    } catch (error) {
+      Swal.close();
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+      await Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Ocurrio un error al probar la conexion.",
+      });
+    }
+  };
+
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
       <DataGrid
@@ -132,6 +174,7 @@ export default function DispositivosBiostar() {
             getActions: ({ row }) => [
               <GridActionsCellItem icon={<Visibility color="primary" />} label="Ver" onClick={() => navigate(`detalle-dispositivo/${row._id}`)} />,
               <GridActionsCellItem icon={<Edit color="primary" />} label="Editar" onClick={() => navigate(`editar-dispositivo/${row._id}`)} />,
+              <GridActionsCellItem icon={<NetworkCheck color="info" />} label="Probar conexion" onClick={() => probarConexion(row._id, row.direccion_ip)} />,
               <GridActionsCellItem icon={<Delete color="error" />} label="Borrar" onClick={() => eliminarDispositivo(row._id, row.direccion_ip)} />,
             ],
           },
