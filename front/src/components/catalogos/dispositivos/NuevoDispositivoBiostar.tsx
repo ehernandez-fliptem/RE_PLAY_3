@@ -141,7 +141,10 @@ export default function NuevoDispositivoBiostar() {
   };
 
   return (
-    <ModalContainer containerProps={{ maxWidth: "md" }}>
+    <ModalContainer
+      modalProps={{ sx: { display: isSaving ? "none" : "block" } }}
+      containerProps={{ maxWidth: "md" }}
+    >
       <Box component="section">
         <Card elevation={5}>
           <CardContent>
@@ -149,7 +152,7 @@ export default function NuevoDispositivoBiostar() {
               <Typography variant="h4" sx={{ mt: 1, mb: 2, textAlign: "center" }}>
                 Nuevo Dispositivo
               </Typography>
-              <Stack spacing={2} sx={{ visibility: isSaving ? "hidden" : "visible" }}>
+              <Stack spacing={2}>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 8 }}>
                     <TextFieldElement

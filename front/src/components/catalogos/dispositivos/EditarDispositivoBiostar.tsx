@@ -136,7 +136,10 @@ export default function EditarDispositivoBiostar() {
   };
 
   return (
-    <ModalContainer containerProps={{ maxWidth: "md" }}>
+    <ModalContainer
+      modalProps={{ sx: { display: isSaving ? "none" : "block" } }}
+      containerProps={{ maxWidth: "md" }}
+    >
       <Box component="section">
         <Card elevation={5}>
           <CardContent>
@@ -147,7 +150,7 @@ export default function EditarDispositivoBiostar() {
               <Spinner />
             ) : (
               <FormContainer formContext={formContext} onSuccess={onSubmit}>
-                <Stack spacing={2} sx={{ visibility: isSaving ? "hidden" : "visible" }}>
+                <Stack spacing={2}>
                   <Grid container spacing={2}>
                     <Grid size={{ xs: 12, sm: 8 }}>
                       <TextFieldElement name="direccion_ip" label="Direccion IP" required fullWidth />

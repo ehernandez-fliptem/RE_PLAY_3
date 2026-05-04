@@ -8,7 +8,7 @@ import {
 } from "@mui/material";
 
 type Props = {
-  modalProps?: ModalProps;
+  modalProps?: Partial<ModalProps>;
   containerProps?: ContainerProps;
   children?: React.ReactNode;
 };
