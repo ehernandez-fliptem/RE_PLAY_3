@@ -24,6 +24,10 @@ import DispositivosHV from "./catalogos/dispositivos/DispositivosHV";
 import NuevoDispositivoHV from "./catalogos/dispositivos/NuevoDispositivoHV";
 import DetalleDispositivoHV from "./catalogos/dispositivos/DetalleDispositivoHV";
 import EditarDispositivoHV from "./catalogos/dispositivos/EditarDispositivoHV";
+import DispositivosBiostar from "./catalogos/dispositivos/DispositivosBiostar";
+import NuevoDispositivoBiostar from "./catalogos/dispositivos/NuevoDispositivoBiostar";
+import DetalleDispositivoBiostar from "./catalogos/dispositivos/DetalleDispositivoBiostar";
+import EditarDispositivoBiostar from "./catalogos/dispositivos/EditarDispositivoBiostar";
 import Configuracion from "./catalogos/configuracion/Configuracion";
 import Directorio from "./recepcion/directorio/Directorio";
 import Bitacora from "./recepcion/bitacora/Bitacora";
@@ -101,7 +105,7 @@ import Campo from "./campo/Campo";
 
 export default function Routes() {
   const { rol } = useSelector((state: IRootState) => state.auth.data);
-  const { habilitarCamaras, habilitarIntegracionHv, habilitarContratistas, habilitarRegistroCampo } =
+  const { habilitarCamaras, habilitarIntegracionHv, habilitarIntegracionBiostar, habilitarContratistas, habilitarRegistroCampo } =
     useSelector(
     (state: IRootState) => state.config.data
   );
@@ -888,6 +892,53 @@ export default function Routes() {
               element:
                 esSuper && habilitarIntegracionHv ? (
                   <EditarDispositivoHV />
+                ) : (
+                  <Unauthorized />
+                ),
+            },
+            {
+              path: "*",
+              element: <Unknown />,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      path: "/dispositivos-biostar/*",
+      children: [
+        {
+          path: "",
+          element:
+            esSuper && habilitarIntegracionBiostar ? (
+              <DispositivosBiostar />
+            ) : (
+              <Unauthorized />
+            ),
+          children: [
+            {
+              path: "nuevo-dispositivo",
+              element:
+                esSuper && habilitarIntegracionBiostar ? (
+                  <NuevoDispositivoBiostar />
+                ) : (
+                  <Unauthorized />
+                ),
+            },
+            {
+              path: "detalle-dispositivo/:id",
+              element:
+                esSuper && habilitarIntegracionBiostar ? (
+                  <DetalleDispositivoBiostar />
+                ) : (
+                  <Unauthorized />
+                ),
+            },
+            {
+              path: "editar-dispositivo/:id",
+              element:
+                esSuper && habilitarIntegracionBiostar ? (
+                  <EditarDispositivoBiostar />
                 ) : (
                   <Unauthorized />
                 ),

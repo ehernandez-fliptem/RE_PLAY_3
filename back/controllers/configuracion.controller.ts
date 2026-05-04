@@ -20,7 +20,7 @@ export async function obtenerIntegraciones(_req: Request, res: Response): Promis
         console.log("Obteniendo integraciones de configuración...");
         const registro = await Configuracion.findOne(
             { activo: true },
-            "habilitarIntegracionHv habilitarIntegracionHvBiometria habilitarIntegracionCdvi habilitarContratistas habilitarRegistroCampo documentos_visitantes documentos_contratistas documentos_personalizados"
+            "habilitarIntegracionHv habilitarIntegracionBiostar habilitarIntegracionHvBiometria habilitarIntegracionCdvi habilitarContratistas habilitarRegistroCampo documentos_visitantes documentos_contratistas documentos_personalizados"
         ).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
         res.status(200).send({ estado: true, datos: registro });
     } catch (error: any) {
@@ -33,6 +33,7 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
     try {
         const {
             habilitarIntegracionHv,
+            habilitarIntegracionBiostar,
             habilitarIntegracionHvBiometria,
             habilitarIntegracionCdvi,
             habilitarCamaras,
@@ -88,6 +89,7 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
 
         const update: Record<string, unknown> = {
             habilitarIntegracionHv: !!habilitarIntegracionHv,
+            habilitarIntegracionBiostar: !!habilitarIntegracionBiostar,
             habilitarIntegracionHvBiometria:
                 typeof habilitarIntegracionHvBiometria === "boolean" ? habilitarIntegracionHvBiometria : undefined,
             habilitarCamaras: !!habilitarCamaras,

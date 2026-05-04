@@ -16,6 +16,7 @@ interface ConfigState {
     tiempoToleranciaEntrada: string;
     tiempoToleranciaSalida: string;
     habilitarIntegracionHv: boolean;
+    habilitarIntegracionBiostar: boolean;
     habilitarIntegracionHvBiometria: boolean;
     habilitarIntegracionCdvi: boolean;
     habilitarCamaras: boolean;
@@ -67,6 +68,7 @@ const initialState = {
     tiempoToleranciaEntrada: "",
     tiempoToleranciaSalida: "",
     habilitarIntegracionHv: false,
+    habilitarIntegracionBiostar: false,
     habilitarIntegracionHvBiometria: false,
     habilitarIntegracionCdvi: false,
     habilitarCamaras: false,
@@ -111,6 +113,10 @@ export const configSlice = createSlice({
     updateConfig: (state, action) => {
       state.data = {
         ...action.payload,
+        habilitarIntegracionBiostar:
+          typeof action.payload.habilitarIntegracionBiostar === "boolean"
+            ? action.payload.habilitarIntegracionBiostar
+            : state.data.habilitarIntegracionBiostar,
         habilitarIntegracionHvBiometria:
           typeof action.payload.habilitarIntegracionHvBiometria === "boolean"
             ? action.payload.habilitarIntegracionHvBiometria

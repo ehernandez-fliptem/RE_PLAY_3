@@ -351,6 +351,13 @@ const mainMenu = [
         icon: <VideoCameraFront fontSize="small" />,
         path: "/camaras",
       },
+      {
+        id: 99.3,
+        title: "BioStar",
+        rol: [1],
+        icon: <VideoLabel fontSize="small" />,
+        path: "/dispositivos-biostar",
+      },
     ],
   },
 

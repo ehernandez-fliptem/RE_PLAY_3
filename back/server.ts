@@ -54,6 +54,7 @@ import empresasRoutes from './routes/empresas.routes';
 import errorRoutes from './routes/error.routes';
 import eventosRoutes from './routes/eventos.routes';
 import dispositivosHvRoutes from './routes/dispositivoshv.routes';
+import dispositivosBiostarRoutes from './routes/dispositivosBiostar.routes';
 import horariosRoutes from './routes/horarios.routes';
 import ocrRoutes from './routes/ocr.routes';
 import pasesRoutes from './routes/pases.routes';
@@ -136,6 +137,7 @@ export default async function Server() {
         app.use('/api/error', errorRoutes);
         app.use('/api/eventos', eventosRoutes);
         app.use('/api/dispositivos-hikvision', dispositivosHvRoutes);
+        app.use('/api/dispositivos-biostar', dispositivosBiostarRoutes);
         app.use('/api/horarios', horariosRoutes);
         app.use('/api/ocr', ocrRoutes);
         app.use('/api/pases', pasesRoutes);

@@ -141,6 +141,7 @@ export default function Integraciones() {
       setIsSaving(true);
       const {
         habilitarIntegracionHv,
+        habilitarIntegracionBiostar,
         habilitarIntegracionHvBiometria,
         habilitarCamaras,
         habilitarContratistas,
@@ -151,6 +152,7 @@ export default function Integraciones() {
       const documentos_personalizados = getValues("documentos_personalizados");
       const res = await clienteAxios.put("/api/configuracion/integraciones", {
         habilitarIntegracionHv,
+        habilitarIntegracionBiostar,
         habilitarIntegracionHvBiometria,
         habilitarCamaras,
         habilitarContratistas,
@@ -192,6 +194,7 @@ export default function Integraciones() {
         dispatch(
           updateConfig({
             habilitarIntegracionHv,
+            habilitarIntegracionBiostar,
             habilitarIntegracionHvBiometria,
             habilitarCamaras,
             habilitarContratistas,
@@ -480,6 +483,39 @@ export default function Integraciones() {
             label=""
             labelPlacement="start"
             name="habilitarRegistroCampo"
+          />
+        </Grid>
+      </Grid>
+      <Grid container spacing={2} sx={{ my: 2 }}>
+        <Grid size={{ xs: 12, sm: 10 }}>
+          <Stack spacing={0}>
+            <Typography variant="overline" component="h2">
+              <strong>Integracion con Suprema / BioStar</strong>
+            </Typography>
+            <Typography
+              variant="body2"
+              component="span"
+              sx={{ ml: { xs: 0, sm: 2 } }}
+            >
+              <small>
+                Esta opcion habilita el uso de la integracion con dispositivos
+                Suprema/BioStar.
+              </small>
+            </Typography>
+          </Stack>
+        </Grid>
+        <Grid
+          size={{ xs: 12, sm: 2 }}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: { xs: "center", sm: "end" },
+          }}
+        >
+          <SwitchElement
+            label=""
+            labelPlacement="start"
+            name="habilitarIntegracionBiostar"
           />
         </Grid>
       </Grid>

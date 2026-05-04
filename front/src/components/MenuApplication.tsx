@@ -120,6 +120,7 @@ export default function MenuApplication({ children }: MenuProps) {
   const pageIndex = localStorage.getItem("PAGE_INDEX");
   const {
     habilitarIntegracionHv,
+    habilitarIntegracionBiostar,
     habilitarCamaras,
     habilitarContratistas,
     habilitarRegistroCampo,
@@ -461,7 +462,7 @@ export default function MenuApplication({ children }: MenuProps) {
             if (item.id === 99)
               seeItem =
                 rol.includes(1) &&
-                (habilitarIntegracionHv || habilitarCamaras);
+                (habilitarIntegracionHv || habilitarCamaras || habilitarIntegracionBiostar);
             if (item.id === 0.65) {
               seeItem = seeItem && habilitarRegistroCampo;
             }
@@ -604,6 +605,8 @@ export default function MenuApplication({ children }: MenuProps) {
                         seeSubItem = habilitarIntegracionHv;
                       if (subItem.id === 99.2 && rol.includes(1))
                         seeSubItem = habilitarCamaras;
+                      if (subItem.id === 99.3 && rol.includes(1))
+                        seeSubItem = habilitarIntegracionBiostar;
                       if (subItem.id === 8.1 || subItem.id === 8.2 || subItem.id === 9.1 || subItem.id === 9.2) {
                         seeSubItem = seeSubItem && habilitarContratistas;
                       }
