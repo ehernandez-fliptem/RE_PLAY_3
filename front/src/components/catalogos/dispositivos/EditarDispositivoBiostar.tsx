@@ -86,9 +86,11 @@ export default function EditarDispositivoBiostar() {
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
       setIsSaving(true);
-      await Swal.fire({
+      Swal.fire({
         title: "Validando conexion...",
         allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
         didOpen: () => {
           Swal.showLoading();
         },
@@ -145,7 +147,7 @@ export default function EditarDispositivoBiostar() {
               <Spinner />
             ) : (
               <FormContainer formContext={formContext} onSuccess={onSubmit}>
-                <Stack spacing={2}>
+                <Stack spacing={2} sx={{ visibility: isSaving ? "hidden" : "visible" }}>
                   <Grid container spacing={2}>
                     <Grid size={{ xs: 12, sm: 8 }}>
                       <TextFieldElement name="direccion_ip" label="Direccion IP" required fullWidth />

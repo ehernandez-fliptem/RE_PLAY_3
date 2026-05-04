@@ -87,9 +87,11 @@ export default function NuevoDispositivoBiostar() {
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
       setIsSaving(true);
-      await Swal.fire({
+      Swal.fire({
         title: "Validando conexion...",
         allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
         didOpen: () => {
           Swal.showLoading();
         },
@@ -147,7 +149,7 @@ export default function NuevoDispositivoBiostar() {
               <Typography variant="h4" sx={{ mt: 1, mb: 2, textAlign: "center" }}>
                 Nuevo Dispositivo
               </Typography>
-              <Stack spacing={2}>
+              <Stack spacing={2} sx={{ visibility: isSaving ? "hidden" : "visible" }}>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 8 }}>
                     <TextFieldElement
