@@ -258,11 +258,27 @@ export async function probarConexion(req: Request, res: Response): Promise<void>
 
     let dispositivo: any = null;
     if (fromId) {
-      dispositivo = await DispositivosBiostar.findById(req.params.id);
-      if (!dispositivo) {
+      const registro = await DispositivosBiostar.findById(req.params.id);
+      if (!registro) {
         res.status(200).json({ estado: false, mensaje: "Dispositivo BioStar no encontrado." });
         return;
       }
+
+      const body = req.body || {};
+      const contrasenaLimpia = typeof body.contrasena === "string" ? body.contrasena.trim() : "";
+      const encryptedPassword = contrasenaLimpia
+        ? encryptPassword(contrasenaLimpia, CONFIG.SECRET_CRYPTO)
+        : registro.contrasena;
+
+      // Para editar, la prueba de conexión debe usar los datos capturados en pantalla, no solo los actuales en BD.
+      dispositivo = {
+        ...registro.toObject(),
+        nombre: body.nombre || registro.nombre,
+        direccion_ip: body.direccion_ip || registro.direccion_ip,
+        puerto: Number(body.puerto) || registro.puerto || CONFIG.BIOSTAR_PORT,
+        usuario: body.usuario || registro.usuario,
+        contrasena: encryptedPassword,
+      };
     } else {
       const { nombre, direccion_ip, puerto, usuario, contrasena } = req.body;
       dispositivo = {
