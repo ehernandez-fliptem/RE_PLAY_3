@@ -237,6 +237,21 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
   }
 }
 
+export async function eliminar(req: Request, res: Response): Promise<void> {
+  try {
+    const registro = await DispositivosBiostar.findByIdAndDelete(req.params.id);
+    if (!registro) {
+      res.status(200).json({ estado: false, mensaje: "Dispositivo BioStar no encontrado." });
+      return;
+    }
+
+    res.status(200).json({ estado: true, mensaje: "Dispositivo eliminado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
 export async function probarConexion(req: Request, res: Response): Promise<void> {
   try {
     const fromId = !!req.params.id;

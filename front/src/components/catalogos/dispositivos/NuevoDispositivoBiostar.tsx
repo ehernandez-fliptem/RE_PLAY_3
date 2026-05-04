@@ -20,7 +20,7 @@ import { useNavigate, useOutletContext } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
 import ModalContainer from "../../utils/ModalContainer";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
-import { enqueueSnackbar } from "notistack";
+import Swal from "sweetalert2";
 import {
   HASLOWERCASE,
   HASNUMBER,
@@ -87,6 +87,13 @@ export default function NuevoDispositivoBiostar() {
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
       setIsSaving(true);
+      await Swal.fire({
+        title: "Validando conexion...",
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
 
       const testRes = await clienteAxios.post(
         "/api/dispositivos-biostar/probar-conexion",
@@ -94,116 +101,128 @@ export default function NuevoDispositivoBiostar() {
       );
 
       if (!testRes.data.estado) {
-        enqueueSnackbar(
-          testRes.data.mensaje || "No se pudo conectar con BioStar.",
-          { variant: "warning" }
-        );
+        await Swal.fire({
+          icon: "error",
+          title: "Sin conexion",
+          text: testRes.data.mensaje || "No se pudo conectar con BioStar.",
+        });
         return;
       }
 
       const saveRes = await clienteAxios.post("/api/dispositivos-biostar", data);
       if (saveRes.data.estado) {
-        enqueueSnackbar("Dispositivo creado correctamente.", {
-          variant: "success",
+        await Swal.fire({
+          icon: "success",
+          title: "Guardado",
+          text: "Dispositivo creado correctamente.",
         });
         parentGridDataRef?.fetchRows();
         navigate("/dispositivos-biostar");
       } else {
-        enqueueSnackbar(
-          saveRes.data.mensaje || "No se pudo crear el dispositivo.",
-          { variant: "warning" }
-        );
+        await Swal.fire({
+          icon: "error",
+          title: "No se pudo guardar",
+          text: saveRes.data.mensaje || "No se pudo crear el dispositivo.",
+        });
       }
     } catch (error) {
       handlingError(error);
+      await Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Ocurrio un error al guardar el dispositivo.",
+      });
     } finally {
+      Swal.close();
       setIsSaving(false);
     }
   };
 
   return (
     <ModalContainer containerProps={{ maxWidth: "md" }}>
-      <Typography variant="h4" sx={{ mt: 3, mb: 2, textAlign: "center" }}>
-        Nuevo Dispositivo
-      </Typography>
-      <FormContainer formContext={formContext} onSuccess={onSubmit}>
-        <Card elevation={0}>
+      <Box component="section">
+        <Card elevation={5}>
           <CardContent>
-            <Stack spacing={2}>
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12, sm: 8 }}>
-                  <TextFieldElement
-                    name="direccion_ip"
-                    label="Direccion IP"
-                    required
-                    fullWidth
-                  />
+            <FormContainer formContext={formContext} onSuccess={onSubmit}>
+              <Typography variant="h4" sx={{ mt: 1, mb: 2, textAlign: "center" }}>
+                Nuevo Dispositivo
+              </Typography>
+              <Stack spacing={2}>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, sm: 8 }}>
+                    <TextFieldElement
+                      name="direccion_ip"
+                      label="Direccion IP"
+                      required
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextFieldElement
+                      name="puerto"
+                      label="Puerto"
+                      required
+                      fullWidth
+                      type="number"
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <TextFieldElement name="nombre" label="Nombre" required fullWidth />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <TextFieldElement name="usuario" label="Usuario" required fullWidth />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <TextFieldElement
+                      name="contrasena"
+                      label="Contrasena"
+                      required
+                      fullWidth
+                      type={showPassword ? "text" : "password"}
+                      slotProps={{
+                        input: {
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                onClick={() => setShowPassword((v) => !v)}
+                                edge="end"
+                              >
+                                {showPassword ? <VisibilityOff /> : <Visibility />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        },
+                      }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <PasswordValidAdornment name="contrasena" />
+                  </Grid>
                 </Grid>
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <TextFieldElement
-                    name="puerto"
-                    label="Puerto"
-                    required
-                    fullWidth
-                    type="number"
-                  />
-                </Grid>
-                <Grid size={{ xs: 12 }}>
-                  <TextFieldElement name="nombre" label="Nombre" required fullWidth />
-                </Grid>
-                <Grid size={{ xs: 12 }}>
-                  <TextFieldElement name="usuario" label="Usuario" required fullWidth />
-                </Grid>
-                <Grid size={{ xs: 12 }}>
-                  <TextFieldElement
-                    name="contrasena"
-                    label="Contrasena"
-                    required
-                    fullWidth
-                    type={showPassword ? "text" : "password"}
-                    slotProps={{
-                      input: {
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <IconButton
-                              onClick={() => setShowPassword((v) => !v)}
-                              edge="end"
-                            >
-                              {showPassword ? <VisibilityOff /> : <Visibility />}
-                            </IconButton>
-                          </InputAdornment>
-                        ),
-                      },
-                    }}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12 }}>
-                  <PasswordValidAdornment name="contrasena" />
-                </Grid>
-              </Grid>
-              <Divider />
-              <Box display="flex" justifyContent="end">
-                <Stack direction="row" spacing={1}>
-                  <Button
-                    startIcon={<Close />}
-                    onClick={() => navigate("/dispositivos-biostar")}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    startIcon={<Save />}
-                    disabled={isSaving}
-                  >
-                    Guardar
-                  </Button>
-                </Stack>
-              </Box>
-            </Stack>
+                <Divider />
+                <Box display="flex" justifyContent="end">
+                  <Stack direction="row" spacing={1}>
+                    <Button
+                      startIcon={<Close />}
+                      onClick={() => navigate("/dispositivos-biostar")}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      startIcon={<Save />}
+                      disabled={isSaving}
+                    >
+                      Guardar
+                    </Button>
+                  </Stack>
+                </Box>
+              </Stack>
+            </FormContainer>
           </CardContent>
         </Card>
-      </FormContainer>
+      </Box>
     </ModalContainer>
   );
 }

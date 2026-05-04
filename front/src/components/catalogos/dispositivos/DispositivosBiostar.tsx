@@ -7,13 +7,14 @@ import {
   useGridApiRef,
 } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
-import { Add, Delete, Edit, RestoreFromTrash, Visibility } from "@mui/icons-material";
+import { Add, Delete, Edit, Visibility } from "@mui/icons-material";
 import { Chip, IconButton, Tooltip } from "@mui/material";
 import { Outlet, useNavigate } from "react-router-dom";
 import type { AxiosError } from "axios";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import ErrorOverlay from "../../error/DataGridError";
+import Swal from "sweetalert2";
 
 const pageSizeOptions = [10, 25, 50];
 
@@ -57,15 +58,42 @@ export default function DispositivosBiostar() {
     []
   );
 
-  const cambiarEstado = async (ID: string, activo: boolean) => {
+  const eliminarDispositivo = async (ID: string, ip: string) => {
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "Confirmar borrado",
+      text: `Seguro que quieres borrar ${ip}?`,
+      showCancelButton: true,
+      confirmButtonText: "Si, borrar",
+      cancelButtonText: "Cancelar",
+    });
+
+    if (!result.isConfirmed) return;
+
     try {
-      const res = await clienteAxios.patch(`/api/dispositivos-biostar/${ID}`, { activo });
+      const res = await clienteAxios.delete(`/api/dispositivos-biostar/${ID}`);
       if (res.data.estado) {
-        apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
+        await Swal.fire({
+          icon: "success",
+          title: "Eliminado",
+          text: "Dispositivo eliminado correctamente.",
+        });
+        apiRef.current?.dataSource?.fetchRows?.();
+      } else {
+        await Swal.fire({
+          icon: "error",
+          title: "No se pudo eliminar",
+          text: res.data.mensaje || "No se pudo eliminar el dispositivo.",
+        });
       }
     } catch (error) {
       const { restartSession } = handlingError(error);
       if (restartSession) navigate("/logout", { replace: true });
+      await Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Ocurrio un error al eliminar el dispositivo.",
+      });
     }
   };
 
@@ -96,21 +124,15 @@ export default function DispositivosBiostar() {
           },
           {
             headerName: "Acciones",
-            field: "activo",
+            field: "acciones",
             type: "actions",
             align: "center",
             flex: 1,
             minWidth: 170,
             getActions: ({ row }) => [
               <GridActionsCellItem icon={<Visibility color="primary" />} label="Ver" onClick={() => navigate(`detalle-dispositivo/${row._id}`)} />,
-              ...(row.activo
-                ? [<GridActionsCellItem icon={<Edit color="primary" />} label="Editar" onClick={() => navigate(`editar-dispositivo/${row._id}`)} />]
-                : []),
-              row.activo ? (
-                <GridActionsCellItem icon={<Delete color="success" />} label="Desactivar" onClick={() => cambiarEstado(row._id, row.activo)} />
-              ) : (
-                <GridActionsCellItem icon={<RestoreFromTrash color="error" />} label="Restaurar" onClick={() => cambiarEstado(row._id, row.activo)} />
-              ),
+              <GridActionsCellItem icon={<Edit color="primary" />} label="Editar" onClick={() => navigate(`editar-dispositivo/${row._id}`)} />,
+              <GridActionsCellItem icon={<Delete color="error" />} label="Borrar" onClick={() => eliminarDispositivo(row._id, row.direccion_ip)} />,
             ],
           },
         ]}

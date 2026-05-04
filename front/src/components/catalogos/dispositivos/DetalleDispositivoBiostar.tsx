@@ -42,29 +42,31 @@ export default function DetalleDispositivoBiostar() {
 
   return (
     <ModalContainer containerProps={{ maxWidth: "sm" }}>
-      <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
-        Detalle Dispositivo BioStar
-      </Typography>
-      {isLoading ? (
-        <Spinner />
-      ) : (
-        <Card elevation={0}>
+      <Box component="section">
+        <Card elevation={5}>
           <CardContent>
-            <Stack spacing={2}>
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12 }}><Typography variant="body2"><strong>Nombre:</strong> {detalle?.nombre || "-"}</Typography></Grid>
-                <Grid size={{ xs: 12, sm: 8 }}><Typography variant="body2"><strong>IP:</strong> {detalle?.direccion_ip || "-"}</Typography></Grid>
-                <Grid size={{ xs: 12, sm: 4 }}><Typography variant="body2"><strong>Puerto:</strong> {detalle?.puerto || "-"}</Typography></Grid>
-                <Grid size={{ xs: 12 }}><Typography variant="body2"><strong>Usuario:</strong> {detalle?.usuario || "-"}</Typography></Grid>
-                <Grid size={{ xs: 12 }}><Typography variant="body2"><strong>Activo:</strong> {detalle?.activo ? "Si" : "No"}</Typography></Grid>
-              </Grid>
-              <Box display="flex" justifyContent="end">
-                <Button startIcon={<ArrowBack />} onClick={() => navigate("/dispositivos-biostar")}>Regresar</Button>
-              </Box>
-            </Stack>
+            <Typography variant="h6" sx={{ mt: 1, mb: 2 }}>
+              Detalle Dispositivo BioStar
+            </Typography>
+            {isLoading ? (
+              <Spinner />
+            ) : (
+              <Stack spacing={2}>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12 }}><Typography variant="body2"><strong>Nombre:</strong> {detalle?.nombre || "-"}</Typography></Grid>
+                  <Grid size={{ xs: 12, sm: 8 }}><Typography variant="body2"><strong>IP:</strong> {detalle?.direccion_ip || "-"}</Typography></Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}><Typography variant="body2"><strong>Puerto:</strong> {detalle?.puerto || "-"}</Typography></Grid>
+                  <Grid size={{ xs: 12 }}><Typography variant="body2"><strong>Usuario:</strong> {detalle?.usuario || "-"}</Typography></Grid>
+                  <Grid size={{ xs: 12 }}><Typography variant="body2"><strong>Activo:</strong> {detalle?.activo ? "Si" : "No"}</Typography></Grid>
+                </Grid>
+                <Box display="flex" justifyContent="end">
+                  <Button startIcon={<ArrowBack />} onClick={() => navigate("/dispositivos-biostar")}>Regresar</Button>
+                </Box>
+              </Stack>
+            )}
           </CardContent>
         </Card>
-      )}
+      </Box>
     </ModalContainer>
   );
 }
