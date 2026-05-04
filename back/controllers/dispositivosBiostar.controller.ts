@@ -117,6 +117,31 @@ export async function obtenerUno(req: Request, res: Response): Promise<void> {
   }
 }
 
+export async function obtenerUnoFormEditar(req: Request, res: Response): Promise<void> {
+  try {
+    const registro = await DispositivosBiostar.findById(req.params.id);
+    if (!registro) {
+      res.status(200).json({ estado: false, mensaje: "Dispositivo BioStar no encontrado." });
+      return;
+    }
+
+    const datos = registro.toObject();
+    const contrasena = decryptPassword(datos.contrasena, CONFIG.SECRET_CRYPTO);
+
+    res.status(200).json({
+      estado: true,
+      datos: {
+        ...datos,
+        contrasena,
+        session_id: undefined,
+      },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
 export async function crear(req: Request, res: Response): Promise<void> {
   try {
     const { nombre, direccion_ip, puerto, usuario, contrasena } = req.body;

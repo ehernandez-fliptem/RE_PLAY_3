@@ -44,14 +44,14 @@ export default function EditarDispositivoBiostar() {
   useEffect(() => {
     const run = async () => {
       try {
-        const res = await clienteAxios.get(`/api/dispositivos-biostar/${id}`);
+        const res = await clienteAxios.get(`/api/dispositivos-biostar/form-editar/${id}`);
         if (res.data.estado) {
           formContext.reset({
             nombre: res.data.datos.nombre,
             direccion_ip: res.data.datos.direccion_ip,
             puerto: res.data.datos.puerto || 443,
             usuario: res.data.datos.usuario,
-            contrasena: "",
+            contrasena: res.data.datos.contrasena || "",
           });
         }
       } catch (error) {
