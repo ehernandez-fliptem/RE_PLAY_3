@@ -17,7 +17,7 @@ import { enqueueSnackbar } from "notistack";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import dayjs from "dayjs";
 
-type TDispositivoBiostar = {
+type TDispositivoSuprema = {
   nombre: string;
   usuario: string;
   direccion_ip: string;
@@ -33,7 +33,7 @@ export default function DetalleDispositivoBiostar() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
-  const [datos, setDatos] = useState<TDispositivoBiostar>({
+  const [datos, setDatos] = useState<TDispositivoSuprema>({
     nombre: "",
     usuario: "",
     direccion_ip: "",
@@ -66,7 +66,7 @@ export default function DetalleDispositivoBiostar() {
   }, [id, navigate]);
 
   const regresar = () => {
-    navigate("/dispositivos-biostar");
+    navigate("/biostarar/dispositivos");
   };
 
   return (

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   DataGrid,
   type GridDataSource,
@@ -7,8 +7,8 @@ import {
   useGridApiRef,
 } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
-import { Add, Delete, Edit, NetworkCheck, Sync, Visibility } from "@mui/icons-material";
-import { Box, Button, Chip, IconButton, Stack, Tooltip, Typography } from "@mui/material";
+import { Add, Delete, Edit, NetworkCheck, Visibility } from "@mui/icons-material";
+import { Chip, IconButton, Tooltip } from "@mui/material";
 import { Outlet, useNavigate } from "react-router-dom";
 import type { AxiosError } from "axios";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
@@ -22,12 +22,6 @@ export default function DispositivosBiostar() {
   const apiRef = useGridApiRef();
   const navigate = useNavigate();
   const [error, setError] = useState<string>();
-  const [conexionGlobal, setConexionGlobal] = useState<null | {
-    direccion_ip: string;
-    puerto: number;
-    usuario: string;
-    session_activa: boolean;
-  }>(null);
 
   const dataSource: GridDataSource = useMemo(
     () => ({
@@ -64,16 +58,6 @@ export default function DispositivosBiostar() {
     []
   );
 
-  const cargarConexionGlobal = async () => {
-    try {
-      const res = await clienteAxios.get("/api/dispositivos-biostar/conexion-global");
-      if (res.data.estado) {
-        setConexionGlobal(res.data.datos);
-      }
-    } catch (error) {
-      handlingError(error);
-    }
-  };
 
   const eliminarDispositivo = async (ID: string, ip: string) => {
     const result = await Swal.fire({
@@ -156,124 +140,8 @@ export default function DispositivosBiostar() {
     }
   };
 
-  const configurarConexionGlobal = async () => {
-    const resActual = await clienteAxios.get("/api/dispositivos-biostar/conexion-global");
-    const actual = resActual.data?.datos;
-
-    const result = await Swal.fire({
-      title: "Conexion Global BioStar",
-      html: `
-        <input id="bio-ip" class="swal2-input" placeholder="Direccion IP" value="${actual?.direccion_ip || ""}">
-        <input id="bio-port" class="swal2-input" placeholder="Puerto" value="${actual?.puerto || 443}">
-        <input id="bio-user" class="swal2-input" placeholder="Usuario" value="${actual?.usuario || ""}">
-        <input id="bio-pass" class="swal2-input" placeholder="Contrasena" type="password">
-      `,
-      focusConfirm: false,
-      showCancelButton: true,
-      confirmButtonText: "Guardar",
-      cancelButtonText: "Cancelar",
-      preConfirm: () => {
-        const direccion_ip = (document.getElementById("bio-ip") as HTMLInputElement)?.value?.trim();
-        const puerto = Number((document.getElementById("bio-port") as HTMLInputElement)?.value || 443);
-        const usuario = (document.getElementById("bio-user") as HTMLInputElement)?.value?.trim();
-        const contrasena = (document.getElementById("bio-pass") as HTMLInputElement)?.value || "";
-        if (!direccion_ip || !usuario) {
-          Swal.showValidationMessage("IP y usuario son obligatorios.");
-          return null;
-        }
-        return { direccion_ip, puerto, usuario, contrasena };
-      },
-    });
-
-    if (!result.isConfirmed || !result.value) return;
-
-    const payload = result.value;
-    Swal.fire({
-      title: "Validando conexion...",
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => Swal.showLoading(),
-    });
-
-    try {
-      const saveRes = await clienteAxios.put("/api/dispositivos-biostar/conexion-global", payload);
-      if (!saveRes.data.estado) {
-        Swal.close();
-        await Swal.fire({ icon: "error", title: "No se pudo guardar", text: saveRes.data.mensaje || "" });
-        return;
-      }
-
-      const testRes = await clienteAxios.post("/api/dispositivos-biostar/conexion-global/probar", {});
-      Swal.close();
-      if (!testRes.data.estado) {
-        await Swal.fire({ icon: "error", title: "Sin conexion", text: testRes.data.mensaje || "No se pudo conectar." });
-        return;
-      }
-      await Swal.fire({ icon: "success", title: "Guardado", text: "Conexion global activa." });
-      await cargarConexionGlobal();
-    } catch (error) {
-      Swal.close();
-      handlingError(error);
-    }
-  };
-
-  const sincronizarDispositivos = async () => {
-    Swal.fire({
-      title: "Sincronizando dispositivos...",
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => Swal.showLoading(),
-    });
-    try {
-      const res = await clienteAxios.post("/api/dispositivos-biostar/sincronizar-dispositivos", {});
-      Swal.close();
-      if (res.data.estado) {
-        await Swal.fire({ icon: "success", title: "Sincronizacion completa", text: res.data.mensaje || "" });
-        apiRef.current?.dataSource?.fetchRows?.();
-        await cargarConexionGlobal();
-      } else {
-        await Swal.fire({ icon: "error", title: "No se pudo sincronizar", text: res.data.mensaje || "" });
-      }
-    } catch (error) {
-      Swal.close();
-      handlingError(error);
-    }
-  };
-
-  useEffect(() => {
-    cargarConexionGlobal();
-  }, []);
-
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
-      <Box sx={{ mb: 2, p: 2, border: "1px solid #e6e6e6", borderRadius: 1 }}>
-        <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "start", sm: "center" }} justifyContent="space-between" spacing={2}>
-          <Box>
-            <Typography variant="overline"><strong>Conexion Global BioStar</strong></Typography>
-            <Typography variant="body2">
-              {conexionGlobal
-                ? `${conexionGlobal.direccion_ip}:${conexionGlobal.puerto} - ${conexionGlobal.usuario}`
-                : "Sin configurar"}
-            </Typography>
-            <Chip
-              label={conexionGlobal?.session_activa ? "Sesion activa" : "Sin sesion"}
-              color={conexionGlobal?.session_activa ? "success" : "default"}
-              size="small"
-              sx={{ mt: 1 }}
-            />
-          </Box>
-          <Stack direction="row" spacing={1}>
-            <Button variant="outlined" onClick={configurarConexionGlobal} startIcon={<NetworkCheck />}>
-              Configurar conexion
-            </Button>
-            <Button variant="contained" onClick={sincronizarDispositivos} startIcon={<Sync />}>
-              Sincronizar dispositivos
-            </Button>
-          </Stack>
-        </Stack>
-      </Box>
       <DataGrid
         apiRef={apiRef}
         initialState={initialState}
@@ -339,7 +207,7 @@ export default function DispositivosBiostar() {
         slots={{
           toolbar: () => (
             <DataGridToolbar
-              tableTitle="Gestion de Dispositivos BioStar"
+              tableTitle="Gestion de Dispositivos Suprema"
               customActionButtons={
                 <Tooltip title="Agregar">
                   <IconButton size="small" onClick={() => navigate("nuevo-dispositivo")}>

@@ -106,7 +106,7 @@ export default function NuevoDispositivoBiostar() {
         await Swal.fire({
           icon: "error",
           title: "Sin conexion",
-          text: testRes.data.mensaje || "No se pudo conectar con BioStar.",
+          text: testRes.data.mensaje || "No se pudo conectar con Suprema.",
         });
         return;
       }
@@ -119,7 +119,7 @@ export default function NuevoDispositivoBiostar() {
           text: "Dispositivo creado correctamente.",
         });
         parentGridDataRef?.fetchRows();
-        navigate("/dispositivos-biostar");
+        navigate("/biostarar/dispositivos");
       } else {
         await Swal.fire({
           icon: "error",
@@ -209,7 +209,7 @@ export default function NuevoDispositivoBiostar() {
                   <Stack direction="row" spacing={1}>
                     <Button
                       startIcon={<Close />}
-                      onClick={() => navigate("/dispositivos-biostar")}
+                      onClick={() => navigate("/biostarar/dispositivos")}
                     >
                       Cancelar
                     </Button>

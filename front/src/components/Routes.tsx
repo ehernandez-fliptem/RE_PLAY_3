@@ -25,6 +25,7 @@ import NuevoDispositivoHV from "./catalogos/dispositivos/NuevoDispositivoHV";
 import DetalleDispositivoHV from "./catalogos/dispositivos/DetalleDispositivoHV";
 import EditarDispositivoHV from "./catalogos/dispositivos/EditarDispositivoHV";
 import DispositivosBiostar from "./catalogos/dispositivos/DispositivosBiostar";
+import BiostararConexion from "./catalogos/dispositivos/BiostararConexion";
 import NuevoDispositivoBiostar from "./catalogos/dispositivos/NuevoDispositivoBiostar";
 import DetalleDispositivoBiostar from "./catalogos/dispositivos/DetalleDispositivoBiostar";
 import EditarDispositivoBiostar from "./catalogos/dispositivos/EditarDispositivoBiostar";
@@ -906,6 +907,19 @@ export default function Routes() {
     },
     {
       path: "/dispositivos-biostar/*",
+      element: <Navigate to="/biostarar/dispositivos" replace />,
+    },
+    {
+      path: "/biostarar/conexion",
+      element:
+        esSuper && habilitarIntegracionBiostar ? (
+          <BiostararConexion />
+        ) : (
+          <Unauthorized />
+        ),
+    },
+    {
+      path: "/biostarar/dispositivos/*",
       children: [
         {
           path: "",
