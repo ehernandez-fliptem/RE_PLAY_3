@@ -25,6 +25,7 @@ import NuevoDispositivoHV from "./catalogos/dispositivos/NuevoDispositivoHV";
 import DetalleDispositivoHV from "./catalogos/dispositivos/DetalleDispositivoHV";
 import EditarDispositivoHV from "./catalogos/dispositivos/EditarDispositivoHV";
 import DispositivosBiostar from "./catalogos/dispositivos/DispositivosBiostar";
+import BiostararConexion from "./catalogos/dispositivos/BiostararConexion";
 import NuevoDispositivoBiostar from "./catalogos/dispositivos/NuevoDispositivoBiostar";
 import DetalleDispositivoBiostar from "./catalogos/dispositivos/DetalleDispositivoBiostar";
 import EditarDispositivoBiostar from "./catalogos/dispositivos/EditarDispositivoBiostar";
@@ -909,51 +910,13 @@ export default function Routes() {
       element: <Navigate to="/biostarar/dispositivos" replace />,
     },
     {
-      path: "/biostarar/conexion/*",
-      children: [
-        {
-          path: "",
-          element:
-            esSuper && habilitarIntegracionBiostar ? (
-              <DispositivosBiostar />
-            ) : (
-              <Unauthorized />
-            ),
-          children: [
-            {
-              path: "nuevo-dispositivo",
-              element:
-                esSuper && habilitarIntegracionBiostar ? (
-                  <NuevoDispositivoBiostar />
-                ) : (
-                  <Unauthorized />
-                ),
-            },
-            {
-              path: "detalle-dispositivo/:id",
-              element:
-                esSuper && habilitarIntegracionBiostar ? (
-                  <DetalleDispositivoBiostar />
-                ) : (
-                  <Unauthorized />
-                ),
-            },
-            {
-              path: "editar-dispositivo/:id",
-              element:
-                esSuper && habilitarIntegracionBiostar ? (
-                  <EditarDispositivoBiostar />
-                ) : (
-                  <Unauthorized />
-                ),
-            },
-            {
-              path: "*",
-              element: <Unknown />,
-            },
-          ],
-        },
-      ],
+      path: "/biostarar/conexion",
+      element:
+        esSuper && habilitarIntegracionBiostar ? (
+          <BiostararConexion />
+        ) : (
+          <Unauthorized />
+        ),
     },
     {
       path: "/biostarar/dispositivos/*",
