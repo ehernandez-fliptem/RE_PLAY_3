@@ -909,13 +909,51 @@ export default function Routes() {
       element: <Navigate to="/biostarar/dispositivos" replace />,
     },
     {
-      path: "/biostarar/conexion",
-      element:
-        esSuper && habilitarIntegracionBiostar ? (
-          <DispositivosBiostar />
-        ) : (
-          <Unauthorized />
-        ),
+      path: "/biostarar/conexion/*",
+      children: [
+        {
+          path: "",
+          element:
+            esSuper && habilitarIntegracionBiostar ? (
+              <DispositivosBiostar />
+            ) : (
+              <Unauthorized />
+            ),
+          children: [
+            {
+              path: "nuevo-dispositivo",
+              element:
+                esSuper && habilitarIntegracionBiostar ? (
+                  <NuevoDispositivoBiostar />
+                ) : (
+                  <Unauthorized />
+                ),
+            },
+            {
+              path: "detalle-dispositivo/:id",
+              element:
+                esSuper && habilitarIntegracionBiostar ? (
+                  <DetalleDispositivoBiostar />
+                ) : (
+                  <Unauthorized />
+                ),
+            },
+            {
+              path: "editar-dispositivo/:id",
+              element:
+                esSuper && habilitarIntegracionBiostar ? (
+                  <EditarDispositivoBiostar />
+                ) : (
+                  <Unauthorized />
+                ),
+            },
+            {
+              path: "*",
+              element: <Unknown />,
+            },
+          ],
+        },
+      ],
     },
     {
       path: "/biostarar/dispositivos/*",
