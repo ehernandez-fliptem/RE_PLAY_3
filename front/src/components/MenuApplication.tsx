@@ -144,7 +144,8 @@ export default function MenuApplication({ children }: MenuProps) {
   const [selectedIndex, setSelectedIndex] = useState(
     pageIndex ? Number(pageIndex) : 0
   );
-  const [openItemList, setOpenItemList] = useState(
+  type OpenItemMap = Record<number, boolean>;
+  const [openItemList, setOpenItemList] = useState<OpenItemMap>(
     selectedIndex > 100
       ? {}
       : {}
@@ -231,7 +232,10 @@ export default function MenuApplication({ children }: MenuProps) {
   };
 
   const handleClick = (id: number) => {
-    setOpenItemList((prevState) => ({ ...prevState, [id]: !prevState[id] }));
+    setOpenItemList((prevState: OpenItemMap) => ({
+      ...prevState,
+      [id]: !prevState[id],
+    }));
   };
 
   const handleDrawerOpen = () => {
