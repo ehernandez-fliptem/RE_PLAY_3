@@ -32,7 +32,7 @@ export default function DispositivosSuprema() {
             pagination: JSON.stringify(params.paginationModel),
             sort: JSON.stringify(params.sortModel),
           });
-          const res = await clienteAxios.get("/api/dispositivos-biostar?" + urlParams.toString());
+          const res = await clienteAxios.get("/api/dispositivos-suprema?" + urlParams.toString());
           if (!res.data.estado) return { rows: [], rowCount: 0 };
           return {
             rows: res.data.datos.paginatedResults || [],
@@ -60,7 +60,7 @@ export default function DispositivosSuprema() {
 
   const cambiarEstado = async (ID: string, activo: boolean) => {
     try {
-      const res = await clienteAxios.patch(`/api/dispositivos-biostar/${ID}`, { activo });
+      const res = await clienteAxios.patch(`/api/dispositivos-suprema/${ID}`, { activo });
       if (res.data.estado) {
         apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
       } else {
@@ -86,7 +86,7 @@ export default function DispositivosSuprema() {
         didOpen: () => Swal.showLoading(),
       });
 
-      const res = await clienteAxios.post(`/api/dispositivos-biostar/probar-conexion/${ID}`, {});
+      const res = await clienteAxios.post(`/api/dispositivos-suprema/probar-conexion/${ID}`, {});
       Swal.close();
 
       if (res.data.estado) {
@@ -192,4 +192,5 @@ export default function DispositivosSuprema() {
     </div>
   );
 }
+
 

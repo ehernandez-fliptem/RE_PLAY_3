@@ -29,6 +29,9 @@ import DispositivosSuprema from "./catalogos/dispositivos/DispositivosSuprema";
 import NuevoDispositivoBiostar from "./catalogos/dispositivos/NuevoDispositivoBiostar";
 import DetalleDispositivoBiostar from "./catalogos/dispositivos/DetalleDispositivoBiostar";
 import EditarDispositivoBiostar from "./catalogos/dispositivos/EditarDispositivoBiostar";
+import NuevoDispositivoSuprema from "./catalogos/dispositivos/NuevoDispositivoSuprema";
+import DetalleDispositivoSuprema from "./catalogos/dispositivos/DetalleDispositivoSuprema";
+import EditarDispositivoSuprema from "./catalogos/dispositivos/EditarDispositivoSuprema";
 import Configuracion from "./catalogos/configuracion/Configuracion";
 import Directorio from "./recepcion/directorio/Directorio";
 import Bitacora from "./recepcion/bitacora/Bitacora";
@@ -925,7 +928,7 @@ export default function Routes() {
               path: "nuevo-dispositivo",
               element:
                 esSuper && habilitarIntegracionBiostar ? (
-                  <NuevoDispositivoBiostar />
+                  <NuevoDispositivoSuprema />
                 ) : (
                   <Unauthorized />
                 ),
@@ -934,7 +937,7 @@ export default function Routes() {
               path: "detalle-dispositivo/:id",
               element:
                 esSuper && habilitarIntegracionBiostar ? (
-                  <DetalleDispositivoBiostar />
+                  <DetalleDispositivoSuprema />
                 ) : (
                   <Unauthorized />
                 ),
@@ -943,7 +946,7 @@ export default function Routes() {
               path: "editar-dispositivo/:id",
               element:
                 esSuper && habilitarIntegracionBiostar ? (
-                  <EditarDispositivoBiostar />
+                  <EditarDispositivoSuprema />
                 ) : (
                   <Unauthorized />
                 ),
