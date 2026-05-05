@@ -25,6 +25,7 @@ import NuevoDispositivoHV from "./catalogos/dispositivos/NuevoDispositivoHV";
 import DetalleDispositivoHV from "./catalogos/dispositivos/DetalleDispositivoHV";
 import EditarDispositivoHV from "./catalogos/dispositivos/EditarDispositivoHV";
 import DispositivosBiostar from "./catalogos/dispositivos/DispositivosBiostar";
+import DispositivosSuprema from "./catalogos/dispositivos/DispositivosSuprema";
 import NuevoDispositivoBiostar from "./catalogos/dispositivos/NuevoDispositivoBiostar";
 import DetalleDispositivoBiostar from "./catalogos/dispositivos/DetalleDispositivoBiostar";
 import EditarDispositivoBiostar from "./catalogos/dispositivos/EditarDispositivoBiostar";
@@ -962,7 +963,7 @@ export default function Routes() {
           path: "",
           element:
             esSuper && habilitarIntegracionBiostar ? (
-              <DispositivosBiostar />
+              <DispositivosSuprema />
             ) : (
               <Unauthorized />
             ),
