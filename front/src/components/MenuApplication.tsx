@@ -146,8 +146,8 @@ export default function MenuApplication({ children }: MenuProps) {
   );
   const [openItemList, setOpenItemList] = useState(
     selectedIndex > 100
-      ? { [Math.trunc(selectedIndex)]: true }
-      : { [Math.trunc(selectedIndex)]: false }
+      ? {}
+      : {}
   );
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const { isOnline, NetworkBadge } = useNetworkStatus();
@@ -202,7 +202,7 @@ export default function MenuApplication({ children }: MenuProps) {
             (subM) => pathname.startsWith(subM.path)
           );
           if (foundSubMenu) {
-            setOpenItemList({ [Math.trunc(foundSubMenu.id)]: true });
+            setOpenItemList({ [menu.id]: true });
             setSelectedIndex(foundSubMenu.id);
             matched = true;
             break;
