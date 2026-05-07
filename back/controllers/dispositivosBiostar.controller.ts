@@ -345,15 +345,15 @@ function extractDeviceGroup(item: any): { grupo_id: string; grupo_nombre: string
   ).trim();
 
   if (!groupId && !groupName) {
-    return { grupo_id: "biostar-all-devices", grupo_nombre: "Grupo BioStar: All Devices" };
+    return { grupo_id: "1", grupo_nombre: "Predeterminado BioStar" };
   }
 
   const normalizedName = (groupName || "").toLowerCase().replace(/\s+/g, " ").trim();
   const isAllDevices = normalizedName === "all devices" || normalizedName === "all device";
   return {
-    grupo_id: isAllDevices ? "biostar-all-devices" : (groupId || "biostar-all-devices"),
+    grupo_id: isAllDevices ? "1" : (groupId || "1"),
     grupo_nombre: isAllDevices
-      ? "Grupo BioStar: All Devices"
+      ? "Predeterminado BioStar"
       : (groupName || `Grupo ${groupId}`),
   };
 }
@@ -1020,8 +1020,8 @@ export async function listarGruposDispositivosRemotos(_req: Request, res: Respon
 
     if (!hasAllDevices) {
       groups.unshift({
-        grupo_id: "biostar-all-devices",
-        grupo_nombre: "Grupo BioStar: All Devices",
+        grupo_id: "1",
+        grupo_nombre: "Predeterminado BioStar",
       });
     } else {
       rows = groups.map((g) => g);
@@ -1032,8 +1032,8 @@ export async function listarGruposDispositivosRemotos(_req: Request, res: Respon
         groups.map((g) => {
           const id = g.grupo_id || g.grupo_nombre;
           const name = (g.grupo_nombre || "").toLowerCase().replace(/\s+/g, " ").trim();
-          const normalizedName = name === "all devices" ? "Grupo BioStar: All Devices" : g.grupo_nombre;
-          const normalizedId = name === "all devices" ? "biostar-all-devices" : id;
+          const normalizedName = name === "all devices" ? "Predeterminado BioStar" : g.grupo_nombre;
+          const normalizedId = name === "all devices" ? "1" : id;
           return [normalizedId, { grupo_id: normalizedId, grupo_nombre: normalizedName || `Grupo ${normalizedId}` }];
         })
       ).values()

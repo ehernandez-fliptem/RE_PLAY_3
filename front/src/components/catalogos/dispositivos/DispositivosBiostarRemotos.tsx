@@ -54,6 +54,16 @@ export default function DispositivosBiostarRemotos() {
     puerto: 51211,
     grupo_id: "1",
   });
+
+  const gruposOrdenados = useMemo(() => {
+    const list = [...(grupos || [])];
+    const defaultIdx = list.findIndex((g) => String(g.grupo_id) === "1");
+    if (defaultIdx > -1) {
+      const [defaultGroup] = list.splice(defaultIdx, 1);
+      return [defaultGroup, ...list];
+    }
+    return list;
+  }, [grupos]);
   const [editarForm, setEditarForm] = useState({
     nombre: "",
     direccion_ip: "",
@@ -215,7 +225,7 @@ export default function DispositivosBiostarRemotos() {
   const rowsFiltrados = useMemo(() => {
     if (grupoSeleccionado === "todos") return rows;
     return rows.filter((row) => {
-      const rowGroup = String(row.grupo_id || "").trim() || "biostar-all-devices";
+      const rowGroup = String(row.grupo_id || "").trim() || "1";
       return rowGroup === grupoSeleccionado;
     });
   }, [rows, grupoSeleccionado]);
@@ -274,7 +284,7 @@ export default function DispositivosBiostarRemotos() {
                       onChange={(event) => setGrupoSeleccionado(String(event.target.value))}
                     >
                       <MenuItem value="todos">Todos</MenuItem>
-                      {(grupos || []).map((grupo) => (
+                      {(gruposOrdenados || []).map((grupo) => (
                         <MenuItem key={grupo.grupo_id} value={grupo.grupo_id}>
                           {grupo.grupo_nombre}
                         </MenuItem>
@@ -330,7 +340,7 @@ export default function DispositivosBiostarRemotos() {
                 label="Grupo"
                 onChange={(event) => setNuevoForm((prev) => ({ ...prev, grupo_id: String(event.target.value) }))}
               >
-                {(grupos || []).map((grupo) => (
+                {(gruposOrdenados || []).map((grupo) => (
                   <MenuItem key={grupo.grupo_id} value={grupo.grupo_id}>
                     {grupo.grupo_nombre}
                   </MenuItem>
@@ -382,7 +392,7 @@ export default function DispositivosBiostarRemotos() {
                 label="Grupo"
                 onChange={(event) => setEditarForm((prev) => ({ ...prev, grupo_id: String(event.target.value) }))}
               >
-                {(grupos || []).map((grupo) => (
+                {(gruposOrdenados || []).map((grupo) => (
                   <MenuItem key={grupo.grupo_id} value={grupo.grupo_id}>
                     {grupo.grupo_nombre}
                   </MenuItem>
