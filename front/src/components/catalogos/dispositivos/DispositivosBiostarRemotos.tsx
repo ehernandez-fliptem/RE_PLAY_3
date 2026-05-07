@@ -127,11 +127,15 @@ export default function DispositivosBiostarRemotos() {
 
   const crearDispositivo = async () => {
     const allGroup = grupos.find((g) => (g.grupo_nombre || "").toLowerCase().includes("all devices"));
+    const grupoInicial =
+      grupoSeleccionado && grupoSeleccionado !== "todos"
+        ? grupoSeleccionado
+        : allGroup?.grupo_id || "1";
     setNuevoForm({
       nombre: "",
       direccion_ip: "",
       puerto: 51211,
-      grupo_id: allGroup?.grupo_id || "1",
+      grupo_id: grupoInicial,
     });
     setOpenNuevo(true);
   };
