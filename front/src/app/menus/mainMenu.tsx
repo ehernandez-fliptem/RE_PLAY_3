@@ -375,7 +375,7 @@ const mainMenu = [
       },
       {
         id: 99.53,
-        title: "Grupos BioStar",
+        title: "Grupos de Usuarios BioStar",
         rol: [1],
         icon: <Group fontSize="small" />,
         submenu: [
