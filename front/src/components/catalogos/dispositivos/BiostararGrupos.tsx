@@ -14,6 +14,12 @@ type GrupoBiostar = {
   es_all_users: boolean;
 };
 
+function normalizarNombreGrupo(value: string): string {
+  const limpio = String(value || "").trim();
+  if (!limpio) return "";
+  return limpio.charAt(0).toUpperCase() + limpio.slice(1);
+}
+
 export default function BiostararGrupos() {
   const [rows, setRows] = useState<GrupoBiostar[]>([]);
   const [loading, setLoading] = useState(false);
@@ -71,7 +77,7 @@ export default function BiostararGrupos() {
         didOpen: () => Swal.showLoading(),
       });
 
-      const res = await clienteAxios.post("/api/biostar-grupos", { nombre: String(result.value).trim() });
+      const res = await clienteAxios.post("/api/biostar-grupos", { nombre: normalizarNombreGrupo(String(result.value)) });
       Swal.close();
 
       if (res.data.estado) {
@@ -108,7 +114,7 @@ export default function BiostararGrupos() {
         didOpen: () => Swal.showLoading(),
       });
       const res = await clienteAxios.put(`/api/biostar-grupos/${row.id_externo}`, {
-        nombre: String(result.value).trim(),
+        nombre: normalizarNombreGrupo(String(result.value)),
       });
       Swal.close();
       if (res.data.estado) {
@@ -200,10 +206,17 @@ export default function BiostararGrupos() {
         columns={columns}
         getRowId={(row) => row.id_externo}
         loading={loading}
-        disableRowSelectionOnClick
         disableColumnFilter
         pageSizeOptions={[10, 25, 50]}
         initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+        sx={{
+          "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within": {
+            outline: "none",
+          },
+          "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
+            outline: "none",
+          },
+        }}
         localeText={{
           ...esES.components.MuiDataGrid.defaultProps.localeText,
           toolbarColumns: "",
