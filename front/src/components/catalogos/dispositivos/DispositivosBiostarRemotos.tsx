@@ -403,9 +403,6 @@ export default function DispositivosBiostarRemotos() {
           <Button onClick={() => setOpenNuevo(false)} disabled={guardandoNuevo || buscandoNuevo}>
             Cancelar
           </Button>
-          <Button onClick={buscarDispositivosNuevo} disabled variant="outlined">
-            {buscandoNuevo ? "Buscando..." : "Buscar dispositivos"}
-          </Button>
           <Button onClick={guardarNuevoDispositivo} disabled={guardandoNuevo || buscandoNuevo} variant="contained">
             {guardandoNuevo ? "Guardando..." : "Guardar"}
           </Button>
