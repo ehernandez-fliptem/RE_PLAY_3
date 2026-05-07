@@ -18,14 +18,30 @@ async function getBiostarConexionActiva(): Promise<any | null> {
     fecha_creacion: -1,
     _id: -1,
   });
-  if (main) return main;
-
-  const conexion = await BiostarConexion.findOne({ activo: true }).sort({
+  const conexionGlobal = await BiostarConexion.findOne({ activo: true }).sort({
     fecha_modificacion: -1,
     fecha_creacion: -1,
     _id: -1,
   });
-  return conexion || null;
+  const activa = await DispositivosBiostar.findOne({ activo: true }).sort({
+    fecha_modificacion: -1,
+    fecha_creacion: -1,
+    _id: -1,
+  });
+
+  const candidates = [main, conexionGlobal, activa].filter(Boolean) as any[];
+  const tried = new Set<string>();
+
+  for (const candidate of candidates) {
+    const key = `${candidate?.constructor?.modelName || "unknown"}:${String(candidate?._id || "")}`;
+    if (tried.has(key)) continue;
+    tried.add(key);
+
+    const ping = await biostarRequest(candidate as any, { method: "GET", url: "/api/user_groups" });
+    if (ping.ok) return candidate;
+  }
+
+  return candidates[0] || null;
 }
 
 function extractBiostarMessage(payload: any): string {

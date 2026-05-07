@@ -404,29 +404,35 @@ function getBiostarResponseMessage(payload: any): string {
 }
 
 async function getBiostarConexionActiva(): Promise<any | null> {
-  // Prioridad 1: conexion principal del catalogo de Conexiones.
   const conexionMain = await DispositivosBiostar.findOne({ activo: true, es_main: true }).sort({
     fecha_modificacion: -1,
     fecha_creacion: -1,
     _id: -1,
   });
-  if (conexionMain) return conexionMain;
-
-  // Prioridad 2: cualquier conexion activa del catalogo de Conexiones.
   const conexionActiva = await DispositivosBiostar.findOne({ activo: true }).sort({
     fecha_modificacion: -1,
     fecha_creacion: -1,
     _id: -1,
   });
-  if (conexionActiva) return conexionActiva;
-
-  // Prioridad 3: conexion global (compatibilidad).
   const conexionGlobal = await BiostarConexion.findOne({ activo: true }).sort({
     fecha_modificacion: -1,
     fecha_creacion: -1,
     _id: -1,
   });
-  return conexionGlobal || null;
+
+  const candidates = [conexionMain, conexionGlobal, conexionActiva].filter(Boolean) as any[];
+  const tried = new Set<string>();
+
+  for (const candidate of candidates) {
+    const key = `${candidate?.constructor?.modelName || "unknown"}:${String(candidate?._id || "")}`;
+    if (tried.has(key)) continue;
+    tried.add(key);
+
+    const ping = await biostarRequest(candidate as any, { method: "GET", url: "/api/user_groups" });
+    if (ping.ok) return candidate;
+  }
+
+  return candidates[0] || null;
 }
 
 export async function establecerMain(req: Request, res: Response): Promise<void> {
