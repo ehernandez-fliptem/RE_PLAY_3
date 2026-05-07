@@ -92,7 +92,25 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
     );
 
     const registros = await DispositivosBiostar.aggregate(aggregation);
-    res.status(200).json({ estado: true, datos: registros[0] });
+    const resultado = registros[0] || { paginatedResults: [], totalCount: [] };
+
+    // Auto-recuperar sesion para conexiones activas que aparezcan sin sesion.
+    // Asi la vista de Gestion de Dispositivos BioStar se mantiene activa sin prueba manual.
+    for (const row of resultado.paginatedResults || []) {
+      if (!row?._id || !row?.activo || row?.session_activa) continue;
+      try {
+        const registro = await DispositivosBiostar.findById(row._id);
+        if (!registro) continue;
+        const test = await probarConexionBiostar(registro as any);
+        if (test.ok) {
+          row.session_activa = true;
+        }
+      } catch (_e) {
+        // Sin bloquear el listado si una conexion puntual falla.
+      }
+    }
+
+    res.status(200).json({ estado: true, datos: resultado });
   } catch (error: any) {
     log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
     res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
