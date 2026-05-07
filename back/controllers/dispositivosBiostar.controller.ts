@@ -323,6 +323,47 @@ function parseDiscoveryRows(payload: any): any[] {
   return (candidates.find((value) => Array.isArray(value)) || []) as any[];
 }
 
+function extractDeviceGroup(item: any): { grupo_id: string; grupo_nombre: string } {
+  const groupObj = item?.device_group || item?.group || item?.deviceGroup || null;
+  const groupId = String(
+    groupObj?.id ||
+      groupObj?.device_group_id ||
+      item?.device_group_id ||
+      item?.group_id ||
+      ""
+  ).trim();
+  const groupName = String(
+    groupObj?.name ||
+      groupObj?.group_name ||
+      item?.device_group_name ||
+      item?.group_name ||
+      ""
+  ).trim();
+
+  if (!groupId && !groupName) {
+    return { grupo_id: "biostar-all-devices", grupo_nombre: "Grupo BioStar: All Devices" };
+  }
+
+  const normalizedName = (groupName || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const isAllDevices = normalizedName === "all devices" || normalizedName === "all device";
+  return {
+    grupo_id: isAllDevices ? "biostar-all-devices" : (groupId || "biostar-all-devices"),
+    grupo_nombre: isAllDevices
+      ? "Grupo BioStar: All Devices"
+      : (groupName || `Grupo ${groupId}`),
+  };
+}
+
+function parseDeviceGroupsRows(payload: any): any[] {
+  const candidates = [
+    payload?.DeviceGroupCollection?.rows,
+    payload?.DeviceGroupCollection?.device_groups,
+    payload?.rows,
+    payload?.device_groups,
+  ];
+  return (candidates.find((value) => Array.isArray(value)) || []) as any[];
+}
+
 async function getBiostarConexionActiva(): Promise<any | null> {
   const conexion = await BiostarConexion.findOne({ activo: true }).sort({
     fecha_modificacion: -1,
@@ -593,15 +634,20 @@ export async function listarDispositivosRemotos(req: Request, res: Response): Pr
     }
 
     const rows = parseRemoteDeviceRows(success.data);
-    const mapped = rows.map((item: any) => ({
+    const mapped = rows.map((item: any) => {
+      const group = extractDeviceGroup(item);
+      return {
       id_externo: String(item?.id || item?.device_id || item?.deviceID || ""),
       nombre: String(item?.name || item?.device_name || "").trim(),
       direccion_ip: String(item?.ip_address || item?.ip || "").trim(),
       puerto: Number(item?.port || item?.server_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
       tipo: String(item?.device_type || item?.type || tipo || "all"),
       modelo: String(item?.model_name || item?.model || "").trim(),
+      grupo_id: group.grupo_id,
+      grupo_nombre: group.grupo_nombre,
       raw: item,
-    }));
+      };
+    });
 
     res.status(200).json({ estado: true, datos: mapped });
   } catch (error: any) {
@@ -644,15 +690,20 @@ export async function buscarDispositivoRemoto(req: Request, res: Response): Prom
       rows = allRows.filter((item: any) => String(item?.ip_address || item?.ip || "").trim() === direccion_ip);
     }
 
-    const mapped = rows.map((item: any) => ({
+    const mapped = rows.map((item: any) => {
+      const group = extractDeviceGroup(item);
+      return {
       id_externo: String(item?.id || item?.device_id || item?.deviceID || ""),
       nombre: String(item?.name || item?.device_name || "").trim(),
       direccion_ip: String(item?.ip_address || item?.ip || "").trim(),
       puerto: Number(item?.port || item?.server_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
       tipo: String(item?.device_type || item?.type || "all"),
       modelo: String(item?.model_name || item?.model || "").trim(),
+      grupo_id: group.grupo_id,
+      grupo_nombre: group.grupo_nombre,
       raw: item,
-    }));
+      };
+    });
 
     res.status(200).json({ estado: true, datos: mapped });
   } catch (error: any) {
@@ -751,17 +802,83 @@ export async function descubrirDispositivosRemotos(req: Request, res: Response):
       }
     }
 
-    const mapped = rows.map((item: any) => ({
+    const mapped = rows.map((item: any) => {
+      const group = extractDeviceGroup(item);
+      return {
       id_externo: String(item?.id || item?.device_id || item?.deviceID || ""),
       nombre: String(item?.name || item?.device_name || "").trim(),
       direccion_ip: String(item?.ip_address || item?.ip || "").trim(),
       puerto: Number(item?.port || item?.server_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
       tipo: String(item?.device_type || item?.type || "all"),
       modelo: String(item?.model_name || item?.model || "").trim(),
+      grupo_id: group.grupo_id,
+      grupo_nombre: group.grupo_nombre,
       raw: item,
-    }));
+      };
+    });
 
     res.status(200).json({ estado: true, datos: mapped, mensaje: mapped.length ? "" : lastMessage });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function listarGruposDispositivosRemotos(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const responses = await Promise.all([
+      biostarRequest(conexion as any, {
+        method: "POST",
+        url: "/api/v2/device_groups/search",
+        data: { limit: 1000, offset: 0 },
+      }),
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/device_groups/search", data: {} }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/device_groups?limit=1000" }),
+    ]);
+
+    const success = responses.find((item) => item.ok);
+    let rows: any[] = success ? parseDeviceGroupsRows(success.data) : [];
+
+    const groups = rows
+      .map((item: any) => ({
+        grupo_id: String(item?.id || item?.device_group_id || "").trim(),
+        grupo_nombre: String(item?.name || item?.group_name || "").trim(),
+      }))
+      .filter((item) => item.grupo_id || item.grupo_nombre);
+
+    const hasAllDevices = groups.some(
+      (g) => (g.grupo_nombre || "").toLowerCase().replace(/\s+/g, " ").trim() === "all devices"
+    );
+
+    if (!hasAllDevices) {
+      groups.unshift({
+        grupo_id: "biostar-all-devices",
+        grupo_nombre: "Grupo BioStar: All Devices",
+      });
+    } else {
+      rows = groups.map((g) => g);
+    }
+
+    const unique = Array.from(
+      new Map(
+        groups.map((g) => {
+          const id = g.grupo_id || g.grupo_nombre;
+          const name = (g.grupo_nombre || "").toLowerCase().replace(/\s+/g, " ").trim();
+          const normalizedName = name === "all devices" ? "Grupo BioStar: All Devices" : g.grupo_nombre;
+          const normalizedId = name === "all devices" ? "biostar-all-devices" : id;
+          return [normalizedId, { grupo_id: normalizedId, grupo_nombre: normalizedName || `Grupo ${normalizedId}` }];
+        })
+      ).values()
+    );
+
+    unique.sort((a, b) => a.grupo_nombre.localeCompare(b.grupo_nombre));
+    res.status(200).json({ estado: true, datos: unique });
   } catch (error: any) {
     log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
     res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });

@@ -20,6 +20,7 @@ import {
   editarDispositivoRemoto,
   eliminarDispositivoRemoto,
   descubrirDispositivosRemotos,
+  listarGruposDispositivosRemotos,
 } from "../controllers/dispositivosBiostar.controller";
 
 const router = Router();
@@ -34,6 +35,7 @@ router.post("/", validarTokenYRol([1], true), crear);
 router.post("/probar-conexion", validarTokenYRol([1], true), probarConexion);
 router.post("/probar-conexion/:id", validarTokenYRol([1], true), probarConexion);
 router.get("/remotos", validarTokenYRol([1], true), listarDispositivosRemotos);
+router.get("/remotos/grupos", validarTokenYRol([1], true), listarGruposDispositivosRemotos);
 router.post("/remotos/descubrir", validarTokenYRol([1], true), descubrirDispositivosRemotos);
 router.post("/remotos/buscar", validarTokenYRol([1], true), buscarDispositivoRemoto);
 router.post("/remotos", validarTokenYRol([1], true), crearDispositivoRemoto);

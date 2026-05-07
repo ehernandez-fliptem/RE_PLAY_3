@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DataGrid, GridActionsCellItem, type GridColDef } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
 import { Add, Delete, Edit, Search, Sync } from "@mui/icons-material";
-import { IconButton, Tooltip } from "@mui/material";
+import { Box, FormControl, IconButton, InputLabel, MenuItem, Select, Tooltip } from "@mui/material";
 import Swal from "sweetalert2";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
@@ -14,11 +14,34 @@ interface RemoteDevice {
   puerto: number;
   tipo?: string;
   modelo?: string;
+  grupo_id?: string;
+  grupo_nombre?: string;
+}
+
+interface RemoteGroup {
+  grupo_id: string;
+  grupo_nombre: string;
 }
 
 export default function DispositivosBiostarRemotos() {
   const [rows, setRows] = useState<RemoteDevice[]>([]);
+  const [grupos, setGrupos] = useState<RemoteGroup[]>([]);
+  const [grupoSeleccionado, setGrupoSeleccionado] = useState<string>("todos");
   const [loading, setLoading] = useState(false);
+
+  const cargarGrupos = async () => {
+    try {
+      const res = await clienteAxios.get("/api/dispositivos-biostar/remotos/grupos");
+      if (!res.data.estado) {
+        setGrupos([]);
+        return;
+      }
+      setGrupos(res.data.datos || []);
+    } catch (error) {
+      handlingError(error);
+      setGrupos([]);
+    }
+  };
 
   const cargarTodos = async () => {
     setLoading(true);
@@ -81,19 +104,38 @@ export default function DispositivosBiostarRemotos() {
     const buscarDispositivos = async (): Promise<RemoteDevice[]> => {
       Swal.fire({
         title: "Buscando dispositivos...",
-        text: "Espera 3 segundos",
         allowOutsideClick: false,
         allowEscapeKey: false,
         showConfirmButton: false,
         didOpen: () => Swal.showLoading(),
       });
       try {
-        const discoveryRes = await clienteAxios.post("/api/dispositivos-biostar/remotos/descubrir", {
-          segundos: 3,
-          solo_nuevos: true,
-        });
+        const discoveryRes = await Promise.race([
+          clienteAxios.post(
+            "/api/dispositivos-biostar/remotos/descubrir",
+            {
+              segundos: 3,
+              solo_nuevos: true,
+            },
+            { timeout: 12000 }
+          ),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error("timeout-discovery")), 13000);
+          }),
+        ]);
         return (discoveryRes.data?.datos || []) as RemoteDevice[];
       } catch (error) {
+        const errorMessage =
+          error instanceof Error && error.message === "timeout-discovery"
+            ? "La busqueda tardo demasiado. Intenta de nuevo o agrega manualmente."
+            : null;
+        if (errorMessage) {
+          await Swal.fire({
+            icon: "warning",
+            title: "Busqueda detenida",
+            text: errorMessage,
+          });
+        }
         handlingError(error);
         return [];
       } finally {
@@ -304,14 +346,24 @@ export default function DispositivosBiostarRemotos() {
   };
 
   useEffect(() => {
+    cargarGrupos();
     cargarTodos();
   }, []);
+
+  const rowsFiltrados = useMemo(() => {
+    if (grupoSeleccionado === "todos") return rows;
+    return rows.filter((row) => {
+      const rowGroup = String(row.grupo_id || "").trim() || "biostar-all-devices";
+      return rowGroup === grupoSeleccionado;
+    });
+  }, [rows, grupoSeleccionado]);
 
   const columns = useMemo<GridColDef<RemoteDevice>[]>(
     () => [
       { field: "nombre", headerName: "Nombre", flex: 1, minWidth: 180 },
       { field: "direccion_ip", headerName: "IP", flex: 1, minWidth: 150 },
       { field: "puerto", headerName: "Puerto", flex: 0.5, minWidth: 95 },
+      { field: "grupo_nombre", headerName: "Grupo", flex: 1, minWidth: 180 },
       { field: "tipo", headerName: "Tipo", flex: 0.7, minWidth: 120 },
       { field: "modelo", headerName: "Modelo", flex: 1, minWidth: 150 },
       {
@@ -332,7 +384,7 @@ export default function DispositivosBiostarRemotos() {
   return (
     <div style={{ minHeight: 450 }}>
       <DataGrid
-        rows={rows}
+        rows={rowsFiltrados}
         getRowId={(row) => row.id_externo || `${row.direccion_ip}-${row.puerto}`}
         columns={columns}
         disableColumnFilter
@@ -354,9 +406,25 @@ export default function DispositivosBiostarRemotos() {
             <DataGridToolbar
               tableTitle="Gestion de Dispositivos BioStar"
               customActionButtons={
-                <>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <FormControl size="small" sx={{ minWidth: 240 }}>
+                    <InputLabel id="bio-device-group-label">Grupo de dispositivos</InputLabel>
+                    <Select
+                      labelId="bio-device-group-label"
+                      value={grupoSeleccionado}
+                      label="Grupo de dispositivos"
+                      onChange={(event) => setGrupoSeleccionado(String(event.target.value))}
+                    >
+                      <MenuItem value="todos">Todos</MenuItem>
+                      {(grupos || []).map((grupo) => (
+                        <MenuItem key={grupo.grupo_id} value={grupo.grupo_id}>
+                          {grupo.grupo_nombre}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                   <Tooltip title="Recargar (all)">
-                    <IconButton size="small" onClick={cargarTodos}>
+                    <IconButton size="small" onClick={async () => { await cargarGrupos(); await cargarTodos(); }}>
                       <Sync />
                     </IconButton>
                   </Tooltip>
@@ -370,7 +438,7 @@ export default function DispositivosBiostarRemotos() {
                       <Add />
                     </IconButton>
                   </Tooltip>
-                </>
+                </Box>
               }
             />
           ),
