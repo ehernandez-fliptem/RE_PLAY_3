@@ -657,19 +657,32 @@ export async function listarDispositivosRemotos(req: Request, res: Response): Pr
 
     const tipo = String(req.query.tipo || "all").trim() || "all";
     const responses = await Promise.all([
+      biostarRequest(conexion as any, { method: "POST", url: "/api/devices", data: {} }),
+      biostarRequest(conexion as any, { method: "POST", url: "/api/devices", data: { Device: {} } }),
+      biostarRequest(conexion as any, { method: "POST", url: "/api/devices/search", data: {} }),
       biostarRequest(conexion as any, { method: "GET", url: `/api/devices?limit=1000&device_type=${encodeURIComponent(tipo)}` }),
       biostarRequest(conexion as any, { method: "GET", url: `/api/devices?limit=1000` }),
       biostarRequest(conexion as any, { method: "POST", url: "/api/devices/search", data: { device_type: tipo } }),
     ]);
 
-    const success = responses.find((item) => item.ok);
-    if (!success) {
+    const successful = responses.filter((item) => item.ok);
+    if (!successful.length) {
       const message = responses.find((item) => !item.ok)?.message || "No se pudo consultar dispositivos en BioStar.";
       res.status(200).json({ estado: false, mensaje: message });
       return;
     }
 
-    const rows = parseRemoteDeviceRows(success.data);
+    let rows: any[] = [];
+    for (const item of successful) {
+      const parsed = parseRemoteDeviceRows(item.data);
+      if (parsed.length) {
+        rows = parsed;
+        break;
+      }
+    }
+    if (!rows.length) {
+      rows = parseRemoteDeviceRows(successful[0]?.data);
+    }
     const mapped = rows.map((item: any) => {
       const group = extractDeviceGroup(item);
       return {
@@ -714,6 +727,11 @@ export async function buscarDispositivoRemoto(req: Request, res: Response): Prom
         url: "/api/devices/tcp_search",
         data: { Device: { lan: { ip: direccion_ip, device_port: String(puerto) } } },
       }),
+      biostarRequest(conexion as any, {
+        method: "POST",
+        url: "/api/devices",
+        data: { Device: { lan: { ip: direccion_ip, device_port: String(puerto) } } },
+      }),
       biostarRequest(conexion as any, { method: "POST", url: "/api/devices/search", data: { ip_address: direccion_ip, port: puerto } }),
       biostarRequest(conexion as any, { method: "POST", url: "/api/devices/search", data: { device: { ip_address: direccion_ip, port: puerto } } }),
       biostarRequest(conexion as any, { method: "GET", url: `/api/devices?limit=1000&device_type=all` }),
@@ -727,8 +745,8 @@ export async function buscarDispositivoRemoto(req: Request, res: Response): Prom
     }
 
     let rows = parseRemoteDeviceRows(success.data);
-    if (rows.length === 0 && responses[2]?.ok) {
-      const allRows = parseRemoteDeviceRows(responses[2].data);
+    if (rows.length === 0 && responses[4]?.ok) {
+      const allRows = parseRemoteDeviceRows(responses[4].data);
       rows = allRows.filter((item: any) => String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim() === direccion_ip);
     }
 
