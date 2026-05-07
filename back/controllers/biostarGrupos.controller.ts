@@ -179,7 +179,7 @@ export async function crearGrupoBiostar(req: Request, res: Response): Promise<vo
         (g) => g.nombre.trim().toLowerCase() === nombre.toLowerCase()
       );
       if (yaExiste) {
-        res.status(200).json({ estado: true, mensaje: "El grupo ya esta registrado." });
+        res.status(200).json({ estado: false, mensaje: "No se creo el grupo porque ya existe uno con ese nombre." });
         return;
       }
     }

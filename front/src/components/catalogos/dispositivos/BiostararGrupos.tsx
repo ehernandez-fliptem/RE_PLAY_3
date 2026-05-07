@@ -104,7 +104,15 @@ export default function BiostararGrupos() {
         await Swal.fire({ icon: "success", title: "Grupo creado", text: res.data.mensaje || "Operacion correcta." });
         await cargar();
       } else {
-        await Swal.fire({ icon: "error", title: "No se pudo crear", text: res.data.mensaje || "Operacion fallida." });
+        const mensaje = String(res.data.mensaje || "");
+        const yaExiste = mensaje.toLowerCase().includes("ya existe");
+        await Swal.fire({
+          icon: "error",
+          title: yaExiste ? "Grupo existente" : "No se pudo crear",
+          text: yaExiste
+            ? "No se creo el grupo porque ya existe uno con ese nombre."
+            : (res.data.mensaje || "Operacion fallida."),
+        });
       }
     } catch (error) {
       Swal.close();
