@@ -657,6 +657,7 @@ export async function listarDispositivosRemotos(req: Request, res: Response): Pr
       puerto: Number(item?.port || item?.server_port || item?.lan?.device_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
       tipo: String(item?.device_type || item?.type || tipo || "all"),
       modelo: String(item?.model_name || item?.model || "").trim(),
+      estatus: String(item?.status || item?.device_status || item?.connection_status || "unknown").trim(),
       grupo_id: group.grupo_id,
       grupo_nombre: group.grupo_nombre,
       raw: item,
@@ -718,6 +719,7 @@ export async function buscarDispositivoRemoto(req: Request, res: Response): Prom
       puerto: Number(item?.port || item?.server_port || item?.lan?.device_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
       tipo: String(item?.device_type || item?.type || "all"),
       modelo: String(item?.model_name || item?.model || "").trim(),
+      estatus: String(item?.status || item?.device_status || item?.connection_status || "unknown").trim(),
       grupo_id: group.grupo_id,
       grupo_nombre: group.grupo_nombre,
       raw: item,
@@ -973,6 +975,7 @@ export async function descubrirDispositivosRemotos(req: Request, res: Response):
       puerto: Number(item?.port || item?.server_port || item?.lan?.device_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
       tipo: String(item?.device_type || item?.type || "all"),
       modelo: String(item?.model_name || item?.model || "").trim(),
+      estatus: String(item?.status || item?.device_status || item?.connection_status || "unknown").trim(),
       grupo_id: group.grupo_id,
       grupo_nombre: group.grupo_nombre,
       raw: item,
@@ -980,6 +983,105 @@ export async function descubrirDispositivosRemotos(req: Request, res: Response):
     });
 
     res.status(200).json({ estado: true, datos: mapped, mensaje: mapped.length ? "" : lastMessage });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function reconectarDispositivoRemoto(req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(200).json({ estado: false, mensaje: "ID de dispositivo invalido." });
+      return;
+    }
+
+    const numericId = Number(id);
+    const disconnectAttempts = [
+      { method: "POST", url: `/api/devices/${id}/disconnect`, data: { id: Number.isFinite(numericId) ? numericId : id } },
+      { method: "POST", url: `/api/devices/${id}/disconnect`, data: { id } },
+      { method: "POST", url: `/api/devices/${id}/disconnect`, data: {} },
+    ];
+    let lastMessage = "No se pudo desconectar el dispositivo.";
+    let disconnected = false;
+    for (const attempt of disconnectAttempts) {
+      const r = await biostarRequest(conexion as any, attempt as any);
+      if (r.ok) {
+        disconnected = true;
+        break;
+      }
+      lastMessage = getBiostarResponseMessage(r.data) || r.message || lastMessage;
+    }
+    if (!disconnected) {
+      res.status(200).json({ estado: false, mensaje: lastMessage });
+      return;
+    }
+
+    const connectAttempts = [
+      { method: "POST", url: `/api/devices/${id}/connect`, data: { id: Number.isFinite(numericId) ? numericId : id } },
+      { method: "POST", url: `/api/devices/${id}/connect`, data: { id } },
+      { method: "POST", url: `/api/devices/${id}/connect`, data: {} },
+    ];
+    lastMessage = "No se pudo reconectar el dispositivo.";
+    for (const attempt of connectAttempts) {
+      const r = await biostarRequest(conexion as any, attempt as any);
+      if (r.ok) {
+        res.status(200).json({ estado: true, mensaje: "Reconectado correctamente." });
+        return;
+      }
+      lastMessage = getBiostarResponseMessage(r.data) || r.message || lastMessage;
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastMessage });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function sincronizarDispositivoRemoto(req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(200).json({ estado: false, mensaje: "ID de dispositivo invalido." });
+      return;
+    }
+
+    const numericId = Number(id);
+    const payloadId = Number.isFinite(numericId) ? numericId : id;
+
+    const attempts = [
+      { method: "POST", url: "/api/devices/sync", data: { DeviceCollection: { total: 1, rows: [{ id: payloadId }] } } },
+      { method: "POST", url: "/api/devices/sync", data: { DeviceCollection: { rows: [{ id: payloadId }] } } },
+      { method: "POST", url: "/api/devices/sync", data: { Device: { id } } },
+      { method: "POST", url: "/api/devices/sync", data: { id } },
+      { method: "POST", url: `/api/devices/${id}/sync`, data: {} },
+    ];
+
+    let lastMessage = "No se pudo sincronizar el dispositivo.";
+    for (const attempt of attempts) {
+      const r = await biostarRequest(conexion as any, attempt as any);
+      if (r.ok) {
+        res.status(200).json({ estado: true, mensaje: "Sincronización enviada correctamente." });
+        return;
+      }
+      lastMessage = getBiostarResponseMessage(r.data) || r.message || lastMessage;
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastMessage });
   } catch (error: any) {
     log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
     res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });

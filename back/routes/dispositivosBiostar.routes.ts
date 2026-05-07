@@ -21,6 +21,8 @@ import {
   eliminarDispositivoRemoto,
   descubrirDispositivosRemotos,
   listarGruposDispositivosRemotos,
+  reconectarDispositivoRemoto,
+  sincronizarDispositivoRemoto,
 } from "../controllers/dispositivosBiostar.controller";
 
 const router = Router();
@@ -39,6 +41,8 @@ router.get("/remotos/grupos", validarTokenYRol([1], true), listarGruposDispositi
 router.post("/remotos/descubrir", validarTokenYRol([1], true), descubrirDispositivosRemotos);
 router.post("/remotos/buscar", validarTokenYRol([1], true), buscarDispositivoRemoto);
 router.post("/remotos", validarTokenYRol([1], true), crearDispositivoRemoto);
+router.post("/remotos/:id/reconnect", validarTokenYRol([1], true), reconectarDispositivoRemoto);
+router.post("/remotos/:id/sync", validarTokenYRol([1], true), sincronizarDispositivoRemoto);
 router.put("/remotos/:id", validarTokenYRol([1], true), editarDispositivoRemoto);
 router.delete("/remotos/:id", validarTokenYRol([1], true), eliminarDispositivoRemoto);
 router.get("/:id", validarTokenYRol([1], true), obtenerUno);

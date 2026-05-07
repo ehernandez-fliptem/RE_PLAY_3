@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DataGrid, GridActionsCellItem, type GridColDef } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
-import { Add, Delete, Edit, Sync } from "@mui/icons-material";
+import { Add, Delete, Edit, Sync, Autorenew } from "@mui/icons-material";
 import {
   Box,
   Button,
@@ -31,6 +31,7 @@ interface RemoteDevice {
   modelo?: string;
   grupo_id?: string;
   grupo_nombre?: string;
+  estatus?: string;
 }
 
 interface RemoteGroup {
@@ -217,6 +218,34 @@ export default function DispositivosBiostarRemotos() {
     }
   };
 
+  const reconectarDispositivo = async (row: RemoteDevice) => {
+    try {
+      const res = await clienteAxios.post(`/api/dispositivos-biostar/remotos/${row.id_externo}/reconnect`, {});
+      if (!res.data.estado) {
+        await Swal.fire({ icon: "error", title: "No se pudo reconectar", text: res.data.mensaje || "No se pudo reconectar el dispositivo." });
+        return;
+      }
+      await Swal.fire({ icon: "success", title: "Reconexión enviada", text: res.data.mensaje || "Operación completada." });
+      await cargarTodos();
+    } catch (error) {
+      handlingError(error);
+    }
+  };
+
+  const sincronizarDispositivo = async (row: RemoteDevice) => {
+    try {
+      const res = await clienteAxios.post(`/api/dispositivos-biostar/remotos/${row.id_externo}/sync`, {});
+      if (!res.data.estado) {
+        await Swal.fire({ icon: "error", title: "No se pudo sincronizar", text: res.data.mensaje || "No se pudo sincronizar el dispositivo." });
+        return;
+      }
+      await Swal.fire({ icon: "success", title: "Sincronización enviada", text: res.data.mensaje || "Operación completada." });
+      await cargarTodos();
+    } catch (error) {
+      handlingError(error);
+    }
+  };
+
   useEffect(() => {
     cargarGrupos();
     cargarTodos();
@@ -251,6 +280,17 @@ export default function DispositivosBiostarRemotos() {
     const base: GridColDef<RemoteDevice>[] = [
       { field: "nombre", headerName: "Nombre del dispositivo", flex: 1, minWidth: 220 },
       { field: "direccion_ip", headerName: "IP", flex: 1, minWidth: 150 },
+      {
+        field: "estatus",
+        headerName: "Estatus",
+        flex: 0.7,
+        minWidth: 130,
+        valueGetter: (_value, row) => {
+          const val = String(row?.estatus || "").trim();
+          if (!val) return "Unknown";
+          return val.charAt(0).toUpperCase() + val.slice(1).toLowerCase();
+        },
+      },
     ];
 
     if (grupoSeleccionado === "todos") {
@@ -274,6 +314,8 @@ export default function DispositivosBiostarRemotos() {
       minWidth: 140,
       getActions: ({ row }) => [
         <GridActionsCellItem icon={<Edit color="primary" />} label="Editar" onClick={() => editarDispositivo(row)} />,
+        <GridActionsCellItem icon={<Autorenew color="info" />} label="Reconnect" onClick={() => reconectarDispositivo(row)} showInMenu={false} />,
+        <GridActionsCellItem icon={<Sync color="info" />} label="Sync Device" onClick={() => sincronizarDispositivo(row)} showInMenu={false} />,
         <GridActionsCellItem icon={<Delete color="error" />} label="Eliminar" onClick={() => eliminarDispositivo(row)} />,
       ],
     });
