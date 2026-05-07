@@ -45,7 +45,16 @@ export default function DispositivosBiostarRemotos() {
   const [loading, setLoading] = useState(false);
   const [openNuevo, setOpenNuevo] = useState(false);
   const [guardandoNuevo, setGuardandoNuevo] = useState(false);
+  const [openEditar, setOpenEditar] = useState(false);
+  const [guardandoEditar, setGuardandoEditar] = useState(false);
+  const [editandoId, setEditandoId] = useState<string>("");
   const [nuevoForm, setNuevoForm] = useState({
+    nombre: "",
+    direccion_ip: "",
+    puerto: 51211,
+    grupo_id: "1",
+  });
+  const [editarForm, setEditarForm] = useState({
     nombre: "",
     direccion_ip: "",
     puerto: 51211,
@@ -128,40 +137,48 @@ export default function DispositivosBiostarRemotos() {
   };
 
   const editarDispositivo = async (row: RemoteDevice) => {
-    const result = await Swal.fire({
-      title: "Editar dispositivo",
-      html: `
-        <input id="bio-edit-name" class="swal2-input" placeholder="Nombre" value="${row.nombre || ""}" autocomplete="off">
-        <input id="bio-edit-ip" class="swal2-input" placeholder="Direccion IP" value="${row.direccion_ip || ""}" autocomplete="off">
-        <input id="bio-edit-port" class="swal2-input" placeholder="Puerto" value="${row.puerto || 51211}" autocomplete="off">
-      `,
-      showCancelButton: true,
-      confirmButtonText: "Guardar",
-      cancelButtonText: "Cancelar",
-      preConfirm: () => {
-        const nombre = (document.getElementById("bio-edit-name") as HTMLInputElement)?.value?.trim();
-        const direccion_ip = (document.getElementById("bio-edit-ip") as HTMLInputElement)?.value?.trim();
-        const puerto = Number((document.getElementById("bio-edit-port") as HTMLInputElement)?.value || 51211);
-        if (!direccion_ip) {
-          Swal.showValidationMessage("La direccion IP es obligatoria.");
-          return null;
-        }
-        return { nombre, direccion_ip, puerto };
-      },
+    setEditandoId(row.id_externo || "");
+    setEditarForm({
+      nombre: row.nombre || "",
+      direccion_ip: row.direccion_ip || "",
+      puerto: Number(row.puerto || 51211),
+      grupo_id: String(row.grupo_id || "1"),
     });
+    setOpenEditar(true);
+  };
 
-    if (!result.isConfirmed || !result.value) return;
-
+  const guardarEdicionDispositivo = async () => {
+    if (!editandoId) return;
+    if (!editarForm.nombre.trim() || !editarForm.direccion_ip.trim()) {
+      await Swal.fire({ icon: "warning", title: "Faltan datos", text: "Nombre e IP son obligatorios." });
+      return;
+    }
+    const snapshot = { ...editarForm };
+    setOpenEditar(false);
+    setGuardandoEditar(true);
     try {
-      const res = await clienteAxios.put(`/api/dispositivos-biostar/remotos/${row.id_externo}`, result.value);
+      const payload = {
+        nombre: editarForm.nombre.trim(),
+        direccion_ip: editarForm.direccion_ip.trim(),
+        puerto: Number(editarForm.puerto),
+        device_group: Number(editarForm.grupo_id) || 1,
+        device_group_id: { id: Number(editarForm.grupo_id) || 1 },
+      };
+      const res = await clienteAxios.put(`/api/dispositivos-biostar/remotos/${editandoId}`, payload);
       if (!res.data.estado) {
         await Swal.fire({ icon: "error", title: "No se pudo editar", text: res.data.mensaje || "No se pudo editar el dispositivo." });
+        setEditarForm(snapshot);
+        setOpenEditar(true);
         return;
       }
       await Swal.fire({ icon: "success", title: "Dispositivo editado", text: res.data.mensaje || "Actualizacion completada." });
       await cargarTodos();
     } catch (error) {
       handlingError(error);
+      setEditarForm(snapshot);
+      setOpenEditar(true);
+    } finally {
+      setGuardandoEditar(false);
     }
   };
 
@@ -207,10 +224,6 @@ export default function DispositivosBiostarRemotos() {
     () => [
       { field: "nombre", headerName: "Nombre", flex: 1, minWidth: 180 },
       { field: "direccion_ip", headerName: "IP", flex: 1, minWidth: 150 },
-      { field: "puerto", headerName: "Puerto", flex: 0.5, minWidth: 95 },
-      { field: "grupo_nombre", headerName: "Grupo", flex: 1, minWidth: 180 },
-      { field: "tipo", headerName: "Tipo", flex: 0.7, minWidth: 120 },
-      { field: "modelo", headerName: "Modelo", flex: 1, minWidth: 150 },
       {
         field: "acciones",
         headerName: "Acciones",
@@ -333,6 +346,58 @@ export default function DispositivosBiostarRemotos() {
           </Button>
           <Button onClick={guardarNuevoDispositivo} disabled={guardandoNuevo} variant="contained">
             {guardandoNuevo ? "Guardando..." : "Guardar"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={openEditar} onClose={() => !guardandoEditar && setOpenEditar(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Editar Dispositivo BioStar</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="Nombre"
+              value={editarForm.nombre}
+              onChange={(event) => setEditarForm((prev) => ({ ...prev, nombre: event.target.value }))}
+              fullWidth
+            />
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <TextField
+                label="Direccion IP"
+                value={editarForm.direccion_ip}
+                onChange={(event) => setEditarForm((prev) => ({ ...prev, direccion_ip: event.target.value }))}
+                fullWidth
+              />
+              <TextField
+                label="Puerto"
+                type="number"
+                value={editarForm.puerto}
+                onChange={(event) => setEditarForm((prev) => ({ ...prev, puerto: Number(event.target.value || 0) }))}
+                sx={{ minWidth: 160 }}
+              />
+            </Stack>
+            <FormControl fullWidth>
+              <InputLabel id="editar-device-group-label">Grupo</InputLabel>
+              <Select
+                labelId="editar-device-group-label"
+                value={editarForm.grupo_id}
+                label="Grupo"
+                onChange={(event) => setEditarForm((prev) => ({ ...prev, grupo_id: String(event.target.value) }))}
+              >
+                {(grupos || []).map((grupo) => (
+                  <MenuItem key={grupo.grupo_id} value={grupo.grupo_id}>
+                    {grupo.grupo_nombre}
+                  </MenuItem>
+                ))}
+                {(grupos || []).length === 0 && <MenuItem value="1">All Devices</MenuItem>}
+              </Select>
+            </FormControl>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setOpenEditar(false)} disabled={guardandoEditar}>
+            Cancelar
+          </Button>
+          <Button onClick={guardarEdicionDispositivo} disabled={guardandoEditar} variant="contained">
+            {guardandoEditar ? "Guardando..." : "Guardar"}
           </Button>
         </DialogActions>
       </Dialog>
