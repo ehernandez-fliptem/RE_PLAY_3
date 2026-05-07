@@ -929,7 +929,7 @@ export default function Routes() {
               path: "nuevo-dispositivo",
               element:
                 esSuper && habilitarIntegracionBiostar ? (
-                  <NuevoDispositivoSuprema />
+                  <NuevoDispositivoBiostar />
                 ) : (
                   <Unauthorized />
                 ),
@@ -938,7 +938,7 @@ export default function Routes() {
               path: "detalle-dispositivo/:id",
               element:
                 esSuper && habilitarIntegracionBiostar ? (
-                  <DetalleDispositivoSuprema />
+                  <DetalleDispositivoBiostar />
                 ) : (
                   <Unauthorized />
                 ),
@@ -947,7 +947,7 @@ export default function Routes() {
               path: "editar-dispositivo/:id",
               element:
                 esSuper && habilitarIntegracionBiostar ? (
-                  <EditarDispositivoSuprema />
+                  <EditarDispositivoBiostar />
                 ) : (
                   <Unauthorized />
                 ),
@@ -976,7 +976,7 @@ export default function Routes() {
               path: "nuevo-dispositivo",
               element:
                 esSuper && habilitarIntegracionBiostar ? (
-                  <NuevoDispositivoBiostar />
+                  <NuevoDispositivoSuprema />
                 ) : (
                   <Unauthorized />
                 ),
@@ -985,7 +985,7 @@ export default function Routes() {
               path: "detalle-dispositivo/:id",
               element:
                 esSuper && habilitarIntegracionBiostar ? (
-                  <DetalleDispositivoBiostar />
+                  <DetalleDispositivoSuprema />
                 ) : (
                   <Unauthorized />
                 ),
@@ -994,7 +994,7 @@ export default function Routes() {
               path: "editar-dispositivo/:id",
               element:
                 esSuper && habilitarIntegracionBiostar ? (
-                  <EditarDispositivoBiostar />
+                  <EditarDispositivoSuprema />
                 ) : (
                   <Unauthorized />
                 ),

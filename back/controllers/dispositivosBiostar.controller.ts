@@ -60,6 +60,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
           puerto: 1,
           usuario: 1,
           activo: 1,
+          es_main: 1,
           session_activa: {
             $cond: [
               {
@@ -170,12 +171,14 @@ export async function crear(req: Request, res: Response): Promise<void> {
     const { nombre, direccion_ip, puerto, usuario, contrasena } = req.body;
     const creado_porID = jwt.verify(req.headers["x-access-token"] as string, CONFIG.SECRET) as DecodedTokenUser;
 
+    const hasMain = await DispositivosBiostar.exists({ es_main: true, activo: true });
     const nuevoRegistro = new DispositivosBiostar({
       nombre,
       direccion_ip,
       puerto: Number(puerto) || CONFIG.BIOSTAR_PORT,
       usuario,
       contrasena,
+      es_main: !hasMain,
       creado_por: creado_porID.id,
       fecha_creacion: Date.now(),
     });
@@ -257,6 +260,14 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
       return;
     }
 
+    if (registro.es_main && registro.activo && activo) {
+      const siguienteMain = await DispositivosBiostar.findOne({ _id: { $ne: registro._id }, activo: true }).sort({ fecha_modificacion: -1, fecha_creacion: -1 });
+      if (siguienteMain) {
+        await DispositivosBiostar.updateOne({ _id: siguienteMain._id }, { $set: { es_main: true } });
+      }
+      await DispositivosBiostar.updateOne({ _id: registro._id }, { $set: { es_main: false } });
+    }
+
     res.status(200).json({ estado: true });
   } catch (error: any) {
     log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -266,13 +277,48 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
 
 export async function eliminar(req: Request, res: Response): Promise<void> {
   try {
-    const registro = await DispositivosBiostar.findByIdAndDelete(req.params.id);
+    const registro = await DispositivosBiostar.findById(req.params.id);
     if (!registro) {
       res.status(200).json({ estado: false, mensaje: "Dispositivo BioStar no encontrado." });
       return;
     }
 
+    const eraMain = !!registro.es_main;
+    await DispositivosBiostar.deleteOne({ _id: req.params.id });
+
+    if (eraMain) {
+      const siguienteMain = await DispositivosBiostar.findOne({ activo: true }).sort({ fecha_modificacion: -1, fecha_creacion: -1 });
+      if (siguienteMain) {
+        await DispositivosBiostar.updateOne({ _id: siguienteMain._id }, { $set: { es_main: true } });
+      }
+    }
+
     res.status(200).json({ estado: true, mensaje: "Dispositivo eliminado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function establecerMain(req: Request, res: Response): Promise<void> {
+  try {
+    const registro = await DispositivosBiostar.findById(req.params.id);
+    if (!registro) {
+      res.status(200).json({ estado: false, mensaje: "Dispositivo BioStar no encontrado." });
+      return;
+    }
+    if (!registro.activo) {
+      res.status(200).json({ estado: false, mensaje: "Solo conexiones activas pueden ser main." });
+      return;
+    }
+
+    await DispositivosBiostar.updateMany({}, { $set: { es_main: false } });
+    await DispositivosBiostar.updateOne(
+      { _id: registro._id },
+      { $set: { es_main: true, fecha_modificacion: Date.now() } }
+    );
+
+    res.status(200).json({ estado: true, mensaje: "Conexion principal actualizada." });
   } catch (error: any) {
     log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
     res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });

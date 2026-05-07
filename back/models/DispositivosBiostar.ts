@@ -17,6 +17,7 @@ export interface IDispositivoBiostar extends Document {
   fecha_modificacion?: Date;
   modificado_por?: mongoose.Types.ObjectId;
   activo: boolean;
+  es_main?: boolean;
 }
 
 const dispositivosBiostarSchema = new Schema<IDispositivoBiostar>({
@@ -48,6 +49,7 @@ const dispositivosBiostarSchema = new Schema<IDispositivoBiostar>({
   fecha_modificacion: { type: Date },
   modificado_por: { type: Schema.Types.ObjectId, default: null, ref: 'usuarios' },
   activo: { type: Boolean, default: true },
+  es_main: { type: Boolean, default: false },
 });
 
 dispositivosBiostarSchema.pre<IDispositivoBiostar>('save', function (next) {

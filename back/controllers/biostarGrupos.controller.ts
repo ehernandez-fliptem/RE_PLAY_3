@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import BiostarConexion from "../models/BiostarConexion";
+import DispositivosBiostar from "../models/DispositivosBiostar";
 import { biostarRequest } from "../classes/Biostar";
 import { fecha, log } from "../middlewares/log";
 
@@ -78,6 +79,13 @@ function extractBiostarMessage(payload: any): string {
 }
 
 async function getConexionGlobal() {
+  const main = await DispositivosBiostar.findOne({ activo: true, es_main: true }).sort({
+    fecha_modificacion: -1,
+    fecha_creacion: -1,
+    _id: -1,
+  });
+  if (main) return main;
+
   return BiostarConexion.findOne({ activo: true }).sort({
     fecha_modificacion: -1,
     fecha_creacion: -1,

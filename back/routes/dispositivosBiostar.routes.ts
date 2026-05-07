@@ -11,6 +11,7 @@ import {
   crear,
   modificar,
   modificarEstado,
+  establecerMain,
   eliminar,
   probarConexion,
 } from "../controllers/dispositivosBiostar.controller";
@@ -29,6 +30,7 @@ router.post("/probar-conexion", validarTokenYRol([1], true), probarConexion);
 router.post("/probar-conexion/:id", validarTokenYRol([1], true), probarConexion);
 router.put("/:id", validarTokenYRol([1], true), modificar);
 router.patch("/:id", validarTokenYRol([1], true), modificarEstado);
+router.patch("/:id/main", validarTokenYRol([1], true), establecerMain);
 router.delete("/:id", validarTokenYRol([1], true), eliminar);
 
 export default router;

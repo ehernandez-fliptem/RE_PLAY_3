@@ -7,7 +7,7 @@ import {
   useGridApiRef,
 } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
-import { Add, Delete, Edit, NetworkCheck, Visibility } from "@mui/icons-material";
+import { Add, Delete, Edit, NetworkCheck, Star, StarBorder, Visibility } from "@mui/icons-material";
 import { Chip, IconButton, Tooltip } from "@mui/material";
 import { Outlet, useNavigate } from "react-router-dom";
 import type { AxiosError } from "axios";
@@ -140,6 +140,29 @@ export default function DispositivosBiostar() {
     }
   };
 
+  const establecerMain = async (ID: string, nombre: string) => {
+    try {
+      const res = await clienteAxios.patch(`/api/dispositivos-biostar/${ID}/main`, {});
+      if (res.data.estado) {
+        await Swal.fire({
+          icon: "success",
+          title: "Conexion principal",
+          text: `Se establecio '${nombre}' como conexion main.`,
+        });
+        apiRef.current?.dataSource?.fetchRows?.();
+      } else {
+        await Swal.fire({
+          icon: "warning",
+          title: "No se pudo actualizar",
+          text: res.data.mensaje || "No se pudo establecer como main.",
+        });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    }
+  };
+
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
       <DataGrid
@@ -151,6 +174,22 @@ export default function DispositivosBiostar() {
           { headerName: "IP", field: "direccion_ip", flex: 1, minWidth: 150 },
           { headerName: "Puerto", field: "puerto", flex: 0.5, minWidth: 90 },
           { headerName: "Usuario", field: "usuario", flex: 1, minWidth: 130 },
+          {
+            headerName: "Main",
+            field: "es_main",
+            flex: 0.5,
+            minWidth: 90,
+            align: "center",
+            headerAlign: "center",
+            renderCell: (params) => (
+              <Chip
+                label={params.value ? "Si" : "No"}
+                color={params.value ? "warning" : "default"}
+                size="small"
+                sx={{ width: "100%" }}
+              />
+            ),
+          },
           {
             headerName: "Sesion",
             field: "session_activa",
@@ -175,6 +214,11 @@ export default function DispositivosBiostar() {
             getActions: ({ row }) => [
               <GridActionsCellItem icon={<Visibility color="primary" />} label="Ver" onClick={() => navigate(`detalle-dispositivo/${row._id}`)} />,
               <GridActionsCellItem icon={<Edit color="primary" />} label="Editar" onClick={() => navigate(`editar-dispositivo/${row._id}`)} />,
+              <GridActionsCellItem
+                icon={row.es_main ? <Star color="warning" /> : <StarBorder color="warning" />}
+                label="Establecer main"
+                onClick={() => establecerMain(row._id, row.nombre)}
+              />,
               <GridActionsCellItem icon={<NetworkCheck color="info" />} label="Probar conexion" onClick={() => probarConexion(row._id, row.direccion_ip)} />,
               <GridActionsCellItem icon={<Delete color="error" />} label="Borrar" onClick={() => eliminarDispositivo(row._id, row.direccion_ip)} />,
             ],
@@ -207,7 +251,7 @@ export default function DispositivosBiostar() {
         slots={{
           toolbar: () => (
             <DataGridToolbar
-              tableTitle="Gestion de Dispositivos Suprema"
+              tableTitle="Gestion de Conexiones BioStar"
               customActionButtons={
                 <Tooltip title="Agregar">
                   <IconButton size="small" onClick={() => navigate("nuevo-dispositivo")}>
