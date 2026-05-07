@@ -32,6 +32,7 @@ import EditarDispositivoBiostar from "./catalogos/dispositivos/EditarDispositivo
 import NuevoDispositivoSuprema from "./catalogos/dispositivos/NuevoDispositivoSuprema";
 import DetalleDispositivoSuprema from "./catalogos/dispositivos/DetalleDispositivoSuprema";
 import EditarDispositivoSuprema from "./catalogos/dispositivos/EditarDispositivoSuprema";
+import BiostararGrupos from "./catalogos/dispositivos/BiostararGrupos";
 import Configuracion from "./catalogos/configuracion/Configuracion";
 import Directorio from "./recepcion/directorio/Directorio";
 import Bitacora from "./recepcion/bitacora/Bitacora";
@@ -1005,6 +1006,15 @@ export default function Routes() {
           ],
         },
       ],
+    },
+    {
+      path: "/biostarar/grupos",
+      element:
+        esSuper && habilitarIntegracionBiostar ? (
+          <BiostararGrupos />
+        ) : (
+          <Unauthorized />
+        ),
     },
     {
       path: "/manual-usuario",

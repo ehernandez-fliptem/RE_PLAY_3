@@ -373,6 +373,13 @@ const mainMenu = [
         icon: <VideoLabel fontSize="small" />,
         path: "/biostarar/dispositivos",
       },
+      {
+        id: 99.53,
+        title: "Grupos BioStar",
+        rol: [1],
+        icon: <Group fontSize="small" />,
+        path: "/biostarar/grupos",
+      },
     ],
   },
 

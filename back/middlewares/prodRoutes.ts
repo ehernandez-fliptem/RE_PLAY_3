@@ -81,6 +81,7 @@ const PROD_ROUTES = [
     '/dispositivos-biostar/editar-dispositivo/:id',
     '/biostarar/conexion',
     '/biostarar/dispositivos',
+    '/biostarar/grupos',
     '/biostarar/dispositivos/nuevo-dispositivo',
     '/biostarar/dispositivos/detalle-dispositivo/:id',
     '/biostarar/dispositivos/editar-dispositivo/:id',
