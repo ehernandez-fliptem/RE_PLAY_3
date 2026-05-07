@@ -807,6 +807,29 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
         discoveredByIpRaw?.device_type_id ||
         ""
     ).trim();
+    const discoveredName = String(
+      discoveredByIpRaw?.name || discoveredByIpRaw?.device_name || ""
+    ).trim();
+    const discoveredGroupIdRaw =
+      discoveredByIpRaw?.device_group_id?.id ??
+      discoveredByIpRaw?.device_group?.id ??
+      discoveredByIpRaw?.device_group ??
+      1;
+    const discoveredGroupId = Number(discoveredGroupIdRaw) || 1;
+
+    const exactDevicePayload = {
+      id: discoveredDeviceId || undefined,
+      device_type_id: discoveredDeviceTypeId ? { id: discoveredDeviceTypeId } : discoveredByIpRaw?.device_type_id,
+      lan: discoveredByIpRaw?.lan || { ip: direccion_ip, device_port: String(puerto) },
+      system: discoveredByIpRaw?.system || { use_alphanumeric: "false" },
+      capacity: discoveredByIpRaw?.capacity || { support_alphanumeric: "true" },
+      device_group: discoveredGroupId,
+      device_group_id: { id: discoveredGroupId },
+      name:
+        nombre ||
+        discoveredName ||
+        `${discoveredByIpRaw?.model_name || "BioStar Device"} ${discoveredDeviceId || ""} (${direccion_ip})`.trim(),
+    };
 
     const payloads = [
       ...(descubrimientoRaw
@@ -819,6 +842,7 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
         : []),
       ...(discoveredByIpRaw
         ? [
+            { Device: exactDevicePayload },
             { Device: { id: discoveredDeviceId } },
             { Device: { id: discoveredDeviceId, device_type_id: { id: discoveredDeviceTypeId || undefined } } },
             { Device: { id: discoveredDeviceId, lan: discoveredByIpRaw?.lan } },
@@ -827,7 +851,9 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
                 rows: [
                   {
                     id: discoveredDeviceId,
+                    name: exactDevicePayload.name,
                     device_type_id: discoveredByIpRaw?.device_type_id,
+                    device_group_id: { id: discoveredGroupId },
                     lan: discoveredByIpRaw?.lan,
                   },
                 ],
@@ -840,6 +866,18 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
           ]
         : []),
       { Device: { id: discoveredDeviceId || undefined, lan: { ip: direccion_ip, device_port: String(puerto) } } },
+      {
+        Device: {
+          id: discoveredDeviceId || undefined,
+          device_type_id: discoveredDeviceTypeId ? { id: discoveredDeviceTypeId } : undefined,
+          lan: { ip: direccion_ip, device_port: String(puerto) },
+          system: { use_alphanumeric: "false" },
+          capacity: { support_alphanumeric: "true" },
+          device_group: 1,
+          device_group_id: { id: 1 },
+          name: nombre || `BioStar Device (${direccion_ip})`,
+        },
+      },
       { Device: { lan: { ip: direccion_ip, device_port: String(puerto) } } },
       { device: baseManual },
       { Device: baseManual },
