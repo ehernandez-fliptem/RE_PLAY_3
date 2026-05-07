@@ -14,6 +14,11 @@ import {
   establecerMain,
   eliminar,
   probarConexion,
+  listarDispositivosRemotos,
+  buscarDispositivoRemoto,
+  crearDispositivoRemoto,
+  editarDispositivoRemoto,
+  eliminarDispositivoRemoto,
 } from "../controllers/dispositivosBiostar.controller";
 
 const router = Router();
@@ -28,6 +33,11 @@ router.post("/sincronizar-dispositivos", validarTokenYRol([1], true), sincroniza
 router.post("/", validarTokenYRol([1], true), crear);
 router.post("/probar-conexion", validarTokenYRol([1], true), probarConexion);
 router.post("/probar-conexion/:id", validarTokenYRol([1], true), probarConexion);
+router.get("/remotos", validarTokenYRol([1], true), listarDispositivosRemotos);
+router.post("/remotos/buscar", validarTokenYRol([1], true), buscarDispositivoRemoto);
+router.post("/remotos", validarTokenYRol([1], true), crearDispositivoRemoto);
+router.put("/remotos/:id", validarTokenYRol([1], true), editarDispositivoRemoto);
+router.delete("/remotos/:id", validarTokenYRol([1], true), eliminarDispositivoRemoto);
 router.put("/:id", validarTokenYRol([1], true), modificar);
 router.patch("/:id", validarTokenYRol([1], true), modificarEstado);
 router.patch("/:id/main", validarTokenYRol([1], true), establecerMain);

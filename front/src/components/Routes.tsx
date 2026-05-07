@@ -24,14 +24,8 @@ import DispositivosHV from "./catalogos/dispositivos/DispositivosHV";
 import NuevoDispositivoHV from "./catalogos/dispositivos/NuevoDispositivoHV";
 import DetalleDispositivoHV from "./catalogos/dispositivos/DetalleDispositivoHV";
 import EditarDispositivoHV from "./catalogos/dispositivos/EditarDispositivoHV";
-import DispositivosBiostar from "./catalogos/dispositivos/DispositivosBiostar";
-import DispositivosSuprema from "./catalogos/dispositivos/DispositivosSuprema";
-import NuevoDispositivoBiostar from "./catalogos/dispositivos/NuevoDispositivoBiostar";
-import DetalleDispositivoBiostar from "./catalogos/dispositivos/DetalleDispositivoBiostar";
-import EditarDispositivoBiostar from "./catalogos/dispositivos/EditarDispositivoBiostar";
-import NuevoDispositivoSuprema from "./catalogos/dispositivos/NuevoDispositivoSuprema";
-import DetalleDispositivoSuprema from "./catalogos/dispositivos/DetalleDispositivoSuprema";
-import EditarDispositivoSuprema from "./catalogos/dispositivos/EditarDispositivoSuprema";
+import BiostararConexion from "./catalogos/dispositivos/BiostararConexion";
+import DispositivosBiostarRemotos from "./catalogos/dispositivos/DispositivosBiostarRemotos";
 import BiostararGrupos from "./catalogos/dispositivos/BiostararGrupos";
 import Configuracion from "./catalogos/configuracion/Configuracion";
 import Directorio from "./recepcion/directorio/Directorio";
@@ -914,98 +908,22 @@ export default function Routes() {
       element: <Navigate to="/biostarar/dispositivos" replace />,
     },
     {
-      path: "/biostarar/conexion/*",
-      children: [
-        {
-          path: "",
-          element:
-            esSuper && habilitarIntegracionBiostar ? (
-              <DispositivosBiostar />
-            ) : (
-              <Unauthorized />
-            ),
-          children: [
-            {
-              path: "nuevo-dispositivo",
-              element:
-                esSuper && habilitarIntegracionBiostar ? (
-                  <NuevoDispositivoBiostar />
-                ) : (
-                  <Unauthorized />
-                ),
-            },
-            {
-              path: "detalle-dispositivo/:id",
-              element:
-                esSuper && habilitarIntegracionBiostar ? (
-                  <DetalleDispositivoBiostar />
-                ) : (
-                  <Unauthorized />
-                ),
-            },
-            {
-              path: "editar-dispositivo/:id",
-              element:
-                esSuper && habilitarIntegracionBiostar ? (
-                  <EditarDispositivoBiostar />
-                ) : (
-                  <Unauthorized />
-                ),
-            },
-            {
-              path: "*",
-              element: <Unknown />,
-            },
-          ],
-        },
-      ],
+      path: "/biostarar/conexion",
+      element:
+        esSuper && habilitarIntegracionBiostar ? (
+          <BiostararConexion />
+        ) : (
+          <Unauthorized />
+        ),
     },
     {
-      path: "/biostarar/dispositivos/*",
-      children: [
-        {
-          path: "",
-          element:
-            esSuper && habilitarIntegracionBiostar ? (
-              <DispositivosSuprema />
-            ) : (
-              <Unauthorized />
-            ),
-          children: [
-            {
-              path: "nuevo-dispositivo",
-              element:
-                esSuper && habilitarIntegracionBiostar ? (
-                  <NuevoDispositivoSuprema />
-                ) : (
-                  <Unauthorized />
-                ),
-            },
-            {
-              path: "detalle-dispositivo/:id",
-              element:
-                esSuper && habilitarIntegracionBiostar ? (
-                  <DetalleDispositivoSuprema />
-                ) : (
-                  <Unauthorized />
-                ),
-            },
-            {
-              path: "editar-dispositivo/:id",
-              element:
-                esSuper && habilitarIntegracionBiostar ? (
-                  <EditarDispositivoSuprema />
-                ) : (
-                  <Unauthorized />
-                ),
-            },
-            {
-              path: "*",
-              element: <Unknown />,
-            },
-          ],
-        },
-      ],
+      path: "/biostarar/dispositivos",
+      element:
+        esSuper && habilitarIntegracionBiostar ? (
+          <DispositivosBiostarRemotos />
+        ) : (
+          <Unauthorized />
+        ),
     },
     {
       path: "/biostarar/grupos",

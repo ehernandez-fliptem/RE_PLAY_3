@@ -110,7 +110,7 @@ export default function BiostararConexion() {
     <Box sx={{ p: 2, border: "1px solid #e6e6e6", borderRadius: 1, bgcolor: "background.paper" }}>
       <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "start", sm: "center" }} justifyContent="space-between" spacing={2}>
         <Box>
-          <Typography variant="h6"><strong>Biostarar - Conexion</strong></Typography>
+          <Typography variant="h6"><strong>Gestion de Conexiones BioStar</strong></Typography>
           <Typography variant="body2">
             {conexionGlobal
               ? `${conexionGlobal.direccion_ip}:${conexionGlobal.puerto} - ${conexionGlobal.usuario}`

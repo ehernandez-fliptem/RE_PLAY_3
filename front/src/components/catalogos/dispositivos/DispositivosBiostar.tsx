@@ -251,7 +251,7 @@ export default function DispositivosBiostar() {
         slots={{
           toolbar: () => (
             <DataGridToolbar
-              tableTitle="Gestion de Conexiones BioStar"
+              tableTitle="Gestion de Dispositivos BioStar"
               customActionButtons={
                 <Tooltip title="Agregar">
                   <IconButton size="small" onClick={() => navigate("nuevo-dispositivo")}>

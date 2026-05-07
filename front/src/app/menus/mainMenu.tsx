@@ -368,7 +368,7 @@ const mainMenu = [
       },
       {
         id: 99.52,
-        title: "Dispositivos Suprema",
+        title: "Dispositivos BioStar",
         rol: [1],
         icon: <VideoLabel fontSize="small" />,
         path: "/biostarar/dispositivos",

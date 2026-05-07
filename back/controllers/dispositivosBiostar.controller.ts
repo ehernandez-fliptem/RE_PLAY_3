@@ -300,6 +300,28 @@ export async function eliminar(req: Request, res: Response): Promise<void> {
   }
 }
 
+function parseRemoteDeviceRows(payload: any): any[] {
+  const candidates = [
+    payload?.DeviceCollection?.rows,
+    payload?.DeviceCollection?.devices,
+    payload?.device_collection?.rows,
+    payload?.devices,
+    payload?.rows,
+    payload?.records,
+  ];
+  const rows = candidates.find((value) => Array.isArray(value)) || [];
+  return rows;
+}
+
+async function getBiostarConexionActiva(): Promise<any | null> {
+  const conexion = await BiostarConexion.findOne({ activo: true }).sort({
+    fecha_modificacion: -1,
+    fecha_creacion: -1,
+    _id: -1,
+  });
+  return conexion || null;
+}
+
 export async function establecerMain(req: Request, res: Response): Promise<void> {
   try {
     const registro = await DispositivosBiostar.findById(req.params.id);
@@ -532,6 +554,204 @@ export async function probarConexion(req: Request, res: Response): Promise<void>
     }
 
     res.status(200).json({ estado: true, mensaje: "Conexion establecida correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function listarDispositivosRemotos(req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const tipo = String(req.query.tipo || "all").trim() || "all";
+    const responses = await Promise.all([
+      biostarRequest(conexion as any, { method: "GET", url: `/api/devices?limit=1000&device_type=${encodeURIComponent(tipo)}` }),
+      biostarRequest(conexion as any, { method: "GET", url: `/api/devices?limit=1000` }),
+      biostarRequest(conexion as any, { method: "POST", url: "/api/devices/search", data: { device_type: tipo } }),
+    ]);
+
+    const success = responses.find((item) => item.ok);
+    if (!success) {
+      const message = responses.find((item) => !item.ok)?.message || "No se pudo consultar dispositivos en BioStar.";
+      res.status(200).json({ estado: false, mensaje: message });
+      return;
+    }
+
+    const rows = parseRemoteDeviceRows(success.data);
+    const mapped = rows.map((item: any) => ({
+      id_externo: String(item?.id || item?.device_id || item?.deviceID || ""),
+      nombre: String(item?.name || item?.device_name || "").trim(),
+      direccion_ip: String(item?.ip_address || item?.ip || "").trim(),
+      puerto: Number(item?.port || item?.server_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
+      tipo: String(item?.device_type || item?.type || tipo || "all"),
+      modelo: String(item?.model_name || item?.model || "").trim(),
+      raw: item,
+    }));
+
+    res.status(200).json({ estado: true, datos: mapped });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function buscarDispositivoRemoto(req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const direccion_ip = String(req.body?.direccion_ip || "").trim();
+    const puerto = Number(req.body?.puerto || CONFIG.BIOSTAR_PORT);
+    if (!direccion_ip) {
+      res.status(200).json({ estado: false, mensaje: "Ingresa una direccion IP para buscar." });
+      return;
+    }
+
+    const responses = await Promise.all([
+      biostarRequest(conexion as any, { method: "POST", url: "/api/devices/search", data: { ip_address: direccion_ip, port: puerto } }),
+      biostarRequest(conexion as any, { method: "POST", url: "/api/devices/search", data: { device: { ip_address: direccion_ip, port: puerto } } }),
+      biostarRequest(conexion as any, { method: "GET", url: `/api/devices?limit=1000&device_type=all` }),
+    ]);
+
+    const success = responses.find((item) => item.ok);
+    if (!success) {
+      const message = responses.find((item) => !item.ok)?.message || "No se pudo buscar el dispositivo en BioStar.";
+      res.status(200).json({ estado: false, mensaje: message });
+      return;
+    }
+
+    let rows = parseRemoteDeviceRows(success.data);
+    if (rows.length === 0 && responses[2]?.ok) {
+      const allRows = parseRemoteDeviceRows(responses[2].data);
+      rows = allRows.filter((item: any) => String(item?.ip_address || item?.ip || "").trim() === direccion_ip);
+    }
+
+    const mapped = rows.map((item: any) => ({
+      id_externo: String(item?.id || item?.device_id || item?.deviceID || ""),
+      nombre: String(item?.name || item?.device_name || "").trim(),
+      direccion_ip: String(item?.ip_address || item?.ip || "").trim(),
+      puerto: Number(item?.port || item?.server_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
+      tipo: String(item?.device_type || item?.type || "all"),
+      modelo: String(item?.model_name || item?.model || "").trim(),
+      raw: item,
+    }));
+
+    res.status(200).json({ estado: true, datos: mapped });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function crearDispositivoRemoto(req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const nombre = String(req.body?.nombre || "").trim();
+    const direccion_ip = String(req.body?.direccion_ip || "").trim();
+    const puerto = Number(req.body?.puerto || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT;
+
+    if (!direccion_ip) {
+      res.status(200).json({ estado: false, mensaje: "La direccion IP es obligatoria." });
+      return;
+    }
+
+    const payloads = [
+      { device: { name: nombre || direccion_ip, ip_address: direccion_ip, port: puerto } },
+      { Device: { name: nombre || direccion_ip, ip_address: direccion_ip, port: puerto } },
+      { name: nombre || direccion_ip, ip_address: direccion_ip, port: puerto },
+    ];
+
+    let lastMessage = "No se pudo agregar el dispositivo en BioStar.";
+    for (const data of payloads) {
+      const response = await biostarRequest(conexion as any, { method: "POST", url: "/api/devices", data });
+      if (response.ok) {
+        res.status(200).json({ estado: true, mensaje: "Dispositivo agregado correctamente." });
+        return;
+      }
+      lastMessage = response.message || lastMessage;
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastMessage });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function editarDispositivoRemoto(req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const id = String(req.params.id || "").trim();
+    const nombre = String(req.body?.nombre || "").trim();
+    const direccion_ip = String(req.body?.direccion_ip || "").trim();
+    const puerto = Number(req.body?.puerto || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT;
+    if (!id) {
+      res.status(200).json({ estado: false, mensaje: "ID de dispositivo invalido." });
+      return;
+    }
+
+    const payloads = [
+      { device: { name: nombre, ip_address: direccion_ip, port: puerto } },
+      { Device: { name: nombre, ip_address: direccion_ip, port: puerto } },
+      { name: nombre, ip_address: direccion_ip, port: puerto },
+    ];
+
+    let lastMessage = "No se pudo editar el dispositivo en BioStar.";
+    for (const data of payloads) {
+      const response = await biostarRequest(conexion as any, { method: "PUT", url: `/api/devices/${id}`, data });
+      if (response.ok) {
+        res.status(200).json({ estado: true, mensaje: "Dispositivo editado correctamente." });
+        return;
+      }
+      lastMessage = response.message || lastMessage;
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastMessage });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function eliminarDispositivoRemoto(req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(200).json({ estado: false, mensaje: "ID de dispositivo invalido." });
+      return;
+    }
+
+    const response = await biostarRequest(conexion as any, { method: "DELETE", url: `/api/devices/${id}` });
+    if (!response.ok) {
+      res.status(200).json({ estado: false, mensaje: response.message || "No se pudo eliminar el dispositivo." });
+      return;
+    }
+
+    res.status(200).json({ estado: true, mensaje: "Dispositivo eliminado correctamente." });
   } catch (error: any) {
     log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
     res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
