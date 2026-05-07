@@ -1,4 +1,5 @@
 import { createTheme } from "@mui/material/styles";
+import type {} from "@mui/x-data-grid/themeAugmentation";
 import { esES } from '@mui/material/locale';
 import { defaultColorPalette } from "./defaultTheme";
 import type { ColorPalette } from "../types/theme";
@@ -100,7 +101,34 @@ export const globalTheme = (mode: "light" | "dark", paletteParam?: ColorPalette)
                         paddingBottom: theme.spacing(0.2),
                     }),
                 },
-            }
+            },
+            MuiDataGrid: {
+                styleOverrides: {
+                    root: ({ theme }) => ({
+                        "--DataGrid-rowBorderColor": theme.palette.divider,
+                    }),
+                    columnHeader: {
+                        "&:focus, &:focus-within": {
+                            outline: "none",
+                        },
+                    },
+                    cell: {
+                        "&:focus, &:focus-within": {
+                            outline: "none",
+                        },
+                    },
+                    row: ({ theme }) => ({
+                        "&.Mui-selected": {
+                            backgroundColor: `${theme.palette.primary.main}14`,
+                            outline: `1px solid ${theme.palette.primary.main}55`,
+                            outlineOffset: "-1px",
+                        },
+                        "&.Mui-selected:hover": {
+                            backgroundColor: `${theme.palette.primary.main}22`,
+                        },
+                    }),
+                },
+            },
         },
     }, esES)
 }
