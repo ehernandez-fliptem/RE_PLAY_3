@@ -222,7 +222,7 @@ export default function DispositivosBiostarRemotos() {
 
   const columns = useMemo<GridColDef<RemoteDevice>[]>(
     () => [
-      { field: "nombre", headerName: "Nombre", flex: 1, minWidth: 180 },
+      { field: "nombre", headerName: "Nombre del dispositivo", flex: 1, minWidth: 220 },
       { field: "direccion_ip", headerName: "IP", flex: 1, minWidth: 150 },
       {
         field: "acciones",
