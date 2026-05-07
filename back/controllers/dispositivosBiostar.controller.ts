@@ -386,12 +386,27 @@ function getBiostarResponseMessage(payload: any): string {
 }
 
 async function getBiostarConexionActiva(): Promise<any | null> {
-  const conexion = await BiostarConexion.findOne({ activo: true }).sort({
+  const conexionGlobal = await BiostarConexion.findOne({ activo: true }).sort({
     fecha_modificacion: -1,
     fecha_creacion: -1,
     _id: -1,
   });
-  return conexion || null;
+  if (conexionGlobal) return conexionGlobal;
+
+  // Fallback: usar la conexion principal del catalogo de conexiones si no existe global.
+  const conexionMain = await DispositivosBiostar.findOne({ activo: true, es_main: true }).sort({
+    fecha_modificacion: -1,
+    fecha_creacion: -1,
+    _id: -1,
+  });
+  if (conexionMain) return conexionMain;
+
+  const conexionActiva = await DispositivosBiostar.findOne({ activo: true }).sort({
+    fecha_modificacion: -1,
+    fecha_creacion: -1,
+    _id: -1,
+  });
+  return conexionActiva || null;
 }
 
 export async function establecerMain(req: Request, res: Response): Promise<void> {
