@@ -35,7 +35,26 @@ async function loginBiostar(dispositivo: IDispositivoBiostar): Promise<LoginResu
     );
 
     if (response.status !== 200) {
-      return { ok: false, message: "No se pudo iniciar sesion en BioStar." };
+      const bodyMessage = String(
+        response?.data?.Response?.message ||
+          response?.data?.response?.message ||
+          response?.data?.message ||
+          ""
+      )
+        .trim()
+        .toLowerCase();
+      const isAuth =
+        response.status === 401 ||
+        response.status === 403 ||
+        bodyMessage.includes("invalid") ||
+        bodyMessage.includes("login failed") ||
+        bodyMessage.includes("password") ||
+        bodyMessage.includes("credential") ||
+        bodyMessage.includes("auth");
+      if (isAuth) {
+        return { ok: false, message: "No se pudo iniciar sesion en BioStar: credenciales invalidas." };
+      }
+      return { ok: false, message: "No se pudo iniciar sesion en BioStar: respuesta invalida del servidor." };
     }
 
     const sessionId = String(response.headers["bs-session-id"] || "").trim();
@@ -45,7 +64,21 @@ async function loginBiostar(dispositivo: IDispositivoBiostar): Promise<LoginResu
 
     return { ok: true, sessionId };
   } catch (error: any) {
-    return { ok: false, message: error?.message || "Error de conexion con BioStar." };
+    const code = String(error?.code || "").toUpperCase();
+    const rawMessage = String(error?.message || "");
+    if (code === "ECONNREFUSED") {
+      return { ok: false, message: "No se pudo iniciar sesion en BioStar: servidor apagado o puerto cerrado." };
+    }
+    if (code === "ETIMEDOUT" || code === "ECONNABORTED") {
+      return { ok: false, message: "No se pudo iniciar sesion en BioStar: tiempo de espera agotado." };
+    }
+    if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
+      return { ok: false, message: "No se pudo iniciar sesion en BioStar: host/IP no disponible." };
+    }
+    if (rawMessage.toLowerCase().includes("certificate")) {
+      return { ok: false, message: "No se pudo iniciar sesion en BioStar: problema de certificado SSL." };
+    }
+    return { ok: false, message: rawMessage || "Error de conexion con BioStar." };
   }
 }
 
