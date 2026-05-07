@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DataGrid, GridActionsCellItem, type GridColDef } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
 import { Add, Delete, Edit, Refresh } from "@mui/icons-material";
-import { Chip, IconButton, Tooltip } from "@mui/material";
+import { IconButton, Tooltip } from "@mui/material";
 import Swal from "sweetalert2";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
@@ -222,14 +222,6 @@ export default function BiostararGrupos() {
         minWidth: 120,
         align: "center",
         headerAlign: "center",
-      },
-      {
-        field: "es_all_users",
-        headerName: "Tipo",
-        flex: 0.6,
-        minWidth: 160,
-        renderCell: ({ value }) =>
-          value ? <Chip label="All Users" color="info" size="small" /> : <Chip label="Grupo" size="small" />,
       },
       {
         field: "acciones",

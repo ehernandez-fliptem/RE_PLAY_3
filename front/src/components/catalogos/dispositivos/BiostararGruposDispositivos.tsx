@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DataGrid, GridActionsCellItem, type GridColDef } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
-import { Chip, IconButton, Tooltip } from "@mui/material";
+import { IconButton, Tooltip } from "@mui/material";
 import { Add, Delete, Edit, Refresh } from "@mui/icons-material";
 import Swal from "sweetalert2";
 import DataGridToolbar from "../../utils/DataGridToolbar";
@@ -185,16 +185,7 @@ export default function BiostararGruposDispositivos() {
   const columns = useMemo<GridColDef<GrupoDispositivo>[]>(
     () => [
       { field: "nombre", headerName: "Grupo de dispositivo", flex: 1, minWidth: 240 },
-      { field: "id_externo", headerName: "ID", flex: 0.5, minWidth: 120 },
       { field: "depth", headerName: "Nivel", flex: 0.4, minWidth: 100 },
-      {
-        field: "tipo",
-        headerName: "Tipo",
-        flex: 0.6,
-        minWidth: 160,
-        renderCell: ({ row }) =>
-          row.es_all_devices ? <Chip label="All Devices" color="info" size="small" /> : <Chip label="Grupo" size="small" />,
-      },
       {
         field: "acciones",
         headerName: "Acciones",

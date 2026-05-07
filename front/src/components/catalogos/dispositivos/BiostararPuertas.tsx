@@ -181,7 +181,6 @@ export default function BiostararPuertas() {
     () => [
       { field: "nombre", headerName: "Grupo", flex: 1, minWidth: 220 },
       { field: "depth", headerName: "Nivel", flex: 0.4, minWidth: 100 },
-      { field: "id_externo", headerName: "ID", flex: 0.5, minWidth: 120 },
       {
         field: "acciones",
         headerName: "Acciones",
