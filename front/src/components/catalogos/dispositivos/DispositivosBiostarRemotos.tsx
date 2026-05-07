@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DataGrid, GridActionsCellItem, type GridColDef } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
-import { Add, Delete, Edit, Search, Sync } from "@mui/icons-material";
+import { Add, Delete, Edit, Sync } from "@mui/icons-material";
 import { Box, FormControl, IconButton, InputLabel, MenuItem, Select, Tooltip } from "@mui/material";
 import Swal from "sweetalert2";
 import DataGridToolbar from "../../utils/DataGridToolbar";
@@ -59,47 +59,6 @@ export default function DispositivosBiostarRemotos() {
     }
   };
 
-  const buscarPorIpPuerto = async () => {
-    const result = await Swal.fire({
-      title: "Buscar dispositivo",
-      html: `
-        <input id="bio-search-ip" class="swal2-input" placeholder="Direccion IP" autocomplete="off">
-        <input id="bio-search-port" class="swal2-input" placeholder="Puerto" value="51211" autocomplete="off">
-      `,
-      showCancelButton: true,
-      confirmButtonText: "Buscar",
-      cancelButtonText: "Cancelar",
-      preConfirm: () => {
-        const direccion_ip = (document.getElementById("bio-search-ip") as HTMLInputElement)?.value?.trim();
-        const puerto = Number((document.getElementById("bio-search-port") as HTMLInputElement)?.value || 51211);
-        if (!direccion_ip) {
-          Swal.showValidationMessage("Ingresa una direccion IP.");
-          return null;
-        }
-        return { direccion_ip, puerto };
-      },
-    });
-
-    if (!result.isConfirmed || !result.value) return;
-
-    setLoading(true);
-    try {
-      const res = await clienteAxios.post("/api/dispositivos-biostar/remotos/buscar", result.value);
-      if (!res.data.estado) {
-        await Swal.fire({ icon: "error", title: "Sin resultados", text: res.data.mensaje || "No se encontraron dispositivos." });
-        return;
-      }
-      setRows(res.data.datos || []);
-      if ((res.data.datos || []).length === 0) {
-        await Swal.fire({ icon: "info", title: "Sin resultados", text: "No se encontro ningun dispositivo para esa IP/puerto." });
-      }
-    } catch (error) {
-      handlingError(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const crearDispositivo = async () => {
     const buscarDispositivos = async (): Promise<{ devices: RemoteDevice[]; warning?: string }> => {
       Swal.fire({
@@ -116,7 +75,7 @@ export default function DispositivosBiostarRemotos() {
             segundos: 3,
             solo_nuevos: false,
           },
-          { timeout: 4500 }
+          { timeout: 15000 }
         );
         const discovered = (discoveryRes.data?.datos || []) as RemoteDevice[];
         const existing = new Set(
@@ -434,11 +393,6 @@ export default function DispositivosBiostarRemotos() {
                   <Tooltip title="Recargar (all)">
                     <IconButton size="small" onClick={async () => { await cargarGrupos(); await cargarTodos(); }}>
                       <Sync />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Buscar por IP/Puerto">
-                    <IconButton size="small" onClick={buscarPorIpPuerto}>
-                      <Search />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Agregar">

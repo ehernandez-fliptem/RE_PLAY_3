@@ -915,31 +915,35 @@ export async function descubrirDispositivosRemotos(req: Request, res: Response):
     const solo_nuevos = req.body?.solo_nuevos !== false;
 
     const payloads = [
+      { UdpSearchOption: { timeout: segundos, with_rs485: true, hide_known_devices: !!solo_nuevos } },
+      { UdpSearchOption: { timeout: segundos, with_rs485: false, hide_known_devices: !!solo_nuevos } },
       { timeout: segundos, only_new: solo_nuevos },
       { timeout: segundos * 1000, only_new: solo_nuevos },
       { duration: segundos, only_new: solo_nuevos },
-      { duration: segundos * 1000, only_new: solo_nuevos },
-      { only_new: solo_nuevos },
       {},
     ];
 
     let rows: any[] = [];
     let lastMessage = "No se pudo buscar dispositivos en BioStar.";
     for (const data of payloads) {
+      const udp = await biostarRequest(conexion as any, { method: "POST", url: "/api/devices/udp_search", data });
+      if (udp.ok) {
+        rows = parseDiscoveryRows(udp.data);
+        if (rows.length > 0) break;
+        const responseCode = String(udp.data?.Response?.code || "");
+        if (responseCode === "0") {
+          lastMessage = "Busqueda completada sin nuevos dispositivos.";
+        }
+      } else {
+        lastMessage = udp.message || lastMessage;
+      }
+
       const tcp = await biostarRequest(conexion as any, { method: "POST", url: "/api/devices/tcp_search", data });
       if (tcp.ok) {
         rows = parseDiscoveryRows(tcp.data);
         if (rows.length > 0) break;
       } else {
         lastMessage = tcp.message || lastMessage;
-      }
-
-      const udp = await biostarRequest(conexion as any, { method: "POST", url: "/api/devices/udp_search", data });
-      if (udp.ok) {
-        rows = parseDiscoveryRows(udp.data);
-        if (rows.length > 0) break;
-      } else {
-        lastMessage = udp.message || lastMessage;
       }
     }
 
