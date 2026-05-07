@@ -85,6 +85,21 @@ async function getConexionGlobal() {
   });
 }
 
+async function requestWithEndpointFallback(
+  conexion: any,
+  method: "POST" | "PUT" | "DELETE",
+  path: string,
+  data?: any
+) {
+  const endpoints = [`/api${path}`, `/api/v2${path}`];
+  let result: { ok: boolean; data?: any; status?: number; message?: string } = { ok: false };
+  for (const url of endpoints) {
+    result = await biostarRequest(conexion, { method, url, data });
+    if (result.ok) break;
+  }
+  return result;
+}
+
 export async function listarGruposBiostar(_req: Request, res: Response): Promise<void> {
   try {
     const conexion = await getConexionGlobal();
@@ -165,16 +180,7 @@ export async function crearGrupoBiostar(req: Request, res: Response): Promise<vo
 
     let lastError = "No se pudo crear el grupo en BioStar.";
     for (const body of payloads) {
-      const endpoints = ["/api/user_groups", "/api/v2/user_groups"];
-      let createRes: { ok: boolean; data?: any; status?: number; message?: string } = { ok: false };
-      for (const url of endpoints) {
-        createRes = await biostarRequest(conexion as any, {
-          method: "POST",
-          url,
-          data: body,
-        });
-        if (createRes.ok) break;
-      }
+      const createRes = await requestWithEndpointFallback(conexion as any, "POST", "/user_groups", body);
 
       if (createRes.ok) {
         res.status(200).json({ estado: true, mensaje: "Grupo creado correctamente." });
@@ -185,6 +191,78 @@ export async function crearGrupoBiostar(req: Request, res: Response): Promise<vo
     }
 
     res.status(200).json({ estado: false, mensaje: lastError });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function editarGrupoBiostar(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    const nombre = String(req.body?.nombre || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id del grupo es obligatorio." });
+      return;
+    }
+    if (!nombre) {
+      res.status(400).json({ estado: false, mensaje: "El nombre del grupo es obligatorio." });
+      return;
+    }
+
+    const conexion = await getConexionGlobal();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const payloads = [
+      { UserGroup: { id: Number(id), name: nombre } },
+      { user_group: { id: Number(id), name: nombre } },
+      { id: Number(id), name: nombre },
+    ];
+
+    let lastError = "No se pudo editar el grupo en BioStar.";
+    for (const body of payloads) {
+      const editRes = await requestWithEndpointFallback(conexion as any, "PUT", `/user_groups/${id}`, body);
+      if (editRes.ok) {
+        res.status(200).json({ estado: true, mensaje: "Grupo editado correctamente." });
+        return;
+      }
+      lastError = editRes.message || extractBiostarMessage(editRes.data);
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastError });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function eliminarGrupoBiostar(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id del grupo es obligatorio." });
+      return;
+    }
+
+    const conexion = await getConexionGlobal();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const deleteRes = await requestWithEndpointFallback(conexion as any, "DELETE", `/user_groups/${id}`);
+    if (deleteRes.ok) {
+      res.status(200).json({ estado: true, mensaje: "Grupo eliminado correctamente." });
+      return;
+    }
+
+    res.status(200).json({
+      estado: false,
+      mensaje: deleteRes.message || extractBiostarMessage(deleteRes.data) || "No se pudo eliminar el grupo.",
+    });
   } catch (error: any) {
     log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
     res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DataGrid, GridActionsCellItem, type GridColDef } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
-import { Add, Refresh } from "@mui/icons-material";
+import { Add, Delete, Edit, Refresh } from "@mui/icons-material";
 import { Chip, IconButton, Tooltip } from "@mui/material";
 import Swal from "sweetalert2";
 import DataGridToolbar from "../../utils/DataGridToolbar";
@@ -86,6 +86,76 @@ export default function BiostararGrupos() {
     }
   };
 
+  const editarGrupo = async (row: GrupoBiostar) => {
+    if (row.es_all_users) return;
+    const result = await Swal.fire({
+      title: "Editar Grupo",
+      input: "text",
+      inputLabel: "Nombre del grupo",
+      inputValue: row.nombre,
+      showCancelButton: true,
+      confirmButtonText: "Guardar",
+      cancelButtonText: "Cancelar",
+      inputValidator: (value) => (!String(value || "").trim() ? "El nombre es obligatorio." : undefined),
+    });
+    if (!result.isConfirmed) return;
+    try {
+      Swal.fire({
+        title: "Guardando cambios...",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => Swal.showLoading(),
+      });
+      const res = await clienteAxios.put(`/api/biostar-grupos/${row.id_externo}`, {
+        nombre: String(result.value).trim(),
+      });
+      Swal.close();
+      if (res.data.estado) {
+        await Swal.fire({ icon: "success", title: "Grupo editado", text: res.data.mensaje || "Operacion correcta." });
+        await cargar();
+      } else {
+        await Swal.fire({ icon: "error", title: "No se pudo editar", text: res.data.mensaje || "Operacion fallida." });
+      }
+    } catch (error) {
+      Swal.close();
+      handlingError(error);
+    }
+  };
+
+  const eliminarGrupo = async (row: GrupoBiostar) => {
+    if (row.es_all_users) return;
+    const confirm = await Swal.fire({
+      icon: "warning",
+      title: "Eliminar grupo",
+      text: `Seguro que quieres eliminar '${row.nombre}'?`,
+      showCancelButton: true,
+      confirmButtonText: "Si, eliminar",
+      cancelButtonText: "Cancelar",
+    });
+    if (!confirm.isConfirmed) return;
+    try {
+      Swal.fire({
+        title: "Eliminando grupo...",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => Swal.showLoading(),
+      });
+      const res = await clienteAxios.delete(`/api/biostar-grupos/${row.id_externo}`);
+      Swal.close();
+      if (res.data.estado) {
+        await Swal.fire({ icon: "success", title: "Grupo eliminado", text: res.data.mensaje || "Operacion correcta." });
+        await cargar();
+      } else {
+        await Swal.fire({ icon: "error", title: "No se pudo eliminar", text: res.data.mensaje || "Operacion fallida." });
+      }
+    } catch (error) {
+      Swal.close();
+      handlingError(error);
+    }
+  };
+
   const columns = useMemo<GridColDef<GrupoBiostar>[]>(
     () => [
       { field: "nombre", headerName: "Grupo", flex: 1, minWidth: 200 },
@@ -111,9 +181,13 @@ export default function BiostararGrupos() {
         type: "actions",
         flex: 0.5,
         minWidth: 120,
-        getActions: () => [
-          <GridActionsCellItem icon={<Refresh color="primary" />} label="Recargar" onClick={cargar} />,
-        ],
+        getActions: ({ row }) =>
+          row.es_all_users
+            ? []
+            : [
+                <GridActionsCellItem icon={<Edit color="primary" />} label="Editar" onClick={() => editarGrupo(row)} />,
+                <GridActionsCellItem icon={<Delete color="error" />} label="Eliminar" onClick={() => eliminarGrupo(row)} />,
+              ],
       },
     ],
     []
