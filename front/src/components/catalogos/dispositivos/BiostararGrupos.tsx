@@ -20,9 +20,16 @@ function normalizarNombreGrupo(value: string): string {
   return limpio.charAt(0).toUpperCase() + limpio.slice(1);
 }
 
+function normalizarNombreGrupoEnInput(value: string): string {
+  const texto = String(value || "");
+  if (!texto) return "";
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
 export default function BiostararGrupos() {
   const [rows, setRows] = useState<GrupoBiostar[]>([]);
   const [loading, setLoading] = useState(false);
+  const AUTO_REFRESH_MS = 30000;
 
   const cargar = async () => {
     try {
@@ -41,6 +48,13 @@ export default function BiostararGrupos() {
 
   useEffect(() => {
     cargar();
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (!document.hidden) cargar();
+    }, AUTO_REFRESH_MS);
+    return () => window.clearInterval(interval);
   }, []);
 
   const crearGrupo = async () => {
@@ -65,7 +79,7 @@ export default function BiostararGrupos() {
         if (input) {
           input.value = "";
           input.addEventListener("input", () => {
-            const normalizado = normalizarNombreGrupo(input.value);
+            const normalizado = normalizarNombreGrupoEnInput(input.value);
             if (input.value !== normalizado) input.value = normalizado;
           });
         }
