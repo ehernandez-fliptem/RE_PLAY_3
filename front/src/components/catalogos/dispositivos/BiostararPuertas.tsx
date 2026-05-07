@@ -11,8 +11,9 @@ import { useNavigate } from "react-router-dom";
 type PuertaBiostar = {
   id_externo: string;
   nombre: string;
-  dispositivo: string;
-  dispositivo_id?: string;
+  depth?: number;
+  parent_id?: string;
+  es_all_door_groups?: boolean;
 };
 
 export default function BiostararPuertas() {
@@ -53,27 +54,25 @@ export default function BiostararPuertas() {
     const result = await Swal.fire({
       title: "Nuevo Grupo de Puertas",
       html: `
-        <input id="puerta-nombre" class="swal2-input" placeholder="Nombre">
-        <input id="puerta-dispositivo-id" class="swal2-input" placeholder="ID de dispositivo">
+        <input id="puerta-nombre" class="swal2-input" placeholder="Nombre del grupo">
       `,
       showCancelButton: true,
       confirmButtonText: "Guardar",
       cancelButtonText: "Cancelar",
       preConfirm: () => {
         const nombre = (document.getElementById("puerta-nombre") as HTMLInputElement)?.value?.trim();
-        const dispositivo_id = (document.getElementById("puerta-dispositivo-id") as HTMLInputElement)?.value?.trim();
-        if (!nombre || !dispositivo_id) {
-          Swal.showValidationMessage("Nombre e ID de dispositivo son obligatorios.");
+        if (!nombre) {
+          Swal.showValidationMessage("El nombre es obligatorio.");
           return null;
         }
-        return { nombre, dispositivo_id };
+        return { nombre };
       },
     });
 
     if (!result.isConfirmed || !result.value) return;
     try {
       Swal.fire({
-        title: "Creando puerta...",
+        title: "Creando grupo...",
         allowOutsideClick: false,
         allowEscapeKey: false,
         showConfirmButton: false,
@@ -98,19 +97,17 @@ export default function BiostararPuertas() {
       title: "Editar Grupo de Puertas",
       html: `
         <input id="puerta-nombre" class="swal2-input" placeholder="Nombre" value="${row.nombre || ""}">
-        <input id="puerta-dispositivo-id" class="swal2-input" placeholder="ID de dispositivo" value="${row.dispositivo_id || ""}">
       `,
       showCancelButton: true,
       confirmButtonText: "Guardar",
       cancelButtonText: "Cancelar",
       preConfirm: () => {
         const nombre = (document.getElementById("puerta-nombre") as HTMLInputElement)?.value?.trim();
-        const dispositivo_id = (document.getElementById("puerta-dispositivo-id") as HTMLInputElement)?.value?.trim();
-        if (!nombre || !dispositivo_id) {
-          Swal.showValidationMessage("Nombre e ID de dispositivo son obligatorios.");
+        if (!nombre) {
+          Swal.showValidationMessage("El nombre es obligatorio.");
           return null;
         }
-        return { nombre, dispositivo_id };
+        return { nombre };
       },
     });
     if (!result.isConfirmed || !result.value) return;
@@ -150,7 +147,7 @@ export default function BiostararPuertas() {
 
     try {
       Swal.fire({
-        title: "Eliminando puerta...",
+        title: "Eliminando grupo...",
         allowOutsideClick: false,
         allowEscapeKey: false,
         showConfirmButton: false,
@@ -183,8 +180,7 @@ export default function BiostararPuertas() {
   const columns = useMemo<GridColDef<PuertaBiostar>[]>(
     () => [
       { field: "nombre", headerName: "Grupo", flex: 1, minWidth: 220 },
-      { field: "dispositivo", headerName: "Dispositivo", flex: 1, minWidth: 220 },
-      { field: "dispositivo_id", headerName: "ID Dispositivo", flex: 0.7, minWidth: 140 },
+      { field: "depth", headerName: "Nivel", flex: 0.4, minWidth: 100 },
       { field: "id_externo", headerName: "ID", flex: 0.5, minWidth: 120 },
       {
         field: "acciones",
@@ -192,10 +188,13 @@ export default function BiostararPuertas() {
         type: "actions",
         flex: 0.5,
         minWidth: 120,
-        getActions: ({ row }) => [
-          <GridActionsCellItem icon={<Edit color="primary" />} label="Editar" onClick={() => editarPuerta(row)} />,
-          <GridActionsCellItem icon={<Delete color="error" />} label="Eliminar" onClick={() => eliminarPuerta(row)} />,
-        ],
+        getActions: ({ row }) =>
+          row.es_all_door_groups
+            ? []
+            : [
+                <GridActionsCellItem icon={<Edit color="primary" />} label="Editar" onClick={() => editarPuerta(row)} />,
+                <GridActionsCellItem icon={<Delete color="error" />} label="Eliminar" onClick={() => eliminarPuerta(row)} />,
+              ],
       },
     ],
     []

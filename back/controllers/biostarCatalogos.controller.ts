@@ -248,16 +248,16 @@ export async function listarPuertas(_req: Request, res: Response): Promise<void>
     }
 
     const attempts = [
-      biostarRequest(conexion as any, { method: "GET", url: "/api/doors?limit=1000" }),
-      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/doors/search", data: { limit: 1000, offset: 0 } }),
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/door_groups/search", data: { limit: 1000, offset: 0 } }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/door_groups?limit=1000" }),
     ];
 
     let rows: any[] = [];
-    let message = "No se pudieron consultar puertas.";
+    let message = "No se pudieron consultar grupos de puertas.";
     for (const p of attempts) {
       const r = await p;
       if (r.ok) {
-        rows = parseRows(r.data, ["DoorCollection.rows", "rows", "doors"]);
+        rows = parseRows(r.data, ["DoorGroupCollection.rows", "rows", "door_groups"]);
         break;
       }
       message = r.message || message;
@@ -269,10 +269,15 @@ export async function listarPuertas(_req: Request, res: Response): Promise<void>
     }
 
     const datos = rows.map((item: any) => ({
-      id_externo: String(item?.id || item?.door_id || ""),
-      nombre: String(item?.name || item?.door_name || "").trim(),
-      dispositivo: String(item?.device?.name || item?.device_name || item?.device_id?.id || item?.device_id || ""),
-      dispositivo_id: String(item?.device_id?.id || item?.device_id || ""),
+      id_externo: String(item?.id || item?.door_group_id || ""),
+      nombre: String(item?.name || item?.door_group_name || "").trim(),
+      depth: Number(item?.depth || 0),
+      parent_id: String(item?.parent_id?.id || item?.parent_id || ""),
+      es_all_door_groups:
+        String(item?.name || item?.door_group_name || "")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim() === "all door groups",
     }));
 
     res.status(200).json({ estado: true, datos });
@@ -285,13 +290,8 @@ export async function listarPuertas(_req: Request, res: Response): Promise<void>
 export async function crearPuerta(req: Request, res: Response): Promise<void> {
   try {
     const nombre = String(req.body?.nombre || "").trim();
-    const dispositivo_id = String(req.body?.dispositivo_id || "").trim();
     if (!nombre) {
       res.status(400).json({ estado: false, mensaje: "El nombre de la puerta es obligatorio." });
-      return;
-    }
-    if (!dispositivo_id) {
-      res.status(400).json({ estado: false, mensaje: "El dispositivo es obligatorio." });
       return;
     }
 
@@ -302,17 +302,29 @@ export async function crearPuerta(req: Request, res: Response): Promise<void> {
     }
 
     const payloads = [
-      { Door: { name: nombre, device_id: { id: Number(dispositivo_id) || dispositivo_id } } },
-      { door: { name: nombre, device_id: { id: Number(dispositivo_id) || dispositivo_id } } },
-      { name: nombre, device_id: { id: Number(dispositivo_id) || dispositivo_id } },
-      { name: nombre, device_id: Number(dispositivo_id) || dispositivo_id },
+      {
+        DoorGroup: {
+          parent_id: { id: 1 },
+          isDoorGroups: true,
+          depth: 1,
+          sync_device_groups: [],
+          sync_devices: [],
+          iconCls: "doorGroupIcon",
+          inherited: true,
+          text: nombre,
+          name: nombre,
+        },
+      },
+      { DoorGroup: { parent_id: { id: 1 }, isDoorGroups: true, depth: 1, name: nombre, text: nombre } },
+      { door_group: { parent_id: { id: 1 }, depth: 1, name: nombre } },
+      { name: nombre, parent_id: { id: 1 }, depth: 1 },
     ];
 
-    let lastError = "No se pudo crear la puerta en BioStar.";
+    let lastError = "No se pudo crear el grupo de puertas en BioStar.";
     for (const body of payloads) {
-      const createRes = await requestWithEndpointFallback(conexion as any, "POST", "/doors", body);
+      const createRes = await requestWithEndpointFallback(conexion as any, "POST", "/door_groups", body);
       if (createRes.ok) {
-        res.status(200).json({ estado: true, mensaje: "Puerta creada correctamente." });
+        res.status(200).json({ estado: true, mensaje: "Grupo creado correctamente." });
         return;
       }
       lastError = toFriendlyMessage(createRes.message || extractBiostarMessage(createRes.data));
@@ -329,17 +341,12 @@ export async function editarPuerta(req: Request, res: Response): Promise<void> {
   try {
     const id = String(req.params.id || "").trim();
     const nombre = String(req.body?.nombre || "").trim();
-    const dispositivo_id = String(req.body?.dispositivo_id || "").trim();
     if (!id) {
       res.status(400).json({ estado: false, mensaje: "El id de la puerta es obligatorio." });
       return;
     }
     if (!nombre) {
       res.status(400).json({ estado: false, mensaje: "El nombre de la puerta es obligatorio." });
-      return;
-    }
-    if (!dispositivo_id) {
-      res.status(400).json({ estado: false, mensaje: "El dispositivo es obligatorio." });
       return;
     }
 
@@ -350,17 +357,16 @@ export async function editarPuerta(req: Request, res: Response): Promise<void> {
     }
 
     const payloads = [
-      { Door: { id: Number(id) || id, name: nombre, device_id: { id: Number(dispositivo_id) || dispositivo_id } } },
-      { door: { id: Number(id) || id, name: nombre, device_id: { id: Number(dispositivo_id) || dispositivo_id } } },
-      { id: Number(id) || id, name: nombre, device_id: { id: Number(dispositivo_id) || dispositivo_id } },
-      { name: nombre, device_id: Number(dispositivo_id) || dispositivo_id },
+      { DoorGroup: { name: nombre, id: String(id) } },
+      { door_group: { name: nombre, id: String(id) } },
+      { id: String(id), name: nombre },
     ];
 
-    let lastError = "No se pudo editar la puerta en BioStar.";
+    let lastError = "No se pudo editar el grupo de puertas en BioStar.";
     for (const body of payloads) {
-      const editRes = await requestWithEndpointFallback(conexion as any, "PUT", `/doors/${id}`, body);
+      const editRes = await requestWithEndpointFallback(conexion as any, "PUT", `/door_groups/${id}`, body);
       if (editRes.ok) {
-        res.status(200).json({ estado: true, mensaje: "Puerta editada correctamente." });
+        res.status(200).json({ estado: true, mensaje: "Grupo editado correctamente." });
         return;
       }
       lastError = toFriendlyMessage(editRes.message || extractBiostarMessage(editRes.data));
@@ -387,15 +393,15 @@ export async function eliminarPuerta(req: Request, res: Response): Promise<void>
       return;
     }
 
-    const delRes = await requestWithEndpointFallback(conexion as any, "DELETE", `/doors/${id}`);
+    const delRes = await requestWithEndpointFallback(conexion as any, "DELETE", `/door_groups/${id}`);
     if (delRes.ok) {
-      res.status(200).json({ estado: true, mensaje: "Puerta eliminada correctamente." });
+      res.status(200).json({ estado: true, mensaje: "Grupo eliminado correctamente." });
       return;
     }
 
     res.status(200).json({
       estado: false,
-      mensaje: toFriendlyMessage(delRes.message || extractBiostarMessage(delRes.data)) || "No se pudo eliminar la puerta.",
+      mensaje: toFriendlyMessage(delRes.message || extractBiostarMessage(delRes.data)) || "No se pudo eliminar el grupo de puertas.",
     });
   } catch (error: any) {
     log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
