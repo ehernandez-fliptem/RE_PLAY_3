@@ -57,6 +57,7 @@ import dispositivosHvRoutes from './routes/dispositivoshv.routes';
 import dispositivosBiostarRoutes from './routes/dispositivosBiostar.routes';
 import dispositivosSupremaRoutes from './routes/dispositivosSuprema.routes';
 import biostarGruposRoutes from './routes/biostarGrupos.routes';
+import biostarCatalogosRoutes from './routes/biostarCatalogos.routes';
 import horariosRoutes from './routes/horarios.routes';
 import ocrRoutes from './routes/ocr.routes';
 import pasesRoutes from './routes/pases.routes';
@@ -142,6 +143,7 @@ export default async function Server() {
         app.use('/api/dispositivos-biostar', dispositivosBiostarRoutes);
         app.use('/api/dispositivos-suprema', dispositivosSupremaRoutes);
         app.use('/api/biostar-grupos', biostarGruposRoutes);
+        app.use('/api/biostar-catalogos', biostarCatalogosRoutes);
         app.use('/api/horarios', horariosRoutes);
         app.use('/api/ocr', ocrRoutes);
         app.use('/api/pases', pasesRoutes);

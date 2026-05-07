@@ -199,12 +199,24 @@ export default function MenuApplication({ children }: MenuProps) {
       let matched = false;
       for (const menu of mainMenu) {
         if (menu.submenu) {
-          const foundSubMenu = menu.submenu.find(
-            (subM) => pathname.startsWith(subM.path)
-          );
+          const foundSubMenu = menu.submenu.find((subM) => {
+            const subPath = (subM as { path?: string }).path;
+            if (subPath && pathname.startsWith(subPath)) return true;
+            const nested = (subM as { submenu?: Array<{ path: string }> }).submenu;
+            if (!nested) return false;
+            return nested.some((nestedItem) => pathname.startsWith(nestedItem.path));
+          });
           if (foundSubMenu) {
-            setOpenItemList({ [menu.id]: true });
-            setSelectedIndex(foundSubMenu.id);
+            const openState: OpenItemMap = { [menu.id]: true };
+            const nested = (foundSubMenu as { submenu?: Array<{ id: number; path: string }> }).submenu;
+            if (nested?.length) {
+              const nestedMatch = nested.find((nestedItem) => pathname.startsWith(nestedItem.path));
+              openState[foundSubMenu.id] = true;
+              setSelectedIndex(nestedMatch ? nestedMatch.id : foundSubMenu.id);
+            } else {
+              setSelectedIndex(foundSubMenu.id);
+            }
+            setOpenItemList(openState);
             matched = true;
             break;
           }
@@ -597,12 +609,15 @@ export default function MenuApplication({ children }: MenuProps) {
                     {item.submenu?.map((subItem) => {
                       const activeSubId = item.submenu
                         ? item.submenu.reduce((acc, sub) => {
+                            const subPath = (sub as { path?: string }).path;
+                            if (!subPath) return acc;
                             const isMatch =
-                              location.pathname === sub.path ||
-                              location.pathname.startsWith(`${sub.path}/`);
+                              location.pathname === subPath ||
+                              location.pathname.startsWith(`${subPath}/`);
                             if (!isMatch) return acc;
                             if (!acc) return sub;
-                            return sub.path.length > acc.path.length ? sub : acc;
+                            const accPath = (acc as { path?: string }).path || "";
+                            return subPath.length > accPath.length ? sub : acc;
                           }, null as null | { id: number; path: string })
                         : null;
                       let seeSubItem = obtenerDuplicados(rol, subItem.rol);
@@ -617,6 +632,11 @@ export default function MenuApplication({ children }: MenuProps) {
                       }
                       if (rol.includes(1) && subItem.rol.includes(0))
                         seeSubItem = true;
+                      const isNestedParent = Boolean(
+                        (subItem as { submenu?: unknown[] }).submenu
+                      );
+                      const nestedItems =
+                        ((subItem as { submenu?: Array<{ id: number; path: string; title: string; icon: React.ReactNode; rol: number[] }> }).submenu || []);
                       return (
                         <Fragment key={subItem.id}>
                           {seeSubItem && (
@@ -626,17 +646,12 @@ export default function MenuApplication({ children }: MenuProps) {
                               unmountOnExit
                             >
                               <List component="nav" disablePadding>
-                                <RouterLink
-                                  to={subItem.path}
-                                  style={{ textDecoration: "none" }}
-                                >
+                                {isNestedParent ? (
                                   <ListItem disablePadding disableGutters>
                                     <ListItemButton
                                       sx={{ pl: 3 }}
-                                      selected={activeSubId?.id === subItem.id}
-                                      onClick={() =>
-                                        handleListItemClick(subItem.id)
-                                      }
+                                      selected={false}
+                                      onClick={() => handleClick(subItem.id)}
                                     >
                                       <ListItemIcon
                                         sx={{
@@ -658,9 +673,100 @@ export default function MenuApplication({ children }: MenuProps) {
                                           </Typography>
                                         }
                                       />
+                                      {openItemList[subItem.id] ? (
+                                        <ExpandLess />
+                                      ) : (
+                                        <ExpandMore />
+                                      )}
                                     </ListItemButton>
                                   </ListItem>
-                                </RouterLink>
+                                ) : (
+                                  <RouterLink
+                                    to={(subItem as { path: string }).path}
+                                    style={{ textDecoration: "none" }}
+                                  >
+                                    <ListItem disablePadding disableGutters>
+                                      <ListItemButton
+                                        sx={{ pl: 3 }}
+                                        selected={activeSubId?.id === subItem.id}
+                                        onClick={() =>
+                                          handleListItemClick(subItem.id)
+                                        }
+                                      >
+                                        <ListItemIcon
+                                          sx={{
+                                            color: "primary.contrastText",
+                                          }}
+                                        >
+                                          {subItem.icon}
+                                        </ListItemIcon>
+                                        <ListItemText
+                                          sx={{
+                                            color: "primary.contrastText",
+                                          }}
+                                          primary={
+                                            <Typography
+                                              variant="subtitle2"
+                                              component="h6"
+                                            >
+                                              {subItem.title}
+                                            </Typography>
+                                          }
+                                        />
+                                      </ListItemButton>
+                                    </ListItem>
+                                  </RouterLink>
+                                )}
+                                {isNestedParent &&
+                                  nestedItems.map((nestedItem) => (
+                                    <Collapse
+                                      key={nestedItem.id}
+                                      in={openItemList[subItem.id]}
+                                      timeout="auto"
+                                      unmountOnExit
+                                    >
+                                      <List component="nav" disablePadding>
+                                        <RouterLink
+                                          to={nestedItem.path}
+                                          style={{ textDecoration: "none" }}
+                                        >
+                                          <ListItem disablePadding disableGutters>
+                                            <ListItemButton
+                                              sx={{ pl: 5 }}
+                                              selected={
+                                                location.pathname === nestedItem.path ||
+                                                location.pathname.startsWith(`${nestedItem.path}/`)
+                                              }
+                                              onClick={() =>
+                                                handleListItemClick(nestedItem.id)
+                                              }
+                                            >
+                                              <ListItemIcon
+                                                sx={{
+                                                  color: "primary.contrastText",
+                                                }}
+                                              >
+                                                {nestedItem.icon}
+                                              </ListItemIcon>
+                                              <ListItemText
+                                                sx={{
+                                                  color: "primary.contrastText",
+                                                }}
+                                                primary={
+                                                  <Typography
+                                                    variant="subtitle2"
+                                                    component="h6"
+                                                  >
+                                                    {nestedItem.title}
+                                                  </Typography>
+                                                }
+                                              />
+                                            </ListItemButton>
+                                          </ListItem>
+                                        </RouterLink>
+                                      </List>
+                                    </Collapse>
+                                  ))}
                               </List>
                             </Collapse>
                           )}
