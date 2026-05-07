@@ -18,6 +18,8 @@ export default function ModalContainer({
   containerProps,
   children,
 }: Props) {
+  const { sx: modalSx, ...restModalProps } = modalProps || {};
+  const { sx: containerSx, ...restContainerProps } = containerProps || {};
   const navigate = useNavigate();
   const handleClose: ModalProps["onClose"] = (event, reason) => {
     if (reason !== "escapeKeyDown") return;
@@ -32,23 +34,34 @@ export default function ModalContainer({
     <Modal
       open
       onClose={handleClose}
-      sx={{
-        outline: "none",
-        "&:focus, &:focus-visible": { outline: "none" },
-      }}
-      {...modalProps}
+      sx={[
+        {
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          p: 2,
+          outline: "none",
+          "&:focus, &:focus-visible": { outline: "none" },
+        },
+        ...(Array.isArray(modalSx) ? modalSx : modalSx ? [modalSx] : []),
+      ]}
+      {...restModalProps}
     >
       <Container
         component="div"
-        sx={{
-          overflow: "auto",
-          height: "100%",
-          paddingX: 0,
-          outline: "none",
-          "&:focus, &:focus-visible": { outline: "none" },
-        }}
+        sx={[
+          {
+            overflow: "auto",
+            maxHeight: "calc(100dvh - 32px)",
+            width: "100%",
+            paddingX: 0,
+            outline: "none",
+            "&:focus, &:focus-visible": { outline: "none" },
+          },
+          ...(Array.isArray(containerSx) ? containerSx : containerSx ? [containerSx] : []),
+        ]}
         disableGutters
-        {...containerProps}
+        {...restContainerProps}
       >
         {children}
       </Container>
