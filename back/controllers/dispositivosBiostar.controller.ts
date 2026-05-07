@@ -313,6 +313,16 @@ function parseRemoteDeviceRows(payload: any): any[] {
   return rows;
 }
 
+function parseDiscoveryRows(payload: any): any[] {
+  const candidates = [
+    payload?.DeviceSearchResultCollection?.rows,
+    payload?.DeviceCollection?.rows,
+    payload?.rows,
+    payload?.devices,
+  ];
+  return (candidates.find((value) => Array.isArray(value)) || []) as any[];
+}
+
 async function getBiostarConexionActiva(): Promise<any | null> {
   const conexion = await BiostarConexion.findOne({ activo: true }).sort({
     fecha_modificacion: -1,
@@ -668,10 +678,20 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
       return;
     }
 
+    const descubrimientoRaw = req.body?.raw && typeof req.body.raw === "object" ? req.body.raw : null;
     const payloads = [
+      ...(descubrimientoRaw
+        ? [
+            { Device: descubrimientoRaw },
+            { device: descubrimientoRaw },
+            descubrimientoRaw,
+            { DeviceCollection: { rows: [descubrimientoRaw] } },
+          ]
+        : []),
       { device: { name: nombre || direccion_ip, ip_address: direccion_ip, port: puerto } },
       { Device: { name: nombre || direccion_ip, ip_address: direccion_ip, port: puerto } },
       { name: nombre || direccion_ip, ip_address: direccion_ip, port: puerto },
+      { DeviceCollection: { rows: [{ name: nombre || direccion_ip, ip_address: direccion_ip, port: puerto }] } },
     ];
 
     let lastMessage = "No se pudo agregar el dispositivo en BioStar.";
@@ -685,6 +705,63 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
     }
 
     res.status(200).json({ estado: false, mensaje: lastMessage });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function descubrirDispositivosRemotos(req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const segundos = Math.min(10, Math.max(1, Number(req.body?.segundos || 3)));
+    const solo_nuevos = req.body?.solo_nuevos !== false;
+
+    const payloads = [
+      { timeout: segundos, only_new: solo_nuevos },
+      { timeout: segundos * 1000, only_new: solo_nuevos },
+      { duration: segundos, only_new: solo_nuevos },
+      { duration: segundos * 1000, only_new: solo_nuevos },
+      { only_new: solo_nuevos },
+      {},
+    ];
+
+    let rows: any[] = [];
+    let lastMessage = "No se pudo buscar dispositivos en BioStar.";
+    for (const data of payloads) {
+      const tcp = await biostarRequest(conexion as any, { method: "POST", url: "/api/devices/tcp_search", data });
+      if (tcp.ok) {
+        rows = parseDiscoveryRows(tcp.data);
+        if (rows.length > 0) break;
+      } else {
+        lastMessage = tcp.message || lastMessage;
+      }
+
+      const udp = await biostarRequest(conexion as any, { method: "POST", url: "/api/devices/udp_search", data });
+      if (udp.ok) {
+        rows = parseDiscoveryRows(udp.data);
+        if (rows.length > 0) break;
+      } else {
+        lastMessage = udp.message || lastMessage;
+      }
+    }
+
+    const mapped = rows.map((item: any) => ({
+      id_externo: String(item?.id || item?.device_id || item?.deviceID || ""),
+      nombre: String(item?.name || item?.device_name || "").trim(),
+      direccion_ip: String(item?.ip_address || item?.ip || "").trim(),
+      puerto: Number(item?.port || item?.server_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
+      tipo: String(item?.device_type || item?.type || "all"),
+      modelo: String(item?.model_name || item?.model || "").trim(),
+      raw: item,
+    }));
+
+    res.status(200).json({ estado: true, datos: mapped, mensaje: mapped.length ? "" : lastMessage });
   } catch (error: any) {
     log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
     res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });

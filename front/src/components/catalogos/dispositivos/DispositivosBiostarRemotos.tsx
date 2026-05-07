@@ -78,31 +78,52 @@ export default function DispositivosBiostarRemotos() {
   };
 
   const crearDispositivo = async () => {
-    const result = await Swal.fire({
-      title: "Agregar dispositivo",
-      html: `
-        <input id="bio-new-name" class="swal2-input" placeholder="Nombre" autocomplete="off">
-        <input id="bio-new-ip" class="swal2-input" placeholder="Direccion IP" autocomplete="off">
-        <input id="bio-new-port" class="swal2-input" placeholder="Puerto" value="51211" autocomplete="off">
-      `,
-      showCancelButton: true,
-      confirmButtonText: "Guardar",
-      cancelButtonText: "Cancelar",
-      preConfirm: () => {
-        const nombre = (document.getElementById("bio-new-name") as HTMLInputElement)?.value?.trim();
-        const direccion_ip = (document.getElementById("bio-new-ip") as HTMLInputElement)?.value?.trim();
-        const puerto = Number((document.getElementById("bio-new-port") as HTMLInputElement)?.value || 51211);
-        if (!direccion_ip) {
-          Swal.showValidationMessage("La direccion IP es obligatoria.");
-          return null;
-        }
-        return { nombre, direccion_ip, puerto };
-      },
-    });
+    const buscarDispositivos = async (): Promise<RemoteDevice[]> => {
+      Swal.fire({
+        title: "Buscando dispositivos...",
+        text: "Espera 3 segundos",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => Swal.showLoading(),
+      });
+      try {
+        const discoveryRes = await clienteAxios.post("/api/dispositivos-biostar/remotos/descubrir", {
+          segundos: 3,
+          solo_nuevos: true,
+        });
+        return (discoveryRes.data?.datos || []) as RemoteDevice[];
+      } catch (error) {
+        handlingError(error);
+        return [];
+      } finally {
+        Swal.close();
+      }
+    };
 
-    if (!result.isConfirmed || !result.value) return;
-
-    try {
+    const crearManual = async () => {
+      const result = await Swal.fire({
+        title: "Agregar manualmente",
+        html: `
+          <input id="bio-new-name" class="swal2-input" placeholder="Nombre" autocomplete="off">
+          <input id="bio-new-ip" class="swal2-input" placeholder="Direccion IP" autocomplete="off">
+          <input id="bio-new-port" class="swal2-input" placeholder="Puerto" value="51211" autocomplete="off">
+        `,
+        showCancelButton: true,
+        confirmButtonText: "Guardar",
+        cancelButtonText: "Cancelar",
+        preConfirm: () => {
+          const nombre = (document.getElementById("bio-new-name") as HTMLInputElement)?.value?.trim();
+          const direccion_ip = (document.getElementById("bio-new-ip") as HTMLInputElement)?.value?.trim();
+          const puerto = Number((document.getElementById("bio-new-port") as HTMLInputElement)?.value || 51211);
+          if (!direccion_ip || !nombre) {
+            Swal.showValidationMessage("Nombre e IP son obligatorios.");
+            return null;
+          }
+          return { nombre, direccion_ip, puerto };
+        },
+      });
+      if (!result.isConfirmed || !result.value) return;
       const res = await clienteAxios.post("/api/dispositivos-biostar/remotos", result.value);
       if (!res.data.estado) {
         await Swal.fire({ icon: "error", title: "No se pudo crear", text: res.data.mensaje || "No se pudo crear el dispositivo." });
@@ -110,8 +131,112 @@ export default function DispositivosBiostarRemotos() {
       }
       await Swal.fire({ icon: "success", title: "Dispositivo agregado", text: res.data.mensaje || "Registro completado." });
       await cargarTodos();
-    } catch (error) {
-      handlingError(error);
+    };
+
+    let keepOpen = true;
+    let discovered = await buscarDispositivos();
+    while (keepOpen) {
+      const options = discovered
+        .map(
+          (item, index) =>
+            `<label style="display:block;text-align:left;margin:8px 0;"><input type="radio" name="bio-discovery" value="${index}" ${
+              index === 0 ? "checked" : ""
+            } /> ${item.nombre || "Sin nombre"} - ${item.direccion_ip}:${item.puerto}</label>`
+        )
+        .join("");
+
+      const html = discovered.length
+        ? `<div style="max-height:300px;overflow:auto;">${options}</div>`
+        : `<div style="padding:12px 0;text-align:center;">No se encontro ningun dispositivo nuevo.</div>`;
+
+      const picked = await Swal.fire({
+        title: "Dispositivos BioStar",
+        html,
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: discovered.length ? "Siguiente" : "Agregar manualmente",
+        denyButtonText: discovered.length ? "Buscar de nuevo" : "Buscar de nuevo",
+        cancelButtonText: "Cancelar",
+        preConfirm: () => {
+          if (!discovered.length) return -1;
+          const el = document.querySelector("input[name='bio-discovery']:checked") as HTMLInputElement | null;
+          if (!el) {
+            Swal.showValidationMessage("Selecciona un dispositivo.");
+            return null;
+          }
+          return Number(el.value);
+        },
+      });
+
+      if (picked.isDismissed || picked.isDenied === false && picked.isConfirmed === false) {
+        keepOpen = false;
+        break;
+      }
+
+      if (picked.isDenied) {
+        discovered = await buscarDispositivos();
+        continue;
+      }
+
+      if (!picked.isConfirmed) {
+        keepOpen = false;
+        break;
+      }
+
+      if (picked.value === -1) {
+        try {
+          await crearManual();
+        } catch (error) {
+          handlingError(error);
+        }
+        keepOpen = false;
+        break;
+      }
+
+      const selected = discovered[Number(picked.value)];
+      if (!selected) {
+        keepOpen = false;
+        break;
+      }
+
+      const nameModal = await Swal.fire({
+        title: "Nombre del dispositivo",
+        html: `<input id="bio-new-name" class="swal2-input" placeholder="Nombre" value="${selected.nombre || ""}" autocomplete="off">`,
+        showCancelButton: true,
+        confirmButtonText: "Guardar",
+        cancelButtonText: "Cancelar",
+        preConfirm: () => {
+          const nombre = (document.getElementById("bio-new-name") as HTMLInputElement)?.value?.trim();
+          if (!nombre) {
+            Swal.showValidationMessage("El nombre es obligatorio.");
+            return null;
+          }
+          return nombre;
+        },
+      });
+      if (!nameModal.isConfirmed || !nameModal.value) {
+        keepOpen = false;
+        break;
+      }
+
+      try {
+        const res = await clienteAxios.post("/api/dispositivos-biostar/remotos", {
+          nombre: nameModal.value,
+          direccion_ip: selected.direccion_ip,
+          puerto: selected.puerto,
+          raw: (selected as any).raw,
+        });
+        if (!res.data.estado) {
+          await Swal.fire({ icon: "error", title: "No se pudo crear", text: res.data.mensaje || "No se pudo crear el dispositivo." });
+          keepOpen = false;
+          break;
+        }
+        await Swal.fire({ icon: "success", title: "Dispositivo agregado", text: res.data.mensaje || "Registro completado." });
+        await cargarTodos();
+      } catch (error) {
+        handlingError(error);
+      }
+      keepOpen = false;
     }
   };
 
