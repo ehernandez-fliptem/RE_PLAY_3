@@ -286,9 +286,11 @@ export default function DispositivosBiostarRemotos() {
         flex: 0.7,
         minWidth: 130,
         valueGetter: (_value, row) => {
-          const val = String(row?.estatus || "").trim();
-          if (!val) return "Unknown";
-          return val.charAt(0).toUpperCase() + val.slice(1).toLowerCase();
+          const raw = String(row?.estatus || "").trim().toLowerCase();
+          if (!raw) return "Desconectado";
+          if (["1", "true", "connected", "connect", "online", "normal"].includes(raw)) return "Conectado";
+          if (["0", "-1", "false", "disconnected", "disconnect", "offline"].includes(raw)) return "Desconectado";
+          return raw.charAt(0).toUpperCase() + raw.slice(1);
         },
       },
     ];
