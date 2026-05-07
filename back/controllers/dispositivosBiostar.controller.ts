@@ -810,7 +810,12 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
     const discoveredName = String(
       discoveredByIpRaw?.name || discoveredByIpRaw?.device_name || ""
     ).trim();
+    const requestedGroupIdRaw =
+      req.body?.device_group_id?.id ??
+      req.body?.device_group_id ??
+      req.body?.device_group;
     const discoveredGroupIdRaw =
+      requestedGroupIdRaw ??
       discoveredByIpRaw?.device_group_id?.id ??
       discoveredByIpRaw?.device_group?.id ??
       discoveredByIpRaw?.device_group ??

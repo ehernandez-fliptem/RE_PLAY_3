@@ -2,7 +2,26 @@ import { useEffect, useMemo, useState } from "react";
 import { DataGrid, GridActionsCellItem, type GridColDef } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
 import { Add, Delete, Edit, Sync } from "@mui/icons-material";
-import { Box, FormControl, IconButton, InputLabel, MenuItem, Select, Tooltip } from "@mui/material";
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  FormControlLabel,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Radio,
+  RadioGroup,
+  Select,
+  Stack,
+  TextField,
+  Tooltip,
+  Typography,
+} from "@mui/material";
 import Swal from "sweetalert2";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
@@ -28,6 +47,17 @@ export default function DispositivosBiostarRemotos() {
   const [grupos, setGrupos] = useState<RemoteGroup[]>([]);
   const [grupoSeleccionado, setGrupoSeleccionado] = useState<string>("todos");
   const [loading, setLoading] = useState(false);
+  const [openNuevo, setOpenNuevo] = useState(false);
+  const [guardandoNuevo, setGuardandoNuevo] = useState(false);
+  const [buscandoNuevo, setBuscandoNuevo] = useState(false);
+  const [encontrados, setEncontrados] = useState<RemoteDevice[]>([]);
+  const [seleccionEncontrado, setSeleccionEncontrado] = useState<string>("");
+  const [nuevoForm, setNuevoForm] = useState({
+    nombre: "",
+    direccion_ip: "",
+    puerto: 51211,
+    grupo_id: "1",
+  });
 
   const cargarGrupos = async () => {
     try {
@@ -60,192 +90,79 @@ export default function DispositivosBiostarRemotos() {
   };
 
   const crearDispositivo = async () => {
-    const buscarDispositivos = async (): Promise<{ devices: RemoteDevice[]; warning?: string }> => {
-      Swal.fire({
-        title: "Buscando dispositivos...",
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        showConfirmButton: false,
-        didOpen: () => Swal.showLoading(),
-      });
-      try {
-        const discoveryRes = await clienteAxios.post(
-          "/api/dispositivos-biostar/remotos/descubrir",
-          {
-            segundos: 3,
-            solo_nuevos: false,
-          },
-          { timeout: 15000 }
-        );
-        const discovered = (discoveryRes.data?.datos || []) as RemoteDevice[];
-        const existing = new Set(
-          (rows || []).map((item) => `${String(item.direccion_ip || "").trim()}::${Number(item.puerto || 0)}`)
-        );
-        const filtered = discovered.filter((item) => {
-          const key = `${String(item.direccion_ip || "").trim()}::${Number(item.puerto || 0)}`;
-          return !existing.has(key);
-        });
-        return { devices: filtered };
-      } catch (error) {
-        const maybeAxiosError = error as { code?: string };
-        if (maybeAxiosError?.code === "ECONNABORTED" || maybeAxiosError?.code === "ERR_CANCELED") {
-          return { devices: [], warning: "La busqueda no respondio a tiempo." };
-        }
-        handlingError(error);
-        return { devices: [], warning: "No se pudo completar la busqueda en este momento." };
-      } finally {
-        Swal.close();
-      }
-    };
+    const allGroup = grupos.find((g) => (g.grupo_nombre || "").toLowerCase().includes("all devices"));
+    setNuevoForm({
+      nombre: "",
+      direccion_ip: "",
+      puerto: 51211,
+      grupo_id: allGroup?.grupo_id || "1",
+    });
+    setEncontrados([]);
+    setSeleccionEncontrado("");
+    setOpenNuevo(true);
+  };
 
-    const crearManual = async () => {
-      const result = await Swal.fire({
-        title: "Agregar manualmente",
-        html: `
-          <input id="bio-new-name" class="swal2-input" placeholder="Nombre" autocomplete="off">
-          <input id="bio-new-ip" class="swal2-input" placeholder="Direccion IP" autocomplete="off">
-          <input id="bio-new-port" class="swal2-input" placeholder="Puerto" value="51211" autocomplete="off">
-        `,
-        showCancelButton: true,
-        confirmButtonText: "Guardar",
-        cancelButtonText: "Cancelar",
-        preConfirm: () => {
-          const nombre = (document.getElementById("bio-new-name") as HTMLInputElement)?.value?.trim();
-          const direccion_ip = (document.getElementById("bio-new-ip") as HTMLInputElement)?.value?.trim();
-          const puerto = Number((document.getElementById("bio-new-port") as HTMLInputElement)?.value || 51211);
-          if (!direccion_ip || !nombre) {
-            Swal.showValidationMessage("Nombre e IP son obligatorios.");
-            return null;
-          }
-          return { nombre, direccion_ip, puerto };
-        },
+  const buscarDispositivosNuevo = async () => {
+    setBuscandoNuevo(true);
+    try {
+      const discoveryRes = await clienteAxios.post(
+        "/api/dispositivos-biostar/remotos/descubrir",
+        { segundos: 3, solo_nuevos: false },
+        { timeout: 15000 }
+      );
+      const discovered = (discoveryRes.data?.datos || []) as RemoteDevice[];
+      const existing = new Set((rows || []).map((item) => `${String(item.direccion_ip || "").trim()}::${Number(item.puerto || 0)}`));
+      const filtered = discovered.filter((item) => {
+        const key = `${String(item.direccion_ip || "").trim()}::${Number(item.puerto || 0)}`;
+        return !existing.has(key);
       });
-      if (!result.isConfirmed || !result.value) return;
-      const res = await clienteAxios.post("/api/dispositivos-biostar/remotos", result.value);
+      setEncontrados(filtered);
+      if (filtered.length > 0) {
+        setSeleccionEncontrado("0");
+        setNuevoForm((prev) => ({
+          ...prev,
+          direccion_ip: filtered[0].direccion_ip || prev.direccion_ip,
+          puerto: Number(filtered[0].puerto || prev.puerto),
+          nombre: prev.nombre || filtered[0].nombre || "",
+        }));
+      }
+    } catch (error) {
+      handlingError(error);
+      setEncontrados([]);
+      setSeleccionEncontrado("");
+    } finally {
+      setBuscandoNuevo(false);
+    }
+  };
+
+  const guardarNuevoDispositivo = async () => {
+    if (!nuevoForm.nombre.trim() || !nuevoForm.direccion_ip.trim()) {
+      await Swal.fire({ icon: "warning", title: "Faltan datos", text: "Nombre e IP son obligatorios." });
+      return;
+    }
+    setGuardandoNuevo(true);
+    try {
+      const selected = seleccionEncontrado !== "" ? encontrados[Number(seleccionEncontrado)] : null;
+      const payload = {
+        nombre: nuevoForm.nombre.trim(),
+        direccion_ip: (selected?.direccion_ip || nuevoForm.direccion_ip).trim(),
+        puerto: Number(selected?.puerto || nuevoForm.puerto),
+        raw: selected ? (selected as any).raw : undefined,
+        device_group: Number(nuevoForm.grupo_id) || 1,
+        device_group_id: { id: Number(nuevoForm.grupo_id) || 1 },
+      };
+      const res = await clienteAxios.post("/api/dispositivos-biostar/remotos", payload);
       if (!res.data.estado) {
         await Swal.fire({ icon: "error", title: "No se pudo crear", text: res.data.mensaje || "No se pudo crear el dispositivo." });
         return;
       }
       await Swal.fire({ icon: "success", title: "Dispositivo agregado", text: res.data.mensaje || "Registro completado." });
+      setOpenNuevo(false);
       await cargarTodos();
-    };
-
-    let keepOpen = true;
-    let discoveryResult = await buscarDispositivos();
-    let discovered = discoveryResult.devices || [];
-    let warning = discoveryResult.warning;
-    while (keepOpen) {
-      const options = discovered
-        .map(
-          (item, index) =>
-            `<label style="display:block;text-align:left;margin:8px 0;"><input type="radio" name="bio-discovery" value="${index}" ${
-              index === 0 ? "checked" : ""
-            } /> ${item.nombre || "Sin nombre"} - ${item.direccion_ip}:${item.puerto}</label>`
-        )
-        .join("");
-
-      const html = discovered.length
-        ? `<div style="max-height:300px;overflow:auto;">${options}</div>`
-        : `
-          <div style="padding:12px 0;text-align:center;">
-            <div>No se encontro ningun dispositivo nuevo.</div>
-            ${warning ? `<div style="margin-top:8px;color:#9e6c00;font-size:12px;">${warning}</div>` : ""}
-          </div>
-        `;
-
-      const picked = await Swal.fire({
-        title: "Dispositivos BioStar",
-        html,
-        showCancelButton: true,
-        showDenyButton: true,
-        confirmButtonText: "Siguiente",
-        denyButtonText: "Agregar manualmente",
-        cancelButtonText: "Buscar de nuevo",
-        preConfirm: () => {
-          if (!discovered.length) {
-            Swal.showValidationMessage("No hay dispositivos para seleccionar.");
-            return null;
-          }
-          const el = document.querySelector("input[name='bio-discovery']:checked") as HTMLInputElement | null;
-          if (!el) {
-            Swal.showValidationMessage("Selecciona un dispositivo.");
-            return null;
-          }
-          return Number(el.value);
-        },
-      });
-
-      if (picked.dismiss === Swal.DismissReason.cancel) {
-        discoveryResult = await buscarDispositivos();
-        discovered = discoveryResult.devices || [];
-        warning = discoveryResult.warning;
-        continue;
-      }
-
-      if (picked.isDismissed || picked.isDenied === false && picked.isConfirmed === false) {
-        keepOpen = false;
-        break;
-      }
-
-      if (picked.isDenied) {
-        try {
-          await crearManual();
-        } catch (error) {
-          handlingError(error);
-        }
-        keepOpen = false;
-        break;
-      }
-
-      if (!picked.isConfirmed) {
-        keepOpen = false;
-        break;
-      }
-
-      const selected = discovered[Number(picked.value)];
-      if (!selected) {
-        keepOpen = false;
-        break;
-      }
-
-      const nameModal = await Swal.fire({
-        title: "Nombre del dispositivo",
-        html: `<input id="bio-new-name" class="swal2-input" placeholder="Nombre" value="${selected.nombre || ""}" autocomplete="off">`,
-        showCancelButton: true,
-        confirmButtonText: "Guardar",
-        cancelButtonText: "Cancelar",
-        preConfirm: () => {
-          const nombre = (document.getElementById("bio-new-name") as HTMLInputElement)?.value?.trim();
-          if (!nombre) {
-            Swal.showValidationMessage("El nombre es obligatorio.");
-            return null;
-          }
-          return nombre;
-        },
-      });
-      if (!nameModal.isConfirmed || !nameModal.value) {
-        keepOpen = false;
-        break;
-      }
-
-      try {
-        const res = await clienteAxios.post("/api/dispositivos-biostar/remotos", {
-          nombre: nameModal.value,
-          direccion_ip: selected.direccion_ip,
-          puerto: selected.puerto,
-          raw: (selected as any).raw,
-        });
-        if (!res.data.estado) {
-          await Swal.fire({ icon: "error", title: "No se pudo crear", text: res.data.mensaje || "No se pudo crear el dispositivo." });
-          keepOpen = false;
-          break;
-        }
-        await Swal.fire({ icon: "success", title: "Dispositivo agregado", text: res.data.mensaje || "Registro completado." });
-        await cargarTodos();
-      } catch (error) {
-        handlingError(error);
-      }
-      keepOpen = false;
+    } catch (error) {
+      handlingError(error);
+    } finally {
+      setGuardandoNuevo(false);
     }
   };
 
@@ -324,6 +241,18 @@ export default function DispositivosBiostarRemotos() {
       return rowGroup === grupoSeleccionado;
     });
   }, [rows, grupoSeleccionado]);
+
+  useEffect(() => {
+    if (seleccionEncontrado === "") return;
+    const selected = encontrados[Number(seleccionEncontrado)];
+    if (!selected) return;
+    setNuevoForm((prev) => ({
+      ...prev,
+      direccion_ip: selected.direccion_ip || prev.direccion_ip,
+      puerto: Number(selected.puerto || prev.puerto),
+      nombre: prev.nombre || selected.nombre || "",
+    }));
+  }, [seleccionEncontrado, encontrados]);
 
   const columns = useMemo<GridColDef<RemoteDevice>[]>(
     () => [
@@ -406,6 +335,82 @@ export default function DispositivosBiostarRemotos() {
           ),
         }}
       />
+      <Dialog open={openNuevo} onClose={() => !guardandoNuevo && setOpenNuevo(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Nuevo Dispositivo BioStar</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="Nombre"
+              value={nuevoForm.nombre}
+              onChange={(event) => setNuevoForm((prev) => ({ ...prev, nombre: event.target.value }))}
+              fullWidth
+            />
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <TextField
+                label="Direccion IP"
+                value={nuevoForm.direccion_ip}
+                onChange={(event) => setNuevoForm((prev) => ({ ...prev, direccion_ip: event.target.value }))}
+                fullWidth
+              />
+              <TextField
+                label="Puerto"
+                type="number"
+                value={nuevoForm.puerto}
+                onChange={(event) => setNuevoForm((prev) => ({ ...prev, puerto: Number(event.target.value || 0) }))}
+                sx={{ minWidth: 160 }}
+              />
+            </Stack>
+            <FormControl fullWidth>
+              <InputLabel id="nuevo-device-group-label">Grupo</InputLabel>
+              <Select
+                labelId="nuevo-device-group-label"
+                value={nuevoForm.grupo_id}
+                label="Grupo"
+                onChange={(event) => setNuevoForm((prev) => ({ ...prev, grupo_id: String(event.target.value) }))}
+              >
+                {(grupos || []).map((grupo) => (
+                  <MenuItem key={grupo.grupo_id} value={grupo.grupo_id}>
+                    {grupo.grupo_nombre}
+                  </MenuItem>
+                ))}
+                {(grupos || []).length === 0 && <MenuItem value="1">All Devices</MenuItem>}
+              </Select>
+            </FormControl>
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                Dispositivos encontrados
+              </Typography>
+              {encontrados.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  Sin resultados por ahora.
+                </Typography>
+              ) : (
+                <RadioGroup value={seleccionEncontrado} onChange={(event) => setSeleccionEncontrado(event.target.value)}>
+                  {encontrados.map((item, index) => (
+                    <FormControlLabel
+                      key={`${item.id_externo}-${item.direccion_ip}-${index}`}
+                      value={String(index)}
+                      control={<Radio />}
+                      label={`${item.nombre || "Sin nombre"} - ${item.direccion_ip}:${item.puerto}`}
+                    />
+                  ))}
+                </RadioGroup>
+              )}
+            </Box>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setOpenNuevo(false)} disabled={guardandoNuevo || buscandoNuevo}>
+            Cancelar
+          </Button>
+          <Button onClick={buscarDispositivosNuevo} disabled variant="outlined">
+            {buscandoNuevo ? "Buscando..." : "Buscar dispositivos"}
+          </Button>
+          <Button onClick={guardarNuevoDispositivo} disabled={guardandoNuevo || buscandoNuevo} variant="contained">
+            {guardandoNuevo ? "Guardando..." : "Guardar"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 }
