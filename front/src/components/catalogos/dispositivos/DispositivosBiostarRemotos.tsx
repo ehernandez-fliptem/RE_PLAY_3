@@ -239,6 +239,14 @@ export default function DispositivosBiostarRemotos() {
     return map;
   }, [rows]);
 
+  const nombreGrupoPorId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const grupo of grupos || []) {
+      map.set(String(grupo.grupo_id), grupo.grupo_nombre);
+    }
+    return map;
+  }, [grupos]);
+
   const columns = useMemo<GridColDef<RemoteDevice>[]>(() => {
     const base: GridColDef<RemoteDevice>[] = [
       { field: "nombre", headerName: "Nombre del dispositivo", flex: 1, minWidth: 220 },
@@ -246,7 +254,16 @@ export default function DispositivosBiostarRemotos() {
     ];
 
     if (grupoSeleccionado === "todos") {
-      base.push({ field: "grupo_nombre", headerName: "Grupo", flex: 1, minWidth: 200 });
+      base.push({
+        field: "grupo_nombre",
+        headerName: "Grupo",
+        flex: 1,
+        minWidth: 200,
+        renderCell: (params) => {
+          const id = String(params.row?.grupo_id || "").trim() || "1";
+          return nombreGrupoPorId.get(id) || params.value || "Predeterminado BioStar";
+        },
+      });
     }
 
     base.push({
@@ -262,7 +279,7 @@ export default function DispositivosBiostarRemotos() {
     });
 
     return base;
-  }, [grupoSeleccionado]);
+  }, [grupoSeleccionado, nombreGrupoPorId]);
 
   return (
     <div style={{ minHeight: 450 }}>
@@ -298,10 +315,22 @@ export default function DispositivosBiostarRemotos() {
                       label="Grupo de dispositivos"
                       onChange={(event) => setGrupoSeleccionado(String(event.target.value))}
                     >
-                      <MenuItem value="todos">Todos ({rows.length})</MenuItem>
+                      <MenuItem value="todos">
+                        <Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+                          <Box sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            Todos
+                          </Box>
+                          <Box sx={{ flexShrink: 0 }}>({rows.length})</Box>
+                        </Box>
+                      </MenuItem>
                       {(gruposOrdenados || []).map((grupo) => (
                         <MenuItem key={grupo.grupo_id} value={grupo.grupo_id}>
-                          {grupo.grupo_nombre} ({conteoPorGrupo.get(String(grupo.grupo_id)) || 0})
+                          <Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+                            <Box sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {grupo.grupo_nombre}
+                            </Box>
+                            <Box sx={{ flexShrink: 0 }}>({conteoPorGrupo.get(String(grupo.grupo_id)) || 0})</Box>
+                          </Box>
                         </MenuItem>
                       ))}
                     </Select>
