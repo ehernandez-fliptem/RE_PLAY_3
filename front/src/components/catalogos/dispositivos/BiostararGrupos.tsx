@@ -271,7 +271,7 @@ export default function BiostararGrupos() {
         slots={{
           toolbar: () => (
             <DataGridToolbar
-              tableTitle="Grupos BioStar"
+              tableTitle="Grupos de Usuarios BioStar"
               customActionButtons={
                 <>
                   <Tooltip title="Recargar">
