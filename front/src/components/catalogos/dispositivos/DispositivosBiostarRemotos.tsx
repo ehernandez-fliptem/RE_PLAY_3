@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DataGrid, GridActionsCellItem, type GridColDef } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
-import { Add, Delete, Edit, Sync, Autorenew } from "@mui/icons-material";
+import { Add, Delete, Edit, Autorenew } from "@mui/icons-material";
 import {
   Box,
   Button,
@@ -232,20 +232,6 @@ export default function DispositivosBiostarRemotos() {
     }
   };
 
-  const sincronizarDispositivo = async (row: RemoteDevice) => {
-    try {
-      const res = await clienteAxios.post(`/api/dispositivos-biostar/remotos/${row.id_externo}/sync`, {});
-      if (!res.data.estado) {
-        await Swal.fire({ icon: "error", title: "No se pudo sincronizar", text: res.data.mensaje || "No se pudo sincronizar el dispositivo." });
-        return;
-      }
-      await Swal.fire({ icon: "success", title: "Sincronización enviada", text: res.data.mensaje || "Operación completada." });
-      await cargarTodos();
-    } catch (error) {
-      handlingError(error);
-    }
-  };
-
   useEffect(() => {
     cargarGrupos();
     cargarTodos();
@@ -316,8 +302,7 @@ export default function DispositivosBiostarRemotos() {
       minWidth: 140,
       getActions: ({ row }) => [
         <GridActionsCellItem icon={<Edit color="primary" />} label="Editar" onClick={() => editarDispositivo(row)} />,
-        <GridActionsCellItem icon={<Autorenew color="info" />} label="Reconnect" onClick={() => reconectarDispositivo(row)} showInMenu={false} />,
-        <GridActionsCellItem icon={<Sync color="info" />} label="Sync Device" onClick={() => sincronizarDispositivo(row)} showInMenu={false} />,
+        <GridActionsCellItem icon={<Autorenew color="info" />} label="Reconectar dispositivo" onClick={() => reconectarDispositivo(row)} showInMenu={false} />,
         <GridActionsCellItem icon={<Delete color="error" />} label="Eliminar" onClick={() => eliminarDispositivo(row)} />,
       ],
     });
