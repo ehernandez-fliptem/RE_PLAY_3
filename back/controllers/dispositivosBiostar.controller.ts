@@ -325,12 +325,16 @@ function parseDiscoveryRows(payload: any): any[] {
 
 function extractDeviceGroup(item: any): { grupo_id: string; grupo_nombre: string } {
   const groupObj = item?.device_group || item?.group || item?.deviceGroup || null;
+  const rawGroupId =
+    groupObj?.id ??
+    groupObj?.device_group_id ??
+    item?.device_group_id?.id ??
+    item?.device_group_id ??
+    item?.group_id?.id ??
+    item?.group_id ??
+    "";
   const groupId = String(
-    groupObj?.id ||
-      groupObj?.device_group_id ||
-      item?.device_group_id ||
-      item?.group_id ||
-      ""
+    rawGroupId
   ).trim();
   const groupName = String(
     groupObj?.name ||
