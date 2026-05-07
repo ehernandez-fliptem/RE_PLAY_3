@@ -395,7 +395,7 @@ const mainMenu = [
           },
           {
             id: 99.533,
-            title: "Puertas",
+            title: "Grupos de Puertas",
             rol: [1],
             icon: <MeetingRoom fontSize="small" />,
             path: "/biostarar/puertas",

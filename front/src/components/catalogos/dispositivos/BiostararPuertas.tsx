@@ -51,7 +51,7 @@ export default function BiostararPuertas() {
 
   const crearPuerta = async () => {
     const result = await Swal.fire({
-      title: "Nueva Puerta",
+      title: "Nuevo Grupo de Puertas",
       html: `
         <input id="puerta-nombre" class="swal2-input" placeholder="Nombre">
         <input id="puerta-dispositivo-id" class="swal2-input" placeholder="ID de dispositivo">
@@ -82,7 +82,7 @@ export default function BiostararPuertas() {
       const res = await clienteAxios.post("/api/biostar-catalogos/puertas", result.value);
       Swal.close();
       if (res.data.estado) {
-        await Swal.fire({ icon: "success", title: "Puerta creada", text: res.data.mensaje || "Operacion correcta." });
+        await Swal.fire({ icon: "success", title: "Grupo creado", text: res.data.mensaje || "Operacion correcta." });
         await cargar();
       } else {
         await Swal.fire({ icon: "error", title: "No se pudo crear", text: res.data.mensaje || "Operacion fallida." });
@@ -95,7 +95,7 @@ export default function BiostararPuertas() {
 
   const editarPuerta = async (row: PuertaBiostar) => {
     const result = await Swal.fire({
-      title: "Editar Puerta",
+      title: "Editar Grupo de Puertas",
       html: `
         <input id="puerta-nombre" class="swal2-input" placeholder="Nombre" value="${row.nombre || ""}">
         <input id="puerta-dispositivo-id" class="swal2-input" placeholder="ID de dispositivo" value="${row.dispositivo_id || ""}">
@@ -126,7 +126,7 @@ export default function BiostararPuertas() {
       const res = await clienteAxios.put(`/api/biostar-catalogos/puertas/${row.id_externo}`, result.value);
       Swal.close();
       if (res.data.estado) {
-        await Swal.fire({ icon: "success", title: "Puerta editada", text: res.data.mensaje || "Operacion correcta." });
+        await Swal.fire({ icon: "success", title: "Grupo editado", text: res.data.mensaje || "Operacion correcta." });
         await cargar();
       } else {
         await Swal.fire({ icon: "error", title: "No se pudo editar", text: res.data.mensaje || "Operacion fallida." });
@@ -140,7 +140,7 @@ export default function BiostararPuertas() {
   const eliminarPuerta = async (row: PuertaBiostar) => {
     const confirm = await Swal.fire({
       icon: "warning",
-      title: "Eliminar puerta",
+      title: "Eliminar grupo",
       text: `Seguro que quieres eliminar '${row.nombre}'?`,
       showCancelButton: true,
       confirmButtonText: "Si, eliminar",
@@ -159,7 +159,7 @@ export default function BiostararPuertas() {
       const res = await clienteAxios.delete(`/api/biostar-catalogos/puertas/${row.id_externo}`);
       Swal.close();
       if (res.data.estado) {
-        await Swal.fire({ icon: "success", title: "Puerta eliminada", text: res.data.mensaje || "Operacion correcta." });
+        await Swal.fire({ icon: "success", title: "Grupo eliminado", text: res.data.mensaje || "Operacion correcta." });
         await cargar();
       } else {
         await Swal.fire({ icon: "error", title: "No se pudo eliminar", text: res.data.mensaje || "Operacion fallida." });
@@ -182,7 +182,7 @@ export default function BiostararPuertas() {
 
   const columns = useMemo<GridColDef<PuertaBiostar>[]>(
     () => [
-      { field: "nombre", headerName: "Puerta", flex: 1, minWidth: 220 },
+      { field: "nombre", headerName: "Grupo", flex: 1, minWidth: 220 },
       { field: "dispositivo", headerName: "Dispositivo", flex: 1, minWidth: 220 },
       { field: "dispositivo_id", headerName: "ID Dispositivo", flex: 0.7, minWidth: 140 },
       { field: "id_externo", headerName: "ID", flex: 0.5, minWidth: 120 },
@@ -223,7 +223,7 @@ export default function BiostararPuertas() {
         slots={{
           toolbar: () => (
             <DataGridToolbar
-              tableTitle="Puertas BioStar"
+              tableTitle="Grupos de Puertas BioStar"
               customActionButtons={
                 <>
                   <Tooltip title="Recargar">
