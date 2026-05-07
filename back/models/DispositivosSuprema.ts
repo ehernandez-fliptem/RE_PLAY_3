@@ -50,7 +50,7 @@ const dispositivosSupremaSchema = new Schema<IDispositivoSuprema>({
   activo: { type: Boolean, default: true },
 });
 
-dispositivosBiostarSchema.pre<IDispositivoSuprema>('save', function (next) {
+dispositivosSupremaSchema.pre<IDispositivoSuprema>('save', function (next) {
   try {
     const hash = encryptPassword(this.contrasena.trim(), CONFIG.SECRET_CRYPTO);
     this.nombre = this.nombre.trim();
