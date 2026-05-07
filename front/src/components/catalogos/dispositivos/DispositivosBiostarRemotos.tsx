@@ -98,6 +98,8 @@ export default function DispositivosBiostarRemotos() {
       await Swal.fire({ icon: "warning", title: "Faltan datos", text: "Nombre e IP son obligatorios." });
       return;
     }
+    const snapshot = { ...nuevoForm };
+    setOpenNuevo(false);
     setGuardandoNuevo(true);
     try {
       const payload = {
@@ -110,13 +112,16 @@ export default function DispositivosBiostarRemotos() {
       const res = await clienteAxios.post("/api/dispositivos-biostar/remotos", payload);
       if (!res.data.estado) {
         await Swal.fire({ icon: "error", title: "No se pudo crear", text: res.data.mensaje || "No se pudo crear el dispositivo." });
+        setNuevoForm(snapshot);
+        setOpenNuevo(true);
         return;
       }
       await Swal.fire({ icon: "success", title: "Dispositivo agregado", text: res.data.mensaje || "Registro completado." });
-      setOpenNuevo(false);
       await cargarTodos();
     } catch (error) {
       handlingError(error);
+      setNuevoForm(snapshot);
+      setOpenNuevo(true);
     } finally {
       setGuardandoNuevo(false);
     }
