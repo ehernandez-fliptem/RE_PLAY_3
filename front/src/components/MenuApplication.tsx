@@ -266,6 +266,24 @@ export default function MenuApplication({ children }: MenuProps) {
     setAnchorEl(null);
   };
 
+  const getActiveSubId = (
+    submenu: Array<{ id: number; path?: string }>
+  ): { id: number; path: string } | null => {
+    let active: { id: number; path: string } | null = null;
+    for (const sub of submenu) {
+      const subPath = sub.path;
+      if (!subPath) continue;
+      const isMatch =
+        location.pathname === subPath ||
+        location.pathname.startsWith(`${subPath}/`);
+      if (!isMatch) continue;
+      if (!active || subPath.length > active.path.length) {
+        active = { id: sub.id, path: subPath };
+      }
+    }
+    return active;
+  };
+
   return (
     <Box sx={{ display: "flex" }}>
       <CssBaseline />
@@ -491,24 +509,18 @@ export default function MenuApplication({ children }: MenuProps) {
                 <Fragment key={item.id}>
                   {item.submenu.map((subItem) => {
                     const activeSubId = item.submenu
-                      ? item.submenu.reduce((acc, sub) => {
-                          const isMatch =
-                            location.pathname === sub.path ||
-                            location.pathname.startsWith(`${sub.path}/`);
-                          if (!isMatch) return acc;
-                          if (!acc) return sub;
-                          return sub.path.length > acc.path.length ? sub : acc;
-                        }, null as null | { id: number; path: string })
+                      ? getActiveSubId(item.submenu as Array<{ id: number; path?: string }>)
                       : null;
                     let seeSubItem = obtenerDuplicados(rol, subItem.rol);
                     if (subItem.id === 8.1 || subItem.id === 8.2) {
                       seeSubItem = seeSubItem && habilitarContratistas;
                     }
-                    if (!seeSubItem) return null;
+                    const subItemPath = (subItem as { path?: string }).path;
+                    if (!seeSubItem || !subItemPath) return null;
                     return (
                       <RouterLink
                         key={subItem.id}
-                        to={subItem.path}
+                        to={subItemPath}
                         style={{ textDecoration: "none" }}
                       >
                         <ListItem disablePadding disableGutters>
@@ -608,17 +620,7 @@ export default function MenuApplication({ children }: MenuProps) {
                     </ListItem>
                     {item.submenu?.map((subItem) => {
                       const activeSubId = item.submenu
-                        ? item.submenu.reduce((acc, sub) => {
-                            const subPath = (sub as { path?: string }).path;
-                            if (!subPath) return acc;
-                            const isMatch =
-                              location.pathname === subPath ||
-                              location.pathname.startsWith(`${subPath}/`);
-                            if (!isMatch) return acc;
-                            if (!acc) return sub;
-                            const accPath = (acc as { path?: string }).path || "";
-                            return subPath.length > accPath.length ? sub : acc;
-                          }, null as null | { id: number; path: string })
+                        ? getActiveSubId(item.submenu as Array<{ id: number; path?: string }>)
                         : null;
                       let seeSubItem = obtenerDuplicados(rol, subItem.rol);
                       if (subItem.id === 99.1 && rol.includes(1))
