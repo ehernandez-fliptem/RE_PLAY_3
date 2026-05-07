@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DataGrid, GridActionsCellItem, type GridColDef } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
-import { Add, Delete, Edit, Autorenew } from "@mui/icons-material";
+import { Add, Delete, Edit, Autorenew, Sync } from "@mui/icons-material";
 import {
   Box,
   Button,
