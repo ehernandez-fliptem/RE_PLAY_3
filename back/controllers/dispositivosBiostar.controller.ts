@@ -796,6 +796,18 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
       device_type: "all",
     };
 
+    const discoveredDeviceId = String(
+      discoveredByIpRaw?.id ||
+        discoveredByIpRaw?.device_id ||
+        discoveredByIpRaw?.deviceID ||
+        ""
+    ).trim();
+    const discoveredDeviceTypeId = String(
+      discoveredByIpRaw?.device_type_id?.id ||
+        discoveredByIpRaw?.device_type_id ||
+        ""
+    ).trim();
+
     const payloads = [
       ...(descubrimientoRaw
         ? [
@@ -807,12 +819,27 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
         : []),
       ...(discoveredByIpRaw
         ? [
+            { Device: { id: discoveredDeviceId } },
+            { Device: { id: discoveredDeviceId, device_type_id: { id: discoveredDeviceTypeId || undefined } } },
+            { Device: { id: discoveredDeviceId, lan: discoveredByIpRaw?.lan } },
+            {
+              DeviceCollection: {
+                rows: [
+                  {
+                    id: discoveredDeviceId,
+                    device_type_id: discoveredByIpRaw?.device_type_id,
+                    lan: discoveredByIpRaw?.lan,
+                  },
+                ],
+              },
+            },
             { Device: { lan: discoveredByIpRaw?.lan } },
             { Device: { ...discoveredByIpRaw, name: nombre || discoveredByIpRaw?.name || direccion_ip } },
             { device: { ...discoveredByIpRaw, name: nombre || discoveredByIpRaw?.name || direccion_ip } },
             { DeviceCollection: { rows: [{ ...discoveredByIpRaw, name: nombre || discoveredByIpRaw?.name || direccion_ip }] } },
           ]
         : []),
+      { Device: { id: discoveredDeviceId || undefined, lan: { ip: direccion_ip, device_port: String(puerto) } } },
       { Device: { lan: { ip: direccion_ip, device_port: String(puerto) } } },
       { device: baseManual },
       { Device: baseManual },
