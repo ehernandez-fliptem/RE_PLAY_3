@@ -88,7 +88,7 @@ export async function biostarRequest(
       ...config,
       baseURL: getBaseURL(dispositivo),
       httpsAgent,
-      timeout: 10000,
+      timeout: typeof config.timeout === "number" ? config.timeout : 10000,
       validateStatus: () => true,
       headers: {
         "Content-Type": "application/json",
