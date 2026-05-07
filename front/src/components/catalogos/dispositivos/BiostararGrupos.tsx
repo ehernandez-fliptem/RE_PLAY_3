@@ -6,6 +6,7 @@ import { Chip, IconButton, Tooltip } from "@mui/material";
 import Swal from "sweetalert2";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
+import { useNavigate } from "react-router-dom";
 
 type GrupoBiostar = {
   id_externo: string;
@@ -27,6 +28,7 @@ function normalizarNombreGrupoEnInput(value: string): string {
 }
 
 export default function BiostararGrupos() {
+  const navigate = useNavigate();
   const [rows, setRows] = useState<GrupoBiostar[]>([]);
   const [loading, setLoading] = useState(false);
   const AUTO_REFRESH_MS = 30000;
@@ -37,7 +39,21 @@ export default function BiostararGrupos() {
       const res = await clienteAxios.get("/api/biostar-grupos");
       if (res.data.estado) setRows(res.data.datos || []);
       else {
-        await Swal.fire({ icon: "warning", title: "Sin datos", text: res.data.mensaje || "No se pudieron cargar los grupos." });
+        const message = String(res.data.mensaje || "").toLowerCase();
+        const isBiostarUnavailable =
+          message.includes("no se pudo iniciar sesion en biostar") ||
+          message.includes("primero configura la conexion global de biostar");
+        if (isBiostarUnavailable) {
+          const action = await Swal.fire({
+            icon: "error",
+            title: "No se pudo consultar",
+            text: "No se pudo iniciar sesion en BioStar.",
+            confirmButtonText: "Ir a configuracion",
+          });
+          if (action.isConfirmed) navigate("/biostarar/conexion");
+        } else {
+          await Swal.fire({ icon: "error", title: "No se pudo consultar", text: res.data.mensaje || "No se pudieron cargar los grupos." });
+        }
       }
     } catch (error) {
       handlingError(error);
