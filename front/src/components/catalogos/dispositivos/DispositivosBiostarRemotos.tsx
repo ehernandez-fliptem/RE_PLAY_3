@@ -230,24 +230,39 @@ export default function DispositivosBiostarRemotos() {
     });
   }, [rows, grupoSeleccionado]);
 
-  const columns = useMemo<GridColDef<RemoteDevice>[]>(
-    () => [
+  const conteoPorGrupo = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of rows || []) {
+      const key = String(row.grupo_id || "").trim() || "1";
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return map;
+  }, [rows]);
+
+  const columns = useMemo<GridColDef<RemoteDevice>[]>(() => {
+    const base: GridColDef<RemoteDevice>[] = [
       { field: "nombre", headerName: "Nombre del dispositivo", flex: 1, minWidth: 220 },
       { field: "direccion_ip", headerName: "IP", flex: 1, minWidth: 150 },
-      {
-        field: "acciones",
-        headerName: "Acciones",
-        type: "actions",
-        flex: 0.8,
-        minWidth: 140,
-        getActions: ({ row }) => [
-          <GridActionsCellItem icon={<Edit color="primary" />} label="Editar" onClick={() => editarDispositivo(row)} />,
-          <GridActionsCellItem icon={<Delete color="error" />} label="Eliminar" onClick={() => eliminarDispositivo(row)} />,
-        ],
-      },
-    ],
-    []
-  );
+    ];
+
+    if (grupoSeleccionado === "todos") {
+      base.push({ field: "grupo_nombre", headerName: "Grupo", flex: 1, minWidth: 200 });
+    }
+
+    base.push({
+      field: "acciones",
+      headerName: "Acciones",
+      type: "actions",
+      flex: 0.8,
+      minWidth: 140,
+      getActions: ({ row }) => [
+        <GridActionsCellItem icon={<Edit color="primary" />} label="Editar" onClick={() => editarDispositivo(row)} />,
+        <GridActionsCellItem icon={<Delete color="error" />} label="Eliminar" onClick={() => eliminarDispositivo(row)} />,
+      ],
+    });
+
+    return base;
+  }, [grupoSeleccionado]);
 
   return (
     <div style={{ minHeight: 450 }}>
@@ -283,10 +298,10 @@ export default function DispositivosBiostarRemotos() {
                       label="Grupo de dispositivos"
                       onChange={(event) => setGrupoSeleccionado(String(event.target.value))}
                     >
-                      <MenuItem value="todos">Todos</MenuItem>
+                      <MenuItem value="todos">Todos ({rows.length})</MenuItem>
                       {(gruposOrdenados || []).map((grupo) => (
                         <MenuItem key={grupo.grupo_id} value={grupo.grupo_id}>
-                          {grupo.grupo_nombre}
+                          {grupo.grupo_nombre} ({conteoPorGrupo.get(String(grupo.grupo_id)) || 0})
                         </MenuItem>
                       ))}
                     </Select>
