@@ -62,7 +62,13 @@ export default function BiostararGrupos() {
       inputValidator: (value) => (!String(value || "").trim() ? "El nombre es obligatorio." : undefined),
       didOpen: () => {
         const input = Swal.getInput();
-        if (input) input.value = "";
+        if (input) {
+          input.value = "";
+          input.addEventListener("input", () => {
+            const normalizado = normalizarNombreGrupo(input.value);
+            if (input.value !== normalizado) input.value = normalizado;
+          });
+        }
       },
     });
 

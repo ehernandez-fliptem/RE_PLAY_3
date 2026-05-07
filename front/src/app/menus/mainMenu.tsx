@@ -355,7 +355,7 @@ const mainMenu = [
   },
   {
     id: 99.5,
-    title: "Biostarar",
+    title: "BiosStar",
     rol: [1],
     icon: <VideoLabel fontSize="small" />,
     submenu: [
