@@ -119,7 +119,7 @@ export default function NuevoDispositivoBiostar() {
           text: "Dispositivo creado correctamente.",
         });
         parentGridDataRef?.fetchRows();
-        navigate("/biostarar/dispositivos");
+        navigate("/biostarar/conexion");
       } else {
         await Swal.fire({
           icon: "error",
@@ -209,7 +209,7 @@ export default function NuevoDispositivoBiostar() {
                   <Stack direction="row" spacing={1}>
                     <Button
                       startIcon={<Close />}
-                      onClick={() => navigate("/biostarar/dispositivos")}
+                      onClick={() => navigate("/biostarar/conexion")}
                     >
                       Cancelar
                     </Button>

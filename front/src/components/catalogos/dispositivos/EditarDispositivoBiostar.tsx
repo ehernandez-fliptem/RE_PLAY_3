@@ -114,7 +114,7 @@ export default function EditarDispositivoBiostar() {
           text: "Dispositivo actualizado correctamente.",
         });
         parentGridDataRef?.fetchRows();
-        navigate("/biostarar/dispositivos");
+        navigate("/biostarar/conexion");
       } else {
         await Swal.fire({
           icon: "error",
@@ -191,7 +191,7 @@ export default function EditarDispositivoBiostar() {
                   <Divider />
                   <Box display="flex" justifyContent="end">
                     <Stack direction="row" spacing={1}>
-                      <Button startIcon={<Close />} onClick={() => navigate("/biostarar/dispositivos")}>Cancelar</Button>
+                      <Button startIcon={<Close />} onClick={() => navigate("/biostarar/conexion")}>Cancelar</Button>
                       <Button type="submit" variant="contained" startIcon={<Save />} disabled={isSaving}>
                         Guardar
                       </Button>

@@ -66,7 +66,7 @@ export default function DetalleDispositivoBiostar() {
   }, [id, navigate]);
 
   const regresar = () => {
-    navigate("/biostarar/dispositivos");
+    navigate("/biostarar/conexion");
   };
 
   return (
