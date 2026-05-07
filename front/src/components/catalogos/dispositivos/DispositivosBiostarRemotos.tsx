@@ -101,7 +101,7 @@ export default function DispositivosBiostarRemotos() {
   };
 
   const crearDispositivo = async () => {
-    const buscarDispositivos = async (): Promise<RemoteDevice[]> => {
+    const buscarDispositivos = async (): Promise<{ devices: RemoteDevice[]; warning?: string }> => {
       Swal.fire({
         title: "Buscando dispositivos...",
         allowOutsideClick: false,
@@ -110,34 +110,30 @@ export default function DispositivosBiostarRemotos() {
         didOpen: () => Swal.showLoading(),
       });
       try {
-        const discoveryRes = await Promise.race([
-          clienteAxios.post(
-            "/api/dispositivos-biostar/remotos/descubrir",
-            {
-              segundos: 3,
-              solo_nuevos: true,
-            },
-            { timeout: 12000 }
-          ),
-          new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error("timeout-discovery")), 13000);
-          }),
-        ]);
-        return (discoveryRes.data?.datos || []) as RemoteDevice[];
+        const discoveryRes = await clienteAxios.post(
+          "/api/dispositivos-biostar/remotos/descubrir",
+          {
+            segundos: 3,
+            solo_nuevos: false,
+          },
+          { timeout: 4500 }
+        );
+        const discovered = (discoveryRes.data?.datos || []) as RemoteDevice[];
+        const existing = new Set(
+          (rows || []).map((item) => `${String(item.direccion_ip || "").trim()}::${Number(item.puerto || 0)}`)
+        );
+        const filtered = discovered.filter((item) => {
+          const key = `${String(item.direccion_ip || "").trim()}::${Number(item.puerto || 0)}`;
+          return !existing.has(key);
+        });
+        return { devices: filtered };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error && error.message === "timeout-discovery"
-            ? "La busqueda tardo demasiado. Intenta de nuevo o agrega manualmente."
-            : null;
-        if (errorMessage) {
-          await Swal.fire({
-            icon: "warning",
-            title: "Busqueda detenida",
-            text: errorMessage,
-          });
+        const maybeAxiosError = error as { code?: string };
+        if (maybeAxiosError?.code === "ECONNABORTED" || maybeAxiosError?.code === "ERR_CANCELED") {
+          return { devices: [], warning: "La busqueda no respondio a tiempo." };
         }
         handlingError(error);
-        return [];
+        return { devices: [], warning: "No se pudo completar la busqueda en este momento." };
       } finally {
         Swal.close();
       }
@@ -176,7 +172,9 @@ export default function DispositivosBiostarRemotos() {
     };
 
     let keepOpen = true;
-    let discovered = await buscarDispositivos();
+    let discoveryResult = await buscarDispositivos();
+    let discovered = discoveryResult.devices || [];
+    let warning = discoveryResult.warning;
     while (keepOpen) {
       const options = discovered
         .map(
@@ -189,18 +187,26 @@ export default function DispositivosBiostarRemotos() {
 
       const html = discovered.length
         ? `<div style="max-height:300px;overflow:auto;">${options}</div>`
-        : `<div style="padding:12px 0;text-align:center;">No se encontro ningun dispositivo nuevo.</div>`;
+        : `
+          <div style="padding:12px 0;text-align:center;">
+            <div>No se encontro ningun dispositivo nuevo.</div>
+            ${warning ? `<div style="margin-top:8px;color:#9e6c00;font-size:12px;">${warning}</div>` : ""}
+          </div>
+        `;
 
       const picked = await Swal.fire({
         title: "Dispositivos BioStar",
         html,
         showCancelButton: true,
         showDenyButton: true,
-        confirmButtonText: discovered.length ? "Siguiente" : "Agregar manualmente",
-        denyButtonText: discovered.length ? "Buscar de nuevo" : "Buscar de nuevo",
-        cancelButtonText: "Cancelar",
+        confirmButtonText: "Siguiente",
+        denyButtonText: "Agregar manualmente",
+        cancelButtonText: "Buscar de nuevo",
         preConfirm: () => {
-          if (!discovered.length) return -1;
+          if (!discovered.length) {
+            Swal.showValidationMessage("No hay dispositivos para seleccionar.");
+            return null;
+          }
           const el = document.querySelector("input[name='bio-discovery']:checked") as HTMLInputElement | null;
           if (!el) {
             Swal.showValidationMessage("Selecciona un dispositivo.");
@@ -210,27 +216,29 @@ export default function DispositivosBiostarRemotos() {
         },
       });
 
+      if (picked.dismiss === Swal.DismissReason.cancel) {
+        discoveryResult = await buscarDispositivos();
+        discovered = discoveryResult.devices || [];
+        warning = discoveryResult.warning;
+        continue;
+      }
+
       if (picked.isDismissed || picked.isDenied === false && picked.isConfirmed === false) {
         keepOpen = false;
         break;
       }
 
       if (picked.isDenied) {
-        discovered = await buscarDispositivos();
-        continue;
-      }
-
-      if (!picked.isConfirmed) {
-        keepOpen = false;
-        break;
-      }
-
-      if (picked.value === -1) {
         try {
           await crearManual();
         } catch (error) {
           handlingError(error);
         }
+        keepOpen = false;
+        break;
+      }
+
+      if (!picked.isConfirmed) {
         keepOpen = false;
         break;
       }

@@ -24,8 +24,8 @@ function parseBiostarDevices(payload: any): Array<{ nombre: string; direccion_ip
   return rows
     .map((item: any) => {
       const nombre = String(item?.name || item?.device_name || item?.id || "").trim();
-      const direccion_ip = String(item?.ip_address || item?.ip || "").trim();
-      const puertoRaw = Number(item?.port || item?.server_port || CONFIG.BIOSTAR_PORT);
+      const direccion_ip = String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim();
+      const puertoRaw = Number(item?.port || item?.server_port || item?.lan?.device_port || CONFIG.BIOSTAR_PORT);
       const puerto = Number.isFinite(puertoRaw) ? puertoRaw : CONFIG.BIOSTAR_PORT;
       if (!nombre || !direccion_ip) return null;
       return { nombre, direccion_ip, puerto, usuario: "", contrasena: "" };
@@ -649,8 +649,8 @@ export async function listarDispositivosRemotos(req: Request, res: Response): Pr
       return {
       id_externo: String(item?.id || item?.device_id || item?.deviceID || ""),
       nombre: String(item?.name || item?.device_name || "").trim(),
-      direccion_ip: String(item?.ip_address || item?.ip || "").trim(),
-      puerto: Number(item?.port || item?.server_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
+      direccion_ip: String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim(),
+      puerto: Number(item?.port || item?.server_port || item?.lan?.device_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
       tipo: String(item?.device_type || item?.type || tipo || "all"),
       modelo: String(item?.model_name || item?.model || "").trim(),
       grupo_id: group.grupo_id,
@@ -682,6 +682,11 @@ export async function buscarDispositivoRemoto(req: Request, res: Response): Prom
     }
 
     const responses = await Promise.all([
+      biostarRequest(conexion as any, {
+        method: "POST",
+        url: "/api/devices/tcp_search",
+        data: { Device: { lan: { ip: direccion_ip, device_port: String(puerto) } } },
+      }),
       biostarRequest(conexion as any, { method: "POST", url: "/api/devices/search", data: { ip_address: direccion_ip, port: puerto } }),
       biostarRequest(conexion as any, { method: "POST", url: "/api/devices/search", data: { device: { ip_address: direccion_ip, port: puerto } } }),
       biostarRequest(conexion as any, { method: "GET", url: `/api/devices?limit=1000&device_type=all` }),
@@ -697,7 +702,7 @@ export async function buscarDispositivoRemoto(req: Request, res: Response): Prom
     let rows = parseRemoteDeviceRows(success.data);
     if (rows.length === 0 && responses[2]?.ok) {
       const allRows = parseRemoteDeviceRows(responses[2].data);
-      rows = allRows.filter((item: any) => String(item?.ip_address || item?.ip || "").trim() === direccion_ip);
+      rows = allRows.filter((item: any) => String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim() === direccion_ip);
     }
 
     const mapped = rows.map((item: any) => {
@@ -705,8 +710,8 @@ export async function buscarDispositivoRemoto(req: Request, res: Response): Prom
       return {
       id_externo: String(item?.id || item?.device_id || item?.deviceID || ""),
       nombre: String(item?.name || item?.device_name || "").trim(),
-      direccion_ip: String(item?.ip_address || item?.ip || "").trim(),
-      puerto: Number(item?.port || item?.server_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
+      direccion_ip: String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim(),
+      puerto: Number(item?.port || item?.server_port || item?.lan?.device_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
       tipo: String(item?.device_type || item?.type || "all"),
       modelo: String(item?.model_name || item?.model || "").trim(),
       grupo_id: group.grupo_id,
@@ -743,6 +748,7 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
     let discoveredByIpRaw: any = null;
     if (!descubrimientoRaw && direccion_ip) {
       const discoverPayloads = [
+        { Device: { lan: { ip: direccion_ip, device_port: String(puerto) } } },
         { timeout: 3, only_new: false, ip_address: direccion_ip, port: puerto },
         { timeout: 3000, only_new: false, ip_address: direccion_ip, port: puerto },
         { ip_address: direccion_ip, port: puerto },
@@ -757,7 +763,7 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
         if (tcpDiscover.ok) {
           const rows = parseDiscoveryRows(tcpDiscover.data);
           const found = rows.find(
-            (item: any) => String(item?.ip_address || item?.ip || "").trim() === direccion_ip
+            (item: any) => String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim() === direccion_ip
           );
           if (found) {
             discoveredByIpRaw = found;
@@ -773,7 +779,7 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
         if (udpDiscover.ok) {
           const rows = parseDiscoveryRows(udpDiscover.data);
           const found = rows.find(
-            (item: any) => String(item?.ip_address || item?.ip || "").trim() === direccion_ip
+            (item: any) => String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim() === direccion_ip
           );
           if (found) {
             discoveredByIpRaw = found;
@@ -801,11 +807,13 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
         : []),
       ...(discoveredByIpRaw
         ? [
+            { Device: { lan: discoveredByIpRaw?.lan } },
             { Device: { ...discoveredByIpRaw, name: nombre || discoveredByIpRaw?.name || direccion_ip } },
             { device: { ...discoveredByIpRaw, name: nombre || discoveredByIpRaw?.name || direccion_ip } },
             { DeviceCollection: { rows: [{ ...discoveredByIpRaw, name: nombre || discoveredByIpRaw?.name || direccion_ip }] } },
           ]
         : []),
+      { Device: { lan: { ip: direccion_ip, device_port: String(puerto) } } },
       { device: baseManual },
       { Device: baseManual },
       baseManual,
@@ -875,8 +883,8 @@ export async function descubrirDispositivosRemotos(req: Request, res: Response):
       return {
       id_externo: String(item?.id || item?.device_id || item?.deviceID || ""),
       nombre: String(item?.name || item?.device_name || "").trim(),
-      direccion_ip: String(item?.ip_address || item?.ip || "").trim(),
-      puerto: Number(item?.port || item?.server_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
+      direccion_ip: String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim(),
+      puerto: Number(item?.port || item?.server_port || item?.lan?.device_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
       tipo: String(item?.device_type || item?.type || "all"),
       modelo: String(item?.model_name || item?.model || "").trim(),
       grupo_id: group.grupo_id,
