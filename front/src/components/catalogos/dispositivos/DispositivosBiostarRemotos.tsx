@@ -264,6 +264,12 @@ export default function DispositivosBiostarRemotos() {
     cargarTodos();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      Swal.close();
+    };
+  }, []);
+
   const rowsFiltrados = useMemo(() => {
     if (grupoSeleccionado === "todos") return rows;
     return rows.filter((row) => {

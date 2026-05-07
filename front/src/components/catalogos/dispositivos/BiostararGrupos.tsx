@@ -67,6 +67,12 @@ export default function BiostararGrupos() {
   }, []);
 
   useEffect(() => {
+    return () => {
+      Swal.close();
+    };
+  }, []);
+
+  useEffect(() => {
     const interval = window.setInterval(() => {
       if (!document.hidden) cargar();
     }, AUTO_REFRESH_MS);

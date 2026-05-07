@@ -6,6 +6,7 @@ import { Refresh } from "@mui/icons-material";
 import Swal from "sweetalert2";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
+import { useNavigate } from "react-router-dom";
 
 type PuertaBiostar = {
   id_externo: string;
@@ -14,6 +15,7 @@ type PuertaBiostar = {
 };
 
 export default function BiostararPuertas() {
+  const navigate = useNavigate();
   const [rows, setRows] = useState<PuertaBiostar[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -22,7 +24,23 @@ export default function BiostararPuertas() {
       setLoading(true);
       const res = await clienteAxios.get("/api/biostar-catalogos/puertas");
       if (res.data.estado) setRows(res.data.datos || []);
-      else await Swal.fire({ icon: "warning", title: "Sin datos", text: res.data.mensaje || "No se pudieron cargar las puertas." });
+      else {
+        const message = String(res.data.mensaje || "").toLowerCase();
+        const isBiostarUnavailable =
+          message.includes("no se pudo iniciar sesion en biostar") ||
+          message.includes("primero configura la conexion global de biostar");
+        if (isBiostarUnavailable) {
+          const action = await Swal.fire({
+            icon: "error",
+            title: "No se pudo consultar",
+            text: "No se pudo iniciar sesion en BioStar.",
+            confirmButtonText: "Ir a configuracion",
+          });
+          if (action.isConfirmed) navigate("/biostarar/conexion");
+        } else {
+          await Swal.fire({ icon: "error", title: "No se pudo consultar", text: res.data.mensaje || "No se pudieron cargar las puertas." });
+        }
+      }
     } catch (error) {
       handlingError(error);
     } finally {
@@ -32,6 +50,12 @@ export default function BiostararPuertas() {
 
   useEffect(() => {
     cargar();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      Swal.close();
+    };
   }, []);
 
   const columns = useMemo<GridColDef<PuertaBiostar>[]>(
