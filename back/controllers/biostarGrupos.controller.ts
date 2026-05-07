@@ -135,18 +135,46 @@ export async function crearGrupoBiostar(req: Request, res: Response): Promise<vo
     }
 
     const payloads = [
-      { UserGroup: { name: nombre } },
-      { user_group: { name: nombre } },
-      { name: nombre },
+      {
+        UserGroup: {
+          name: nombre,
+          parent_id: { id: 1 },
+          depth: 1,
+        },
+      },
+      {
+        UserGroupCollection: {
+          rows: [
+            {
+              name: nombre,
+              parent_id: { id: 1 },
+              depth: 1,
+            },
+          ],
+        },
+      },
+      {
+        user_group: {
+          name: nombre,
+          parent_id: { id: 1 },
+          depth: 1,
+        },
+      },
+      { name: nombre, parent_id: { id: 1 }, depth: 1 },
     ];
 
     let lastError = "No se pudo crear el grupo en BioStar.";
     for (const body of payloads) {
-      const createRes = await biostarRequest(conexion as any, {
-        method: "POST",
-        url: "/api/user_groups",
-        data: body,
-      });
+      const endpoints = ["/api/user_groups", "/api/v2/user_groups"];
+      let createRes: { ok: boolean; data?: any; status?: number; message?: string } = { ok: false };
+      for (const url of endpoints) {
+        createRes = await biostarRequest(conexion as any, {
+          method: "POST",
+          url,
+          data: body,
+        });
+        if (createRes.ok) break;
+      }
 
       if (createRes.ok) {
         res.status(200).json({ estado: true, mensaje: "Grupo creado correctamente." });

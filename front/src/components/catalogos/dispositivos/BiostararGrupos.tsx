@@ -43,10 +43,21 @@ export default function BiostararGrupos() {
       input: "text",
       inputLabel: "Nombre del grupo",
       inputPlaceholder: "Ejemplo: Contratistas N1",
+      inputAttributes: {
+        autocomplete: "off",
+        autocorrect: "off",
+        autocapitalize: "off",
+        spellcheck: "false",
+        name: `biostar-grupo-${Date.now()}`,
+      },
       showCancelButton: true,
       confirmButtonText: "Guardar",
       cancelButtonText: "Cancelar",
       inputValidator: (value) => (!String(value || "").trim() ? "El nombre es obligatorio." : undefined),
+      didOpen: () => {
+        const input = Swal.getInput();
+        if (input) input.value = "";
+      },
     });
 
     if (!result.isConfirmed) return;
