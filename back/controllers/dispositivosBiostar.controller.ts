@@ -364,6 +364,16 @@ function parseDeviceGroupsRows(payload: any): any[] {
   return (candidates.find((value) => Array.isArray(value)) || []) as any[];
 }
 
+function getBiostarResponseMessage(payload: any): string {
+  const message =
+    payload?.Response?.message ||
+    payload?.response?.message ||
+    payload?.message ||
+    payload?.error ||
+    "";
+  return String(message || "").trim();
+}
+
 async function getBiostarConexionActiva(): Promise<any | null> {
   const conexion = await BiostarConexion.findOne({ activo: true }).sort({
     fecha_modificacion: -1,
@@ -730,6 +740,56 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
     }
 
     const descubrimientoRaw = req.body?.raw && typeof req.body.raw === "object" ? req.body.raw : null;
+    let discoveredByIpRaw: any = null;
+    if (!descubrimientoRaw && direccion_ip) {
+      const discoverPayloads = [
+        { timeout: 3, only_new: false, ip_address: direccion_ip, port: puerto },
+        { timeout: 3000, only_new: false, ip_address: direccion_ip, port: puerto },
+        { ip_address: direccion_ip, port: puerto },
+        { Device: { ip_address: direccion_ip, port: puerto } },
+      ];
+      for (const discoverData of discoverPayloads) {
+        const tcpDiscover = await biostarRequest(conexion as any, {
+          method: "POST",
+          url: "/api/devices/tcp_search",
+          data: discoverData,
+        });
+        if (tcpDiscover.ok) {
+          const rows = parseDiscoveryRows(tcpDiscover.data);
+          const found = rows.find(
+            (item: any) => String(item?.ip_address || item?.ip || "").trim() === direccion_ip
+          );
+          if (found) {
+            discoveredByIpRaw = found;
+            break;
+          }
+        }
+
+        const udpDiscover = await biostarRequest(conexion as any, {
+          method: "POST",
+          url: "/api/devices/udp_search",
+          data: discoverData,
+        });
+        if (udpDiscover.ok) {
+          const rows = parseDiscoveryRows(udpDiscover.data);
+          const found = rows.find(
+            (item: any) => String(item?.ip_address || item?.ip || "").trim() === direccion_ip
+          );
+          if (found) {
+            discoveredByIpRaw = found;
+            break;
+          }
+        }
+      }
+    }
+
+    const baseManual = {
+      name: nombre || direccion_ip,
+      ip_address: direccion_ip,
+      port: puerto,
+      device_type: "all",
+    };
+
     const payloads = [
       ...(descubrimientoRaw
         ? [
@@ -739,10 +799,17 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
             { DeviceCollection: { rows: [descubrimientoRaw] } },
           ]
         : []),
-      { device: { name: nombre || direccion_ip, ip_address: direccion_ip, port: puerto } },
-      { Device: { name: nombre || direccion_ip, ip_address: direccion_ip, port: puerto } },
-      { name: nombre || direccion_ip, ip_address: direccion_ip, port: puerto },
-      { DeviceCollection: { rows: [{ name: nombre || direccion_ip, ip_address: direccion_ip, port: puerto }] } },
+      ...(discoveredByIpRaw
+        ? [
+            { Device: { ...discoveredByIpRaw, name: nombre || discoveredByIpRaw?.name || direccion_ip } },
+            { device: { ...discoveredByIpRaw, name: nombre || discoveredByIpRaw?.name || direccion_ip } },
+            { DeviceCollection: { rows: [{ ...discoveredByIpRaw, name: nombre || discoveredByIpRaw?.name || direccion_ip }] } },
+          ]
+        : []),
+      { device: baseManual },
+      { Device: baseManual },
+      baseManual,
+      { DeviceCollection: { rows: [baseManual] } },
     ];
 
     let lastMessage = "No se pudo agregar el dispositivo en BioStar.";
@@ -752,7 +819,8 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
         res.status(200).json({ estado: true, mensaje: "Dispositivo agregado correctamente." });
         return;
       }
-      lastMessage = response.message || lastMessage;
+      const detailedMessage = getBiostarResponseMessage(response.data);
+      lastMessage = detailedMessage || response.message || lastMessage;
     }
 
     res.status(200).json({ estado: false, mensaje: lastMessage });
