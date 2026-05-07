@@ -48,6 +48,13 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
     );
 
     const aggregation: PipelineStage[] = [];
+    // En vista de Conexiones solo mostramos conexiones creadas manualmente.
+    // Las filas creadas por sincronizacion automatica no deben mezclarse aqui.
+    aggregation.push({
+      $match: {
+        creado_por: { $ne: null },
+      },
+    });
     if (filterMDB.length > 0) {
       aggregation.push({ $match: { $or: filterMDB } });
     }
