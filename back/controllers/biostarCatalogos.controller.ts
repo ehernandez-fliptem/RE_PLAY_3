@@ -271,10 +271,132 @@ export async function listarPuertas(_req: Request, res: Response): Promise<void>
     const datos = rows.map((item: any) => ({
       id_externo: String(item?.id || item?.door_id || ""),
       nombre: String(item?.name || item?.door_name || "").trim(),
-      dispositivo: String(item?.device_id?.id || item?.device?.name || ""),
+      dispositivo: String(item?.device?.name || item?.device_name || item?.device_id?.id || item?.device_id || ""),
+      dispositivo_id: String(item?.device_id?.id || item?.device_id || ""),
     }));
 
     res.status(200).json({ estado: true, datos });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function crearPuerta(req: Request, res: Response): Promise<void> {
+  try {
+    const nombre = String(req.body?.nombre || "").trim();
+    const dispositivo_id = String(req.body?.dispositivo_id || "").trim();
+    if (!nombre) {
+      res.status(400).json({ estado: false, mensaje: "El nombre de la puerta es obligatorio." });
+      return;
+    }
+    if (!dispositivo_id) {
+      res.status(400).json({ estado: false, mensaje: "El dispositivo es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const payloads = [
+      { Door: { name: nombre, device_id: { id: Number(dispositivo_id) || dispositivo_id } } },
+      { door: { name: nombre, device_id: { id: Number(dispositivo_id) || dispositivo_id } } },
+      { name: nombre, device_id: { id: Number(dispositivo_id) || dispositivo_id } },
+      { name: nombre, device_id: Number(dispositivo_id) || dispositivo_id },
+    ];
+
+    let lastError = "No se pudo crear la puerta en BioStar.";
+    for (const body of payloads) {
+      const createRes = await requestWithEndpointFallback(conexion as any, "POST", "/doors", body);
+      if (createRes.ok) {
+        res.status(200).json({ estado: true, mensaje: "Puerta creada correctamente." });
+        return;
+      }
+      lastError = toFriendlyMessage(createRes.message || extractBiostarMessage(createRes.data));
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastError });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function editarPuerta(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    const nombre = String(req.body?.nombre || "").trim();
+    const dispositivo_id = String(req.body?.dispositivo_id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id de la puerta es obligatorio." });
+      return;
+    }
+    if (!nombre) {
+      res.status(400).json({ estado: false, mensaje: "El nombre de la puerta es obligatorio." });
+      return;
+    }
+    if (!dispositivo_id) {
+      res.status(400).json({ estado: false, mensaje: "El dispositivo es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const payloads = [
+      { Door: { id: Number(id) || id, name: nombre, device_id: { id: Number(dispositivo_id) || dispositivo_id } } },
+      { door: { id: Number(id) || id, name: nombre, device_id: { id: Number(dispositivo_id) || dispositivo_id } } },
+      { id: Number(id) || id, name: nombre, device_id: { id: Number(dispositivo_id) || dispositivo_id } },
+      { name: nombre, device_id: Number(dispositivo_id) || dispositivo_id },
+    ];
+
+    let lastError = "No se pudo editar la puerta en BioStar.";
+    for (const body of payloads) {
+      const editRes = await requestWithEndpointFallback(conexion as any, "PUT", `/doors/${id}`, body);
+      if (editRes.ok) {
+        res.status(200).json({ estado: true, mensaje: "Puerta editada correctamente." });
+        return;
+      }
+      lastError = toFriendlyMessage(editRes.message || extractBiostarMessage(editRes.data));
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastError });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function eliminarPuerta(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id de la puerta es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const delRes = await requestWithEndpointFallback(conexion as any, "DELETE", `/doors/${id}`);
+    if (delRes.ok) {
+      res.status(200).json({ estado: true, mensaje: "Puerta eliminada correctamente." });
+      return;
+    }
+
+    res.status(200).json({
+      estado: false,
+      mensaje: toFriendlyMessage(delRes.message || extractBiostarMessage(delRes.data)) || "No se pudo eliminar la puerta.",
+    });
   } catch (error: any) {
     log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
     res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
