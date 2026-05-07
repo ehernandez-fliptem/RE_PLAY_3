@@ -1059,15 +1059,30 @@ export async function editarDispositivoRemoto(req: Request, res: Response): Prom
     const nombre = String(req.body?.nombre || "").trim();
     const direccion_ip = String(req.body?.direccion_ip || "").trim();
     const puerto = Number(req.body?.puerto || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT;
+    const grupoId = Number(
+      req.body?.device_group_id?.id ??
+      req.body?.device_group_id ??
+      req.body?.device_group ??
+      1
+    ) || 1;
     if (!id) {
       res.status(200).json({ estado: false, mensaje: "ID de dispositivo invalido." });
       return;
     }
 
     const payloads = [
-      { device: { name: nombre, ip_address: direccion_ip, port: puerto } },
-      { Device: { name: nombre, ip_address: direccion_ip, port: puerto } },
-      { name: nombre, ip_address: direccion_ip, port: puerto },
+      {
+        Device: {
+          id,
+          name: nombre,
+          lan: { ip: direccion_ip, device_port: String(puerto) },
+          device_group: grupoId,
+          device_group_id: { id: grupoId },
+        },
+      },
+      { device: { name: nombre, ip_address: direccion_ip, port: puerto, device_group: grupoId, device_group_id: { id: grupoId } } },
+      { Device: { name: nombre, ip_address: direccion_ip, port: puerto, device_group: grupoId, device_group_id: { id: grupoId } } },
+      { name: nombre, ip_address: direccion_ip, port: puerto, device_group: grupoId, device_group_id: { id: grupoId } },
     ];
 
     let lastMessage = "No se pudo editar el dispositivo en BioStar.";
