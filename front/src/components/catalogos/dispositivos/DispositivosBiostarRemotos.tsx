@@ -21,6 +21,7 @@ import {
 import Swal from "sweetalert2";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
+import { useNavigate } from "react-router-dom";
 
 interface RemoteDevice {
   id_externo: string;
@@ -40,6 +41,7 @@ interface RemoteGroup {
 }
 
 export default function DispositivosBiostarRemotos() {
+  const navigate = useNavigate();
   const [rows, setRows] = useState<RemoteDevice[]>([]);
   const [grupos, setGrupos] = useState<RemoteGroup[]>([]);
   const [grupoSeleccionado, setGrupoSeleccionado] = useState<string>("todos");
@@ -91,7 +93,28 @@ export default function DispositivosBiostarRemotos() {
     try {
       const res = await clienteAxios.get("/api/dispositivos-biostar/remotos?tipo=all");
       if (!res.data.estado) {
-        await Swal.fire({ icon: "error", title: "No se pudo consultar", text: res.data.mensaje || "Error al consultar dispositivos." });
+        const message = String(res.data.mensaje || "").toLowerCase();
+        const isBiostarUnavailable =
+          message.includes("no se pudo iniciar sesion en biostar") ||
+          message.includes("primero configura la conexion global de biostar");
+
+        if (isBiostarUnavailable) {
+          const action = await Swal.fire({
+            icon: "error",
+            title: "No se pudo consultar",
+            text: "No se pudo iniciar sesion en BioStar.",
+            confirmButtonText: "Ir a configuracion",
+          });
+          if (action.isConfirmed) {
+            navigate("/biostarar/conexion");
+          }
+        } else {
+          await Swal.fire({
+            icon: "error",
+            title: "No se pudo consultar",
+            text: res.data.mensaje || "Error al consultar dispositivos.",
+          });
+        }
         return;
       }
       setRows(res.data.datos || []);
