@@ -79,6 +79,37 @@ async function requestWithEndpointFallback(
   return result;
 }
 
+async function obtenerDispositivosRemotos(conexion: any): Promise<any[]> {
+  const attempts = [
+    biostarRequest(conexion as any, { method: "GET", url: "/api/devices?limit=1000" }),
+    biostarRequest(conexion as any, { method: "POST", url: "/api/devices/search", data: { limit: 1000, offset: 0 } }),
+    biostarRequest(conexion as any, { method: "POST", url: "/api/devices", data: {} }),
+  ];
+
+  for (const p of attempts) {
+    const r = await p;
+    if (!r.ok) continue;
+    const rows = parseRows(r.data, [
+      "DeviceCollection.rows",
+      "device_collection.rows",
+      "rows",
+      "devices",
+    ]);
+    if (Array.isArray(rows)) return rows;
+  }
+  return [];
+}
+
+function resolveGroupId(item: any): string {
+  const raw =
+    item?.device_group_id?.id ??
+    item?.device_group_id ??
+    item?.device_group?.id ??
+    item?.device_group ??
+    "";
+  return String(raw).trim();
+}
+
 export async function listarGruposDispositivos(_req: Request, res: Response): Promise<void> {
   try {
     const conexion = await getBiostarConexionActiva();
@@ -221,6 +252,60 @@ export async function eliminarGrupoDispositivo(req: Request, res: Response): Pro
     if (!conexion) {
       res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
       return;
+    }
+
+    if (id === "1") {
+      res.status(200).json({ estado: false, mensaje: "No se puede eliminar el grupo predeterminado (All Devices)." });
+      return;
+    }
+
+    const migrar = String(req.query?.migrate_to_default || "").toLowerCase() === "true";
+    const dispositivos = await obtenerDispositivosRemotos(conexion as any);
+    const enUso = dispositivos.filter((d) => resolveGroupId(d) === id);
+
+    if (enUso.length > 0 && !migrar) {
+      res.status(200).json({
+        estado: false,
+        codigo: "GROUP_IN_USE",
+        mensaje: `El grupo esta en uso por ${enUso.length} dispositivo(s). Si deseas eliminarlo, primero migralos a Predeterminado BioStar.`,
+        datos: { total_dispositivos: enUso.length },
+      });
+      return;
+    }
+
+    if (enUso.length > 0 && migrar) {
+      let migrados = 0;
+      for (const item of enUso) {
+        const deviceId = String(item?.id || item?.device_id || "").trim();
+        if (!deviceId) continue;
+        const payloads = [
+          {
+            Device: {
+              id: deviceId,
+              name: item?.name || item?.device_name || "",
+              device_group: 1,
+              device_group_id: { id: 1 },
+            },
+          },
+          { Device: { id: deviceId, device_group: 1, device_group_id: { id: 1 } } },
+          { id: deviceId, device_group: 1, device_group_id: { id: 1 } },
+        ];
+        for (const body of payloads) {
+          const r = await requestWithEndpointFallback(conexion as any, "PUT", `/devices/${deviceId}`, body);
+          if (r.ok) {
+            migrados++;
+            break;
+          }
+        }
+      }
+      if (migrados < enUso.length) {
+        res.status(200).json({
+          estado: false,
+          mensaje: "No se pudieron migrar todos los dispositivos al grupo Predeterminado BioStar.",
+          datos: { migrados, total: enUso.length },
+        });
+        return;
+      }
     }
 
     const delRes = await requestWithEndpointFallback(conexion as any, "DELETE", `/device_groups/${id}`);

@@ -164,6 +164,40 @@ export default function BiostararGruposDispositivos() {
         await Swal.fire({ icon: "success", title: "Grupo eliminado", text: res.data.mensaje || "Operacion correcta." });
         await cargar();
       } else {
+        if (res.data.codigo === "GROUP_IN_USE") {
+          const confirmMig = await Swal.fire({
+            icon: "warning",
+            title: "Grupo en uso",
+            text: `${res.data.mensaje || "El grupo tiene dispositivos asignados."} ¿Deseas moverlos a Predeterminado BioStar y eliminar el grupo?`,
+            showCancelButton: true,
+            confirmButtonText: "Si, mover y eliminar",
+            cancelButtonText: "Cancelar",
+          });
+          if (!confirmMig.isConfirmed) return;
+
+          Swal.fire({
+            title: "Migrando y eliminando...",
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading(),
+          });
+          const retry = await clienteAxios.delete(
+            `/api/biostar-catalogos/grupos-dispositivos/${row.id_externo}?migrate_to_default=true`
+          );
+          Swal.close();
+          if (retry.data.estado) {
+            await Swal.fire({
+              icon: "success",
+              title: "Grupo eliminado",
+              text: retry.data.mensaje || "Los dispositivos se movieron a Predeterminado BioStar y el grupo se eliminó.",
+            });
+            await cargar();
+            return;
+          }
+          await Swal.fire({ icon: "error", title: "No se pudo eliminar", text: retry.data.mensaje || "Operacion fallida." });
+          return;
+        }
         await Swal.fire({ icon: "error", title: "No se pudo eliminar", text: res.data.mensaje || "Operacion fallida." });
       }
     } catch (error) {

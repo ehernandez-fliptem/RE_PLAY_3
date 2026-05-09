@@ -260,6 +260,22 @@ export default function DispositivosBiostarRemotos() {
     }
   };
 
+  const abrirAltaRapidaGrupoDesdeNuevo = async () => {
+    setOpenNuevo(false);
+    await crearGrupoRapido((grupoId) => {
+      if (grupoId) setNuevoForm((prev) => ({ ...prev, grupo_id: grupoId }));
+    });
+    setOpenNuevo(true);
+  };
+
+  const abrirAltaRapidaGrupoDesdeEditar = async () => {
+    setOpenEditar(false);
+    await crearGrupoRapido((grupoId) => {
+      if (grupoId) setEditarForm((prev) => ({ ...prev, grupo_id: grupoId }));
+    });
+    setOpenEditar(true);
+  };
+
   const eliminarDispositivo = async (row: RemoteDevice) => {
     const confirm = await Swal.fire({
       icon: "warning",
@@ -311,21 +327,28 @@ export default function DispositivosBiostarRemotos() {
   }, []);
 
   const rowsFiltrados = useMemo(() => {
+    const knownIds = new Set((grupos || []).map((g) => String(g.grupo_id)));
+    const normalizedGroup = (row: RemoteDevice) => {
+      const raw = String(row.grupo_id || "").trim() || "1";
+      return knownIds.has(raw) ? raw : "1";
+    };
     if (grupoSeleccionado === "todos") return rows;
     return rows.filter((row) => {
-      const rowGroup = String(row.grupo_id || "").trim() || "1";
+      const rowGroup = normalizedGroup(row);
       return rowGroup === grupoSeleccionado;
     });
-  }, [rows, grupoSeleccionado]);
+  }, [rows, grupoSeleccionado, grupos]);
 
   const conteoPorGrupo = useMemo(() => {
+    const knownIds = new Set((grupos || []).map((g) => String(g.grupo_id)));
     const map = new Map<string, number>();
     for (const row of rows || []) {
-      const key = String(row.grupo_id || "").trim() || "1";
+      const raw = String(row.grupo_id || "").trim() || "1";
+      const key = knownIds.has(raw) ? raw : "1";
       map.set(key, (map.get(key) || 0) + 1);
     }
     return map;
-  }, [rows]);
+  }, [rows, grupos]);
 
   const nombreGrupoPorId = useMemo(() => {
     const map = new Map<string, string>();
@@ -362,7 +385,8 @@ export default function DispositivosBiostarRemotos() {
         minWidth: 200,
         renderCell: (params) => {
           const id = String(params.row?.grupo_id || "").trim() || "1";
-          return nombreGrupoPorId.get(id) || params.value || "Predeterminado BioStar";
+          if (!nombreGrupoPorId.has(id)) return "Predeterminado BioStar";
+          return nombreGrupoPorId.get(id) || "Predeterminado BioStar";
         },
       });
     }
@@ -498,11 +522,8 @@ export default function DispositivosBiostarRemotos() {
               <Button
                 variant="outlined"
                 startIcon={<Add />}
-                onClick={() =>
-                  crearGrupoRapido((grupoId) => {
-                    if (grupoId) setNuevoForm((prev) => ({ ...prev, grupo_id: grupoId }));
-                  })
-                }
+                sx={{ height: 56, minWidth: 110, whiteSpace: "nowrap" }}
+                onClick={abrirAltaRapidaGrupoDesdeNuevo}
               >
                 Grupo
               </Button>
@@ -563,11 +584,8 @@ export default function DispositivosBiostarRemotos() {
               <Button
                 variant="outlined"
                 startIcon={<Add />}
-                onClick={() =>
-                  crearGrupoRapido((grupoId) => {
-                    if (grupoId) setEditarForm((prev) => ({ ...prev, grupo_id: grupoId }));
-                  })
-                }
+                sx={{ height: 56, minWidth: 110, whiteSpace: "nowrap" }}
+                onClick={abrirAltaRapidaGrupoDesdeEditar}
               >
                 Grupo
               </Button>
