@@ -843,3 +843,54 @@ export async function eliminarPuertaAcceso(req: Request, res: Response): Promise
     res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
   }
 }
+
+export async function listarOpcionesDispositivoPuertaAcceso(req: Request, res: Response): Promise<void> {
+  try {
+    const deviceId = String(req.query?.device_id || "").trim();
+    if (!deviceId) {
+      res.status(400).json({ estado: false, mensaje: "El device_id es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const candidatesRes = await biostarRequest(conexion as any, { method: "GET", url: "/api/devices/candidates" });
+    if (!candidatesRes.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(candidatesRes.message || extractBiostarMessage(candidatesRes.data)) || "No se pudieron consultar candidatos del dispositivo.",
+      });
+      return;
+    }
+
+    const rows = parseRows(candidatesRes.data, ["DeviceRelayCollection.rows", "rows"]);
+    const puertosSet = new Set<string>();
+
+    for (const item of rows) {
+      const did = String(item?.device_id?.id || item?.device_id || "").trim();
+      if (did !== deviceId) continue;
+      const relayIndex = String(item?.relay_index ?? "").trim();
+      if (relayIndex !== "") puertosSet.add(relayIndex);
+    }
+
+    const puertos = Array.from(puertosSet)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((valor) => ({ valor, etiqueta: `Puerto ${valor}` }));
+
+    res.status(200).json({
+      estado: true,
+      datos: {
+        rele_puerta: puertos,
+        boton_salida: puertos,
+        sensor_puerta: puertos,
+      },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
