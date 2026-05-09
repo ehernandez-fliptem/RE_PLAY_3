@@ -231,6 +231,7 @@ export default function BiostararPermisosAcceso() {
           placement: "bottom-start",
           modifiers: [
             { name: "flip", enabled: false },
+            { name: "offset", options: { offset: [0, 6] } },
             { name: "preventOverflow", options: { padding: 8, altAxis: true, tether: true } },
           ],
         },
