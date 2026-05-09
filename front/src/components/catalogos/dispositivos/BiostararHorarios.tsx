@@ -63,7 +63,10 @@ export default function BiostararHorarios() {
         await manejarErrorConexion(res.data.mensaje || "No se pudieron cargar horarios.");
         return;
       }
-      setRows(res.data.datos || []);
+      const filtrados = (res.data.datos || []).filter(
+        (r: Row) => String(r?.nombre || "").trim().toLowerCase() !== "always"
+      );
+      setRows(filtrados);
     } catch (error) {
       handlingError(error);
     } finally {
