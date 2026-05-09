@@ -4,6 +4,7 @@ import { esES } from "@mui/x-data-grid/locales";
 import { Add, Delete, Edit, Refresh } from "@mui/icons-material";
 import { InfoOutlined } from "@mui/icons-material";
 import { Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack, Switch, TextField, Tooltip } from "@mui/material";
+import { Divider } from "@mui/material";
 import Swal from "sweetalert2";
 import { useNavigate } from "react-router-dom";
 import DataGridToolbar from "../../utils/DataGridToolbar";
@@ -195,7 +196,7 @@ export default function BiostararHorarios() {
   const columns = useMemo<GridColDef<Row>[]>(() => [
     { field: "nombre", headerName: "Horario", flex: 1, minWidth: 220 },
     { field: "descripcion", headerName: "Descripcion", flex: 1, minWidth: 220 },
-    { field: "use_daily_iteration", headerName: "Iteracion diaria", minWidth: 140, valueFormatter: (v) => (v ? "Si" : "No") },
+    { field: "use_daily_iteration", headerName: "Repetir cada semana", minWidth: 180, valueFormatter: (v) => (v ? "Si" : "No") },
     { field: "acciones", headerName: "Acciones", type: "actions", minWidth: 120, getActions: ({ row }) => [
       <GridActionsCellItem icon={<Edit color="primary" />} label="Editar" onClick={() => { void abrirEditar(row); }} />,
       <GridActionsCellItem icon={<Delete color="error" />} label="Eliminar" onClick={() => { void eliminar(row); }} />,
@@ -237,6 +238,7 @@ export default function BiostararHorarios() {
     <Stack spacing={2} sx={{ mt: 1 }}>
       <TextField label="Nombre" value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} fullWidth />
       <TextField label="Descripcion" value={form.descripcion} onChange={(e) => setForm((p) => ({ ...p, descripcion: e.target.value }))} fullWidth />
+      <Divider textAlign="left">Configuración de horario</Divider>
       <Stack spacing={1}>
         <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ xs: "stretch", md: "center" }}>
           <TextField
@@ -286,6 +288,7 @@ export default function BiostararHorarios() {
             Aplicar a dias activos
           </Button>
         </Stack>
+        <Divider />
         {form.dias.map((d, idx) => (
           <Stack key={`dia-${idx}`} direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ xs: "flex-start", md: "center" }}>
             <FormControlLabel
@@ -345,6 +348,7 @@ export default function BiostararHorarios() {
           </Stack>
         ))}
       </Stack>
+      <Divider />
       <Stack direction="row" spacing={1} alignItems="center">
         <Switch checked={form.use_daily_iteration} onChange={(e) => setForm((p) => ({ ...p, use_daily_iteration: e.target.checked }))} />
         <span>Repetir cada semana</span>
