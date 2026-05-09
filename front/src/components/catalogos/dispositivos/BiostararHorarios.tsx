@@ -3,7 +3,7 @@ import { DataGrid, GridActionsCellItem, type GridColDef } from "@mui/x-data-grid
 import { esES } from "@mui/x-data-grid/locales";
 import { Add, Delete, Edit, Refresh } from "@mui/icons-material";
 import { InfoOutlined } from "@mui/icons-material";
-import { Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, Stack, Switch, TextField, Tooltip } from "@mui/material";
+import { Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack, Switch, TextField, Tooltip } from "@mui/material";
 import Swal from "sweetalert2";
 import { useNavigate } from "react-router-dom";
 import DataGridToolbar from "../../utils/DataGridToolbar";
@@ -41,6 +41,8 @@ export default function BiostararHorarios() {
   const [openEditar, setOpenEditar] = useState(false);
   const [formNuevo, setFormNuevo] = useState<Form>(defaultForm);
   const [formEditar, setFormEditar] = useState<Form>(defaultForm);
+  const [plantillaNuevo, setPlantillaNuevo] = useState("personalizado");
+  const [plantillaEditar, setPlantillaEditar] = useState("personalizado");
   const [editandoId, setEditandoId] = useState("");
   const [editDailySchedules, setEditDailySchedules] = useState<any[]>([]);
 
@@ -136,6 +138,7 @@ export default function BiostararHorarios() {
       dias,
       use_daily_iteration: String(s.use_daily_iteration ?? row.use_daily_iteration) === "true" || s.use_daily_iteration === true,
     });
+    setPlantillaEditar("personalizado");
     setOpenEditar(true);
   };
 
@@ -206,11 +209,83 @@ export default function BiostararHorarios() {
     }));
   };
 
-  const formUI = (form: Form, setForm: (v: Form | ((p: Form) => Form)) => void) => (
+  const aplicarPreset = (setForm: (v: Form | ((p: Form) => Form)) => void, preset: string, inicio: string, fin: string) => {
+    setForm((p) => {
+      const dias = p.dias.map((d, idx) => {
+        if (preset === "completo") return { ...d, activo: true, inicio, fin };
+        if (preset === "entresemana") {
+          const activo = idx >= 1 && idx <= 5;
+          return { ...d, activo, inicio: activo ? inicio : d.inicio, fin: activo ? fin : d.fin };
+        }
+        if (preset === "findesemana") {
+          const activo = idx === 0 || idx === 6;
+          return { ...d, activo, inicio: activo ? inicio : d.inicio, fin: activo ? fin : d.fin };
+        }
+        return d;
+      });
+      return { ...p, dias };
+    });
+  };
+
+  const formUI = (
+    form: Form,
+    setForm: (v: Form | ((p: Form) => Form)) => void,
+    plantilla: string,
+    setPlantilla: (v: string) => void,
+    prefix: string
+  ) => (
     <Stack spacing={2} sx={{ mt: 1 }}>
       <TextField label="Nombre" value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} fullWidth />
       <TextField label="Descripcion" value={form.descripcion} onChange={(e) => setForm((p) => ({ ...p, descripcion: e.target.value }))} fullWidth />
       <Stack spacing={1}>
+        <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ xs: "stretch", md: "center" }}>
+          <TextField
+            select
+            size="small"
+            label="Plantilla"
+            value={plantilla}
+            onChange={(e) => {
+              const v = String(e.target.value);
+              setPlantilla(v);
+              if (v === "personalizado") return;
+              aplicarPreset(setForm, v, "08:00", "18:00");
+            }}
+            sx={{ minWidth: 180 }}
+          >
+            <MenuItem value="personalizado">Personalizado</MenuItem>
+            <MenuItem value="entresemana">Entre semana</MenuItem>
+            <MenuItem value="findesemana">Fin de semana</MenuItem>
+          </TextField>
+          <TextField
+            size="small"
+            type="time"
+            label="Aplicar inicio"
+            defaultValue="08:00"
+            sx={{ minWidth: 150 }}
+            InputLabelProps={{ shrink: true }}
+            id={`${prefix}-aplicar-inicio`}
+          />
+          <TextField
+            size="small"
+            type="time"
+            label="Aplicar fin"
+            defaultValue="18:00"
+            sx={{ minWidth: 150 }}
+            InputLabelProps={{ shrink: true }}
+            id={`${prefix}-aplicar-fin`}
+          />
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => {
+              const inicio = (document.getElementById(`${prefix}-aplicar-inicio`) as HTMLInputElement)?.value || "08:00";
+              const fin = (document.getElementById(`${prefix}-aplicar-fin`) as HTMLInputElement)?.value || "18:00";
+              aplicarMismoHorario(setForm, inicio, fin);
+            }}
+          >
+            Aplicar a dias activos
+          </Button>
+        </Stack>
         {form.dias.map((d, idx) => (
           <Stack key={`dia-${idx}`} direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ xs: "flex-start", md: "center" }}>
             <FormControlLabel
@@ -223,9 +298,13 @@ export default function BiostararHorarios() {
                       dias: p.dias.map((x, i) => (i === idx ? { ...x, activo: e.target.checked } : x)),
                     }))
                   }
+                  onClick={() => {
+                    if (plantilla !== "personalizado") setPlantilla("personalizado");
+                  }}
                 />
               }
               label={DIAS_LABEL[idx]}
+              sx={{ width: 140, m: 0 }}
             />
             <TextField
               type="time"
@@ -237,8 +316,12 @@ export default function BiostararHorarios() {
                   dias: p.dias.map((x, i) => (i === idx ? { ...x, inicio: e.target.value } : x)),
                 }))
               }
+              onBlur={() => {
+                if (plantilla !== "personalizado") setPlantilla("personalizado");
+              }}
               disabled={!d.activo}
-              sx={{ minWidth: 150 }}
+              size="small"
+              sx={{ width: 160 }}
               InputLabelProps={{ shrink: true }}
             />
             <TextField
@@ -251,21 +334,16 @@ export default function BiostararHorarios() {
                   dias: p.dias.map((x, i) => (i === idx ? { ...x, fin: e.target.value } : x)),
                 }))
               }
+              onBlur={() => {
+                if (plantilla !== "personalizado") setPlantilla("personalizado");
+              }}
               disabled={!d.activo}
-              sx={{ minWidth: 150 }}
+              size="small"
+              sx={{ width: 160 }}
               InputLabelProps={{ shrink: true }}
             />
           </Stack>
         ))}
-        <Stack direction="row" spacing={1}>
-          <Button
-            size="small"
-            variant="text"
-            onClick={() => aplicarMismoHorario(setForm, "08:00", "18:00")}
-          >
-            Aplicar 08:00-18:00 a dias activos
-          </Button>
-        </Stack>
       </Stack>
       <Stack direction="row" spacing={1} alignItems="center">
         <Switch checked={form.use_daily_iteration} onChange={(e) => setForm((p) => ({ ...p, use_daily_iteration: e.target.checked }))} />
@@ -302,13 +380,13 @@ export default function BiostararHorarios() {
 
       <Dialog open={openNuevo} onClose={() => setOpenNuevo(false)} maxWidth="md" fullWidth>
         <DialogTitle>Nuevo Horario BioStar</DialogTitle>
-        <DialogContent>{formUI(formNuevo, setFormNuevo)}</DialogContent>
+        <DialogContent>{formUI(formNuevo, setFormNuevo, plantillaNuevo, setPlantillaNuevo, "nuevo")}</DialogContent>
         <DialogActions><Button onClick={() => setOpenNuevo(false)}>Cancelar</Button><Button variant="contained" onClick={() => { void crear(); }}>Guardar</Button></DialogActions>
       </Dialog>
 
       <Dialog open={openEditar} onClose={() => setOpenEditar(false)} maxWidth="md" fullWidth>
         <DialogTitle>Editar Horario BioStar</DialogTitle>
-        <DialogContent>{formUI(formEditar, setFormEditar)}</DialogContent>
+        <DialogContent>{formUI(formEditar, setFormEditar, plantillaEditar, setPlantillaEditar, "editar")}</DialogContent>
         <DialogActions><Button onClick={() => setOpenEditar(false)}>Cancelar</Button><Button variant="contained" onClick={() => { void guardarEditar(); }}>Guardar</Button></DialogActions>
       </Dialog>
     </div>
