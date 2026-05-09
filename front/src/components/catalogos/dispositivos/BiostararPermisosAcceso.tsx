@@ -3,18 +3,13 @@ import { DataGrid, GridActionsCellItem, type GridColDef } from "@mui/x-data-grid
 import { esES } from "@mui/x-data-grid/locales";
 import { Add, Delete, Edit, Refresh } from "@mui/icons-material";
 import {
+  Autocomplete,
   Button,
-  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControl,
   IconButton,
-  InputLabel,
-  ListItemText,
-  MenuItem,
-  Select,
   Stack,
   TextField,
   Tooltip,
@@ -33,13 +28,6 @@ type Row = {
   total_usuarios: number;
 };
 type OptionItem = { id_externo: string; nombre: string };
-const SELECT_MENU_PROPS = {
-  PaperProps: {
-    style: {
-      maxHeight: 320,
-    },
-  },
-};
 
 export default function BiostararPermisosAcceso() {
   const navigate = useNavigate();
@@ -227,28 +215,18 @@ export default function BiostararPermisosAcceso() {
     value: string[],
     setValue: (v: string[]) => void
   ) => (
-    <FormControl fullWidth>
-      <InputLabel>{label}</InputLabel>
-      <Select
-        multiple
-        label={label}
-        value={value}
-        MenuProps={SELECT_MENU_PROPS}
-        onChange={(e) => setValue((e.target.value as string[]) || [])}
-        renderValue={(selected) =>
-          (selected as string[])
-            .map((id) => options.find((o) => String(o.id_externo) === String(id))?.nombre || id)
-            .join(", ")
-        }
-      >
-        {options.map((o) => (
-          <MenuItem key={o.id_externo} value={String(o.id_externo)}>
-            <Checkbox checked={value.includes(String(o.id_externo))} />
-            <ListItemText primary={o.nombre} />
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
+    <Autocomplete
+      multiple
+      options={options}
+      getOptionLabel={(o) => o.nombre}
+      filterSelectedOptions
+      disableCloseOnSelect
+      value={options.filter((o) => value.includes(String(o.id_externo)))}
+      onChange={(_, selected) => setValue(selected.map((x) => String(x.id_externo)))}
+      isOptionEqualToValue={(o, v) => String(o.id_externo) === String(v.id_externo)}
+      ListboxProps={{ style: { maxHeight: 320, overflowY: "auto" } }}
+      renderInput={(params) => <TextField {...params} label={label} />}
+    />
   );
 
   const form = (
