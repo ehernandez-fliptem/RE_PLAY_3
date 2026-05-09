@@ -1402,3 +1402,139 @@ export async function editarAccessLevel(req: Request, res: Response): Promise<vo
     res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
   }
 }
+
+export async function listarHorariosBiostar(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+    const requests = [
+      biostarRequest(conexion as any, {
+        method: "GET",
+        url: `/api/schedules?SelectAllYN=false&filterObject=${encodeURIComponent("{}")}&limit=50&offset=0`,
+      }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/schedules" }),
+    ];
+    let rows: any[] = [];
+    let message = "No se pudieron consultar horarios.";
+    for (const p of requests) {
+      const r = await p;
+      if (r.ok) {
+        rows = parseRows(r.data, ["ScheduleCollection.rows", "rows", "schedules"]);
+        break;
+      }
+      message = r.message || message;
+    }
+    const datos = (rows || []).map((s: any) => ({
+      id_externo: String(s?.id || "").trim(),
+      nombre: String(s?.name || "").trim(),
+      descripcion: String(s?.description || "").trim(),
+      use_daily_iteration: String(s?.use_daily_iteration ?? "false") === "true",
+    }));
+    res.status(200).json({ estado: true, datos, mensaje: message });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function detalleHorarioBiostar(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id es obligatorio." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+    const r = await biostarRequest(conexion as any, { method: "GET", url: `/api/schedules/${id}` });
+    if (!r.ok) {
+      res.status(200).json({ estado: false, mensaje: toFriendlyMessage(r.message || extractBiostarMessage(r.data)) || "No se pudo consultar el horario." });
+      return;
+    }
+    const sch = r.data?.Schedule || r.data?.schedule || r.data || {};
+    res.status(200).json({ estado: true, datos: sch });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function editarHorarioBiostar(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    const schedule = req.body?.Schedule;
+    if (!id || !schedule?.name) {
+      res.status(400).json({ estado: false, mensaje: "Id y nombre son obligatorios." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+    const payload = { Schedule: { ...schedule, id: String(schedule.id || id) } };
+    const r = await biostarRequest(conexion as any, { method: "PUT", url: `/api/schedules/${id}`, data: payload });
+    if (!r.ok) {
+      res.status(200).json({ estado: false, mensaje: toFriendlyMessage(r.message || extractBiostarMessage(r.data)) || "No se pudo editar el horario." });
+      return;
+    }
+    res.status(200).json({ estado: true, mensaje: "Horario editado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function eliminarHorarioBiostar(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id es obligatorio." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+    const r = await biostarRequest(conexion as any, { method: "DELETE", url: `/api/schedules?id=${encodeURIComponent(id)}` });
+    if (!r.ok) {
+      res.status(200).json({ estado: false, mensaje: toFriendlyMessage(r.message || extractBiostarMessage(r.data)) || "No se pudo eliminar el horario." });
+      return;
+    }
+    res.status(200).json({ estado: true, mensaje: "Horario eliminado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function crearHorarioBiostar(req: Request, res: Response): Promise<void> {
+  try {
+    const schedule = req.body?.Schedule;
+    if (!schedule?.name) {
+      res.status(400).json({ estado: false, mensaje: "El nombre del horario es obligatorio." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+    const r = await biostarRequest(conexion as any, { method: "POST", url: "/api/schedules", data: { Schedule: schedule } });
+    if (!r.ok) {
+      res.status(200).json({ estado: false, mensaje: toFriendlyMessage(r.message || extractBiostarMessage(r.data)) || "No se pudo crear el horario." });
+      return;
+    }
+    res.status(200).json({ estado: true, mensaje: "Horario creado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}

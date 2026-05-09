@@ -388,6 +388,13 @@ const mainMenu = [
         path: "/biostarar/access-levels",
       },
       {
+        id: 99.527,
+        title: "Horarios BioStar",
+        rol: [1],
+        icon: <EventNote fontSize="small" />,
+        path: "/biostarar/horarios",
+      },
+      {
         id: 99.53,
         title: "Grupos de BioStar",
         rol: [1],

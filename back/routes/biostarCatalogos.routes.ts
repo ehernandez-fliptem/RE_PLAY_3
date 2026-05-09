@@ -4,9 +4,12 @@ import {
   catalogosAccessLevel,
   crearAccessLevel,
   crearHorarioAccessLevel,
+  crearHorarioBiostar,
+  editarHorarioBiostar,
   crearPuerta,
   crearPuertaAcceso,
   detalleAccessLevel,
+  detalleHorarioBiostar,
   detallePuertaAcceso,
   crearGrupoDispositivo,
   editarAccessLevel,
@@ -15,7 +18,9 @@ import {
   editarGrupoDispositivo,
   eliminarPuerta,
   eliminarPuertaAcceso,
+  eliminarHorarioBiostar,
   eliminarGrupoDispositivo,
+  listarHorariosBiostar,
   listarCatalogosPuertasAcceso,
   listarAccessLevels,
   listarOpcionesAltaPuertaAcceso,
@@ -37,6 +42,11 @@ router.post("/access-levels/horarios", validarTokenYRol([1], true), crearHorario
 router.get("/access-levels/:id", validarTokenYRol([1], true), detalleAccessLevel);
 router.post("/access-levels", validarTokenYRol([1], true), crearAccessLevel);
 router.put("/access-levels/:id", validarTokenYRol([1], true), editarAccessLevel);
+router.get("/horarios", validarTokenYRol([1], true), listarHorariosBiostar);
+router.get("/horarios/:id", validarTokenYRol([1], true), detalleHorarioBiostar);
+router.post("/horarios", validarTokenYRol([1], true), crearHorarioBiostar);
+router.put("/horarios/:id", validarTokenYRol([1], true), editarHorarioBiostar);
+router.delete("/horarios/:id", validarTokenYRol([1], true), eliminarHorarioBiostar);
 router.get("/puertas", validarTokenYRol([1], true), listarPuertas);
 router.post("/puertas", validarTokenYRol([1], true), crearPuerta);
 router.put("/puertas/:id", validarTokenYRol([1], true), editarPuerta);
