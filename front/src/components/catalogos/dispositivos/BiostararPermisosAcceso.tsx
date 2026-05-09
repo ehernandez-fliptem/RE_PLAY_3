@@ -213,18 +213,28 @@ export default function BiostararPermisosAcceso() {
     label: string,
     options: OptionItem[],
     value: string[],
-    setValue: (v: string[]) => void
+    setValue: (v: string[]) => void,
+    formatLabel?: (o: OptionItem) => string
   ) => (
     <Autocomplete
       multiple
       options={options}
-      getOptionLabel={(o) => o.nombre}
+      getOptionLabel={(o) => (formatLabel ? formatLabel(o) : o.nombre)}
       filterSelectedOptions
       disableCloseOnSelect
       value={options.filter((o) => value.includes(String(o.id_externo)))}
       onChange={(_, selected) => setValue(selected.map((x) => String(x.id_externo)))}
       isOptionEqualToValue={(o, v) => String(o.id_externo) === String(v.id_externo)}
-      ListboxProps={{ style: { maxHeight: 320, overflowY: "auto" } }}
+      ListboxProps={{ style: { maxHeight: 240, overflowY: "auto" } }}
+      slotProps={{
+        popper: {
+          placement: "bottom-start",
+          modifiers: [
+            { name: "flip", enabled: false },
+            { name: "preventOverflow", options: { padding: 8, altAxis: true, tether: true } },
+          ],
+        },
+      }}
       renderInput={(params) => <TextField {...params} label={label} />}
     />
   );
@@ -234,7 +244,7 @@ export default function BiostararPermisosAcceso() {
       <TextField label="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} fullWidth />
       <TextField label="Descripcion" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} fullWidth />
       {renderMulti("Niveles de acceso", niveles, nivelesSel, setNivelesSel)}
-      {renderMulti("Grupos de usuarios", gruposUsuarios, gruposSel, setGruposSel)}
+      {renderMulti("Grupos de usuarios", gruposUsuarios, gruposSel, setGruposSel, (o) => `Grupo ${o.nombre}`)}
       {renderMulti("Usuarios", usuarios, usuariosSel, setUsuariosSel)}
     </Stack>
   );
