@@ -110,6 +110,44 @@ function resolveGroupId(item: any): string {
   return String(raw).trim();
 }
 
+function resolveDoorGroupId(item: any): string {
+  const raw =
+    item?.door_group_id?.id ??
+    item?.door_group_id ??
+    item?.door_group?.id ??
+    item?.door_group ??
+    "";
+  return String(raw).trim();
+}
+
+async function obtenerGruposPuertas(conexion: any): Promise<any[]> {
+  const attempts = [
+    biostarRequest(conexion as any, { method: "POST", url: "/api/v2/door_groups/search", data: { limit: 1000, offset: 0 } }),
+    biostarRequest(conexion as any, { method: "GET", url: "/api/door_groups?limit=1000" }),
+  ];
+  for (const p of attempts) {
+    const r = await p;
+    if (!r.ok) continue;
+    const rows = parseRows(r.data, ["DoorGroupCollection.rows", "rows", "door_groups"]);
+    if (Array.isArray(rows)) return rows;
+  }
+  return [];
+}
+
+async function obtenerPuertas(conexion: any): Promise<any[]> {
+  const attempts = [
+    biostarRequest(conexion as any, { method: "POST", url: "/api/v2/doors/search", data: { limit: 1000, offset: 0 } }),
+    biostarRequest(conexion as any, { method: "GET", url: "/api/doors?limit=1000" }),
+  ];
+  for (const p of attempts) {
+    const r = await p;
+    if (!r.ok) continue;
+    const rows = parseRows(r.data, ["DoorCollection.rows", "rows", "doors"]);
+    if (Array.isArray(rows)) return rows;
+  }
+  return [];
+}
+
 export async function listarGruposDispositivos(_req: Request, res: Response): Promise<void> {
   try {
     const conexion = await getBiostarConexionActiva();
@@ -520,6 +558,285 @@ export async function eliminarPuerta(req: Request, res: Response): Promise<void>
     res.status(200).json({
       estado: false,
       mensaje: toFriendlyMessage(delRes.message || extractBiostarMessage(delRes.data)) || "No se pudo eliminar el grupo de puertas.",
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function listarPuertasAcceso(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const [doorsRows, groupsRows, deviceRows] = await Promise.all([
+      obtenerPuertas(conexion),
+      obtenerGruposPuertas(conexion),
+      obtenerDispositivosRemotos(conexion),
+    ]);
+
+    const gruposMap = new Map<string, string>();
+    for (const g of groupsRows) {
+      const gid = String(g?.id || g?.door_group_id || "").trim();
+      if (!gid) continue;
+      gruposMap.set(gid, String(g?.name || g?.door_group_name || "").trim());
+    }
+
+    const dispositivosMap = new Map<string, string>();
+    for (const d of deviceRows) {
+      const did = String(d?.id || d?.device_id || "").trim();
+      if (!did) continue;
+      dispositivosMap.set(did, String(d?.name || d?.device_name || d?.lan?.ip || "").trim());
+    }
+
+    const datos = doorsRows.map((item: any) => {
+      const doorGroupId = resolveDoorGroupId(item);
+      const deviceId = String(
+        item?.entry_device_id?.id ??
+        item?.device_id?.id ??
+        item?.device_id ??
+        item?.device?.id ??
+        item?.device ??
+        ""
+      ).trim();
+      return {
+        id_externo: String(item?.id || item?.door_id || "").trim(),
+        nombre: String(item?.name || item?.door_name || "").trim(),
+        grupo_puerta_id: doorGroupId || "1",
+        grupo_puerta_nombre: gruposMap.get(doorGroupId) || "All Door Groups",
+        dispositivo_id: deviceId,
+        dispositivo_nombre: dispositivosMap.get(deviceId) || "",
+        rele_puerta: String(
+          item?.relay?.port ??
+          item?.door_relay?.port ??
+          item?.relay_port ??
+          item?.door_relay ??
+          ""
+        ).trim(),
+        boton_salida: String(
+          item?.exit_button?.port ??
+          item?.exit_button_input?.port ??
+          item?.exit_button_port ??
+          item?.exit_button ??
+          ""
+        ).trim(),
+        sensor_puerta: String(
+          item?.door_sensor?.port ??
+          item?.sensor?.port ??
+          item?.sensor_port ??
+          item?.door_sensor ??
+          ""
+        ).trim(),
+      };
+    });
+
+    res.status(200).json({ estado: true, datos });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function listarCatalogosPuertasAcceso(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const [groupsRows, deviceRows] = await Promise.all([
+      obtenerGruposPuertas(conexion),
+      obtenerDispositivosRemotos(conexion),
+    ]);
+
+    const grupos = groupsRows.map((item: any) => ({
+      id_externo: String(item?.id || item?.door_group_id || "").trim(),
+      nombre: String(item?.name || item?.door_group_name || "").trim(),
+    }));
+    const dispositivos = deviceRows.map((item: any) => ({
+      id_externo: String(item?.id || item?.device_id || "").trim(),
+      nombre: String(item?.name || item?.device_name || item?.lan?.ip || "").trim(),
+    }));
+
+    res.status(200).json({ estado: true, datos: { grupos, dispositivos } });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function crearPuertaAcceso(req: Request, res: Response): Promise<void> {
+  try {
+    const nombre = String(req.body?.nombre || "").trim();
+    const grupo_puerta_id = String(req.body?.grupo_puerta_id || "").trim();
+    const dispositivo_id = String(req.body?.dispositivo_id || "").trim();
+    const rele_puerta = String(req.body?.rele_puerta || "").trim();
+    const boton_salida = String(req.body?.boton_salida || "").trim();
+    const sensor_puerta = String(req.body?.sensor_puerta || "").trim();
+
+    if (!nombre || !grupo_puerta_id || !dispositivo_id) {
+      res.status(400).json({ estado: false, mensaje: "Nombre, grupo y dispositivo son obligatorios." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const payloads = [
+      {
+        Door: {
+          name: nombre,
+          door_group_id: { id: Number(grupo_puerta_id) || grupo_puerta_id },
+          device_id: { id: Number(dispositivo_id) || dispositivo_id },
+          relay: { port: rele_puerta || "0" },
+          exit_button: { port: boton_salida || "0" },
+          door_sensor: { port: sensor_puerta || "0" },
+        },
+      },
+      {
+        Door: {
+          name: nombre,
+          door_group_id: { id: Number(grupo_puerta_id) || grupo_puerta_id },
+          entry_device_id: { id: Number(dispositivo_id) || dispositivo_id },
+          door_relay: { port: rele_puerta || "0" },
+          exit_button_input: { port: boton_salida || "0" },
+          sensor: { port: sensor_puerta || "0" },
+        },
+      },
+      {
+        door: {
+          name: nombre,
+          door_group_id: Number(grupo_puerta_id) || grupo_puerta_id,
+          device_id: Number(dispositivo_id) || dispositivo_id,
+          door_relay: rele_puerta || "0",
+          exit_button: boton_salida || "0",
+          door_sensor: sensor_puerta || "0",
+        },
+      },
+    ];
+
+    let lastError = "No se pudo crear la puerta en BioStar.";
+    for (const body of payloads) {
+      const createRes = await requestWithEndpointFallback(conexion as any, "POST", "/doors", body);
+      if (createRes.ok) {
+        res.status(200).json({ estado: true, mensaje: "Puerta creada correctamente." });
+        return;
+      }
+      lastError = toFriendlyMessage(createRes.message || extractBiostarMessage(createRes.data));
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastError });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function editarPuertaAcceso(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    const nombre = String(req.body?.nombre || "").trim();
+    const grupo_puerta_id = String(req.body?.grupo_puerta_id || "").trim();
+    const dispositivo_id = String(req.body?.dispositivo_id || "").trim();
+    const rele_puerta = String(req.body?.rele_puerta || "").trim();
+    const boton_salida = String(req.body?.boton_salida || "").trim();
+    const sensor_puerta = String(req.body?.sensor_puerta || "").trim();
+
+    if (!id || !nombre || !grupo_puerta_id || !dispositivo_id) {
+      res.status(400).json({ estado: false, mensaje: "Id, nombre, grupo y dispositivo son obligatorios." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const payloads = [
+      {
+        Door: {
+          id,
+          name: nombre,
+          door_group_id: { id: Number(grupo_puerta_id) || grupo_puerta_id },
+          device_id: { id: Number(dispositivo_id) || dispositivo_id },
+          relay: { port: rele_puerta || "0" },
+          exit_button: { port: boton_salida || "0" },
+          door_sensor: { port: sensor_puerta || "0" },
+        },
+      },
+      {
+        Door: {
+          id,
+          name: nombre,
+          door_group_id: { id: Number(grupo_puerta_id) || grupo_puerta_id },
+          entry_device_id: { id: Number(dispositivo_id) || dispositivo_id },
+          door_relay: { port: rele_puerta || "0" },
+          exit_button_input: { port: boton_salida || "0" },
+          sensor: { port: sensor_puerta || "0" },
+        },
+      },
+      {
+        door: {
+          id,
+          name: nombre,
+          door_group_id: Number(grupo_puerta_id) || grupo_puerta_id,
+          device_id: Number(dispositivo_id) || dispositivo_id,
+          door_relay: rele_puerta || "0",
+          exit_button: boton_salida || "0",
+          door_sensor: sensor_puerta || "0",
+        },
+      },
+    ];
+
+    let lastError = "No se pudo editar la puerta en BioStar.";
+    for (const body of payloads) {
+      const editRes = await requestWithEndpointFallback(conexion as any, "PUT", `/doors/${id}`, body);
+      if (editRes.ok) {
+        res.status(200).json({ estado: true, mensaje: "Puerta editada correctamente." });
+        return;
+      }
+      lastError = toFriendlyMessage(editRes.message || extractBiostarMessage(editRes.data));
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastError });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function eliminarPuertaAcceso(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id de la puerta es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const delRes = await requestWithEndpointFallback(conexion as any, "DELETE", `/doors/${id}`);
+    if (delRes.ok) {
+      res.status(200).json({ estado: true, mensaje: "Puerta eliminada correctamente." });
+      return;
+    }
+
+    res.status(200).json({
+      estado: false,
+      mensaje: toFriendlyMessage(delRes.message || extractBiostarMessage(delRes.data)) || "No se pudo eliminar la puerta.",
     });
   } catch (error: any) {
     log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);

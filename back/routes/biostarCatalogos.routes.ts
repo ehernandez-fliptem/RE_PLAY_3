@@ -2,12 +2,17 @@ import { Router } from "express";
 import { validarTokenYRol } from "../middlewares/validarToken";
 import {
   crearPuerta,
+  crearPuertaAcceso,
   crearGrupoDispositivo,
   editarPuerta,
+  editarPuertaAcceso,
   editarGrupoDispositivo,
   eliminarPuerta,
+  eliminarPuertaAcceso,
   eliminarGrupoDispositivo,
+  listarCatalogosPuertasAcceso,
   listarGruposDispositivos,
+  listarPuertasAcceso,
   listarPuertas,
 } from "../controllers/biostarCatalogos.controller";
 
@@ -21,5 +26,10 @@ router.get("/puertas", validarTokenYRol([1], true), listarPuertas);
 router.post("/puertas", validarTokenYRol([1], true), crearPuerta);
 router.put("/puertas/:id", validarTokenYRol([1], true), editarPuerta);
 router.delete("/puertas/:id", validarTokenYRol([1], true), eliminarPuerta);
+router.get("/puertas-acceso", validarTokenYRol([1], true), listarPuertasAcceso);
+router.get("/puertas-acceso/catalogos", validarTokenYRol([1], true), listarCatalogosPuertasAcceso);
+router.post("/puertas-acceso", validarTokenYRol([1], true), crearPuertaAcceso);
+router.put("/puertas-acceso/:id", validarTokenYRol([1], true), editarPuertaAcceso);
+router.delete("/puertas-acceso/:id", validarTokenYRol([1], true), eliminarPuertaAcceso);
 
 export default router;

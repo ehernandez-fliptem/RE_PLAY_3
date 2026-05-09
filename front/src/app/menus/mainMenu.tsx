@@ -374,6 +374,13 @@ const mainMenu = [
         path: "/biostarar/dispositivos",
       },
       {
+        id: 99.525,
+        title: "Puertas BioStar",
+        rol: [1],
+        icon: <MeetingRoom fontSize="small" />,
+        path: "/biostarar/puertas-acceso",
+      },
+      {
         id: 99.53,
         title: "Grupos de BioStar",
         rol: [1],
