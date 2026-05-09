@@ -40,6 +40,12 @@ interface RemoteGroup {
   grupo_nombre: string;
 }
 
+function normalizarNombreGrupoEnInput(value: string): string {
+  const texto = String(value || "");
+  if (!texto) return "";
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
 export default function DispositivosBiostarRemotos() {
   const navigate = useNavigate();
   const [rows, setRows] = useState<RemoteDevice[]>([]);
@@ -230,6 +236,16 @@ export default function DispositivosBiostarRemotos() {
       confirmButtonText: "Guardar",
       cancelButtonText: "Cancelar",
       inputValidator: (value) => (!String(value || "").trim() ? "El nombre es obligatorio." : undefined),
+      didOpen: () => {
+        const input = Swal.getInput();
+        if (input) {
+          input.value = "";
+          input.addEventListener("input", () => {
+            const normalizado = normalizarNombreGrupoEnInput(input.value);
+            if (input.value !== normalizado) input.value = normalizado;
+          });
+        }
+      },
     });
     if (!result.isConfirmed) return;
 

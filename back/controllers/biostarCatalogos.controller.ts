@@ -174,6 +174,23 @@ export async function crearGrupoDispositivo(_req: Request, res: Response): Promi
       return;
     }
 
+    const existentesAttempts = [
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/device_groups/only_permission_item/search", data: { order_by: "depth:false" } }),
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/device_groups/search", data: { order_by: "depth:false", limit: 1000, offset: 0 } }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/device_groups?limit=1000" }),
+    ];
+    for (const p of existentesAttempts) {
+      const r = await p;
+      if (!r.ok) continue;
+      const rows = parseRows(r.data, ["DeviceGroupCollection.rows", "rows", "device_groups"]);
+      const existe = (rows || []).some((item: any) => String(item?.name || item?.group_name || "").trim().toLowerCase() === nombre.toLowerCase());
+      if (existe) {
+        res.status(200).json({ estado: false, mensaje: "No se creo el grupo porque ya existe uno con ese nombre." });
+        return;
+      }
+      break;
+    }
+
     const payloads = [
       { DeviceGroup: { name: nombre, parent_id: { id: 1 }, depth: 1 } },
       { DeviceGroupCollection: { rows: [{ name: nombre, parent_id: { id: 1 }, depth: 1 }] } },
@@ -384,6 +401,22 @@ export async function crearPuerta(req: Request, res: Response): Promise<void> {
     if (!conexion) {
       res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
       return;
+    }
+
+    const existentesAttempts = [
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/door_groups/search", data: { limit: 1000, offset: 0 } }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/door_groups?limit=1000" }),
+    ];
+    for (const p of existentesAttempts) {
+      const r = await p;
+      if (!r.ok) continue;
+      const rows = parseRows(r.data, ["DoorGroupCollection.rows", "rows", "door_groups"]);
+      const existe = (rows || []).some((item: any) => String(item?.name || item?.door_group_name || "").trim().toLowerCase() === nombre.toLowerCase());
+      if (existe) {
+        res.status(200).json({ estado: false, mensaje: "No se creo el grupo porque ya existe uno con ese nombre." });
+        return;
+      }
+      break;
     }
 
     const payloads = [
