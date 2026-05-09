@@ -11,6 +11,7 @@ import {
   eliminarPuertaAcceso,
   eliminarGrupoDispositivo,
   listarCatalogosPuertasAcceso,
+  listarOpcionesAltaPuertaAcceso,
   listarOpcionesDispositivoPuertaAcceso,
   listarGruposDispositivos,
   listarPuertasAcceso,
@@ -29,6 +30,7 @@ router.put("/puertas/:id", validarTokenYRol([1], true), editarPuerta);
 router.delete("/puertas/:id", validarTokenYRol([1], true), eliminarPuerta);
 router.get("/puertas-acceso", validarTokenYRol([1], true), listarPuertasAcceso);
 router.get("/puertas-acceso/catalogos", validarTokenYRol([1], true), listarCatalogosPuertasAcceso);
+router.get("/puertas-acceso/opciones-alta", validarTokenYRol([1], true), listarOpcionesAltaPuertaAcceso);
 router.get("/puertas-acceso/opciones-dispositivo", validarTokenYRol([1], true), listarOpcionesDispositivoPuertaAcceso);
 router.post("/puertas-acceso", validarTokenYRol([1], true), crearPuertaAcceso);
 router.put("/puertas-acceso/:id", validarTokenYRol([1], true), editarPuertaAcceso);

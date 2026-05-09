@@ -670,6 +670,72 @@ export async function listarCatalogosPuertasAcceso(_req: Request, res: Response)
   }
 }
 
+export async function listarOpcionesAltaPuertaAcceso(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const [doorGroupsRes, deviceGroupsRes, devicesRes] = await Promise.all([
+      biostarRequest(conexion as any, {
+        method: "POST",
+        url: "/api/v2/door_groups/only_permission_item/search",
+        data: { order_by: "depth:false" },
+      }),
+      biostarRequest(conexion as any, {
+        method: "POST",
+        url: "/api/v2/device_groups/search",
+        data: { order_by: "depth:false" },
+      }),
+      biostarRequest(conexion as any, {
+        method: "POST",
+        url: "/api/v2/devices/search",
+        data: { exclude_device_type_id: "254" },
+      }),
+    ]);
+
+    const doorGroups = doorGroupsRes.ok
+      ? parseRows(doorGroupsRes.data, ["DoorGroupCollection.rows", "rows", "door_groups"])
+      : [];
+    const deviceGroups = deviceGroupsRes.ok
+      ? parseRows(deviceGroupsRes.data, ["DeviceGroupCollection.rows", "rows", "device_groups"])
+      : [];
+    const devices = devicesRes.ok
+      ? parseRows(devicesRes.data, ["DeviceCollection.rows", "rows", "devices"])
+      : [];
+
+    const gruposPuerta = doorGroups.map((item: any) => ({
+      id_externo: String(item?.id || item?.door_group_id || "").trim(),
+      nombre: String(item?.name || item?.door_group_name || "").trim(),
+      depth: Number(item?.depth || 0),
+      parent_id: String(item?.parent_id?.id || item?.parent_id || "").trim(),
+    }));
+
+    const gruposDispositivo = deviceGroups.map((item: any) => ({
+      id_externo: String(item?.id || item?.device_group_id || "").trim(),
+      nombre: String(item?.name || item?.group_name || "").trim(),
+      depth: Number(item?.depth || 0),
+      parent_id: String(item?.parent_id?.id || item?.parent_id || "").trim(),
+    }));
+
+    const entryDevices = devices.map((item: any) => ({
+      id_externo: String(item?.id || item?.device_id || "").trim(),
+      nombre: String(item?.name || item?.device_name || "").trim(),
+      grupo_id: String(item?.device_group_id?.id || item?.device_group_id || "").trim(),
+    }));
+
+    res.status(200).json({
+      estado: true,
+      datos: { grupos_puerta: gruposPuerta, grupos_dispositivo: gruposDispositivo, entry_devices: entryDevices },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
 export async function crearPuertaAcceso(req: Request, res: Response): Promise<void> {
   try {
     const nombre = String(req.body?.nombre || "").trim();
@@ -877,16 +943,46 @@ export async function listarOpcionesDispositivoPuertaAcceso(req: Request, res: R
       if (relayIndex !== "") puertosSet.add(relayIndex);
     }
 
-    const puertos = Array.from(puertosSet)
+    const puertosRelay = Array.from(puertosSet)
       .sort((a, b) => Number(a) - Number(b))
       .map((valor) => ({ valor, etiqueta: `Puerto ${valor}` }));
+
+    let puertosEntrada: Array<{ valor: string; etiqueta: string }> = [];
+    const deviceSearchRes = await biostarRequest(conexion as any, {
+      method: "POST",
+      url: "/api/v2/devices/search",
+      data: { id: Number(deviceId) || deviceId },
+    });
+    if (deviceSearchRes.ok) {
+      const deviceRows = parseRows(deviceSearchRes.data, ["DeviceCollection.rows", "rows", "devices"]);
+      const device = (deviceRows || []).find((d: any) => String(d?.id || d?.device_id || "").trim() === deviceId);
+      const input = device?.input || {};
+      const possibleCounts = [
+        input?.num_inputs,
+        input?.number_of_inputs,
+        input?.normal_inputs,
+        input?.supervised_inputs_count,
+      ];
+      const count = possibleCounts
+        .map((v: any) => Number(v))
+        .find((v: number) => Number.isFinite(v) && v > 0);
+      if (count) {
+        puertosEntrada = Array.from({ length: count }, (_, i) => ({
+          valor: String(i),
+          etiqueta: `Input Port ${i}`,
+        }));
+      }
+    }
+    if (!puertosEntrada.length) {
+      puertosEntrada = puertosRelay.map((p) => ({ valor: p.valor, etiqueta: `Input Port ${p.valor}` }));
+    }
 
     res.status(200).json({
       estado: true,
       datos: {
-        rele_puerta: puertos,
-        boton_salida: puertos,
-        sensor_puerta: puertos,
+        rele_puerta: puertosRelay,
+        boton_salida: puertosEntrada,
+        sensor_puerta: puertosEntrada,
       },
     });
   } catch (error: any) {
