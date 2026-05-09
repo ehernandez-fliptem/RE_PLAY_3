@@ -597,6 +597,9 @@ export async function listarPuertasAcceso(_req: Request, res: Response): Promise
       const doorGroupId = resolveDoorGroupId(item);
       const deviceId = String(
         item?.entry_device_id?.id ??
+        item?.relay_output_id?.device_id?.id ??
+        item?.exit_button_input_id?.device_id?.id ??
+        item?.sensor_input_id?.device_id?.id ??
         item?.device_id?.id ??
         item?.device_id ??
         item?.device?.id ??
@@ -609,8 +612,15 @@ export async function listarPuertasAcceso(_req: Request, res: Response): Promise
         grupo_puerta_id: doorGroupId || "1",
         grupo_puerta_nombre: gruposMap.get(doorGroupId) || "All Door Groups",
         dispositivo_id: deviceId,
-        dispositivo_nombre: dispositivosMap.get(deviceId) || "",
+        dispositivo_nombre:
+          String(item?.entry_device_id?.name || "").trim() ||
+          String(item?.relay_output_id?.device_id?.name || "").trim() ||
+          String(item?.exit_button_input_id?.device_id?.name || "").trim() ||
+          String(item?.sensor_input_id?.device_id?.name || "").trim() ||
+          dispositivosMap.get(deviceId) ||
+          "",
         rele_puerta: String(
+          item?.relay_output_id?.relay_index ??
           item?.relay?.port ??
           item?.door_relay?.port ??
           item?.relay_port ??
@@ -618,6 +628,7 @@ export async function listarPuertasAcceso(_req: Request, res: Response): Promise
           ""
         ).trim(),
         boton_salida: String(
+          item?.exit_button_input_id?.input_index ??
           item?.exit_button?.port ??
           item?.exit_button_input?.port ??
           item?.exit_button_port ??
@@ -625,6 +636,7 @@ export async function listarPuertasAcceso(_req: Request, res: Response): Promise
           ""
         ).trim(),
         sensor_puerta: String(
+          item?.sensor_input_id?.input_index ??
           item?.door_sensor?.port ??
           item?.sensor?.port ??
           item?.sensor_port ??
