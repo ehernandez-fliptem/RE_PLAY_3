@@ -8,11 +8,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControl,
   IconButton,
-  InputLabel,
   MenuItem,
-  Select,
   Stack,
   TextField,
   Tooltip,
@@ -280,42 +277,38 @@ export default function BiostararAccessLevels() {
     <Stack spacing={1.5}>
       {reglas.map((r, idx) => (
         <Stack key={`r-${idx}`} direction={{ xs: "column", md: "row" }} spacing={1.5}>
-          <FormControl fullWidth>
-            <InputLabel id={`door-${idx}`}>Puerta</InputLabel>
-            <Select
-              labelId={`door-${idx}`}
-              label="Puerta"
-              value={r.door_id}
+          <TextField
+            select
+            fullWidth
+            label="Puerta"
+            value={r.door_id}
+            onChange={(e) => {
+              const v = String(e.target.value);
+              setReglas((prev) => prev.map((it, i) => (i === idx ? { ...it, door_id: v } : it)));
+            }}
+          >
+            <MenuItem value="">Ninguno</MenuItem>
+            {puertas.map((p) => (<MenuItem key={p.id_externo} value={p.id_externo}>{p.nombre}</MenuItem>))}
+          </TextField>
+          <Stack direction="row" spacing={1} sx={{ width: "100%" }} alignItems="center">
+            <TextField
+              select
+              fullWidth
+              label="Horario"
+              value={r.schedule_id}
               onChange={(e) => {
                 const v = String(e.target.value);
-                setReglas((prev) => prev.map((it, i) => (i === idx ? { ...it, door_id: v } : it)));
+                setReglas((prev) => prev.map((it, i) => (i === idx ? { ...it, schedule_id: v } : it)));
               }}
             >
               <MenuItem value="">Ninguno</MenuItem>
-              {puertas.map((p) => (<MenuItem key={p.id_externo} value={p.id_externo}>{p.nombre}</MenuItem>))}
-            </Select>
-          </FormControl>
-          <Stack direction="row" spacing={1} sx={{ width: "100%" }} alignItems="center">
-            <FormControl fullWidth>
-              <InputLabel id={`sch-${idx}`}>Horario</InputLabel>
-              <Select
-                labelId={`sch-${idx}`}
-                label="Horario"
-                value={r.schedule_id}
-                onChange={(e) => {
-                  const v = String(e.target.value);
-                  setReglas((prev) => prev.map((it, i) => (i === idx ? { ...it, schedule_id: v } : it)));
-                }}
-              >
-                <MenuItem value="">Ninguno</MenuItem>
-                {r.schedule_id && !horarios.some((h) => h.id_externo === r.schedule_id) ? (
-                  <MenuItem value={r.schedule_id} sx={{ display: "none" }}>
-                    {r.schedule_nombre || "Always"}
-                  </MenuItem>
-                ) : null}
-                {horarios.map((h) => (<MenuItem key={h.id_externo} value={h.id_externo}>{h.nombre}</MenuItem>))}
-              </Select>
-            </FormControl>
+              {r.schedule_id && !horarios.some((h) => h.id_externo === r.schedule_id) ? (
+                <MenuItem value={r.schedule_id} sx={{ display: "none" }}>
+                  {r.schedule_nombre || "Always"}
+                </MenuItem>
+              ) : null}
+              {horarios.map((h) => (<MenuItem key={h.id_externo} value={h.id_externo}>{h.nombre}</MenuItem>))}
+            </TextField>
             <Tooltip title="Crear horario">
               <Button
                 variant="outlined"
