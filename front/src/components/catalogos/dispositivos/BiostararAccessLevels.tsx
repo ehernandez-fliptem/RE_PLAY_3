@@ -415,9 +415,9 @@ export default function BiostararAccessLevels() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={openHorarioModal} onClose={() => !creandoHorario && cerrarCrearHorario()} maxWidth="sm" fullWidth>
+      <Dialog open={openHorarioModal} onClose={() => !creandoHorario && cerrarCrearHorario()} maxWidth="md" fullWidth>
         <DialogTitle>Nuevo Horario</DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ minHeight: 520 }}>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField label="Nombre" value={horarioNombre} onChange={(e) => setHorarioNombre(e.target.value)} fullWidth />
             <TextField label="Descripcion" value={horarioDescripcion} onChange={(e) => setHorarioDescripcion(e.target.value)} fullWidth />
