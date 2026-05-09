@@ -220,6 +220,46 @@ export default function DispositivosBiostarRemotos() {
     }
   };
 
+  const crearGrupoRapido = async (onCreated: (grupoId: string) => void) => {
+    const result = await Swal.fire({
+      title: "Nuevo Grupo de Dispositivos",
+      input: "text",
+      inputLabel: "Nombre del grupo",
+      inputPlaceholder: "Ejemplo: Accesos Norte",
+      showCancelButton: true,
+      confirmButtonText: "Guardar",
+      cancelButtonText: "Cancelar",
+      inputValidator: (value) => (!String(value || "").trim() ? "El nombre es obligatorio." : undefined),
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      Swal.fire({
+        title: "Creando grupo...",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => Swal.showLoading(),
+      });
+      const nombre = String(result.value || "").trim();
+      const res = await clienteAxios.post("/api/biostar-catalogos/grupos-dispositivos", { nombre });
+      Swal.close();
+      if (!res.data.estado) {
+        await Swal.fire({ icon: "error", title: "No se pudo crear", text: res.data.mensaje || "No se pudo crear el grupo." });
+        return;
+      }
+      await Swal.fire({ icon: "success", title: "Grupo creado", text: res.data.mensaje || "Operacion correcta." });
+      const gruposRes = await clienteAxios.get("/api/dispositivos-biostar/remotos/grupos");
+      const lista = gruposRes.data?.estado ? (gruposRes.data.datos || []) : [];
+      setGrupos(lista);
+      const creado = (lista as RemoteGroup[]).find((g) => g.grupo_nombre.toLowerCase() === nombre.toLowerCase());
+      onCreated(creado?.grupo_id || "");
+    } catch (error) {
+      Swal.close();
+      handlingError(error);
+    }
+  };
+
   const eliminarDispositivo = async (row: RemoteDevice) => {
     const confirm = await Swal.fire({
       icon: "warning",
@@ -438,22 +478,35 @@ export default function DispositivosBiostarRemotos() {
                 sx={{ minWidth: 160 }}
               />
             </Stack>
-            <FormControl fullWidth>
-              <InputLabel id="nuevo-device-group-label">Grupo</InputLabel>
-              <Select
-                labelId="nuevo-device-group-label"
-                value={nuevoForm.grupo_id}
-                label="Grupo"
-                onChange={(event) => setNuevoForm((prev) => ({ ...prev, grupo_id: String(event.target.value) }))}
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
+              <FormControl fullWidth>
+                <InputLabel id="nuevo-device-group-label">Grupo</InputLabel>
+                <Select
+                  labelId="nuevo-device-group-label"
+                  value={nuevoForm.grupo_id}
+                  label="Grupo"
+                  onChange={(event) => setNuevoForm((prev) => ({ ...prev, grupo_id: String(event.target.value) }))}
+                >
+                  {(gruposOrdenados || []).map((grupo) => (
+                    <MenuItem key={grupo.grupo_id} value={grupo.grupo_id}>
+                      {grupo.grupo_nombre}
+                    </MenuItem>
+                  ))}
+                  {(grupos || []).length === 0 && <MenuItem value="1">All Devices</MenuItem>}
+                </Select>
+              </FormControl>
+              <Button
+                variant="outlined"
+                startIcon={<Add />}
+                onClick={() =>
+                  crearGrupoRapido((grupoId) => {
+                    if (grupoId) setNuevoForm((prev) => ({ ...prev, grupo_id: grupoId }));
+                  })
+                }
               >
-                {(gruposOrdenados || []).map((grupo) => (
-                  <MenuItem key={grupo.grupo_id} value={grupo.grupo_id}>
-                    {grupo.grupo_nombre}
-                  </MenuItem>
-                ))}
-                {(grupos || []).length === 0 && <MenuItem value="1">All Devices</MenuItem>}
-              </Select>
-            </FormControl>
+                Grupo
+              </Button>
+            </Stack>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -490,22 +543,35 @@ export default function DispositivosBiostarRemotos() {
                 sx={{ minWidth: 160 }}
               />
             </Stack>
-            <FormControl fullWidth>
-              <InputLabel id="editar-device-group-label">Grupo</InputLabel>
-              <Select
-                labelId="editar-device-group-label"
-                value={editarForm.grupo_id}
-                label="Grupo"
-                onChange={(event) => setEditarForm((prev) => ({ ...prev, grupo_id: String(event.target.value) }))}
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
+              <FormControl fullWidth>
+                <InputLabel id="editar-device-group-label">Grupo</InputLabel>
+                <Select
+                  labelId="editar-device-group-label"
+                  value={editarForm.grupo_id}
+                  label="Grupo"
+                  onChange={(event) => setEditarForm((prev) => ({ ...prev, grupo_id: String(event.target.value) }))}
+                >
+                  {(gruposOrdenados || []).map((grupo) => (
+                    <MenuItem key={grupo.grupo_id} value={grupo.grupo_id}>
+                      {grupo.grupo_nombre}
+                    </MenuItem>
+                  ))}
+                  {(grupos || []).length === 0 && <MenuItem value="1">All Devices</MenuItem>}
+                </Select>
+              </FormControl>
+              <Button
+                variant="outlined"
+                startIcon={<Add />}
+                onClick={() =>
+                  crearGrupoRapido((grupoId) => {
+                    if (grupoId) setEditarForm((prev) => ({ ...prev, grupo_id: grupoId }));
+                  })
+                }
               >
-                {(gruposOrdenados || []).map((grupo) => (
-                  <MenuItem key={grupo.grupo_id} value={grupo.grupo_id}>
-                    {grupo.grupo_nombre}
-                  </MenuItem>
-                ))}
-                {(grupos || []).length === 0 && <MenuItem value="1">All Devices</MenuItem>}
-              </Select>
-            </FormControl>
+                Grupo
+              </Button>
+            </Stack>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
