@@ -4,13 +4,16 @@ import { esES } from "@mui/x-data-grid/locales";
 import { Add, Edit, Refresh } from "@mui/icons-material";
 import {
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   IconButton,
   MenuItem,
   Stack,
+  Switch,
   TextField,
   Tooltip,
 } from "@mui/material";
@@ -29,6 +32,9 @@ type Regla = {
   schedule_nombre: string;
 };
 type HorarioContexto = { modo: "nuevo" | "editar"; idx: number } | null;
+type HorarioDia = { activo: boolean; inicio: string; fin: string };
+const DIAS_LABEL = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
+const makeHorarioDias = () => Array.from({ length: 7 }, (_, i) => ({ activo: i === 1, inicio: "08:00", fin: "18:00" }));
 
 export default function BiostararAccessLevels() {
   const navigate = useNavigate();
@@ -50,9 +56,10 @@ export default function BiostararAccessLevels() {
   const [horarioContexto, setHorarioContexto] = useState<HorarioContexto>(null);
   const [modalPadre, setModalPadre] = useState<"nuevo" | "editar" | null>(null);
   const [horarioNombre, setHorarioNombre] = useState("");
-  const [horarioDia, setHorarioDia] = useState("1");
-  const [horarioInicio, setHorarioInicio] = useState("08:00");
-  const [horarioFin, setHorarioFin] = useState("18:00");
+  const [horarioDescripcion, setHorarioDescripcion] = useState("");
+  const [horarioPlantilla, setHorarioPlantilla] = useState("personalizado");
+  const [horarioDias, setHorarioDias] = useState<HorarioDia[]>(makeHorarioDias());
+  const [horarioRepetirSemana, setHorarioRepetirSemana] = useState(false);
 
   const manejarErrorConexion = async (mensaje: string) => {
     const message = String(mensaje || "").toLowerCase();
@@ -124,9 +131,10 @@ export default function BiostararAccessLevels() {
     }
     setHorarioContexto(contexto);
     setHorarioNombre("");
-    setHorarioDia("1");
-    setHorarioInicio("08:00");
-    setHorarioFin("18:00");
+    setHorarioDescripcion("");
+    setHorarioPlantilla("personalizado");
+    setHorarioDias(makeHorarioDias());
+    setHorarioRepetirSemana(false);
     setOpenHorarioModal(true);
   };
 
@@ -148,15 +156,28 @@ export default function BiostararAccessLevels() {
       const [h, m] = t.split(":").map(Number);
       return (h * 60) + m;
     };
+    const daily_schedules = horarioDias.map((d, i) => ({
+      day_index: i,
+      time_segments: d.activo ? [{ start_time: toMin(d.inicio), end_time: toMin(d.fin) }] : [],
+    }));
+    if (!daily_schedules.some((d) => d.time_segments.length > 0)) {
+      await Swal.fire({ icon: "warning", title: "Faltan datos", text: "Activa al menos un dia con horario." });
+      return null;
+    }
     const payload = {
-      nombre,
-      dia: Number(horarioDia || "1"),
-      inicio: toMin(horarioInicio || "08:00"),
-      fin: toMin(horarioFin || "18:00"),
+      Schedule: {
+        name: nombre,
+        description: horarioDescripcion,
+        daily_schedules,
+        holiday_schedules: [],
+        days_of_iteration: 7,
+        start_date: `${new Date().toISOString().slice(0, 10)}T00:00:00.00Z`,
+        use_daily_iteration: horarioRepetirSemana,
+      },
     };
 
     setCreandoHorario(true);
-    const res = await clienteAxios.post("/api/biostar-catalogos/access-levels/horarios", payload);
+    const res = await clienteAxios.post("/api/biostar-catalogos/horarios", payload);
     setCreandoHorario(false);
     if (!res.data.estado) {
       await Swal.fire({ icon: "error", title: "No se pudo crear", text: res.data.mensaje || "Operacion fallida." });
@@ -178,6 +199,16 @@ export default function BiostararAccessLevels() {
     setHorarioContexto(null);
     await Swal.fire({ icon: "success", title: "Horario creado", text: res.data.mensaje || "Operacion correcta." });
     return nuevoId;
+  };
+
+  const aplicarPresetHorario = (preset: string) => {
+    setHorarioDias((prev) =>
+      prev.map((d, idx) => {
+        if (preset === "entresemana") return { ...d, activo: idx >= 1 && idx <= 5 };
+        if (preset === "findesemana") return { ...d, activo: idx === 0 || idx === 6 };
+        return d;
+      }),
+    );
   };
 
   const abrirNuevo = () => {
@@ -389,19 +420,75 @@ export default function BiostararAccessLevels() {
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField label="Nombre" value={horarioNombre} onChange={(e) => setHorarioNombre(e.target.value)} fullWidth />
-            <TextField select label="Dia" value={horarioDia} onChange={(e) => setHorarioDia(String(e.target.value))} fullWidth>
-              <MenuItem value="1">Lunes</MenuItem>
-              <MenuItem value="2">Martes</MenuItem>
-              <MenuItem value="3">Miercoles</MenuItem>
-              <MenuItem value="4">Jueves</MenuItem>
-              <MenuItem value="5">Viernes</MenuItem>
-              <MenuItem value="6">Sabado</MenuItem>
-              <MenuItem value="0">Domingo</MenuItem>
+            <TextField label="Descripcion" value={horarioDescripcion} onChange={(e) => setHorarioDescripcion(e.target.value)} fullWidth />
+            <TextField
+              select
+              label="Plantilla"
+              value={horarioPlantilla}
+              onChange={(e) => {
+                const preset = String(e.target.value);
+                setHorarioPlantilla(preset);
+                if (preset !== "personalizado") aplicarPresetHorario(preset);
+              }}
+              fullWidth
+            >
+              <MenuItem value="personalizado">Personalizado</MenuItem>
+              <MenuItem value="entresemana">Entre semana</MenuItem>
+              <MenuItem value="findesemana">Fin de semana</MenuItem>
             </TextField>
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-              <TextField label="Inicio" type="time" value={horarioInicio} onChange={(e) => setHorarioInicio(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
-              <TextField label="Fin" type="time" value={horarioFin} onChange={(e) => setHorarioFin(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+            <Stack spacing={1}>
+              {horarioDias.map((d, i) => (
+                <Stack key={`h-dia-${i}`} direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center">
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={d.activo}
+                        onChange={(e) => {
+                          const activo = e.target.checked;
+                          setHorarioDias((prev) => prev.map((it, idx) => (idx === i ? { ...it, activo } : it)));
+                          if (horarioPlantilla !== "personalizado") setHorarioPlantilla("personalizado");
+                        }}
+                      />
+                    }
+                    label={DIAS_LABEL[i]}
+                    sx={{ width: 150, m: 0 }}
+                  />
+                  <TextField
+                    label="Inicio"
+                    type="time"
+                    value={d.inicio}
+                    onChange={(e) => {
+                      const inicio = e.target.value;
+                      setHorarioDias((prev) => prev.map((it, idx) => (idx === i ? { ...it, inicio } : it)));
+                      if (horarioPlantilla !== "personalizado") setHorarioPlantilla("personalizado");
+                    }}
+                    InputLabelProps={{ shrink: true }}
+                    disabled={!d.activo}
+                    size="small"
+                    sx={{ minWidth: 140 }}
+                  />
+                  <TextField
+                    label="Fin"
+                    type="time"
+                    value={d.fin}
+                    onChange={(e) => {
+                      const fin = e.target.value;
+                      setHorarioDias((prev) => prev.map((it, idx) => (idx === i ? { ...it, fin } : it)));
+                      if (horarioPlantilla !== "personalizado") setHorarioPlantilla("personalizado");
+                    }}
+                    InputLabelProps={{ shrink: true }}
+                    disabled={!d.activo}
+                    size="small"
+                    sx={{ minWidth: 140 }}
+                  />
+                </Stack>
+              ))}
             </Stack>
+            <FormControlLabel
+              control={<Switch checked={horarioRepetirSemana} onChange={(e) => setHorarioRepetirSemana(e.target.checked)} />}
+              label="Repetir cada semana"
+              sx={{ m: 0 }}
+            />
           </Stack>
         </DialogContent>
         <DialogActions>
