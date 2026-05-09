@@ -147,12 +147,13 @@ export default function BiostararPermisosAcceso() {
       await Swal.fire({ icon: "warning", title: "Faltan datos", text: "El nombre es obligatorio." });
       return;
     }
+    setOpenNuevo(false);
     const res = await clienteAxios.post("/api/biostar-catalogos/access-groups", toPayload());
     if (!res.data.estado) {
       await Swal.fire({ icon: "error", title: "No se pudo crear", text: res.data.mensaje || "Operacion fallida." });
+      setOpenNuevo(true);
       return;
     }
-    setOpenNuevo(false);
     await Swal.fire({ icon: "success", title: "Permiso creado", text: res.data.mensaje || "Operacion correcta." });
     await cargar();
   };
@@ -162,12 +163,13 @@ export default function BiostararPermisosAcceso() {
       await Swal.fire({ icon: "warning", title: "Faltan datos", text: "Id y nombre son obligatorios." });
       return;
     }
+    setOpenEditar(false);
     const res = await clienteAxios.put(`/api/biostar-catalogos/access-groups/${editandoId}`, toPayload());
     if (!res.data.estado) {
       await Swal.fire({ icon: "error", title: "No se pudo editar", text: res.data.mensaje || "Operacion fallida." });
+      setOpenEditar(true);
       return;
     }
-    setOpenEditar(false);
     await Swal.fire({ icon: "success", title: "Permiso editado", text: res.data.mensaje || "Operacion correcta." });
     await cargar();
   };
