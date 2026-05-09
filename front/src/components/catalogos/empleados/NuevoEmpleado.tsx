@@ -317,6 +317,7 @@ export default function NuevoEmpleado() {
   }
 
   return (
+    <>
     <ModalContainer containerProps={{ maxWidth: "lg" }}>
       <Box component="section">
         <Card elevation={5}>
@@ -617,6 +618,7 @@ export default function NuevoEmpleado() {
         <Button variant="contained" onClick={crearGrupoBiostarDesdeForm}>Crear</Button>
       </DialogActions>
     </Dialog>
+    </>
   );
 }
 
