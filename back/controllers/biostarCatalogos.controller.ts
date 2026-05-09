@@ -653,6 +653,59 @@ export async function listarPuertasAcceso(_req: Request, res: Response): Promise
   }
 }
 
+export async function detallePuertaAcceso(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id de la puerta es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const detailRes = await biostarRequest(conexion as any, { method: "GET", url: `/api/doors/${id}` });
+    if (!detailRes.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(detailRes.message || extractBiostarMessage(detailRes.data)) || "No se pudo consultar la puerta.",
+      });
+      return;
+    }
+
+    const door = detailRes.data?.Door || detailRes.data?.door || detailRes.data || {};
+    const doorGroupId = resolveDoorGroupId(door);
+    const deviceId = String(
+      door?.entry_device_id?.id ??
+      door?.relay_output_id?.device_id?.id ??
+      door?.exit_button_input_id?.device_id?.id ??
+      door?.sensor_input_id?.device_id?.id ??
+      door?.device_id?.id ??
+      door?.device_id ??
+      ""
+    ).trim();
+
+    res.status(200).json({
+      estado: true,
+      datos: {
+        id_externo: String(door?.id || id),
+        nombre: String(door?.name || "").trim(),
+        grupo_puerta_id: doorGroupId || "1",
+        dispositivo_id: deviceId,
+        rele_puerta: String(door?.relay_output_id?.relay_index ?? "").trim(),
+        boton_salida: String(door?.exit_button_input_id?.input_index ?? "").trim(),
+        sensor_puerta: String(door?.sensor_input_id?.input_index ?? "").trim(),
+      },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
 export async function listarCatalogosPuertasAcceso(_req: Request, res: Response): Promise<void> {
   try {
     const conexion = await getBiostarConexionActiva();
@@ -872,6 +925,7 @@ export async function editarPuertaAcceso(req: Request, res: Response): Promise<v
       {
         Door: {
           id: Number(id) || id,
+          status: "0",
           name: nombre,
           description: "",
           door_group_id: { id: Number(grupo_puerta_id) || 1 },
@@ -913,6 +967,7 @@ export async function editarPuertaAcceso(req: Request, res: Response): Promise<v
       {
         Door: {
           id: Number(id) || id,
+          status: "0",
           name: nombre,
           door_group_id: { id: Number(grupo_puerta_id) || 1 },
           entry_device_id: { id: Number(dispositivo_id) || dispositivo_id },

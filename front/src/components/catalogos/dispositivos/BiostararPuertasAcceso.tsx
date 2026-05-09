@@ -312,18 +312,35 @@ export default function BiostararPuertasAcceso() {
     }
   };
 
-  const abrirEditar = (row: PuertaAcceso) => {
-    setEditandoId(row.id_externo);
+  const abrirEditar = async (row: PuertaAcceso) => {
+    let detalle = row;
+    try {
+      const detailRes = await clienteAxios.get(`/api/biostar-catalogos/puertas-acceso/${row.id_externo}`);
+      if (detailRes.data?.estado && detailRes.data?.datos) {
+        detalle = {
+          ...row,
+          ...detailRes.data.datos,
+        };
+      }
+    } catch (_error) {
+      // Si falla detalle, usar row actual como fallback.
+    }
+
+    const fallbackDeviceId =
+      entryDevices.find((d) => (d.nombre || "").trim().toLowerCase() === (detalle.dispositivo_nombre || "").trim().toLowerCase())?.id_externo || "";
+    const resolvedDeviceId = String(detalle.dispositivo_id || "").trim() || fallbackDeviceId;
+
+    setEditandoId(detalle.id_externo);
     setEditarForm({
-      nombre: row.nombre || "",
-      grupo_puerta_id: row.grupo_puerta_id || "1",
-      dispositivo_id: row.dispositivo_id || "",
-      rele_puerta: row.rele_puerta || "",
-      boton_salida: row.boton_salida || "",
-      sensor_puerta: row.sensor_puerta || "",
+      nombre: detalle.nombre || "",
+      grupo_puerta_id: detalle.grupo_puerta_id || "",
+      dispositivo_id: resolvedDeviceId,
+      rele_puerta: detalle.rele_puerta || "",
+      boton_salida: detalle.boton_salida || "",
+      sensor_puerta: detalle.sensor_puerta || "",
     });
-    if (row.dispositivo_id) {
-      void cargarOpcionesDispositivo(row.dispositivo_id, "editar");
+    if (resolvedDeviceId) {
+      void cargarOpcionesDispositivo(resolvedDeviceId, "editar");
     } else {
       setOpcionesPuertosEditar([]);
       setOpcionesExitEditar([]);
@@ -331,6 +348,20 @@ export default function BiostararPuertasAcceso() {
     }
     setOpenEditar(true);
   };
+
+  useEffect(() => {
+    if (!openEditar) return;
+    const deviceId = String(editarForm.dispositivo_id || "").trim();
+    if (!deviceId) return;
+    if (opcionesPuertosEditar.length || opcionesExitEditar.length || opcionesSensorEditar.length) return;
+    void cargarOpcionesDispositivo(deviceId, "editar");
+  }, [
+    openEditar,
+    editarForm.dispositivo_id,
+    opcionesPuertosEditar.length,
+    opcionesExitEditar.length,
+    opcionesSensorEditar.length,
+  ]);
 
   const guardarEditar = async () => {
     if (!editandoId) return;
