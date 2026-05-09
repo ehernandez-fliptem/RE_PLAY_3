@@ -15,8 +15,10 @@ import {
   Divider,
   IconButton,
   Stack,
+  TextField,
   Typography,
 } from "@mui/material";
+import { Add } from "@mui/icons-material";
 import { AutocompleteElement, FormContainer, SwitchElement, TextFieldElement } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
 import Swal from "sweetalert2";
@@ -85,6 +87,7 @@ type FormValues = {
   id_cubiculo?: string;
   correo: string;
   acceso_campo: boolean;
+  biostar_group_id?: string;
 };
 
 const resolver = yup.object().shape({
@@ -148,6 +151,7 @@ const resolver = yup.object().shape({
     .required("Este campo es obligatorio.")
     .email("Formato de correo inválido."),
   acceso_campo: yup.boolean().required(),
+  biostar_group_id: yup.string().optional(),
 }) as yup.ObjectSchema<FormValues>;
 
 const initialValue: FormValues = {
@@ -166,10 +170,14 @@ const initialValue: FormValues = {
   extension: "",
   correo: "",
   acceso_campo: false,
+  biostar_group_id: "",
 };
 
 export default function EditarEmpleado() {
   const { habilitarRegistroCampo } = useSelector(
+    (state: IRootState) => state.config.data
+  );
+  const { habilitarIntegracionBiostar } = useSelector(
     (state: IRootState) => state.config.data
   );
   const { id: ID } = useParams();
@@ -193,6 +201,9 @@ export default function EditarEmpleado() {
   const [departamentos, setDepartamentos] = useState<TDepartamentos[]>([]);
   const [cubiculos, setCubiculos] = useState<TCubiculos[]>([]);
   const [esUsuarioMaestro, setEsUsuarioMaestro] = useState(false);
+  const [biostarGrupos, setBiostarGrupos] = useState<Array<{ id_externo: string; nombre: string }>>([]);
+  const [modalGrupoOpen, setModalGrupoOpen] = useState(false);
+  const [nuevoGrupo, setNuevoGrupo] = useState("");
   const initialFormRef = useRef<FormValues | null>(null);
   const [postSaveOpen, setPostSaveOpen] = useState(false);
   const [postSaveStep, setPostSaveStep] = useState<"huella" | "tarjeta">(
@@ -204,7 +215,7 @@ export default function EditarEmpleado() {
       try {
         const res = await clienteAxios.get(`/api/empleados/form-editar/${ID}`);
         if (res.data.estado) {
-          const { usuario, empresas } = res.data.datos;
+          const { usuario, empresas, biostarGrupos } = res.data.datos;
           setEsUsuarioMaestro(usuario.id_empleado === 1);
           setEmpresas(empresas);
           setPuestos(puestos);
@@ -218,6 +229,7 @@ export default function EditarEmpleado() {
           setDepartamentos(empresaSeleccionada?.departamentos || []);
           setCubiculos(empresaSeleccionada?.cubiculos || []);
           setAccesos(empresaSeleccionada?.accesos || []);
+          setBiostarGrupos(Array.isArray(biostarGrupos) ? biostarGrupos : []);
           const usuarioForm = {
             ...usuario,
             id_empresa: usuario?.id_empresa ?? "",
@@ -344,6 +356,27 @@ export default function EditarEmpleado() {
     navigate("/empleados", {
       state: { openBiometriaFor: ID, biometriaStep: "tarjeta" },
     });
+  };
+
+  const crearGrupoBiostarDesdeForm = async () => {
+    const nombre = nuevoGrupo.trim();
+    if (!nombre) return;
+    const res = await clienteAxios.post("/api/biostar-grupos", { nombre });
+    if (!res.data?.estado) {
+      enqueueSnackbar(res.data?.mensaje || "No se pudo crear el grupo.", { variant: "warning" });
+      return;
+    }
+    const gruposRes = await clienteAxios.get("/api/biostar-grupos");
+    if (gruposRes.data?.estado) {
+      const list = Array.isArray(gruposRes.data?.datos) ? gruposRes.data.datos : [];
+      setBiostarGrupos(list);
+      const creado = list.find((g: any) => String(g.nombre || "").toLowerCase() === nombre.toLowerCase());
+      if (creado?.id_externo) {
+        formContext.setValue("biostar_group_id", String(creado.id_externo), { shouldValidate: true });
+      }
+    }
+    setNuevoGrupo("");
+    setModalGrupoOpen(false);
   };
 
   if (!showForm) {
@@ -569,6 +602,32 @@ export default function EditarEmpleado() {
                         labelPlacement="end"
                       />
                     )}
+                    {habilitarIntegracionBiostar && (
+                      <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center" sx={{ mt: 1 }}>
+                        <Box sx={{ flex: 1, width: "100%" }}>
+                          <AutocompleteElement
+                            name="biostar_group_id"
+                            label="Grupo BioStar"
+                            matchId
+                            options={biostarGrupos.map((item) => ({
+                              id: item.id_externo,
+                              label: item.nombre,
+                            }))}
+                            textFieldProps={{ margin: "normal" }}
+                            autocompleteProps={{ noOptionsText: "No hay opciones." }}
+                          />
+                        </Box>
+                        <Button
+                          type="button"
+                          variant="outlined"
+                          startIcon={<Add />}
+                          sx={{ mt: { xs: 0, sm: 1 } }}
+                          onClick={() => setModalGrupoOpen(true)}
+                        >
+                          Grupo
+                        </Button>
+                      </Stack>
+                    )}
                   </Fragment>
                 )}
                 <Divider sx={{ my: 2 }} />
@@ -660,6 +719,27 @@ export default function EditarEmpleado() {
               </Button>
             </Fragment>
           )}
+        </DialogActions>
+      </Dialog>
+      <Dialog open={modalGrupoOpen} onClose={() => setModalGrupoOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>
+          Nuevo Grupo BioStar
+          <IconButton onClick={() => setModalGrupoOpen(false)} sx={{ position: "absolute", right: 8, top: 8 }}>
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            label="Nombre del grupo"
+            value={nuevoGrupo}
+            onChange={(e) => setNuevoGrupo(String(e.target.value || ""))}
+            fullWidth
+            margin="normal"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setModalGrupoOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={crearGrupoBiostarDesdeForm}>Crear</Button>
         </DialogActions>
       </Dialog>
     </ModalContainer>

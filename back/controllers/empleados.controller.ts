@@ -13,9 +13,12 @@ import Empresas, { IEmpresa } from '../models/Empresas';
 import { IPiso } from '../models/Pisos';
 import { IAcceso } from '../models/Accesos';
 import DispositivosHv from '../models/DispositivosHv';
+import DispositivosBiostar from '../models/DispositivosBiostar';
+import BiostarConexion from "../models/BiostarConexion";
 import Configuracion, { IConfiguracion } from '../models/Configuracion';
 import Roles from '../models/Roles';
 import Hikvision from '../classes/Hikvision';
+import { biostarRequest } from "../classes/Biostar";
 import { generarCodigoUnico, isEmptyObject, decryptPassword, encryptPassword, resizeImage, customAggregationForDataGrids, marcarDuplicados } from '../utils/utils';
 import { validarModelo } from '../validators/validadores';
 import { enviarCorreoUsuario } from '../utils/correos';
@@ -747,7 +750,19 @@ export async function obtenerFormNuevoEmpleado(req: Request, res: Response): Pro
                 }
             }
         ]);
-        res.status(200).json({ estado: true, datos: { empresas } });
+        const { habilitarIntegracionBiostar } = await Configuracion.findOne({}, "habilitarIntegracionBiostar") as IConfiguracion;
+        let biostarGrupos: Array<{ id_externo: string; nombre: string }> = [];
+        if (habilitarIntegracionBiostar) {
+            const conexion = await getBiostarConexionActiva();
+            if (conexion) {
+                const r = await biostarRequest(conexion, { method: "GET", url: "/api/user_groups?limit=1000" });
+                const rows = (r.data?.UserGroupCollection?.rows || []) as any[];
+                biostarGrupos = rows
+                    .map((row) => ({ id_externo: String(row?.id || ""), nombre: String(row?.name || "").trim() }))
+                    .filter((g) => g.id_externo && g.nombre);
+            }
+        }
+        res.status(200).json({ estado: true, datos: { empresas, biostarGrupos, habilitarIntegracionBiostar: !!habilitarIntegracionBiostar } });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
@@ -932,9 +947,21 @@ export async function obtenerFormEditarEmpleado(req: Request, res: Response): Pr
                 }
             }
         ]);
+        const { habilitarIntegracionBiostar } = await Configuracion.findOne({}, "habilitarIntegracionBiostar") as IConfiguracion;
+        let biostarGrupos: Array<{ id_externo: string; nombre: string }> = [];
+        if (habilitarIntegracionBiostar) {
+            const conexion = await getBiostarConexionActiva();
+            if (conexion) {
+                const r = await biostarRequest(conexion, { method: "GET", url: "/api/user_groups?limit=1000" });
+                const rows = (r.data?.UserGroupCollection?.rows || []) as any[];
+                biostarGrupos = rows
+                    .map((row) => ({ id_externo: String(row?.id || ""), nombre: String(row?.name || "").trim() }))
+                    .filter((g) => g.id_externo && g.nombre);
+            }
+        }
         res.status(200).json({
             estado: true, datos: {
-                usuario: usuario[0], empresas
+                usuario: usuario[0], empresas, biostarGrupos, habilitarIntegracionBiostar: !!habilitarIntegracionBiostar
             }
         });
     } catch (error: any) {
@@ -1836,6 +1863,80 @@ export async function eliminarTarjetaEmpleadoPanel(req: Request, res: Response):
 
 const normalizarCorreo = (correo?: string) => String(correo || "").trim().toLowerCase();
 
+const bioMessage = (payload: any, fallback: string) =>
+    String(payload?.Response?.message || payload?.message || fallback).trim();
+
+const getBiostarConexionActiva = async (): Promise<any | null> => {
+    const main = await DispositivosBiostar.findOne({ activo: true, es_main: true }).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
+    if (main) return main;
+    const global = await BiostarConexion.findOne({ activo: true }).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
+    if (global) return global;
+    return DispositivosBiostar.findOne({ activo: true }).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
+};
+
+const resolveBiostarGroup = async (conexion: any, idGrupo?: string) => {
+    const allUsers = { id: "1", name: "All Users" };
+    const target = String(idGrupo || "").trim();
+    if (!target) return allUsers;
+    const r = await biostarRequest(conexion, { method: "GET", url: "/api/user_groups?limit=1000" });
+    const rows = (r.data?.UserGroupCollection?.rows || []) as any[];
+    const found = rows.find((g) => String(g?.id) === target);
+    if (!found) return null;
+    return { id: String(found.id), name: String(found.name || "All Users") };
+};
+
+const syncEmpleadoBiostar = async ({
+    empleado,
+    biostar_group_id,
+    disabled,
+}: {
+    empleado: IEmpleado;
+    biostar_group_id?: string;
+    disabled?: boolean;
+}): Promise<{ ok: boolean; mensaje?: string; userId?: string; groupId?: string; groupName?: string }> => {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) return { ok: false, mensaje: "Primero configura la conexion global de BioStar." };
+
+    const grupo = await resolveBiostarGroup(conexion, biostar_group_id || (empleado as any)?.biostar_group_id || "1");
+    if (!grupo) return { ok: false, mensaje: "El grupo de BioStar seleccionado no existe." };
+
+    const userId = String((empleado as any)?.biostar_user_id || empleado.id_empleado || "").trim();
+    const payload = {
+        User: {
+            user_id: userId,
+            name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || userId),
+            email: normalizarCorreo(empleado.correo),
+            phone: String(empleado.telefono || empleado.movil || "").trim(),
+            user_group_id: { id: Number(grupo.id) || grupo.id, name: grupo.name },
+            disabled: !!disabled,
+        },
+    };
+
+    const exists = await biostarRequest(conexion, { method: "GET", url: `/api/users/${encodeURIComponent(userId)}` });
+    let upsert;
+    if (exists.ok && exists.data?.User) {
+        upsert = await biostarRequest(conexion, { method: "PUT", url: `/api/users/${encodeURIComponent(userId)}`, data: payload });
+    } else {
+        upsert = await biostarRequest(conexion, { method: "POST", url: "/api/users", data: payload });
+    }
+
+    if (!upsert.ok || String(upsert.data?.Response?.code || "0") !== "0") {
+        return { ok: false, mensaje: bioMessage(upsert.data, upsert.message || "No se pudo sincronizar el empleado en BioStar.") };
+    }
+
+    return { ok: true, userId, groupId: grupo.id, groupName: grupo.name };
+};
+
+const deleteEmpleadoBiostar = async (userId?: string): Promise<{ ok: boolean; mensaje?: string }> => {
+    const id = String(userId || "").trim();
+    if (!id) return { ok: true };
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) return { ok: true };
+    const del = await biostarRequest(conexion, { method: "DELETE", url: `/api/users/${encodeURIComponent(id)}` });
+    if (del.ok || String(del.data?.Response?.code || "") === "0") return { ok: true };
+    return { ok: false, mensaje: bioMessage(del.data, del.message || "No se pudo eliminar el empleado en BioStar.") };
+};
+
 const sincronizarUsuarioCampo = async ({
     empleado,
     accesoCampo,
@@ -1933,7 +2034,7 @@ const sincronizarUsuarioCampo = async ({
 
 export async function crear(req: Request, res: Response): Promise<void> {
     try {
-        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, acceso_campo } = req.body;
+        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, acceso_campo, biostar_group_id } = req.body;
         const id_usuario = (req as UserRequest).userId;
         const empresa = await Empresas.findById(id_empresa, 'pisos accesos esRoot activo');
 
@@ -1964,7 +2065,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
         await nuevoUsuario
             .save()
             .then(async (reg_saved) => {
-                const { habilitarIntegracionHv } = await Configuracion.findOne({}, "habilitarIntegracionHv") as IConfiguracion;
+                const { habilitarIntegracionHv, habilitarIntegracionBiostar } = await Configuracion.findOne({}, "habilitarIntegracionHv habilitarIntegracionBiostar") as IConfiguracion;
                 if (habilitarIntegracionHv) {
                     const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: accesos } });
                     for await (let panel of paneles) {
@@ -2002,6 +2103,30 @@ export async function crear(req: Request, res: Response): Promise<void> {
                         }
                     }
                 }
+                if (habilitarIntegracionBiostar) {
+                    const bioRes = await syncEmpleadoBiostar({
+                        empleado: reg_saved as IEmpleado,
+                        biostar_group_id: String(biostar_group_id || "").trim() || "1",
+                        disabled: false,
+                    });
+                    if (!bioRes.ok) {
+                        await Empleados.findByIdAndDelete(reg_saved._id);
+                        await FaceDescriptors.deleteOne({ id_usuario: reg_saved._id });
+                        res.status(200).json({
+                            estado: false,
+                            codigo: "BIOSTAR_SYNC_FAILED",
+                            mensaje: bioRes.mensaje || "No se pudo sincronizar el empleado en BioStar.",
+                        });
+                        return;
+                    }
+                    await Empleados.findByIdAndUpdate(reg_saved._id, {
+                        $set: {
+                            biostar_user_id: bioRes.userId || "",
+                            biostar_group_id: bioRes.groupId || "",
+                            biostar_group_name: bioRes.groupName || "",
+                        }
+                    });
+                }
                 await sincronizarUsuarioCampo({
                     empleado: reg_saved,
                     accesoCampo: !!acceso_campo,
@@ -2036,7 +2161,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
 };
 export async function modificar(req: Request, res: Response): Promise<void> {
     try {
-        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, acceso_campo } = req.body;
+        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, acceso_campo, biostar_group_id } = req.body;
         const id_usuario = (req as UserRequest).userId;
         const empresa = await Empresas.findById(id_empresa, 'esRoot');
 
@@ -2056,6 +2181,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             id_departamento,
             id_cubiculo,
             acceso_campo: !!acceso_campo,
+            biostar_group_id: String(biostar_group_id || prevRegistro?.biostar_group_id || "").trim(),
             fecha_modificacion: Date.now(),
             modificado_por: id_usuario,
         };
@@ -2096,7 +2222,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             delete (panelPayload as any).img_usuario;
         }
 
-        const { habilitarIntegracionHv } = await Configuracion.findOne({}, 'habilitarIntegracionHv') as IConfiguracion;
+        const { habilitarIntegracionHv, habilitarIntegracionBiostar } = await Configuracion.findOne({}, 'habilitarIntegracionHv habilitarIntegracionBiostar') as IConfiguracion;
         if (habilitarIntegracionHv) {
             const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: accesos } });
             for await (let panel of paneles) {
@@ -2217,6 +2343,46 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                 }
             }
         }
+        if (habilitarIntegracionBiostar) {
+            const bioRes = await syncEmpleadoBiostar({
+                empleado: registro as IEmpleado,
+                biostar_group_id: String(biostar_group_id || (prevRegistro as any)?.biostar_group_id || "1"),
+                disabled: false,
+            });
+            if (!bioRes.ok) {
+                await Empleados.findByIdAndUpdate(req.params.id, { $set: {
+                    img_usuario: prevRegistro.img_usuario,
+                    nombre: prevRegistro.nombre,
+                    apellido_pat: prevRegistro.apellido_pat,
+                    apellido_mat: prevRegistro.apellido_mat,
+                    movil: prevRegistro.movil,
+                    telefono: prevRegistro.telefono,
+                    extension: prevRegistro.extension,
+                    accesos: prevRegistro.accesos,
+                    id_puesto: prevRegistro.id_puesto,
+                    id_departamento: prevRegistro.id_departamento,
+                    id_cubiculo: prevRegistro.id_cubiculo,
+                    id_empresa: prevRegistro.id_empresa,
+                    id_piso: prevRegistro.id_piso,
+                    correo: prevRegistro.correo,
+                    esRoot: prevRegistro.esRoot,
+                    biostar_group_id: (prevRegistro as any).biostar_group_id || "",
+                } });
+                res.status(200).json({
+                    estado: false,
+                    codigo: "BIOSTAR_SYNC_FAILED",
+                    mensaje: bioRes.mensaje || "No se pudo sincronizar el empleado en BioStar.",
+                });
+                return;
+            }
+            await Empleados.findByIdAndUpdate(req.params.id, {
+                $set: {
+                    biostar_user_id: bioRes.userId || (prevRegistro as any)?.biostar_user_id || "",
+                    biostar_group_id: bioRes.groupId || "",
+                    biostar_group_name: bioRes.groupName || "",
+                }
+            });
+        }
         await sincronizarUsuarioCampo({
             empleado: registro as IEmpleado,
             accesoCampo: !!acceso_campo,
@@ -2270,7 +2436,7 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
         const registroPanel = mapEmpleadoToPanel(registro);
         registroPanel.activo = !activo;
         await FaceDescriptors.updateOne({ id_usuario: req.params.id }, { $set: { activo: !activo } });
-        const { habilitarIntegracionHv } = await Configuracion.findOne({}, 'habilitarIntegracionHv') as IConfiguracion;
+        const { habilitarIntegracionHv, habilitarIntegracionBiostar } = await Configuracion.findOne({}, 'habilitarIntegracionHv habilitarIntegracionBiostar') as IConfiguracion;
         if (habilitarIntegracionHv) {
             const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: registro.accesos } });
             for await (let panel of paneles) {
@@ -2282,6 +2448,35 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
                 } catch (error: any) {
                     console.warn("[EMPLEADOS][ESTADO] Sync panel falló:", error?.message || error);
                 }
+            }
+        }
+        if (habilitarIntegracionBiostar) {
+            const nuevoActivo = !activo;
+            if (!nuevoActivo) {
+                const del = await deleteEmpleadoBiostar((registro as any)?.biostar_user_id || String((registro as any)?.id_empleado || ""));
+                if (!del.ok) {
+                    await Empleados.findByIdAndUpdate(req.params.id, { $set: { activo } });
+                    res.status(200).json({ estado: false, codigo: "BIOSTAR_SYNC_FAILED", mensaje: del.mensaje || "No se pudo eliminar el empleado en BioStar." });
+                    return;
+                }
+            } else {
+                const bioRes = await syncEmpleadoBiostar({
+                    empleado: registro as IEmpleado,
+                    biostar_group_id: String((registro as any)?.biostar_group_id || "1"),
+                    disabled: false,
+                });
+                if (!bioRes.ok) {
+                    await Empleados.findByIdAndUpdate(req.params.id, { $set: { activo } });
+                    res.status(200).json({ estado: false, codigo: "BIOSTAR_SYNC_FAILED", mensaje: bioRes.mensaje || "No se pudo activar el empleado en BioStar." });
+                    return;
+                }
+                await Empleados.findByIdAndUpdate(req.params.id, {
+                    $set: {
+                        biostar_user_id: bioRes.userId || "",
+                        biostar_group_id: bioRes.groupId || "",
+                        biostar_group_name: bioRes.groupName || "",
+                    }
+                });
             }
         }
         res.status(200).json({ estado: true });

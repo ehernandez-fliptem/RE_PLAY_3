@@ -37,6 +37,9 @@ export interface IEmpleado extends Document {
         fecha_creacion: Date;
     }>;
     acceso_campo: boolean;
+    biostar_user_id?: string;
+    biostar_group_id?: string;
+    biostar_group_name?: string;
     usuario_campo_activo: boolean;
     esRoot: boolean;
     insignias: number[];
@@ -141,6 +144,9 @@ const empleadoSchema = new Schema<IEmpleado>({
         default: [],
     },
     acceso_campo: { type: Boolean, default: false },
+    biostar_user_id: { type: String, default: "" },
+    biostar_group_id: { type: String, default: "" },
+    biostar_group_name: { type: String, default: "" },
     usuario_campo_activo: { type: Boolean, default: false },
     esRoot: { type: Boolean, require: true, default: false },
     insignias: {
