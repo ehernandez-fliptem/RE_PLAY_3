@@ -382,7 +382,7 @@ const mainMenu = [
       },
       {
         id: 99.526,
-        title: "Access Level",
+        title: "Niveles de Acceso",
         rol: [1],
         icon: <Security fontSize="small" />,
         path: "/biostarar/access-levels",

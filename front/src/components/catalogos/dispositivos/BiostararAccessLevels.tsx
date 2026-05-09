@@ -74,7 +74,11 @@ export default function BiostararAccessLevels() {
         return;
       }
       setPuertas(res.data.datos?.puertas || []);
-      setHorarios(res.data.datos?.horarios || []);
+      const horariosConTraduccion = (res.data.datos?.horarios || []).map((h: OptionItem) => ({
+        ...h,
+        nombre: String(h?.nombre || "").trim().toLowerCase() === "always" ? "Siempre" : h.nombre,
+      }));
+      setHorarios(horariosConTraduccion);
     } catch (error) {
       handlingError(error);
     }
@@ -171,7 +175,7 @@ export default function BiostararAccessLevels() {
         door_id: r.door_id,
         door_nombre: puertas.find((p) => p.id_externo === r.door_id)?.nombre || "",
         schedule_id: r.schedule_id,
-        schedule_nombre: horarios.find((h) => h.id_externo === r.schedule_id)?.nombre || "",
+        schedule_nombre: horarios.find((h) => h.id_externo === r.schedule_id)?.nombre || r.schedule_nombre || "",
       })),
     };
     const res = await clienteAxios.post("/api/biostar-catalogos/access-levels", payload);
@@ -274,6 +278,11 @@ export default function BiostararAccessLevels() {
               }}
             >
               <MenuItem value="">Ninguno</MenuItem>
+              {r.schedule_id && !horarios.some((h) => h.id_externo === r.schedule_id) ? (
+                <MenuItem value={r.schedule_id} sx={{ display: "none" }}>
+                  {r.schedule_nombre || "Always"}
+                </MenuItem>
+              ) : null}
               {horarios.map((h) => (<MenuItem key={h.id_externo} value={h.id_externo}>{h.nombre}</MenuItem>))}
             </Select>
           </FormControl>
@@ -297,7 +306,7 @@ export default function BiostararAccessLevels() {
         slots={{
           toolbar: () => (
             <DataGridToolbar
-              tableTitle="Access Level BioStar"
+              tableTitle="Niveles de Acceso BioStar"
               customActionButtons={
                 <>
                   <Tooltip title="Recargar"><IconButton size="small" onClick={async () => { await cargarCatalogos(); await cargar(); }}><Refresh /></IconButton></Tooltip>
@@ -312,7 +321,7 @@ export default function BiostararAccessLevels() {
       />
 
       <Dialog open={openNuevo} onClose={() => setOpenNuevo(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Nuevo Access Level</DialogTitle>
+        <DialogTitle>Nuevo Nivel de Acceso</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField label="Nombre" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} fullWidth />
@@ -327,7 +336,7 @@ export default function BiostararAccessLevels() {
       </Dialog>
 
       <Dialog open={openEditar} onClose={() => setOpenEditar(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Editar Access Level</DialogTitle>
+        <DialogTitle>Editar Nivel de Acceso</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField label="Nombre" value={nombreEditar} onChange={(e) => setNombreEditar(e.target.value)} fullWidth />
