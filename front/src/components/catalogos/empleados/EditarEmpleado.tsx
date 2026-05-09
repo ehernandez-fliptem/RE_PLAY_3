@@ -536,6 +536,32 @@ export default function EditarEmpleado() {
                     noOptionsText: "No hay opciones.",
                   }}
                 />
+                {!esUsuarioMaestro && habilitarIntegracionBiostar && (
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center" sx={{ mt: 1 }}>
+                    <Box sx={{ flex: 1, width: "100%" }}>
+                      <AutocompleteElement
+                        name="biostar_group_id"
+                        label="Grupo BioStar"
+                        matchId
+                        options={biostarGrupos.map((item) => ({
+                          id: item.id_externo,
+                          label: item.nombre,
+                        }))}
+                        textFieldProps={{ margin: "normal" }}
+                        autocompleteProps={{ noOptionsText: "No hay opciones." }}
+                      />
+                    </Box>
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      startIcon={<Add />}
+                      sx={{ mt: { xs: 0, sm: 1 } }}
+                      onClick={() => setModalGrupoOpen(true)}
+                    >
+                      Grupo
+                    </Button>
+                  </Stack>
+                )}
                 <Controller
                   name="movil"
                   control={formContext.control}
@@ -601,32 +627,6 @@ export default function EditarEmpleado() {
                         label="Habilitar acceso de campo para este empleado"
                         labelPlacement="end"
                       />
-                    )}
-                    {habilitarIntegracionBiostar && (
-                      <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center" sx={{ mt: 1 }}>
-                        <Box sx={{ flex: 1, width: "100%" }}>
-                          <AutocompleteElement
-                            name="biostar_group_id"
-                            label="Grupo BioStar"
-                            matchId
-                            options={biostarGrupos.map((item) => ({
-                              id: item.id_externo,
-                              label: item.nombre,
-                            }))}
-                            textFieldProps={{ margin: "normal" }}
-                            autocompleteProps={{ noOptionsText: "No hay opciones." }}
-                          />
-                        </Box>
-                        <Button
-                          type="button"
-                          variant="outlined"
-                          startIcon={<Add />}
-                          sx={{ mt: { xs: 0, sm: 1 } }}
-                          onClick={() => setModalGrupoOpen(true)}
-                        >
-                          Grupo
-                        </Button>
-                      </Stack>
                     )}
                   </Fragment>
                 )}
