@@ -760,31 +760,60 @@ export async function crearPuertaAcceso(req: Request, res: Response): Promise<vo
       {
         Door: {
           name: nombre,
-          door_group_id: { id: Number(grupo_puerta_id) || grupo_puerta_id },
-          device_id: { id: Number(dispositivo_id) || dispositivo_id },
-          relay: { port: rele_puerta || "0" },
-          exit_button: { port: boton_salida || "0" },
-          door_sensor: { port: sensor_puerta || "0" },
+          description: "",
+          door_group_id: { id: Number(grupo_puerta_id) || 1 },
+          entry_device_id: { id: Number(dispositivo_id) || dispositivo_id, name: "" },
+          relay_output_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            relay_index: Number(rele_puerta || "0"),
+          },
+          exit_button_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id, name: "" },
+            input_index: Number(boton_salida || "0"),
+            type: "0",
+            simulated_unlock: "0",
+            supervised: "",
+          },
+          sensor_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id, name: "" },
+            input_index: Number(sensor_puerta || "0"),
+            type: "0",
+            apb_use_door_sensor: "0",
+            supervised: "",
+          },
+          antitailsensor_input_id: { device_id: {}, type: "0" },
+          exit_device_id: {},
+          open_duration: 3,
+          open_timeout: 10,
+          open_once: "false",
+          unconditional_lock: "false",
+          dual_authentication: { device: "0", approval_type: "0", timeout: 15 },
+          door_timed_anti_passback: {
+            apb_type: "2",
+            reset_time: "10",
+            open_when_disconnected: 0,
+            selected_device: "0",
+            bypass_groups: [],
+          },
         },
       },
       {
         Door: {
           name: nombre,
-          door_group_id: { id: Number(grupo_puerta_id) || grupo_puerta_id },
+          door_group_id: { id: Number(grupo_puerta_id) || 1 },
           entry_device_id: { id: Number(dispositivo_id) || dispositivo_id },
-          door_relay: { port: rele_puerta || "0" },
-          exit_button_input: { port: boton_salida || "0" },
-          sensor: { port: sensor_puerta || "0" },
-        },
-      },
-      {
-        door: {
-          name: nombre,
-          door_group_id: Number(grupo_puerta_id) || grupo_puerta_id,
-          device_id: Number(dispositivo_id) || dispositivo_id,
-          door_relay: rele_puerta || "0",
-          exit_button: boton_salida || "0",
-          door_sensor: sensor_puerta || "0",
+          relay_output_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            relay_index: Number(rele_puerta || "0"),
+          },
+          exit_button_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            input_index: Number(boton_salida || "0"),
+          },
+          sensor_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            input_index: Number(sensor_puerta || "0"),
+          },
         },
       },
     ];
@@ -830,35 +859,63 @@ export async function editarPuertaAcceso(req: Request, res: Response): Promise<v
     const payloads = [
       {
         Door: {
-          id,
+          id: Number(id) || id,
           name: nombre,
-          door_group_id: { id: Number(grupo_puerta_id) || grupo_puerta_id },
-          device_id: { id: Number(dispositivo_id) || dispositivo_id },
-          relay: { port: rele_puerta || "0" },
-          exit_button: { port: boton_salida || "0" },
-          door_sensor: { port: sensor_puerta || "0" },
+          description: "",
+          door_group_id: { id: Number(grupo_puerta_id) || 1 },
+          entry_device_id: { id: Number(dispositivo_id) || dispositivo_id, name: "" },
+          relay_output_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            relay_index: Number(rele_puerta || "0"),
+          },
+          exit_button_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id, name: "" },
+            input_index: Number(boton_salida || "0"),
+            type: "0",
+            simulated_unlock: "0",
+            supervised: "",
+          },
+          sensor_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id, name: "" },
+            input_index: Number(sensor_puerta || "0"),
+            type: "0",
+            apb_use_door_sensor: "0",
+            supervised: "",
+          },
+          antitailsensor_input_id: { device_id: {}, type: "0" },
+          exit_device_id: {},
+          open_duration: 3,
+          open_timeout: 10,
+          open_once: "false",
+          unconditional_lock: "false",
+          dual_authentication: { device: "0", approval_type: "0", timeout: 15 },
+          door_timed_anti_passback: {
+            apb_type: "2",
+            reset_time: "10",
+            open_when_disconnected: 0,
+            selected_device: "0",
+            bypass_groups: [],
+          },
         },
       },
       {
         Door: {
-          id,
+          id: Number(id) || id,
           name: nombre,
-          door_group_id: { id: Number(grupo_puerta_id) || grupo_puerta_id },
+          door_group_id: { id: Number(grupo_puerta_id) || 1 },
           entry_device_id: { id: Number(dispositivo_id) || dispositivo_id },
-          door_relay: { port: rele_puerta || "0" },
-          exit_button_input: { port: boton_salida || "0" },
-          sensor: { port: sensor_puerta || "0" },
-        },
-      },
-      {
-        door: {
-          id,
-          name: nombre,
-          door_group_id: Number(grupo_puerta_id) || grupo_puerta_id,
-          device_id: Number(dispositivo_id) || dispositivo_id,
-          door_relay: rele_puerta || "0",
-          exit_button: boton_salida || "0",
-          door_sensor: sensor_puerta || "0",
+          relay_output_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            relay_index: Number(rele_puerta || "0"),
+          },
+          exit_button_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            input_index: Number(boton_salida || "0"),
+          },
+          sensor_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            input_index: Number(sensor_puerta || "0"),
+          },
         },
       },
     ];
@@ -943,11 +1000,45 @@ export async function listarOpcionesDispositivoPuertaAcceso(req: Request, res: R
       if (relayIndex !== "") puertosSet.add(relayIndex);
     }
 
-    const puertosRelay = Array.from(puertosSet)
+    let puertosRelay = Array.from(puertosSet)
       .sort((a, b) => Number(a) - Number(b))
       .map((valor) => ({ valor, etiqueta: `Puerto ${valor}` }));
 
     let puertosEntrada: Array<{ valor: string; etiqueta: string }> = [];
+    let totalRelayFromConfig = 0;
+    let totalInputFromConfig = 0;
+
+    const configRes = await biostarRequest(conexion as any, { method: "GET", url: `/api/devices/${deviceId}/config` });
+    if (configRes.ok) {
+      const cfg = configRes.data || {};
+      totalRelayFromConfig =
+        [
+          cfg?.relay?.num_relays,
+          cfg?.relay?.number_of_relays,
+          cfg?.relays?.length,
+          cfg?.output?.num_relays,
+          cfg?.output?.num_outputs,
+        ]
+          .map((v: any) => Number(v))
+          .find((v: number) => Number.isFinite(v) && v > 0) || 0;
+      totalInputFromConfig =
+        [
+          cfg?.input?.num_inputs,
+          cfg?.input?.number_of_inputs,
+          cfg?.input?.normal_inputs,
+          cfg?.input?.supervised_inputs_count,
+          cfg?.inputs?.length,
+        ]
+          .map((v: any) => Number(v))
+          .find((v: number) => Number.isFinite(v) && v > 0) || 0;
+    }
+
+    if (totalRelayFromConfig > puertosRelay.length) {
+      puertosRelay = Array.from({ length: totalRelayFromConfig }, (_, i) => ({
+        valor: String(i),
+        etiqueta: `Puerto ${i}`,
+      }));
+    }
     const deviceSearchRes = await biostarRequest(conexion as any, {
       method: "POST",
       url: "/api/v2/devices/search",
@@ -973,8 +1064,20 @@ export async function listarOpcionesDispositivoPuertaAcceso(req: Request, res: R
         }));
       }
     }
+    if (totalInputFromConfig > puertosEntrada.length) {
+      puertosEntrada = Array.from({ length: totalInputFromConfig }, (_, i) => ({
+        valor: String(i),
+        etiqueta: `Input Port ${i}`,
+      }));
+    }
     if (!puertosEntrada.length) {
       puertosEntrada = puertosRelay.map((p) => ({ valor: p.valor, etiqueta: `Input Port ${p.valor}` }));
+    }
+    if (puertosEntrada.length === 1 && puertosEntrada[0].valor === "0") {
+      puertosEntrada = [
+        { valor: "0", etiqueta: "Input Port 0" },
+        { valor: "1", etiqueta: "Input Port 1" },
+      ];
     }
 
     res.status(200).json({
