@@ -2,6 +2,7 @@
 import { DataGrid, GridActionsCellItem, type GridColDef } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
 import { Add, Delete, Edit, Refresh } from "@mui/icons-material";
+import { InfoOutlined } from "@mui/icons-material";
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Stack, Switch, TextField, Tooltip } from "@mui/material";
 import { MenuItem } from "@mui/material";
 import Swal from "sweetalert2";
@@ -201,7 +202,10 @@ export default function BiostararHorarios() {
       </Stack>
       <Stack direction="row" spacing={1} alignItems="center">
         <Switch checked={form.use_daily_iteration} onChange={(e) => setForm((p) => ({ ...p, use_daily_iteration: e.target.checked }))} />
-        <span>Usar iteracion diaria</span>
+        <span>Repetir cada semana</span>
+        <Tooltip title="Si está activado, este horario se repite automáticamente cada semana.">
+          <InfoOutlined fontSize="small" color="action" />
+        </Tooltip>
       </Stack>
     </Stack>
   );
