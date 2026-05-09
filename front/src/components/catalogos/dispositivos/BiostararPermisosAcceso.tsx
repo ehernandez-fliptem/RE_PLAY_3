@@ -33,6 +33,13 @@ type Row = {
   total_usuarios: number;
 };
 type OptionItem = { id_externo: string; nombre: string };
+const SELECT_MENU_PROPS = {
+  PaperProps: {
+    style: {
+      maxHeight: 320,
+    },
+  },
+};
 
 export default function BiostararPermisosAcceso() {
   const navigate = useNavigate();
@@ -226,6 +233,7 @@ export default function BiostararPermisosAcceso() {
         multiple
         label={label}
         value={value}
+        MenuProps={SELECT_MENU_PROPS}
         onChange={(e) => setValue((e.target.value as string[]) || [])}
         renderValue={(selected) =>
           (selected as string[])
@@ -300,4 +308,3 @@ export default function BiostararPermisosAcceso() {
     </div>
   );
 }
-

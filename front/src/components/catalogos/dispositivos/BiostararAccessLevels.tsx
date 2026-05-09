@@ -35,6 +35,13 @@ type HorarioContexto = { modo: "nuevo" | "editar"; idx: number } | null;
 type HorarioDia = { activo: boolean; inicio: string; fin: string };
 const DIAS_LABEL = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
 const makeHorarioDias = () => Array.from({ length: 7 }, (_, i) => ({ activo: i === 1, inicio: "08:00", fin: "18:00" }));
+const SELECT_MENU_PROPS = {
+  PaperProps: {
+    style: {
+      maxHeight: 320,
+    },
+  },
+};
 
 export default function BiostararAccessLevels() {
   const navigate = useNavigate();
@@ -323,6 +330,7 @@ export default function BiostararAccessLevels() {
             fullWidth
             label="Puerta"
             value={r.door_id}
+            SelectProps={{ MenuProps: SELECT_MENU_PROPS }}
             onChange={(e) => {
               const v = String(e.target.value);
               setReglas((prev) => prev.map((it, i) => (i === idx ? { ...it, door_id: v } : it)));
@@ -337,6 +345,7 @@ export default function BiostararAccessLevels() {
               fullWidth
               label="Horario"
               value={r.schedule_id}
+              SelectProps={{ MenuProps: SELECT_MENU_PROPS }}
               onChange={(e) => {
                 const v = String(e.target.value);
                 setReglas((prev) => prev.map((it, i) => (i === idx ? { ...it, schedule_id: v } : it)));
@@ -434,6 +443,7 @@ export default function BiostararAccessLevels() {
               select
               label="Plantilla"
               value={horarioPlantilla}
+              SelectProps={{ MenuProps: SELECT_MENU_PROPS }}
               onChange={(e) => {
                 const preset = String(e.target.value);
                 setHorarioPlantilla(preset);
