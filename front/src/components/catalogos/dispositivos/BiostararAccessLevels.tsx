@@ -60,6 +60,8 @@ export default function BiostararAccessLevels() {
   const [horarioPlantilla, setHorarioPlantilla] = useState("personalizado");
   const [horarioDias, setHorarioDias] = useState<HorarioDia[]>(makeHorarioDias());
   const [horarioRepetirSemana, setHorarioRepetirSemana] = useState(false);
+  const [horarioAplicarInicio, setHorarioAplicarInicio] = useState("08:00");
+  const [horarioAplicarFin, setHorarioAplicarFin] = useState("18:00");
 
   const manejarErrorConexion = async (mensaje: string) => {
     const message = String(mensaje || "").toLowerCase();
@@ -135,6 +137,8 @@ export default function BiostararAccessLevels() {
     setHorarioPlantilla("personalizado");
     setHorarioDias(makeHorarioDias());
     setHorarioRepetirSemana(false);
+    setHorarioAplicarInicio("08:00");
+    setHorarioAplicarFin("18:00");
     setOpenHorarioModal(true);
   };
 
@@ -208,6 +212,12 @@ export default function BiostararAccessLevels() {
         if (preset === "findesemana") return { ...d, activo: idx === 0 || idx === 6 };
         return d;
       }),
+    );
+  };
+
+  const aplicarMismoHorario = () => {
+    setHorarioDias((prev) =>
+      prev.map((d) => (d.activo ? { ...d, inicio: horarioAplicarInicio, fin: horarioAplicarFin } : d)),
     );
   };
 
@@ -436,6 +446,29 @@ export default function BiostararAccessLevels() {
               <MenuItem value="entresemana">Entre semana</MenuItem>
               <MenuItem value="findesemana">Fin de semana</MenuItem>
             </TextField>
+            <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ xs: "stretch", md: "center" }}>
+              <TextField
+                size="small"
+                type="time"
+                label="Aplicar inicio"
+                value={horarioAplicarInicio}
+                onChange={(e) => setHorarioAplicarInicio(e.target.value)}
+                sx={{ minWidth: 150 }}
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                size="small"
+                type="time"
+                label="Aplicar fin"
+                value={horarioAplicarFin}
+                onChange={(e) => setHorarioAplicarFin(e.target.value)}
+                sx={{ minWidth: 150 }}
+                InputLabelProps={{ shrink: true }}
+              />
+              <Button size="small" variant="outlined" onClick={aplicarMismoHorario}>
+                Aplicar a dias activos
+              </Button>
+            </Stack>
             <Stack spacing={1}>
               {horarioDias.map((d, i) => (
                 <Stack key={`h-dia-${i}`} direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center">
