@@ -3,8 +3,7 @@ import { DataGrid, GridActionsCellItem, type GridColDef } from "@mui/x-data-grid
 import { esES } from "@mui/x-data-grid/locales";
 import { Add, Delete, Edit, Refresh } from "@mui/icons-material";
 import { InfoOutlined } from "@mui/icons-material";
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Stack, Switch, TextField, Tooltip } from "@mui/material";
-import { MenuItem } from "@mui/material";
+import { Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, Stack, Switch, TextField, Tooltip } from "@mui/material";
 import Swal from "sweetalert2";
 import { useNavigate } from "react-router-dom";
 import DataGridToolbar from "../../utils/DataGridToolbar";
@@ -15,13 +14,13 @@ type Row = { id_externo: string; nombre: string; descripcion: string; use_daily_
 type Form = {
   nombre: string;
   descripcion: string;
-  dia: number;
-  inicio: string;
-  fin: string;
+  dias: { activo: boolean; inicio: string; fin: string }[];
   use_daily_iteration: boolean;
 };
 
-const defaultForm: Form = { nombre: "", descripcion: "", dia: 1, inicio: "08:00", fin: "18:00", use_daily_iteration: false };
+const DIAS_LABEL = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
+const makeDias = () => Array.from({ length: 7 }, (_, i) => ({ activo: i === 1, inicio: "08:00", fin: "18:00" }));
+const defaultForm: Form = { nombre: "", descripcion: "", dias: makeDias(), use_daily_iteration: false };
 
 const toMinutes = (t: string) => {
   const [h, m] = String(t || "00:00").split(":").map(Number);
@@ -82,8 +81,15 @@ export default function BiostararHorarios() {
       await Swal.fire({ icon: "warning", title: "Faltan datos", text: "El nombre es obligatorio." });
       return;
     }
-    const daily = Array.from({ length: 7 }, (_, i) => ({ day_index: i, time_segments: [] as any[] }));
-    daily[formNuevo.dia].time_segments.push({ start_time: toMinutes(formNuevo.inicio), end_time: toMinutes(formNuevo.fin) });
+    const daily = formNuevo.dias.map((d, i) => ({
+      day_index: i,
+      time_segments: d.activo ? [{ start_time: toMinutes(d.inicio), end_time: toMinutes(d.fin) }] : [],
+    }));
+    const tieneSegmentos = daily.some((d) => d.time_segments.length > 0);
+    if (!tieneSegmentos) {
+      await Swal.fire({ icon: "warning", title: "Faltan datos", text: "Activa al menos un día con horario." });
+      return;
+    }
     const payload = {
       Schedule: {
         name: formNuevo.nombre.trim(),
@@ -112,26 +118,22 @@ export default function BiostararHorarios() {
     }
     const s = res.data.datos || {};
     const ds = Array.isArray(s.daily_schedules) ? s.daily_schedules : [];
-    let dia = 1;
-    let inicio = "08:00";
-    let fin = "18:00";
-    for (const d of ds) {
+    const dias = makeDias().map((diaDefault, idx) => {
+      const d = ds.find((x: any) => Number(x?.day_index) === idx);
       const seg = Array.isArray(d?.time_segments) ? d.time_segments[0] : null;
-      if (seg) {
-        dia = Number(d.day_index || 0);
-        inicio = toTime(Number(seg.start_time || 0));
-        fin = toTime(Number(seg.end_time || 0));
-        break;
-      }
-    }
+      if (!seg) return { ...diaDefault, activo: false };
+      return {
+        activo: true,
+        inicio: toTime(Number(seg.start_time || 0)),
+        fin: toTime(Number(seg.end_time || 0)),
+      };
+    });
     setEditandoId(String(s.id || row.id_externo));
     setEditDailySchedules(ds);
     setFormEditar({
       nombre: String(s.name || row.nombre || ""),
       descripcion: String(s.description || row.descripcion || ""),
-      dia,
-      inicio,
-      fin,
+      dias,
       use_daily_iteration: String(s.use_daily_iteration ?? row.use_daily_iteration) === "true" || s.use_daily_iteration === true,
     });
     setOpenEditar(true);
@@ -142,12 +144,20 @@ export default function BiostararHorarios() {
       await Swal.fire({ icon: "warning", title: "Faltan datos", text: "El nombre es obligatorio." });
       return;
     }
-    const ds = (editDailySchedules.length ? editDailySchedules : Array.from({ length: 7 }, (_, i) => ({ day_index: i, time_segments: [] as any[] }))).map((d: any) => ({
-      ...d,
-      time_segments: Number(d.day_index) === formEditar.dia
-        ? [{ start_time: toMinutes(formEditar.inicio), end_time: toMinutes(formEditar.fin) }]
-        : [],
-    }));
+    const base = editDailySchedules.length ? editDailySchedules : Array.from({ length: 7 }, (_, i) => ({ day_index: i, time_segments: [] as any[] }));
+    const ds = base.map((d: any, idx: number) => {
+      const dia = formEditar.dias[idx];
+      return {
+        ...d,
+        day_index: idx,
+        time_segments: dia?.activo ? [{ start_time: toMinutes(dia.inicio), end_time: toMinutes(dia.fin) }] : [],
+      };
+    });
+    const tieneSegmentos = ds.some((d: any) => Array.isArray(d.time_segments) && d.time_segments.length > 0);
+    if (!tieneSegmentos) {
+      await Swal.fire({ icon: "warning", title: "Faltan datos", text: "Activa al menos un día con horario." });
+      return;
+    }
     const payload = {
       Schedule: {
         id: editandoId,
@@ -189,16 +199,73 @@ export default function BiostararHorarios() {
     ] },
   ], []);
 
+  const aplicarMismoHorario = (setForm: (v: Form | ((p: Form) => Form)) => void, inicio: string, fin: string) => {
+    setForm((p) => ({
+      ...p,
+      dias: p.dias.map((d) => (d.activo ? { ...d, inicio, fin } : d)),
+    }));
+  };
+
   const formUI = (form: Form, setForm: (v: Form | ((p: Form) => Form)) => void) => (
     <Stack spacing={2} sx={{ mt: 1 }}>
       <TextField label="Nombre" value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} fullWidth />
       <TextField label="Descripcion" value={form.descripcion} onChange={(e) => setForm((p) => ({ ...p, descripcion: e.target.value }))} fullWidth />
-      <TextField select label="Dia" value={String(form.dia)} onChange={(e) => setForm((p) => ({ ...p, dia: Number(e.target.value) }))}>
-        <MenuItem value="1">Lunes</MenuItem><MenuItem value="2">Martes</MenuItem><MenuItem value="3">Miercoles</MenuItem><MenuItem value="4">Jueves</MenuItem><MenuItem value="5">Viernes</MenuItem><MenuItem value="6">Sabado</MenuItem><MenuItem value="0">Domingo</MenuItem>
-      </TextField>
-      <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-        <TextField type="time" label="Inicio" value={form.inicio} onChange={(e) => setForm((p) => ({ ...p, inicio: e.target.value }))} fullWidth InputLabelProps={{ shrink: true }} />
-        <TextField type="time" label="Fin" value={form.fin} onChange={(e) => setForm((p) => ({ ...p, fin: e.target.value }))} fullWidth InputLabelProps={{ shrink: true }} />
+      <Stack spacing={1}>
+        {form.dias.map((d, idx) => (
+          <Stack key={`dia-${idx}`} direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ xs: "flex-start", md: "center" }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={d.activo}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      dias: p.dias.map((x, i) => (i === idx ? { ...x, activo: e.target.checked } : x)),
+                    }))
+                  }
+                />
+              }
+              label={DIAS_LABEL[idx]}
+            />
+            <TextField
+              type="time"
+              label="Inicio"
+              value={d.inicio}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  dias: p.dias.map((x, i) => (i === idx ? { ...x, inicio: e.target.value } : x)),
+                }))
+              }
+              disabled={!d.activo}
+              sx={{ minWidth: 150 }}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              type="time"
+              label="Fin"
+              value={d.fin}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  dias: p.dias.map((x, i) => (i === idx ? { ...x, fin: e.target.value } : x)),
+                }))
+              }
+              disabled={!d.activo}
+              sx={{ minWidth: 150 }}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Stack>
+        ))}
+        <Stack direction="row" spacing={1}>
+          <Button
+            size="small"
+            variant="text"
+            onClick={() => aplicarMismoHorario(setForm, "08:00", "18:00")}
+          >
+            Aplicar 08:00-18:00 a dias activos
+          </Button>
+        </Stack>
       </Stack>
       <Stack direction="row" spacing={1} alignItems="center">
         <Switch checked={form.use_daily_iteration} onChange={(e) => setForm((p) => ({ ...p, use_daily_iteration: e.target.checked }))} />
