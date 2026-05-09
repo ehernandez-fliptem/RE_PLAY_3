@@ -31,6 +31,7 @@ type Regla = {
   schedule_id: string;
   schedule_nombre: string;
 };
+type HorarioContexto = { modo: "nuevo" | "editar"; idx: number } | null;
 
 export default function BiostararAccessLevels() {
   const navigate = useNavigate();
@@ -47,6 +48,14 @@ export default function BiostararAccessLevels() {
   const [nombreEditar, setNombreEditar] = useState("");
   const [reglasNuevo, setReglasNuevo] = useState<Regla[]>([{ door_id: "", door_nombre: "", schedule_id: "", schedule_nombre: "" }]);
   const [reglasEditar, setReglasEditar] = useState<Regla[]>([{ door_id: "", door_nombre: "", schedule_id: "", schedule_nombre: "" }]);
+  const [openHorarioModal, setOpenHorarioModal] = useState(false);
+  const [creandoHorario, setCreandoHorario] = useState(false);
+  const [horarioContexto, setHorarioContexto] = useState<HorarioContexto>(null);
+  const [modalPadre, setModalPadre] = useState<"nuevo" | "editar" | null>(null);
+  const [horarioNombre, setHorarioNombre] = useState("");
+  const [horarioDia, setHorarioDia] = useState("1");
+  const [horarioInicio, setHorarioInicio] = useState("08:00");
+  const [horarioFin, setHorarioFin] = useState("18:00");
 
   const manejarErrorConexion = async (mensaje: string) => {
     const message = String(mensaje || "").toLowerCase();
@@ -107,51 +116,71 @@ export default function BiostararAccessLevels() {
     })();
   }, []);
 
-  const crearHorarioRapido = async () => {
-    const result = await Swal.fire({
-      title: "Nuevo Horario",
-      html: `
-        <input id="h-nombre" class="swal2-input" placeholder="Nombre">
-        <select id="h-dia" class="swal2-input">
-          <option value="1">Lunes</option>
-          <option value="2">Martes</option>
-          <option value="3">Miercoles</option>
-          <option value="4">Jueves</option>
-          <option value="5">Viernes</option>
-          <option value="6">Sabado</option>
-          <option value="0">Domingo</option>
-        </select>
-        <input id="h-inicio" class="swal2-input" type="time" value="08:00">
-        <input id="h-fin" class="swal2-input" type="time" value="18:00">
-      `,
-      showCancelButton: true,
-      confirmButtonText: "Guardar",
-      cancelButtonText: "Cancelar",
-      preConfirm: () => {
-        const nombre = (document.getElementById("h-nombre") as HTMLInputElement)?.value?.trim();
-        const dia = Number((document.getElementById("h-dia") as HTMLSelectElement)?.value || "1");
-        const inicioS = (document.getElementById("h-inicio") as HTMLInputElement)?.value || "08:00";
-        const finS = (document.getElementById("h-fin") as HTMLInputElement)?.value || "18:00";
-        if (!nombre) {
-          Swal.showValidationMessage("El nombre es obligatorio.");
-          return null;
-        }
-        const toMin = (t: string) => {
-          const [h, m] = t.split(":").map(Number);
-          return (h * 60) + m;
-        };
-        return { nombre, dia, inicio: toMin(inicioS), fin: toMin(finS) };
-      },
-    });
-    if (!result.isConfirmed || !result.value) return;
+  const abrirCrearHorario = (contexto: HorarioContexto = null) => {
+    if (contexto?.modo === "nuevo") {
+      setOpenNuevo(false);
+      setModalPadre("nuevo");
+    }
+    if (contexto?.modo === "editar") {
+      setOpenEditar(false);
+      setModalPadre("editar");
+    }
+    setHorarioContexto(contexto);
+    setHorarioNombre("");
+    setHorarioDia("1");
+    setHorarioInicio("08:00");
+    setHorarioFin("18:00");
+    setOpenHorarioModal(true);
+  };
 
-    const res = await clienteAxios.post("/api/biostar-catalogos/access-levels/horarios", result.value);
+  const cerrarCrearHorario = () => {
+    setOpenHorarioModal(false);
+    if (modalPadre === "nuevo") setOpenNuevo(true);
+    if (modalPadre === "editar") setOpenEditar(true);
+    setModalPadre(null);
+    setHorarioContexto(null);
+  };
+
+  const crearHorarioRapido = async (): Promise<string | null> => {
+    const nombre = horarioNombre.trim();
+    if (!nombre) {
+      await Swal.fire({ icon: "warning", title: "Faltan datos", text: "El nombre es obligatorio." });
+      return null;
+    }
+    const toMin = (t: string) => {
+      const [h, m] = t.split(":").map(Number);
+      return (h * 60) + m;
+    };
+    const payload = {
+      nombre,
+      dia: Number(horarioDia || "1"),
+      inicio: toMin(horarioInicio || "08:00"),
+      fin: toMin(horarioFin || "18:00"),
+    };
+
+    setCreandoHorario(true);
+    const res = await clienteAxios.post("/api/biostar-catalogos/access-levels/horarios", payload);
+    setCreandoHorario(false);
     if (!res.data.estado) {
       await Swal.fire({ icon: "error", title: "No se pudo crear", text: res.data.mensaje || "Operacion fallida." });
-      return;
+      return null;
     }
-    await Swal.fire({ icon: "success", title: "Horario creado", text: res.data.mensaje || "Operacion correcta." });
+    setOpenHorarioModal(false);
     await cargarCatalogos();
+    const nuevoId = String(res.data?.datos?.id_externo || res.data?.datos?.id || "");
+    if (horarioContexto && nuevoId) {
+      if (horarioContexto.modo === "nuevo") {
+        setReglasNuevo((prev) => prev.map((it, i) => (i === horarioContexto.idx ? { ...it, schedule_id: nuevoId } : it)));
+      } else {
+        setReglasEditar((prev) => prev.map((it, i) => (i === horarioContexto.idx ? { ...it, schedule_id: nuevoId } : it)));
+      }
+    }
+    if (modalPadre === "nuevo") setOpenNuevo(true);
+    if (modalPadre === "editar") setOpenEditar(true);
+    setModalPadre(null);
+    setHorarioContexto(null);
+    await Swal.fire({ icon: "success", title: "Horario creado", text: res.data.mensaje || "Operacion correcta." });
+    return nuevoId;
   };
 
   const abrirNuevo = () => {
@@ -247,7 +276,7 @@ export default function BiostararAccessLevels() {
     },
   ], []);
 
-  const renderReglas = (reglas: Regla[], setReglas: Dispatch<SetStateAction<Regla[]>>) => (
+  const renderReglas = (reglas: Regla[], setReglas: Dispatch<SetStateAction<Regla[]>>, modo: "nuevo" | "editar") => (
     <Stack spacing={1.5}>
       {reglas.map((r, idx) => (
         <Stack key={`r-${idx}`} direction={{ xs: "column", md: "row" }} spacing={1.5}>
@@ -266,26 +295,39 @@ export default function BiostararAccessLevels() {
               {puertas.map((p) => (<MenuItem key={p.id_externo} value={p.id_externo}>{p.nombre}</MenuItem>))}
             </Select>
           </FormControl>
-          <FormControl fullWidth>
-            <InputLabel id={`sch-${idx}`}>Horario</InputLabel>
-            <Select
-              labelId={`sch-${idx}`}
-              label="Horario"
-              value={r.schedule_id}
-              onChange={(e) => {
-                const v = String(e.target.value);
-                setReglas((prev) => prev.map((it, i) => (i === idx ? { ...it, schedule_id: v } : it)));
-              }}
-            >
-              <MenuItem value="">Ninguno</MenuItem>
-              {r.schedule_id && !horarios.some((h) => h.id_externo === r.schedule_id) ? (
-                <MenuItem value={r.schedule_id} sx={{ display: "none" }}>
-                  {r.schedule_nombre || "Always"}
-                </MenuItem>
-              ) : null}
-              {horarios.map((h) => (<MenuItem key={h.id_externo} value={h.id_externo}>{h.nombre}</MenuItem>))}
-            </Select>
-          </FormControl>
+          <Stack direction="row" spacing={1} sx={{ width: "100%" }} alignItems="center">
+            <FormControl fullWidth>
+              <InputLabel id={`sch-${idx}`}>Horario</InputLabel>
+              <Select
+                labelId={`sch-${idx}`}
+                label="Horario"
+                value={r.schedule_id}
+                onChange={(e) => {
+                  const v = String(e.target.value);
+                  setReglas((prev) => prev.map((it, i) => (i === idx ? { ...it, schedule_id: v } : it)));
+                }}
+              >
+                <MenuItem value="">Ninguno</MenuItem>
+                {r.schedule_id && !horarios.some((h) => h.id_externo === r.schedule_id) ? (
+                  <MenuItem value={r.schedule_id} sx={{ display: "none" }}>
+                    {r.schedule_nombre || "Always"}
+                  </MenuItem>
+                ) : null}
+                {horarios.map((h) => (<MenuItem key={h.id_externo} value={h.id_externo}>{h.nombre}</MenuItem>))}
+              </Select>
+            </FormControl>
+            <Tooltip title="Crear horario">
+              <Button
+                variant="outlined"
+                onClick={async () => {
+                  abrirCrearHorario({ modo, idx });
+                }}
+                sx={{ minWidth: 44, width: 44, height: 44, p: 0, borderRadius: 1.5, fontSize: 24, lineHeight: 1 }}
+              >
+                <Add fontSize="small" />
+              </Button>
+            </Tooltip>
+          </Stack>
         </Stack>
       ))}
     </Stack>
@@ -310,7 +352,6 @@ export default function BiostararAccessLevels() {
               customActionButtons={
                 <>
                   <Tooltip title="Recargar"><IconButton size="small" onClick={async () => { await cargarCatalogos(); await cargar(); }}><Refresh /></IconButton></Tooltip>
-                  <Tooltip title="Nuevo horario"><IconButton size="small" onClick={() => { void crearHorarioRapido(); }}><Add /></IconButton></Tooltip>
                   <Tooltip title="Administrar horarios"><IconButton size="small" onClick={() => navigate("/biostarar/horarios")}><Refresh /></IconButton></Tooltip>
                   <Tooltip title="Agregar"><IconButton size="small" onClick={abrirNuevo}><Add /></IconButton></Tooltip>
                 </>
@@ -325,7 +366,7 @@ export default function BiostararAccessLevels() {
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField label="Nombre" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} fullWidth />
-            {renderReglas(reglasNuevo, setReglasNuevo)}
+            {renderReglas(reglasNuevo, setReglasNuevo, "nuevo")}
             <Button variant="outlined" onClick={agregarReglaNuevo}>Agregar regla</Button>
           </Stack>
         </DialogContent>
@@ -340,13 +381,39 @@ export default function BiostararAccessLevels() {
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField label="Nombre" value={nombreEditar} onChange={(e) => setNombreEditar(e.target.value)} fullWidth />
-            {renderReglas(reglasEditar, setReglasEditar)}
+            {renderReglas(reglasEditar, setReglasEditar, "editar")}
             <Button variant="outlined" onClick={agregarReglaEditar}>Agregar regla</Button>
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenEditar(false)}>Cancelar</Button>
           <Button variant="contained" onClick={() => { void guardarEditar(); }}>Guardar</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={openHorarioModal} onClose={() => !creandoHorario && cerrarCrearHorario()} maxWidth="sm" fullWidth>
+        <DialogTitle>Nuevo Horario</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField label="Nombre" value={horarioNombre} onChange={(e) => setHorarioNombre(e.target.value)} fullWidth />
+            <TextField select label="Dia" value={horarioDia} onChange={(e) => setHorarioDia(String(e.target.value))} fullWidth>
+              <MenuItem value="1">Lunes</MenuItem>
+              <MenuItem value="2">Martes</MenuItem>
+              <MenuItem value="3">Miercoles</MenuItem>
+              <MenuItem value="4">Jueves</MenuItem>
+              <MenuItem value="5">Viernes</MenuItem>
+              <MenuItem value="6">Sabado</MenuItem>
+              <MenuItem value="0">Domingo</MenuItem>
+            </TextField>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+              <TextField label="Inicio" type="time" value={horarioInicio} onChange={(e) => setHorarioInicio(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+              <TextField label="Fin" type="time" value={horarioFin} onChange={(e) => setHorarioFin(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+            </Stack>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={cerrarCrearHorario} disabled={creandoHorario}>Cancelar</Button>
+          <Button variant="contained" onClick={() => { void crearHorarioRapido(); }} disabled={creandoHorario}>Guardar</Button>
         </DialogActions>
       </Dialog>
     </div>
