@@ -381,6 +381,13 @@ const mainMenu = [
         path: "/biostarar/puertas-acceso",
       },
       {
+        id: 99.526,
+        title: "Access Level",
+        rol: [1],
+        icon: <Security fontSize="small" />,
+        path: "/biostarar/access-levels",
+      },
+      {
         id: 99.53,
         title: "Grupos de BioStar",
         rol: [1],

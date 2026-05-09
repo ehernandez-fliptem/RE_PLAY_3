@@ -1164,3 +1164,241 @@ export async function listarOpcionesDispositivoPuertaAcceso(req: Request, res: R
     res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
   }
 }
+
+export async function listarAccessLevels(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const requests = [
+      biostarRequest(conexion as any, {
+        method: "GET",
+        url: `/api/access_levels?SelectAllYN=false&filterObject=${encodeURIComponent("{}")}&limit=50&offset=0`,
+      }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/access_levels" }),
+    ];
+
+    let rows: any[] = [];
+    let message = "No se pudieron consultar los niveles de acceso.";
+    for (const p of requests) {
+      const r = await p;
+      if (r.ok) {
+        rows = parseRows(r.data, ["AccessLevelCollection.rows", "rows", "access_levels"]);
+        break;
+      }
+      message = r.message || message;
+    }
+
+    const datos = (rows || []).map((item: any) => ({
+      id_externo: String(item?.id || item?.access_level_id || "").trim(),
+      nombre: String(item?.name || item?.access_level_name || "").trim(),
+      total_reglas: Array.isArray(item?.access_level_items) ? item.access_level_items.length : 0,
+    }));
+
+    res.status(200).json({ estado: true, datos, mensaje: message });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function detalleAccessLevel(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const detailRes = await biostarRequest(conexion as any, { method: "GET", url: `/api/access_levels/${id}` });
+    if (!detailRes.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(detailRes.message || extractBiostarMessage(detailRes.data)) || "No se pudo consultar el nivel de acceso.",
+      });
+      return;
+    }
+
+    const entity = detailRes.data?.AccessLevel || detailRes.data?.access_level || detailRes.data || {};
+    const items = Array.isArray(entity?.access_level_items) ? entity.access_level_items : [];
+
+    const reglas = items.map((it: any) => ({
+      id_externo: String(it?.id || "").trim(),
+      door_id: String(it?.doors?.[0]?.id || "").trim(),
+      door_nombre: String(it?.doors?.[0]?.name || "").trim(),
+      schedule_id: String(it?.schedule_id?.id || "").trim(),
+      schedule_nombre: String(it?.schedule_id?.name || "").trim(),
+    }));
+
+    res.status(200).json({
+      estado: true,
+      datos: {
+        id_externo: String(entity?.id || id),
+        nombre: String(entity?.name || "").trim(),
+        reglas,
+      },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function catalogosAccessLevel(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const [doorsRes, schedulesRes] = await Promise.all([
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/doors/search", data: {} }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/schedules" }),
+    ]);
+
+    const doors = doorsRes.ok ? parseRows(doorsRes.data, ["DoorCollection.rows", "rows", "doors"]) : [];
+    const schedules = schedulesRes.ok ? parseRows(schedulesRes.data, ["ScheduleCollection.rows", "rows", "schedules"]) : [];
+
+    res.status(200).json({
+      estado: true,
+      datos: {
+        puertas: (doors || []).map((d: any) => ({ id_externo: String(d?.id || "").trim(), nombre: String(d?.name || "").trim() })),
+        horarios: (schedules || []).map((s: any) => ({ id_externo: String(s?.id || "").trim(), nombre: String(s?.name || "").trim() })),
+      },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function crearHorarioAccessLevel(req: Request, res: Response): Promise<void> {
+  try {
+    const nombre = String(req.body?.nombre || "").trim();
+    const dia = Number(req.body?.dia ?? 1);
+    const inicio = Number(req.body?.inicio ?? 480);
+    const fin = Number(req.body?.fin ?? 1020);
+    if (!nombre) {
+      res.status(400).json({ estado: false, mensaje: "El nombre del horario es obligatorio." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const daily = Array.from({ length: 7 }, (_, i) => ({ day_index: i, time_segments: [] as any[] }));
+    daily[Math.max(0, Math.min(6, dia))].time_segments.push({ start_time: inicio, end_time: fin });
+
+    const payload = {
+      Schedule: {
+        name: nombre,
+        daily_schedules: daily,
+        holiday_schedules: [],
+        days_of_iteration: 7,
+        start_date: new Date().toISOString(),
+        use_daily_iteration: true,
+      },
+    };
+
+    const createRes = await biostarRequest(conexion as any, { method: "POST", url: "/api/schedules", data: payload });
+    if (!createRes.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(createRes.message || extractBiostarMessage(createRes.data)) || "No se pudo crear el horario.",
+      });
+      return;
+    }
+    res.status(200).json({ estado: true, mensaje: "Horario creado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function crearAccessLevel(req: Request, res: Response): Promise<void> {
+  try {
+    const nombre = String(req.body?.nombre || "").trim();
+    const reglas = Array.isArray(req.body?.reglas) ? req.body.reglas : [];
+    if (!nombre) {
+      res.status(400).json({ estado: false, mensaje: "El nombre es obligatorio." });
+      return;
+    }
+    if (!reglas.length) {
+      res.status(400).json({ estado: false, mensaje: "Debes agregar al menos una regla." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const access_level_items = reglas.map((r: any) => ({
+      doors: [{ id: Number(r.door_id) || r.door_id, name: String(r.door_nombre || "") }],
+      schedule_id: { id: String(r.schedule_id), name: String(r.schedule_nombre || "") },
+    }));
+
+    const payload = { AccessLevel: { name: nombre, access_level_items } };
+    const createRes = await biostarRequest(conexion as any, { method: "POST", url: "/api/access_levels", data: payload });
+    if (!createRes.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(createRes.message || extractBiostarMessage(createRes.data)) || "No se pudo crear el nivel de acceso.",
+      });
+      return;
+    }
+    res.status(200).json({ estado: true, mensaje: "Nivel de acceso creado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function editarAccessLevel(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    const nombre = String(req.body?.nombre || "").trim();
+    const reglas = Array.isArray(req.body?.reglas) ? req.body.reglas : [];
+    if (!id || !nombre || !reglas.length) {
+      res.status(400).json({ estado: false, mensaje: "Id, nombre y reglas son obligatorios." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const access_level_items = reglas.map((r: any) => ({
+      id: String(r.id_externo || ""),
+      doors: [{ id: Number(r.door_id) || r.door_id, name: String(r.door_nombre || "") }],
+      schedule_id: { id: String(r.schedule_id), name: String(r.schedule_nombre || "") },
+    }));
+
+    const payload = { AccessLevel: { name: nombre, access_level_items, sync_hint: {} } };
+    const editRes = await biostarRequest(conexion as any, { method: "PUT", url: `/api/access_levels/${id}`, data: payload });
+    if (!editRes.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(editRes.message || extractBiostarMessage(editRes.data)) || "No se pudo editar el nivel de acceso.",
+      });
+      return;
+    }
+    res.status(200).json({ estado: true, mensaje: "Nivel de acceso editado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}

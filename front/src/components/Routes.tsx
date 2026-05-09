@@ -33,6 +33,7 @@ import BiostararGrupos from "./catalogos/dispositivos/BiostararGrupos";
 import BiostararGruposDispositivos from "./catalogos/dispositivos/BiostararGruposDispositivos";
 import BiostararPuertas from "./catalogos/dispositivos/BiostararPuertas";
 import BiostararPuertasAcceso from "./catalogos/dispositivos/BiostararPuertasAcceso";
+import BiostararAccessLevels from "./catalogos/dispositivos/BiostararAccessLevels";
 import Configuracion from "./catalogos/configuracion/Configuracion";
 import Directorio from "./recepcion/directorio/Directorio";
 import Bitacora from "./recepcion/bitacora/Bitacora";
@@ -1001,6 +1002,15 @@ export default function Routes() {
       element:
         esSuper && habilitarIntegracionBiostar ? (
           <BiostararPuertasAcceso />
+        ) : (
+          <Unauthorized />
+        ),
+    },
+    {
+      path: "/biostarar/access-levels",
+      element:
+        esSuper && habilitarIntegracionBiostar ? (
+          <BiostararAccessLevels />
         ) : (
           <Unauthorized />
         ),
