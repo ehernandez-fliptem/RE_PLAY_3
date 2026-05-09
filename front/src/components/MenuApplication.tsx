@@ -47,6 +47,7 @@ import { getRoleLabel } from "../app/utils/roleLabels";
 
 const drawerWidth = 200;
 const appBarHeight = 64;
+const MENU_DRAWER_OPEN_KEY = "MENU_DRAWER_OPEN";
 
 const Main = styled("main", { shouldForwardProp: (prop) => prop !== "open" })<{
   open?: boolean;
@@ -140,7 +141,10 @@ export default function MenuApplication({ children }: MenuProps) {
   const location = useLocation();
   const isKioscoRoute = location.pathname.startsWith("/kiosco");
   const isMobileSize = useMediaQuery(theme.breakpoints.down("sm"));
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<boolean>(() => {
+    const cached = localStorage.getItem(MENU_DRAWER_OPEN_KEY);
+    return cached === "true";
+  });
   const [selectedIndex, setSelectedIndex] = useState(
     pageIndex ? Number(pageIndex) : 0
   );
@@ -162,6 +166,10 @@ export default function MenuApplication({ children }: MenuProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem(MENU_DRAWER_OPEN_KEY, String(open));
+  }, [open]);
 
   useEffect(() => {
     if (location) {
