@@ -386,7 +386,6 @@ export default function BiostararAccessLevels() {
               customActionButtons={
                 <>
                   <Tooltip title="Recargar"><IconButton size="small" onClick={async () => { await cargarCatalogos(); await cargar(); }}><Refresh /></IconButton></Tooltip>
-                  <Tooltip title="Administrar horarios"><IconButton size="small" onClick={() => navigate("/biostarar/horarios")}><Refresh /></IconButton></Tooltip>
                   <Tooltip title="Agregar"><IconButton size="small" onClick={abrirNuevo}><Add /></IconButton></Tooltip>
                 </>
               }
