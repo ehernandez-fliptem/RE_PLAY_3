@@ -48,7 +48,7 @@ type OpcionPuerto = {
 
 const defaultForm = {
   nombre: "",
-  grupo_puerta_id: "1",
+  grupo_puerta_id: "",
   dispositivo_id: "",
   rele_puerta: "",
   boton_salida: "",
@@ -144,16 +144,10 @@ export default function BiostararPuertasAcceso() {
   }, []);
 
   const abrirNuevo = () => {
-    const defaultGrupo = gruposPuerta.find((g) => g.id_externo === "1")?.id_externo || gruposPuerta[0]?.id_externo || "1";
-    const dispositivoDefault = entryDevices[0]?.id_externo || "";
-    setNuevoForm({ ...defaultForm, grupo_puerta_id: defaultGrupo, dispositivo_id: dispositivoDefault });
-    if (dispositivoDefault) {
-      void cargarOpcionesDispositivo(dispositivoDefault, "nuevo");
-    } else {
-      setOpcionesPuertosNuevo([]);
-      setOpcionesExitNuevo([]);
-      setOpcionesSensorNuevo([]);
-    }
+    setNuevoForm({ ...defaultForm });
+    setOpcionesPuertosNuevo([]);
+    setOpcionesExitNuevo([]);
+    setOpcionesSensorNuevo([]);
     setOpenNuevo(true);
   };
 
@@ -189,9 +183,9 @@ export default function BiostararPuertasAcceso() {
         const fallbackSensor = opcionesSensor[0]?.valor || "";
         setNuevoForm((prev) => ({
           ...prev,
-          rele_puerta: prev.rele_puerta || fallback,
-          boton_salida: prev.boton_salida || fallbackExit,
-          sensor_puerta: prev.sensor_puerta || fallbackSensor,
+          rele_puerta: opciones.some((o) => o.valor === prev.rele_puerta) ? prev.rele_puerta : fallback,
+          boton_salida: opcionesExit.some((o) => o.valor === prev.boton_salida) ? prev.boton_salida : fallbackExit,
+          sensor_puerta: opcionesSensor.some((o) => o.valor === prev.sensor_puerta) ? prev.sensor_puerta : fallbackSensor,
         }));
       } else {
         setOpcionesPuertosEditar(opciones);
@@ -202,9 +196,9 @@ export default function BiostararPuertasAcceso() {
         const fallbackSensor = opcionesSensor[0]?.valor || "";
         setEditarForm((prev) => ({
           ...prev,
-          rele_puerta: prev.rele_puerta || fallback,
-          boton_salida: prev.boton_salida || fallbackExit,
-          sensor_puerta: prev.sensor_puerta || fallbackSensor,
+          rele_puerta: opciones.some((o) => o.valor === prev.rele_puerta) ? prev.rele_puerta : fallback,
+          boton_salida: opcionesExit.some((o) => o.valor === prev.boton_salida) ? prev.boton_salida : fallbackExit,
+          sensor_puerta: opcionesSensor.some((o) => o.valor === prev.sensor_puerta) ? prev.sensor_puerta : fallbackSensor,
         }));
       }
     } catch (error) {
@@ -482,6 +476,7 @@ export default function BiostararPuertasAcceso() {
                   value={nuevoForm.grupo_puerta_id}
                   onChange={(e) => setNuevoForm((prev) => ({ ...prev, grupo_puerta_id: String(e.target.value) }))}
                 >
+                  <MenuItem value="">Ninguno</MenuItem>
                   {gruposPuerta.map((g) => (
                     <MenuItem key={g.id_externo} value={g.id_externo}>{g.nombre}</MenuItem>
                   ))}
@@ -505,9 +500,16 @@ export default function BiostararPuertasAcceso() {
                 onChange={async (e) => {
                   const id = String(e.target.value);
                   setNuevoForm((prev) => ({ ...prev, dispositivo_id: id, rele_puerta: "", boton_salida: "", sensor_puerta: "" }));
+                  if (!id) {
+                    setOpcionesPuertosNuevo([]);
+                    setOpcionesExitNuevo([]);
+                    setOpcionesSensorNuevo([]);
+                    return;
+                  }
                   await cargarOpcionesDispositivo(id, "nuevo");
                 }}
               >
+                <MenuItem value="">Ninguno</MenuItem>
                 {entryDeviceOptions.map((d) => (
                   <MenuItem key={d.id_externo} value={d.id_externo}>{d.etiqueta}</MenuItem>
                 ))}
@@ -523,6 +525,7 @@ export default function BiostararPuertasAcceso() {
                   onChange={(e) => setNuevoForm((prev) => ({ ...prev, rele_puerta: String(e.target.value) }))}
                   disabled={!nuevoForm.dispositivo_id}
                 >
+                  <MenuItem value="">Ninguno</MenuItem>
                   {opcionesPuertosNuevo.map((o) => (
                     <MenuItem key={`np-r-${o.valor}`} value={o.valor}>{o.etiqueta}</MenuItem>
                   ))}
@@ -537,6 +540,7 @@ export default function BiostararPuertasAcceso() {
                   onChange={(e) => setNuevoForm((prev) => ({ ...prev, boton_salida: String(e.target.value) }))}
                   disabled={!nuevoForm.dispositivo_id}
                 >
+                  <MenuItem value="">Ninguno</MenuItem>
                   {opcionesExitNuevo.map((o) => (
                     <MenuItem key={`np-b-${o.valor}`} value={o.valor}>{o.etiqueta}</MenuItem>
                   ))}
@@ -551,6 +555,7 @@ export default function BiostararPuertasAcceso() {
                   onChange={(e) => setNuevoForm((prev) => ({ ...prev, sensor_puerta: String(e.target.value) }))}
                   disabled={!nuevoForm.dispositivo_id}
                 >
+                  <MenuItem value="">Ninguno</MenuItem>
                   {opcionesSensorNuevo.map((o) => (
                     <MenuItem key={`np-s-${o.valor}`} value={o.valor}>{o.etiqueta}</MenuItem>
                   ))}
@@ -584,6 +589,7 @@ export default function BiostararPuertasAcceso() {
                   value={editarForm.grupo_puerta_id}
                   onChange={(e) => setEditarForm((prev) => ({ ...prev, grupo_puerta_id: String(e.target.value) }))}
                 >
+                  <MenuItem value="">Ninguno</MenuItem>
                   {gruposPuerta.map((g) => (
                     <MenuItem key={g.id_externo} value={g.id_externo}>{g.nombre}</MenuItem>
                   ))}
@@ -607,9 +613,16 @@ export default function BiostararPuertasAcceso() {
                 onChange={async (e) => {
                   const id = String(e.target.value);
                   setEditarForm((prev) => ({ ...prev, dispositivo_id: id, rele_puerta: "", boton_salida: "", sensor_puerta: "" }));
+                  if (!id) {
+                    setOpcionesPuertosEditar([]);
+                    setOpcionesExitEditar([]);
+                    setOpcionesSensorEditar([]);
+                    return;
+                  }
                   await cargarOpcionesDispositivo(id, "editar");
                 }}
               >
+                <MenuItem value="">Ninguno</MenuItem>
                 {entryDeviceOptions.map((d) => (
                   <MenuItem key={d.id_externo} value={d.id_externo}>{d.etiqueta}</MenuItem>
                 ))}
@@ -625,6 +638,7 @@ export default function BiostararPuertasAcceso() {
                   onChange={(e) => setEditarForm((prev) => ({ ...prev, rele_puerta: String(e.target.value) }))}
                   disabled={!editarForm.dispositivo_id}
                 >
+                  <MenuItem value="">Ninguno</MenuItem>
                   {opcionesPuertosEditar.map((o) => (
                     <MenuItem key={`ep-r-${o.valor}`} value={o.valor}>{o.etiqueta}</MenuItem>
                   ))}
@@ -639,6 +653,7 @@ export default function BiostararPuertasAcceso() {
                   onChange={(e) => setEditarForm((prev) => ({ ...prev, boton_salida: String(e.target.value) }))}
                   disabled={!editarForm.dispositivo_id}
                 >
+                  <MenuItem value="">Ninguno</MenuItem>
                   {opcionesExitEditar.map((o) => (
                     <MenuItem key={`ep-b-${o.valor}`} value={o.valor}>{o.etiqueta}</MenuItem>
                   ))}
@@ -653,6 +668,7 @@ export default function BiostararPuertasAcceso() {
                   onChange={(e) => setEditarForm((prev) => ({ ...prev, sensor_puerta: String(e.target.value) }))}
                   disabled={!editarForm.dispositivo_id}
                 >
+                  <MenuItem value="">Ninguno</MenuItem>
                   {opcionesSensorEditar.map((o) => (
                     <MenuItem key={`ep-s-${o.valor}`} value={o.valor}>{o.etiqueta}</MenuItem>
                   ))}
