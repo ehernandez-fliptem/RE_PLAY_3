@@ -1062,7 +1062,8 @@ export async function listarOpcionesDispositivoPuertaAcceso(req: Request, res: R
 
     for (const item of rows) {
       const did = String(item?.device_id?.id || item?.device_id || "").trim();
-      if (did !== deviceId) continue;
+      const sameDevice = did === deviceId || (Number.isFinite(Number(did)) && Number.isFinite(Number(deviceId)) && Number(did) === Number(deviceId));
+      if (!sameDevice) continue;
       const relayIndex = String(item?.relay_index ?? "").trim();
       if (relayIndex !== "") puertosSet.add(relayIndex);
     }
@@ -1105,6 +1106,12 @@ export async function listarOpcionesDispositivoPuertaAcceso(req: Request, res: R
         valor: String(i),
         etiqueta: `Puerto ${i}`,
       }));
+    }
+    if (!puertosRelay.length) {
+      puertosRelay = [
+        { valor: "0", etiqueta: "Puerto 0" },
+        { valor: "1", etiqueta: "Puerto 1" },
+      ];
     }
     const deviceSearchRes = await biostarRequest(conexion as any, {
       method: "POST",
