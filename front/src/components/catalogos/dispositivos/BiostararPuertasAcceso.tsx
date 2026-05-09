@@ -446,6 +446,26 @@ export default function BiostararPuertasAcceso() {
     });
   }, [gruposDispositivo, entryDevices]);
 
+  const ensureOption = (options: OpcionPuerto[], value: string, prefix: string): OpcionPuerto[] => {
+    const v = String(value || "").trim();
+    if (!v) return options;
+    if (options.some((o) => String(o.valor) === v)) return options;
+    return [...options, { valor: v, etiqueta: `${prefix} ${v}` }];
+  };
+
+  const opcionesPuertosEditarView = useMemo(
+    () => ensureOption(opcionesPuertosEditar, editarForm.rele_puerta, "Puerto"),
+    [opcionesPuertosEditar, editarForm.rele_puerta]
+  );
+  const opcionesExitEditarView = useMemo(
+    () => ensureOption(opcionesExitEditar, editarForm.boton_salida, "Input Port"),
+    [opcionesExitEditar, editarForm.boton_salida]
+  );
+  const opcionesSensorEditarView = useMemo(
+    () => ensureOption(opcionesSensorEditar, editarForm.sensor_puerta, "Input Port"),
+    [opcionesSensorEditar, editarForm.sensor_puerta]
+  );
+
   return (
     <div style={{ minHeight: 420 }}>
       <DataGrid
@@ -670,7 +690,7 @@ export default function BiostararPuertasAcceso() {
                   disabled={!editarForm.dispositivo_id}
                 >
                   <MenuItem value="">Ninguno</MenuItem>
-                  {opcionesPuertosEditar.map((o) => (
+                  {opcionesPuertosEditarView.map((o) => (
                     <MenuItem key={`ep-r-${o.valor}`} value={o.valor}>{o.etiqueta}</MenuItem>
                   ))}
                 </Select>
@@ -685,7 +705,7 @@ export default function BiostararPuertasAcceso() {
                   disabled={!editarForm.dispositivo_id}
                 >
                   <MenuItem value="">Ninguno</MenuItem>
-                  {opcionesExitEditar.map((o) => (
+                  {opcionesExitEditarView.map((o) => (
                     <MenuItem key={`ep-b-${o.valor}`} value={o.valor}>{o.etiqueta}</MenuItem>
                   ))}
                 </Select>
@@ -700,7 +720,7 @@ export default function BiostararPuertasAcceso() {
                   disabled={!editarForm.dispositivo_id}
                 >
                   <MenuItem value="">Ninguno</MenuItem>
-                  {opcionesSensorEditar.map((o) => (
+                  {opcionesSensorEditarView.map((o) => (
                     <MenuItem key={`ep-s-${o.valor}`} value={o.valor}>{o.etiqueta}</MenuItem>
                   ))}
                 </Select>

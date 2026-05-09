@@ -1108,10 +1108,7 @@ export async function listarOpcionesDispositivoPuertaAcceso(req: Request, res: R
       }));
     }
     if (!puertosRelay.length) {
-      puertosRelay = [
-        { valor: "0", etiqueta: "Puerto 0" },
-        { valor: "1", etiqueta: "Puerto 1" },
-      ];
+      puertosRelay = [{ valor: "0", etiqueta: "Puerto 0" }];
     }
     const deviceSearchRes = await biostarRequest(conexion as any, {
       method: "POST",
