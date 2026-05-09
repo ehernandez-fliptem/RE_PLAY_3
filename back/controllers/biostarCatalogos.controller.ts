@@ -1403,6 +1403,260 @@ export async function editarAccessLevel(req: Request, res: Response): Promise<vo
   }
 }
 
+export async function listarAccessGroups(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const attempts = [
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/access_groups/search", data: {} }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/access_groups?limit=1000" }),
+    ];
+
+    let rows: any[] = [];
+    let message = "No se pudieron consultar los permisos de acceso.";
+    for (const p of attempts) {
+      const r = await p;
+      if (r.ok) {
+        rows = parseRows(r.data, ["AccessGroupCollection.rows", "rows", "access_groups"]);
+        break;
+      }
+      message = r.message || message;
+    }
+
+    const datos = (rows || []).map((item: any) => ({
+      id_externo: String(item?.id || "").trim(),
+      nombre: String(item?.name || "").trim(),
+      descripcion: String(item?.description || "").trim(),
+      total_niveles: Array.isArray(item?.access_levels) ? item.access_levels.length : 0,
+      total_grupos_usuarios: Array.isArray(item?.user_groups) ? item.user_groups.length : 0,
+      total_usuarios: Array.isArray(item?.users) ? item.users.length : 0,
+    }));
+
+    res.status(200).json({ estado: true, datos, mensaje: message });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function catalogosAccessGroups(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const [levelsRes, userGroupsRes, usersRes] = await Promise.all([
+      biostarRequest(conexion as any, { method: "GET", url: "/api/access_levels?order_by=name:false" }),
+      biostarRequest(conexion as any, {
+        method: "POST",
+        url: "/api/v2/user_groups/only_permission_item/search",
+        data: { order_by: "name:false" },
+      }),
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/users/search?noblockui", data: { limit: 200, offset: 0 } }),
+    ]);
+
+    const levels = levelsRes.ok ? parseRows(levelsRes.data, ["AccessLevelCollection.rows", "rows", "access_levels"]) : [];
+    const userGroups = userGroupsRes.ok ? parseRows(userGroupsRes.data, ["UserGroupCollection.rows", "rows", "user_groups"]) : [];
+    const users = usersRes.ok ? parseRows(usersRes.data, ["UserCollection.rows", "rows", "users"]) : [];
+
+    res.status(200).json({
+      estado: true,
+      datos: {
+        niveles: (levels || []).map((x: any) => ({ id_externo: String(x?.id || "").trim(), nombre: String(x?.name || "").trim() })),
+        grupos_usuarios: (userGroups || []).map((x: any) => ({ id_externo: String(x?.id || "").trim(), nombre: String(x?.name || "").trim() })),
+        usuarios: (users || []).map((x: any) => ({
+          id_externo: String(x?.user_id || x?.id || "").trim(),
+          nombre: String(x?.name || x?.user_name || "").trim(),
+        })),
+      },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function detalleAccessGroup(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const detailRes = await biostarRequest(conexion as any, { method: "GET", url: `/api/access_groups/${id}?full_users=false` });
+    if (!detailRes.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(detailRes.message || extractBiostarMessage(detailRes.data)) || "No se pudo consultar el permiso de acceso.",
+      });
+      return;
+    }
+
+    const entity = detailRes.data?.AccessGroup || detailRes.data?.access_group || detailRes.data || {};
+    const usersRes = await biostarRequest(conexion as any, { method: "GET", url: `/api/access_groups/${id}/users?noblockui&limit=1000&offset=0` });
+    const userRows = usersRes.ok ? parseRows(usersRes.data, ["UserCollection.rows", "rows", "users"]) : [];
+
+    const niveles = Array.isArray(entity?.access_levels) ? entity.access_levels : [];
+    const grupos = Array.isArray(entity?.user_groups) ? entity.user_groups : [];
+    const usersFromEntity = Array.isArray(entity?.users) ? entity.users : [];
+    const users = userRows.length ? userRows : usersFromEntity;
+
+    res.status(200).json({
+      estado: true,
+      datos: {
+        id_externo: String(entity?.id || id).trim(),
+        nombre: String(entity?.name || "").trim(),
+        descripcion: String(entity?.description || "").trim(),
+        niveles: niveles.map((x: any) => ({ id_externo: String(x?.id || "").trim(), nombre: String(x?.name || "").trim() })),
+        grupos_usuarios: grupos.map((x: any) => ({ id_externo: String(x?.id || "").trim(), nombre: String(x?.name || "").trim() })),
+        usuarios: users.map((x: any) => ({ id_externo: String(x?.user_id || x?.id || "").trim(), nombre: String(x?.name || "").trim() })),
+      },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function crearAccessGroup(req: Request, res: Response): Promise<void> {
+  try {
+    const nombre = String(req.body?.nombre || "").trim();
+    const descripcion = String(req.body?.descripcion || "").trim();
+    const niveles = Array.isArray(req.body?.niveles) ? req.body.niveles : [];
+    const gruposUsuarios = Array.isArray(req.body?.grupos_usuarios) ? req.body.grupos_usuarios : [];
+    const usuarios = Array.isArray(req.body?.usuarios) ? req.body.usuarios : [];
+
+    if (!nombre) {
+      res.status(400).json({ estado: false, mensaje: "El nombre es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const payload = {
+      AccessGroup: {
+        name: nombre,
+        description: descripcion,
+        access_levels: niveles.map((x: any) => ({ id: String(x.id_externo || x.id || ""), name: String(x.nombre || x.name || "") })),
+        user_groups: gruposUsuarios.map((x: any) => ({ id: Number(x.id_externo || x.id || 0), name: String(x.nombre || x.name || "") })),
+        users: usuarios.map((x: any) => ({ user_id: String(x.id_externo || x.user_id || x.id || "") })),
+      },
+    };
+
+    const r = await biostarRequest(conexion as any, { method: "POST", url: "/api/access_groups", data: payload });
+    if (!r.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(r.message || extractBiostarMessage(r.data)) || "No se pudo crear el permiso de acceso.",
+      });
+      return;
+    }
+
+    res.status(200).json({ estado: true, mensaje: "Permiso de acceso creado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function editarAccessGroup(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    const nombre = String(req.body?.nombre || "").trim();
+    const descripcion = String(req.body?.descripcion || "").trim();
+    const niveles = Array.isArray(req.body?.niveles) ? req.body.niveles : [];
+    const gruposUsuarios = Array.isArray(req.body?.grupos_usuarios) ? req.body.grupos_usuarios : [];
+    const usuarios = Array.isArray(req.body?.usuarios) ? req.body.usuarios : [];
+    if (!id || !nombre) {
+      res.status(400).json({ estado: false, mensaje: "Id y nombre son obligatorios." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const payloads = [
+      {
+        AccessGroup: {
+          name: nombre,
+          description: descripcion,
+          access_levels: niveles.map((x: any) => ({ id: String(x.id_externo || x.id || ""), name: String(x.nombre || x.name || "") })),
+          user_groups: gruposUsuarios.map((x: any) => ({ id: Number(x.id_externo || x.id || 0), name: String(x.nombre || x.name || "") })),
+          users: usuarios.map((x: any) => ({ user_id: String(x.id_externo || x.user_id || x.id || "") })),
+          sync_hint: {},
+        },
+      },
+      {
+        AccessGroup: {
+          name: nombre,
+          description: descripcion,
+          new_users: usuarios.map((x: any) => ({ user_id: String(x.id_externo || x.user_id || x.id || "") })),
+          sync_hint: {},
+        },
+      },
+    ];
+
+    let lastError = "No se pudo editar el permiso de acceso.";
+    for (const payload of payloads) {
+      const r = await biostarRequest(conexion as any, { method: "PUT", url: `/api/access_groups/${id}`, data: payload });
+      if (r.ok) {
+        res.status(200).json({ estado: true, mensaje: "Permiso de acceso editado correctamente." });
+        return;
+      }
+      lastError = toFriendlyMessage(r.message || extractBiostarMessage(r.data)) || lastError;
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastError });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function eliminarAccessGroup(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id es obligatorio." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+    const r = await biostarRequest(conexion as any, { method: "DELETE", url: `/api/access_groups?id=${encodeURIComponent(id)}` });
+    if (!r.ok) {
+      res.status(200).json({ estado: false, mensaje: toFriendlyMessage(r.message || extractBiostarMessage(r.data)) || "No se pudo eliminar el permiso de acceso." });
+      return;
+    }
+    res.status(200).json({ estado: true, mensaje: "Permiso de acceso eliminado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
 export async function listarHorariosBiostar(_req: Request, res: Response): Promise<void> {
   try {
     const conexion = await getBiostarConexionActiva();

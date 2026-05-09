@@ -2,27 +2,33 @@ import { Router } from "express";
 import { validarTokenYRol } from "../middlewares/validarToken";
 import {
   catalogosAccessLevel,
+  catalogosAccessGroups,
   crearAccessLevel,
+  crearAccessGroup,
   crearHorarioAccessLevel,
   crearHorarioBiostar,
   editarHorarioBiostar,
   crearPuerta,
   crearPuertaAcceso,
   detalleAccessLevel,
+  detalleAccessGroup,
   detalleHorarioBiostar,
   detallePuertaAcceso,
   crearGrupoDispositivo,
   editarAccessLevel,
+  editarAccessGroup,
   editarPuerta,
   editarPuertaAcceso,
   editarGrupoDispositivo,
   eliminarPuerta,
   eliminarPuertaAcceso,
   eliminarHorarioBiostar,
+  eliminarAccessGroup,
   eliminarGrupoDispositivo,
   listarHorariosBiostar,
   listarCatalogosPuertasAcceso,
   listarAccessLevels,
+  listarAccessGroups,
   listarOpcionesAltaPuertaAcceso,
   listarOpcionesDispositivoPuertaAcceso,
   listarGruposDispositivos,
@@ -42,6 +48,12 @@ router.post("/access-levels/horarios", validarTokenYRol([1], true), crearHorario
 router.get("/access-levels/:id", validarTokenYRol([1], true), detalleAccessLevel);
 router.post("/access-levels", validarTokenYRol([1], true), crearAccessLevel);
 router.put("/access-levels/:id", validarTokenYRol([1], true), editarAccessLevel);
+router.get("/access-groups", validarTokenYRol([1], true), listarAccessGroups);
+router.get("/access-groups/catalogos", validarTokenYRol([1], true), catalogosAccessGroups);
+router.get("/access-groups/:id", validarTokenYRol([1], true), detalleAccessGroup);
+router.post("/access-groups", validarTokenYRol([1], true), crearAccessGroup);
+router.put("/access-groups/:id", validarTokenYRol([1], true), editarAccessGroup);
+router.delete("/access-groups/:id", validarTokenYRol([1], true), eliminarAccessGroup);
 router.get("/horarios", validarTokenYRol([1], true), listarHorariosBiostar);
 router.get("/horarios/:id", validarTokenYRol([1], true), detalleHorarioBiostar);
 router.post("/horarios", validarTokenYRol([1], true), crearHorarioBiostar);
