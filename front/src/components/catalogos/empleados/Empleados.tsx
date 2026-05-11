@@ -1191,11 +1191,10 @@ export default function Empleados() {
                   }))}
                   columns={columnasPendientesBiostar as any}
                   getRowId={(row) => row.id}
-                  rowSelectionModel={syncBioSelected ? [syncBioSelected] : []}
-                  onRowSelectionModelChange={(selection) => {
-                    const first = Array.isArray(selection) ? selection[0] : "";
-                    setSyncBioSelected(first ? String(first) : "");
-                  }}
+                  onRowClick={(params) => setSyncBioSelected(String(params.row?.id || ""))}
+                  getRowClassName={(params) =>
+                    String(params.row?.id || "") === syncBioSelected ? "fila-pendiente-seleccionada" : ""
+                  }
                   pageSizeOptions={[5, 10, 25]}
                   initialState={{
                     pagination: { paginationModel: { pageSize: 5, page: 0 } },
@@ -1212,6 +1211,9 @@ export default function Empleados() {
                     },
                     "& .MuiDataGrid-main": {
                       overflowX: "hidden",
+                    },
+                    "& .fila-pendiente-seleccionada": {
+                      backgroundColor: "rgba(122,60,255,0.10)",
                     },
                   }}
                   localeText={esES.components.MuiDataGrid.defaultProps.localeText}
