@@ -2167,9 +2167,14 @@ const syncEmpleadoBiostar = async ({
         return `${yyyy}-${mm}-${dd}T${hh}:${min}:00.00Z`;
     };
 
-    const exists = await biostarRequest(conexion, { method: "GET", url: `/api/users/${encodeURIComponent(userId)}` });
-    const isEdit = exists.ok && exists.data?.User;
-    if (!isEdit && !(empleado as any)?.biostar_user_id) {
+    const exists = userId
+        ? await biostarRequest(conexion, { method: "GET", url: `/api/users/${encodeURIComponent(userId)}` })
+        : { ok: false, data: null } as any;
+    const isEdit = !!(exists.ok && exists.data?.User);
+    const hadBiostarUserId = !!String((empleado as any)?.biostar_user_id || "").trim();
+    const biostarIdNotFound = !isEdit && hadBiostarUserId;
+    // Si RE tiene biostar_user_id pero BioStar ya no lo encuentra, no reusar ese id huérfano.
+    if (!isEdit && (!hadBiostarUserId || biostarIdNotFound)) {
         const nextIdRes = await biostarRequest(conexion, { method: "GET", url: "/api/users/next_user_id" });
         const nextRaw =
             nextIdRes.data?.User?.user_id ??

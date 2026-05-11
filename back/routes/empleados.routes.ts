@@ -51,7 +51,6 @@ router.delete("/biometria/tarjeta/:id/:tarjetaId", validarTokenYRol([1, 2]), eli
 router.patch('/anonimizar/:id', validarTokenYRol([1, 2]), anonimizar);
 router.patch("/desbloquear/:id", validarTokenYRol([1, 2]), desbloquear);
 router.patch("/:id", validarTokenYRol([1, 2]), modificarEstado);
-router.patch("/:id", validarTokenYRol([1, 2]), modificarEstado);
 
 export default router;
 
