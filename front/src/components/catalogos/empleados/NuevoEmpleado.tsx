@@ -175,7 +175,8 @@ export default function NuevoEmpleado() {
     reValidateMode: "onChange",
     mode: "all",
   });
-  const navigate = useNavigate();`r`n  const location = useLocation();
+  const navigate = useNavigate();
+  const location = useLocation();
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
