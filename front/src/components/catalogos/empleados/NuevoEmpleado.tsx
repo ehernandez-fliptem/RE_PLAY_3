@@ -273,8 +273,8 @@ export default function NuevoEmpleado() {
     formContext.setValue("apellido_pat", String(pre.apellido_pat || pre.last_name || ""), { shouldValidate: true });
     formContext.setValue("apellido_mat", String(pre.apellido_mat || ""), { shouldValidate: true });
     formContext.setValue("correo", String(pre.correo || pre.email || ""), { shouldValidate: true });
-    formContext.setValue("telefono", String(pre.telefono || ""), { shouldValidate: true });
-    formContext.setValue("movil", String(pre.movil || pre.phone || ""), { shouldValidate: true });
+    formContext.setValue("telefono", "", { shouldValidate: true });
+    formContext.setValue("movil", String(pre.movil || pre.telefono || pre.phone || ""), { shouldValidate: true });
     formContext.setValue("extension", String(pre.extension || ""), { shouldValidate: true });
     if (String(pre.biostar_group_id || "").trim()) {
       formContext.setValue("biostar_group_id", String(pre.biostar_group_id), { shouldValidate: true });
