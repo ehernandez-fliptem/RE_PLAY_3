@@ -10,6 +10,8 @@ import { QueryParams } from '../types/queryparams';
 import Empleados, { IEmpleado } from '../models/Empleados';
 import Usuarios, { IUsuario } from '../models/Usuarios';
 import Empresas, { IEmpresa } from '../models/Empresas';
+import Departamentos from '../models/Departamentos';
+import Puestos from '../models/Puestos';
 import { IPiso } from '../models/Pisos';
 import { IAcceso } from '../models/Accesos';
 import DispositivosHv from '../models/DispositivosHv';
@@ -1939,6 +1941,19 @@ const syncEmpleadoBiostar = async ({
     const method = isEdit ? "PUT" : "POST";
     const url = isEdit ? `/api/users/${encodeURIComponent(userId)}` : "/api/users";
 
+    let nombreDepartamento = "departamento";
+    let nombrePuesto = "empleado";
+    const idDepto = String((empleado as any)?.id_departamento || "").trim();
+    const idPuesto = String((empleado as any)?.id_puesto || "").trim();
+    if (idDepto) {
+        const dep = await Departamentos.findById(idDepto, "nombre").lean();
+        if (dep?.nombre) nombreDepartamento = String(dep.nombre).trim();
+    }
+    if (idPuesto) {
+        const pu = await Puestos.findById(idPuesto, "nombre").lean();
+        if (pu?.nombre) nombrePuesto = String(pu.nombre).trim();
+    }
+
     const payloads = [
         {
             User: {
@@ -1950,8 +1965,8 @@ const syncEmpleadoBiostar = async ({
                 disabled: disabled ? "true" : "false",
                 start_datetime: "2001-01-01T00:00:00.00Z",
                 expiry_datetime: "2037-12-31T23:59:00.00Z",
-                department: String((empleado as any)?.departamento || "departamento"),
-                user_title: String((empleado as any)?.puesto || "empleado"),
+                department: nombreDepartamento,
+                user_title: nombrePuesto,
             },
         },
         {
@@ -1964,8 +1979,8 @@ const syncEmpleadoBiostar = async ({
                 disabled: disabled ? "true" : "false",
                 start_datetime: "2001-01-01T00:00:00.00Z",
                 expiry_datetime: "2037-12-31T23:59:00.00Z",
-                department: String((empleado as any)?.departamento || "departamento"),
-                user_title: String((empleado as any)?.puesto || "empleado"),
+                department: nombreDepartamento,
+                user_title: nombrePuesto,
             },
         },
         {
@@ -1978,8 +1993,8 @@ const syncEmpleadoBiostar = async ({
                 disabled: disabled ? "true" : "false",
                 start_datetime: "2001-01-01T00:00:00.00Z",
                 expiry_datetime: "2037-12-31T23:59:00.00Z",
-                department: String((empleado as any)?.departamento || "departamento"),
-                user_title: String((empleado as any)?.puesto || "empleado"),
+                department: nombreDepartamento,
+                user_title: nombrePuesto,
             },
         },
         {
@@ -1992,8 +2007,8 @@ const syncEmpleadoBiostar = async ({
                 disabled: disabled ? "true" : "false",
                 start_datetime: "2001-01-01T00:00:00.00Z",
                 expiry_datetime: "2037-12-31T23:59:00.00Z",
-                department: String((empleado as any)?.departamento || "departamento"),
-                user_title: String((empleado as any)?.puesto || "empleado"),
+                department: nombreDepartamento,
+                user_title: nombrePuesto,
             },
         },
     ];
@@ -2021,8 +2036,8 @@ const syncEmpleadoBiostar = async ({
                     disabled: disabled ? "true" : "false",
                     start_datetime: "2001-01-01T00:00:00.00Z",
                     expiry_datetime: "2037-12-31T23:59:00.00Z",
-                    department: String((empleado as any)?.departamento || "departamento"),
-                    user_title: String((empleado as any)?.puesto || "empleado"),
+                    department: nombreDepartamento,
+                    user_title: nombrePuesto,
                 },
             };
             const retry = await biostarRequest(conexion, { method: "POST", url: "/api/users", data: altPayload });
