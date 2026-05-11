@@ -40,6 +40,10 @@ export interface IEmpleado extends Document {
     biostar_user_id?: string;
     biostar_group_id?: string;
     biostar_group_name?: string;
+    sync_hikvision_pendiente?: boolean;
+    sync_biostar_pendiente?: boolean;
+    sync_hikvision_error?: string;
+    sync_biostar_error?: string;
     usuario_campo_activo: boolean;
     esRoot: boolean;
     insignias: number[];
@@ -147,6 +151,10 @@ const empleadoSchema = new Schema<IEmpleado>({
     biostar_user_id: { type: String, default: "" },
     biostar_group_id: { type: String, default: "" },
     biostar_group_name: { type: String, default: "" },
+    sync_hikvision_pendiente: { type: Boolean, default: false },
+    sync_biostar_pendiente: { type: Boolean, default: false },
+    sync_hikvision_error: { type: String, default: "" },
+    sync_biostar_error: { type: String, default: "" },
     usuario_campo_activo: { type: Boolean, default: false },
     esRoot: { type: Boolean, require: true, default: false },
     insignias: {
