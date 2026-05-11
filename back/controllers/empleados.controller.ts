@@ -2063,7 +2063,6 @@ export async function previewSyncBiostar(req: Request, res: Response): Promise<v
         const byBio = new Map<string, any>();
         for (const e of existentes) byBio.set(String((e as any)?.biostar_user_id || "").trim(), e);
 
-        const listos: any[] = [];
         const pendientes: any[] = [];
         for (const u of candidatos) {
             const draft = buildBiostarDraft(u);
@@ -2088,16 +2087,14 @@ export async function previewSyncBiostar(req: Request, res: Response): Promise<v
                 id_piso: defaults.id_piso,
                 accesos: [defaults.id_acceso],
             };
-            if (motivos.length === 0) listos.push(payload);
-            else pendientes.push({ ...payload, motivos });
+            pendientes.push({ ...payload, motivos });
         }
 
         res.status(200).json({
             estado: true,
             datos: {
-                listos,
                 pendientes,
-                resumen: { listos: listos.length, pendientes: pendientes.length },
+                resumen: { pendientes: pendientes.length },
             },
         });
     } catch (error: any) {
@@ -2108,63 +2105,9 @@ export async function previewSyncBiostar(req: Request, res: Response): Promise<v
 
 export async function importarSyncBiostar(req: Request, res: Response): Promise<void> {
     try {
-        const id_usuario = (req as UserRequest).userId;
-        const previewReq = { ...req } as Request;
-        const capture: any = {};
-        const fakeRes: any = {
-            status: (_code: number) => ({
-                json: (payload: any) => { capture.payload = payload; return payload; }
-            })
-        };
-        await previewSyncBiostar(previewReq, fakeRes as Response);
-        const data = capture?.payload;
-        if (!data?.estado) {
-            res.status(200).json(data || { estado: false, mensaje: "No se pudo preparar la sincronización." });
-            return;
-        }
-        const listos = Array.isArray(data?.datos?.listos) ? data.datos.listos : [];
-        let creados = 0;
-        let omitidos = 0;
-        for (const item of listos) {
-            const exists = await Empleados.findOne({ biostar_user_id: item.biostar_user_id }, "_id").lean();
-            if (exists) { omitidos++; continue; }
-            const nuevo = new Empleados({
-                img_usuario: "",
-                nombre: item.nombre,
-                apellido_pat: item.apellido_pat || "Empleado",
-                apellido_mat: "",
-                correo: item.correo,
-                movil: item.movil || "",
-                telefono: item.telefono || "",
-                extension: item.extension || "",
-                id_puesto: null,
-                id_departamento: null,
-                id_cubiculo: null,
-                id_empresa: item.id_empresa,
-                id_piso: item.id_piso,
-                accesos: item.accesos,
-                acceso_campo: false,
-                biostar_user_id: item.biostar_user_id,
-                biostar_group_id: item.biostar_group_id || "1",
-                biostar_group_name: item.biostar_group_name || "All Users",
-                sync_hikvision_pendiente: false,
-                sync_biostar_pendiente: false,
-                sync_hikvision_error: "",
-                sync_biostar_error: "",
-                creado_por: id_usuario,
-                modificado_por: id_usuario,
-                activo: true,
-            });
-            await nuevo.save();
-            creados++;
-        }
         res.status(200).json({
-            estado: true,
-            datos: {
-                creados,
-                omitidos,
-                pendientes: Array.isArray(data?.datos?.pendientes) ? data.datos.pendientes : [],
-            },
+            estado: false,
+            mensaje: "La importación automática está deshabilitada. Usa 'Dar de alta' en pendientes.",
         });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);

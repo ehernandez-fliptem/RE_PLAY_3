@@ -177,6 +177,7 @@ export default function NuevoEmpleado() {
   });
   const navigate = useNavigate();
   const location = useLocation();
+  const volverPendientesBiostar = !!(location.state as any)?.reopenSyncBiostar;
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -299,7 +300,9 @@ export default function NuevoEmpleado() {
           variant: "success",
         });
         parentGridDataRef.fetchRows();
-        navigate("/empleados");
+        navigate("/empleados", {
+          state: volverPendientesBiostar ? { reopenSyncBiostar: true } : {},
+        });
       } else if (res.data.codigo === "PANEL_SYNC_FAILED") {
         setIsSaving(false);
         setShowForm(false);
@@ -430,7 +433,9 @@ export default function NuevoEmpleado() {
   };
 
   const regresar = () => {
-    navigate("/empleados");
+    navigate("/empleados", {
+          state: volverPendientesBiostar ? { reopenSyncBiostar: true } : {},
+        });
   };
 
   if (!showForm) {

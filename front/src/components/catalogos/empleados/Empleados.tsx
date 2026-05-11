@@ -39,8 +39,6 @@ import {
   InputLabel,
   MenuItem,
   Select,
-  Tab,
-  Tabs,
   TextField,
   Tooltip,
   Typography,
@@ -134,11 +132,9 @@ export default function Empleados() {
     Array<{ id_externo: string; nombre: string; total: number }>
   >([]);
   const [syncBioOpen, setSyncBioOpen] = useState(false);
-  const [syncBioTab, setSyncBioTab] = useState<"listos" | "pendientes">("listos");
   const [syncBioLoading, setSyncBioLoading] = useState(false);
-  const [syncBioImporting, setSyncBioImporting] = useState(false);
-  const [syncBioListos, setSyncBioListos] = useState<any[]>([]);
   const [syncBioPendientes, setSyncBioPendientes] = useState<any[]>([]);
+  const [syncBioSelected, setSyncBioSelected] = useState<string>("");
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
 
@@ -426,6 +422,12 @@ export default function Empleados() {
 
   useEffect(() => {
     const state = location.state as any;
+    if (state?.reopenSyncBiostar) {
+      setSyncBioOpen(true);
+      cargarSyncBiostarPreview();
+      navigate(location.pathname, { replace: true, state: {} });
+      return;
+    }
     if (
       state?.openBiometriaFor &&
       typeof state.openBiometriaFor === "string" &&
@@ -577,12 +579,11 @@ export default function Empleados() {
       const res = await clienteAxios.get("/api/empleados/biostar-sync/preview");
       if (!res.data?.estado) {
         enqueueSnackbar(res.data?.mensaje || "No se pudo consultar BioStar.", { variant: "warning" });
-        setSyncBioListos([]);
         setSyncBioPendientes([]);
         return;
       }
-      setSyncBioListos(Array.isArray(res.data?.datos?.listos) ? res.data.datos.listos : []);
       setSyncBioPendientes(Array.isArray(res.data?.datos?.pendientes) ? res.data.datos.pendientes : []);
+      setSyncBioSelected("");
     } catch (error) {
       const { restartSession } = handlingError(error);
       if (restartSession) navigate("/logout", { replace: true });
@@ -593,29 +594,32 @@ export default function Empleados() {
 
   const abrirSyncBiostar = async () => {
     setSyncBioOpen(true);
-    setSyncBioTab("listos");
     await cargarSyncBiostarPreview();
   };
 
-  const importarListosBiostar = async () => {
-    try {
-      setSyncBioImporting(true);
-      const res = await clienteAxios.post("/api/empleados/biostar-sync/import");
-      if (!res.data?.estado) {
-        enqueueSnackbar(res.data?.mensaje || "No se pudo importar desde BioStar.", { variant: "warning" });
-        return;
-      }
-      const creados = Number(res.data?.datos?.creados || 0);
-      const omitidos = Number(res.data?.datos?.omitidos || 0);
-      enqueueSnackbar(`Sincronización completada. Creados: ${creados}. Omitidos: ${omitidos}.`, { variant: "success" });
-      apiRef.current?.dataSource?.fetchRows?.();
-      await cargarSyncBiostarPreview();
-    } catch (error) {
-      const { restartSession } = handlingError(error);
-      if (restartSession) navigate("/logout", { replace: true });
-    } finally {
-      setSyncBioImporting(false);
+  const darAltaPendiente = () => {
+    const selected = syncBioPendientes.find((p: any) => String(p.biostar_user_id) === syncBioSelected);
+    if (!selected) {
+      enqueueSnackbar("Selecciona un usuario pendiente.", { variant: "warning" });
+      return;
     }
+    setSyncBioOpen(false);
+    navigate("nuevo-empleado", {
+      state: {
+        biostarPrefill: {
+          nombre: selected.nombre || "",
+          apellido_pat: selected.apellido_pat || "",
+          apellido_mat: selected.apellido_mat || "",
+          correo: selected.correo || "",
+          telefono: selected.telefono || "",
+          movil: selected.movil || "",
+          extension: selected.extension || "",
+          biostar_group_id: selected.biostar_group_id || "",
+          biostar_user_id: selected.biostar_user_id || "",
+        },
+        reopenSyncBiostar: true,
+      },
+    });
   };
 
   const editarRegistro = (ID: string) => {
@@ -1131,87 +1135,75 @@ export default function Empleados() {
           ),
         }}
       />
-      <Dialog open={syncBioOpen} onClose={() => setSyncBioOpen(false)} fullWidth maxWidth="md">
-        <DialogTitle>Sincronizar BioStar</DialogTitle>
+      <Dialog open={syncBioOpen} onClose={() => setSyncBioOpen(false)} fullWidth maxWidth="lg">
+        <DialogTitle>Pendientes de BioStar</DialogTitle>
         <DialogContent dividers>
-          <Tabs
-            value={syncBioTab}
-            onChange={(_, v) => setSyncBioTab(v)}
-            sx={{ mb: 2 }}
-          >
-            <Tab value="listos" label={`Listos (${syncBioListos.length})`} />
-            <Tab value="pendientes" label={`Pendientes (${syncBioPendientes.length})`} />
-          </Tabs>
+          <Typography variant="subtitle2" sx={{ mb: 2 }}>
+            Selecciona un registro para completar alta en RE ({syncBioPendientes.length})
+          </Typography>
           {syncBioLoading ? (
             <Spinner />
-          ) : syncBioTab === "listos" ? (
-            <Box sx={{ maxHeight: 360, overflowY: "auto" }}>
-              {syncBioListos.length === 0 ? (
-                <Typography variant="body2">No hay usuarios listos para importar.</Typography>
-              ) : (
-                syncBioListos.map((u: any) => (
-                  <Box key={String(u.biostar_user_id)} sx={{ py: 1, borderBottom: "1px solid #eee" }}>
-                    <Typography variant="body2">
-                      {u.nombre} {u.apellido_pat} - {u.correo}
-                    </Typography>
-                  </Box>
-                ))
-              )}
-            </Box>
           ) : (
-            <Box sx={{ maxHeight: 360, overflowY: "auto" }}>
+            <Box sx={{ maxHeight: 420, overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: 1 }}>
               {syncBioPendientes.length === 0 ? (
-                <Typography variant="body2">No hay usuarios pendientes.</Typography>
+                <Typography variant="body2" sx={{ p: 2 }}>
+                  No hay usuarios pendientes.
+                </Typography>
               ) : (
-                syncBioPendientes.map((u: any) => (
-                  <Box key={String(u.biostar_user_id)} sx={{ py: 1, borderBottom: "1px solid #eee" }}>
-                    <Typography variant="body2">
-                      {u.nombre || "(Sin nombre)"} - {u.correo || "(Sin correo)"}
-                    </Typography>
-                    <Typography variant="caption" color="error">
-                      {(u.motivos || []).join(", ")}
-                    </Typography>
-                    <Box sx={{ mt: 1 }}>
-                      <Button
-                        size="small"
-                        onClick={() =>
-                          navigate("nuevo-empleado", {
-                            state: {
-                              biostarPrefill: {
-                                nombre: u.nombre || "",
-                                apellido_pat: u.apellido_pat || "",
-                                apellido_mat: u.apellido_mat || "",
-                                correo: u.correo || "",
-                                telefono: u.telefono || "",
-                                movil: u.movil || "",
-                                extension: u.extension || "",
-                                biostar_group_id: u.biostar_group_id || "",
-                              },
-                            },
-                          })
-                        }
-                      >
-                        Completar
-                      </Button>
-                    </Box>
+                <>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: "220px 220px 220px 1fr",
+                      gap: 1,
+                      px: 2,
+                      py: 1.2,
+                      fontWeight: 700,
+                      borderBottom: "1px solid #e5e7eb",
+                      bgcolor: "#fafafa",
+                    }}
+                  >
+                    <Box>Nombre</Box>
+                    <Box>Correo</Box>
+                    <Box>Grupo BioStar</Box>
+                    <Box>Faltantes</Box>
                   </Box>
-                ))
+                  {syncBioPendientes.map((u: any) => (
+                    <Box
+                      key={String(u.biostar_user_id)}
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: "220px 220px 220px 1fr",
+                        gap: 1,
+                        py: 1.1,
+                        px: 2,
+                        borderBottom: "1px solid #f1f1f1",
+                        cursor: "pointer",
+                        backgroundColor:
+                          syncBioSelected === String(u.biostar_user_id) ? "rgba(122,60,255,0.10)" : "transparent",
+                        "&:hover": { backgroundColor: "rgba(122,60,255,0.06)" },
+                      }}
+                      onClick={() => setSyncBioSelected(String(u.biostar_user_id))}
+                    >
+                      <Typography variant="body2">{u.nombre || "(Sin nombre)"}</Typography>
+                      <Typography variant="body2">{u.correo || "(Sin correo)"}</Typography>
+                      <Typography variant="body2">{u.biostar_group_name || "(Sin grupo)"}</Typography>
+                      <Typography variant="body2" color={(u.motivos || []).length ? "error.main" : "text.secondary"}>
+                        {(u.motivos || []).length ? (u.motivos || []).join(", ") : "Completar datos en RE"}
+                      </Typography>
+                    </Box>
+                  ))}
+                </>
               )}
             </Box>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={cargarSyncBiostarPreview} disabled={syncBioLoading || syncBioImporting}>Recargar</Button>
+          <Button onClick={cargarSyncBiostarPreview} disabled={syncBioLoading}>Recargar</Button>
           <Button onClick={() => setSyncBioOpen(false)}>Cerrar</Button>
-          {syncBioTab === "listos" && (
-            <Button
-              variant="contained"
-              onClick={importarListosBiostar}
-              disabled={syncBioImporting || syncBioLoading || syncBioListos.length === 0}
-            >
-              Importar listos
-            </Button>
-          )}
+          <Button variant="contained" onClick={darAltaPendiente} disabled={!syncBioSelected || syncBioLoading}>
+            Dar de alta
+          </Button>
         </DialogActions>
       </Dialog>
       <Dialog
