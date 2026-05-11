@@ -621,6 +621,39 @@ export default function Empleados() {
       },
     });
   };
+  const columnasPendientesBiostar = [
+    {
+      field: "nombre",
+      headerName: "Nombre",
+      flex: 1,
+      minWidth: 170,
+      renderCell: ({ value }: any) => value || "(Sin nombre)",
+    },
+    {
+      field: "correo",
+      headerName: "Correo",
+      flex: 1,
+      minWidth: 200,
+      renderCell: ({ value }: any) => value || "(Sin correo)",
+    },
+    {
+      field: "biostar_group_name",
+      headerName: "Grupo BioStar",
+      flex: 1,
+      minWidth: 170,
+      renderCell: ({ value }: any) => value || "(Sin grupo)",
+    },
+    {
+      field: "motivos_texto",
+      headerName: "Faltantes",
+      flex: 1.4,
+      minWidth: 240,
+      renderCell: ({ row }: any) =>
+        (row.motivos || []).length
+          ? (row.motivos || []).join(", ")
+          : "Completar datos en RE",
+    },
+  ];
 
   const editarRegistro = (ID: string) => {
     navigate(`editar-empleado/${ID}`);
@@ -1135,7 +1168,7 @@ export default function Empleados() {
           ),
         }}
       />
-      <Dialog open={syncBioOpen} onClose={() => setSyncBioOpen(false)} fullWidth maxWidth="lg">
+      <Dialog open={syncBioOpen} onClose={() => setSyncBioOpen(false)} fullWidth maxWidth="md">
         <DialogTitle>Pendientes de BioStar</DialogTitle>
         <DialogContent dividers>
           <Typography variant="subtitle2" sx={{ mb: 2 }}>
@@ -1144,56 +1177,45 @@ export default function Empleados() {
           {syncBioLoading ? (
             <Spinner />
           ) : (
-            <Box sx={{ maxHeight: 420, overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: 1 }}>
+            <Box sx={{ width: "100%", height: 320 }}>
               {syncBioPendientes.length === 0 ? (
                 <Typography variant="body2" sx={{ p: 2 }}>
                   No hay usuarios pendientes.
                 </Typography>
               ) : (
-                <>
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: "220px 220px 220px 1fr",
-                      gap: 1,
-                      px: 2,
-                      py: 1.2,
-                      fontWeight: 700,
-                      borderBottom: "1px solid #e5e7eb",
-                      bgcolor: "#fafafa",
-                    }}
-                  >
-                    <Box>Nombre</Box>
-                    <Box>Correo</Box>
-                    <Box>Grupo BioStar</Box>
-                    <Box>Faltantes</Box>
-                  </Box>
-                  {syncBioPendientes.map((u: any) => (
-                    <Box
-                      key={String(u.biostar_user_id)}
-                      sx={{
-                        display: "grid",
-                        gridTemplateColumns: "220px 220px 220px 1fr",
-                        gap: 1,
-                        py: 1.1,
-                        px: 2,
-                        borderBottom: "1px solid #f1f1f1",
-                        cursor: "pointer",
-                        backgroundColor:
-                          syncBioSelected === String(u.biostar_user_id) ? "rgba(122,60,255,0.10)" : "transparent",
-                        "&:hover": { backgroundColor: "rgba(122,60,255,0.06)" },
-                      }}
-                      onClick={() => setSyncBioSelected(String(u.biostar_user_id))}
-                    >
-                      <Typography variant="body2">{u.nombre || "(Sin nombre)"}</Typography>
-                      <Typography variant="body2">{u.correo || "(Sin correo)"}</Typography>
-                      <Typography variant="body2">{u.biostar_group_name || "(Sin grupo)"}</Typography>
-                      <Typography variant="body2" color={(u.motivos || []).length ? "error.main" : "text.secondary"}>
-                        {(u.motivos || []).length ? (u.motivos || []).join(", ") : "Completar datos en RE"}
-                      </Typography>
-                    </Box>
-                  ))}
-                </>
+                <DataGrid
+                  rows={syncBioPendientes.map((u: any) => ({
+                    ...u,
+                    id: String(u.biostar_user_id),
+                    motivos_texto: (u.motivos || []).join(", "),
+                  }))}
+                  columns={columnasPendientesBiostar as any}
+                  getRowId={(row) => row.id}
+                  rowSelectionModel={syncBioSelected ? [syncBioSelected] : []}
+                  onRowSelectionModelChange={(selection) => {
+                    const first = Array.isArray(selection) ? selection[0] : "";
+                    setSyncBioSelected(first ? String(first) : "");
+                  }}
+                  pageSizeOptions={[5, 10, 25]}
+                  initialState={{
+                    pagination: { paginationModel: { pageSize: 5, page: 0 } },
+                  }}
+                  disableRowSelectionOnClick={false}
+                  sx={{
+                    "& .MuiDataGrid-cell, & .MuiDataGrid-columnHeaderTitle": {
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    },
+                    "& .MuiDataGrid-virtualScroller": {
+                      overflowX: "hidden !important",
+                    },
+                    "& .MuiDataGrid-main": {
+                      overflowX: "hidden",
+                    },
+                  }}
+                  localeText={esES.components.MuiDataGrid.defaultProps.localeText}
+                />
               )}
             </Box>
           )}

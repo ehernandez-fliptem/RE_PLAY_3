@@ -263,6 +263,7 @@ export default function NuevoEmpleado() {
     }
   }, [habilitarRegistroCampo, formContext]);
   useEffect(() => {
+    if (isLoading) return;
     const pre = (location.state as any)?.biostarPrefill;
     if (!pre) return;
     formContext.setValue("nombre", String(pre.nombre || ""), { shouldValidate: true });
@@ -276,7 +277,7 @@ export default function NuevoEmpleado() {
       formContext.setValue("biostar_group_id", String(pre.biostar_group_id), { shouldValidate: true });
     }
     navigate(location.pathname, { replace: true, state: {} });
-  }, [formContext, location.pathname, location.state, navigate]);
+  }, [formContext, isLoading, location.pathname, location.state, navigate]);
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
