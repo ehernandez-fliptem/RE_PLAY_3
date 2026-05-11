@@ -262,6 +262,20 @@ export default function EditarEmpleado() {
   }, [formContext, ID, habilitarRegistroCampo]);
 
   useEffect(() => {
+    if (!habilitarIntegracionBiostar) return;
+    if (!biostarGrupos.length) return;
+    const current = String(formContext.getValues("biostar_group_id") || "").trim();
+    if (current) return;
+    const allUsers =
+      biostarGrupos.find((g) => String(g.nombre || "").trim().toLowerCase() === "all users") ||
+      biostarGrupos.find((g) => String(g.id_externo) === "1") ||
+      biostarGrupos[0];
+    if (allUsers?.id_externo) {
+      formContext.setValue("biostar_group_id", String(allUsers.id_externo), { shouldValidate: true });
+    }
+  }, [habilitarIntegracionBiostar, biostarGrupos, formContext]);
+
+  useEffect(() => {
     if (!habilitarRegistroCampo) {
       formContext.setValue("acceso_campo", false, { shouldValidate: true });
     }
@@ -269,6 +283,10 @@ export default function EditarEmpleado() {
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
+      if (habilitarIntegracionBiostar && !esUsuarioMaestro && !String(data.biostar_group_id || "").trim()) {
+        formContext.setError("biostar_group_id", { type: "manual", message: "Este campo es obligatorio." });
+        return;
+      }
       const initial = initialFormRef.current;
       if (initial) {
         const sameAccesos =
@@ -542,10 +560,14 @@ export default function EditarEmpleado() {
                       <AutocompleteElement
                         name="biostar_group_id"
                         label="Grupo BioStar"
+                        required
                         matchId
                         options={biostarGrupos.map((item) => ({
                           id: item.id_externo,
-                          label: item.nombre,
+                          label:
+                            String(item.nombre || "").trim().toLowerCase() === "all users"
+                              ? "Predeterminado BioStar"
+                              : item.nombre,
                         }))}
                         textFieldProps={{ margin: "normal" }}
                         autocompleteProps={{ noOptionsText: "No hay opciones." }}

@@ -1901,14 +1901,20 @@ const syncEmpleadoBiostar = async ({
     if (!grupo) return { ok: false, mensaje: "El grupo de BioStar seleccionado no existe." };
 
     const userId = String((empleado as any)?.biostar_user_id || empleado.id_empleado || "").trim();
+    const now = new Date();
+    const farFuture = new Date(now);
+    farFuture.setFullYear(farFuture.getFullYear() + 30);
+    const toBioIso = (d: Date) => d.toISOString().slice(0, 19);
+
+    // Payload minimo compatible entre versiones de BioStar.
     const payload = {
         User: {
             user_id: userId,
             name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || userId),
-            email: normalizarCorreo(empleado.correo),
-            phone: String(empleado.telefono || empleado.movil || "").trim(),
             user_group_id: { id: Number(grupo.id) || grupo.id, name: grupo.name },
             disabled: !!disabled,
+            start_datetime: toBioIso(now),
+            expiry_datetime: toBioIso(farFuture),
         },
     };
 
