@@ -422,7 +422,7 @@ export default function Empleados() {
 
   useEffect(() => {
     const state = location.state as any;
-    if (state?.reopenSyncBiostar) {
+    if (state?.reopenSyncBiostar && location.pathname === "/empleados") {
       setSyncBioOpen(true);
       cargarSyncBiostarPreview();
       navigate(location.pathname, { replace: true, state: {} });
@@ -617,7 +617,6 @@ export default function Empleados() {
           biostar_group_id: selected.biostar_group_id || "",
           biostar_user_id: selected.biostar_user_id || "",
         },
-        reopenSyncBiostar: true,
       },
     });
   };

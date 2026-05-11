@@ -177,7 +177,10 @@ export default function NuevoEmpleado() {
   });
   const navigate = useNavigate();
   const location = useLocation();
-  const volverPendientesBiostar = !!(location.state as any)?.reopenSyncBiostar;
+  const [volverPendientesBiostar] = useState<boolean>(() => {
+    const state = (location.state as any) || {};
+    return !!state?.reopenSyncBiostar || !!state?.biostarPrefill;
+  });
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -266,11 +269,11 @@ export default function NuevoEmpleado() {
     if (isLoading) return;
     const pre = (location.state as any)?.biostarPrefill;
     if (!pre) return;
-    formContext.setValue("nombre", String(pre.nombre || ""), { shouldValidate: true });
-    formContext.setValue("apellido_pat", String(pre.apellido_pat || ""), { shouldValidate: true });
+    formContext.setValue("nombre", String(pre.nombre || pre.name || ""), { shouldValidate: true });
+    formContext.setValue("apellido_pat", String(pre.apellido_pat || pre.last_name || ""), { shouldValidate: true });
     formContext.setValue("apellido_mat", String(pre.apellido_mat || ""), { shouldValidate: true });
-    formContext.setValue("correo", String(pre.correo || ""), { shouldValidate: true });
-    formContext.setValue("telefono", String(pre.telefono || ""), { shouldValidate: true });
+    formContext.setValue("correo", String(pre.correo || pre.email || ""), { shouldValidate: true });
+    formContext.setValue("telefono", String(pre.telefono || pre.phone || ""), { shouldValidate: true });
     formContext.setValue("movil", String(pre.movil || ""), { shouldValidate: true });
     formContext.setValue("extension", String(pre.extension || ""), { shouldValidate: true });
     if (String(pre.biostar_group_id || "").trim()) {
