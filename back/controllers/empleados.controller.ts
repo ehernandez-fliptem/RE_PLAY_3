@@ -220,7 +220,9 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                     const rowsFiltered = pageRows.filter((r: any) => {
                         const bioUserId = String(r?.biostar_user_id || "").trim();
                         if (!bioUserId) return true;
-                        return liveIds.has(bioUserId);
+                        if (!liveIds.has(bioUserId)) return false;
+                        const liveUser = liveById.get(bioUserId);
+                        return !isBiostarAdminUser(liveUser);
                     });
 
                     // Refleja grupo real desde BioStar para evitar desalineación en filtros.
@@ -1975,6 +1977,12 @@ const bioMessage = (payload: any, fallback: string) =>
     String(payload?.Response?.message || payload?.message || fallback).trim();
 
 const bioCode = (payload: any) => String(payload?.Response?.code || payload?.code || "").trim();
+const isBiostarAdminUser = (user: any): boolean => {
+    const userId = String(user?.user_id || user?.User?.user_id || "").trim().toLowerCase();
+    const loginId = String(user?.login_id || user?.User?.login_id || "").trim().toLowerCase();
+    const name = String(user?.name || user?.User?.name || "").trim().toLowerCase();
+    return userId === "administrator" || loginId === "administrator" || name === "administrator";
+};
 
 const getBiostarConexionActiva = async (): Promise<any | null> => {
     const main = await DispositivosBiostar.findOne({ activo: true, es_main: true }).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
@@ -2044,6 +2052,32 @@ export async function obtenerResumenGruposBiostarRegistrados(req: Request, res: 
                         nombre: live?.nombre || r?.nombre || "Sin nombre",
                     };
                 });
+
+            const groupIds = Array.from(
+                new Set(rows.map((r: any) => String(r?.id_externo || "").trim()).filter(Boolean))
+            );
+            if (groupIds.length > 0) {
+                const usersRes = await biostarRequest(conexion, {
+                    method: "POST",
+                    url: "/api/v2/users/search?noblockui",
+                    data: { limit: 5000, offset: 0, user_group_id_list: groupIds },
+                });
+                const users = (usersRes.data?.UserCollection?.rows || []) as any[];
+                const adminsByGroup = new Map<string, number>();
+                for (const u of users) {
+                    if (!isBiostarAdminUser(u)) continue;
+                    const gid = String(u?.user_group_id?.id || "").trim();
+                    if (!gid) continue;
+                    adminsByGroup.set(gid, (adminsByGroup.get(gid) || 0) + 1);
+                }
+                rows = rows
+                    .map((r: any) => {
+                        const gid = String(r?.id_externo || "").trim();
+                        const total = Math.max(0, Number(r?.total || 0) - (adminsByGroup.get(gid) || 0));
+                        return { ...r, total };
+                    })
+                    .filter((r: any) => Number(r?.total || 0) > 0);
+            }
         }
 
         res.status(200).json({ estado: true, datos: rows });
