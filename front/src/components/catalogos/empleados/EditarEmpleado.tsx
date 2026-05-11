@@ -316,6 +316,15 @@ export default function EditarEmpleado() {
       setIsSaving(true);
       const res = await clienteAxios.put(`/api/empleados/${ID}`, data);
       if (res.data.estado) {
+        const pendientes: string[] = Array.isArray(res.data?.sync?.pendiente)
+          ? res.data.sync.pendiente
+          : [];
+        if (pendientes.length > 0) {
+          enqueueSnackbar(
+            `Empleado guardado, pero quedó pendiente sincronizar en: ${pendientes.join(", ")}.`,
+            { variant: "warning" }
+          );
+        }
         enqueueSnackbar("El empleado se modificÃ³ correctamente.", {
           variant: "success",
         });
@@ -377,7 +386,8 @@ export default function EditarEmpleado() {
   };
 
   const crearGrupoBiostarDesdeForm = async () => {
-    const nombre = nuevoGrupo.trim();
+    const base = nuevoGrupo.trim();
+    const nombre = base ? base.charAt(0).toUpperCase() + base.slice(1) : "";
     if (!nombre) return;
     const res = await clienteAxios.post("/api/biostar-grupos", { nombre });
     if (!res.data?.estado) {
@@ -393,6 +403,15 @@ export default function EditarEmpleado() {
         formContext.setValue("biostar_group_id", String(creado.id_externo), { shouldValidate: true });
       }
     }
+    await Swal.fire({
+      icon: "success",
+      title: "Grupo creado",
+      text: "El grupo se creó correctamente.",
+      showConfirmButton: true,
+      allowOutsideClick: false,
+      showClass: { popup: "swal2-show" },
+      hideClass: { popup: "swal2-hide" },
+    });
     setNuevoGrupo("");
     setModalGrupoOpen(false);
   };
@@ -767,6 +786,9 @@ export default function EditarEmpleado() {
     </ModalContainer>
   );
 }
+
+
+
 
 
 

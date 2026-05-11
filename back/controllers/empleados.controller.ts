@@ -165,31 +165,101 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
         const registros = await Empleados.aggregate(aggregation);
         const result = registros?.[0] || { paginatedResults: [], totalCount: [{ count: 0 }] };
 
-        if (biostarLive && biostarGroupId && Array.isArray(result.paginatedResults) && result.paginatedResults.length > 0) {
+        if (biostarLive && Array.isArray(result.paginatedResults) && result.paginatedResults.length > 0) {
             const conexion = await getBiostarConexionActiva();
             if (conexion) {
-                const groupIds = Array.from(
+                const pageRows = (result.paginatedResults || []) as any[];
+                const bioUserIds = Array.from(
                     new Set(
-                        result.paginatedResults
-                            .map((r: any) => String(r?.biostar_group_id || "").trim())
+                        pageRows
+                            .map((r: any) => String(r?.biostar_user_id || "").trim())
                             .filter(Boolean)
                     )
                 );
 
-                const liveRes = await biostarRequest(conexion, {
-                    method: "POST",
-                    url: "/api/v2/users/search?noblockui",
-                    data: { limit: 1000, offset: 0, user_group_id_list: groupIds },
-                });
+                let liveRows: any[] = [];
+                if (bioUserIds.length > 0) {
+                    const liveByIds = await biostarRequest(conexion, {
+                        method: "POST",
+                        url: "/api/v2/users/search?noblockui",
+                        data: { limit: 1000, offset: 0, user_id_list: bioUserIds },
+                    });
+                    if (liveByIds.ok) {
+                        liveRows = (liveByIds.data?.UserCollection?.rows || []) as any[];
+                    } else {
+                        const groupIds = Array.from(
+                            new Set(
+                                pageRows
+                                    .map((r: any) => String(r?.biostar_group_id || "").trim())
+                                    .filter(Boolean)
+                            )
+                        );
+                        if (groupIds.length > 0) {
+                            const liveByGroups = await biostarRequest(conexion, {
+                                method: "POST",
+                                url: "/api/v2/users/search?noblockui",
+                                data: { limit: 1000, offset: 0, user_group_id_list: groupIds },
+                            });
+                            if (liveByGroups.ok) {
+                                liveRows = (liveByGroups.data?.UserCollection?.rows || []) as any[];
+                            }
+                        }
+                    }
+                }
 
-                if (liveRes.ok) {
-                    const liveRows = (liveRes.data?.UserCollection?.rows || []) as any[];
+                if (liveRows.length > 0) {
                     const liveIds = new Set(liveRows.map((u: any) => String(u?.user_id || "").trim()).filter(Boolean));
-                    result.paginatedResults = result.paginatedResults.filter((r: any) => {
+                    const liveById = new Map<string, any>();
+                    for (const u of liveRows) {
+                        const uid = String(u?.user_id || "").trim();
+                        if (uid) liveById.set(uid, u);
+                    }
+
+                    const rowsFiltered = pageRows.filter((r: any) => {
                         const bioUserId = String(r?.biostar_user_id || "").trim();
                         if (!bioUserId) return true;
                         return liveIds.has(bioUserId);
                     });
+
+                    // Refleja grupo real desde BioStar para evitar desalineación en filtros.
+                    const bulkOps: any[] = [];
+                    result.paginatedResults = rowsFiltered.map((r: any) => {
+                        const bioUserId = String(r?.biostar_user_id || "").trim();
+                        if (!bioUserId) return r;
+                        const liveUser = liveById.get(bioUserId);
+                        if (!liveUser) return r;
+                        const liveGroupId = String(liveUser?.user_group_id?.id || "").trim();
+                        const liveGroupName = String(liveUser?.user_group_id?.name || "").trim();
+                        if (
+                            liveGroupId &&
+                            (liveGroupId !== String(r?.biostar_group_id || "").trim() ||
+                                liveGroupName !== String(r?.biostar_group_name || "").trim())
+                        ) {
+                            bulkOps.push({
+                                updateOne: {
+                                    filter: { _id: new Types.ObjectId(String(r._id)) },
+                                    update: {
+                                        $set: {
+                                            biostar_group_id: liveGroupId,
+                                            biostar_group_name: liveGroupName,
+                                        },
+                                    },
+                                },
+                            });
+                        }
+                        return {
+                            ...r,
+                            biostar_group_id: liveGroupId || r.biostar_group_id,
+                            biostar_group_name: liveGroupName || r.biostar_group_name,
+                        };
+                    });
+
+                    if (bulkOps.length > 0) {
+                        await Empleados.bulkWrite(bulkOps);
+                    }
+                } else {
+                    // Si BioStar no devolvió usuarios para los IDs de la página, ocultamos los que ya no existen.
+                    result.paginatedResults = pageRows.filter((r: any) => !String(r?.biostar_user_id || "").trim());
                 }
             }
         }
@@ -2006,20 +2076,59 @@ const syncEmpleadoBiostarPhoto = async ({
         }
     }
 
-    // En BioStar, photo vacio elimina la foto actual del usuario.
-    const putPhoto = await biostarRequest(conexion, {
-        method: "PUT",
-        url: `/api/users/${encodeURIComponent(id)}`,
-        data: { User: { photo: photoBase64 } },
-        timeout: 20000,
-    });
-    const photoCode = bioCode(putPhoto.data);
-    if (!(putPhoto.ok && (!photoCode || photoCode === "0"))) {
-        const msg = bioMessage(putPhoto.data, putPhoto.message || "No se pudo actualizar la imagen en BioStar.");
-        return { ok: false, mensaje: photoCode ? `${msg} (code ${photoCode})` : msg };
+    const photoPayloads = hasImage
+        ? [
+            // Perfil + credencial visual activados por defecto.
+            {
+                User: {
+                    photo: photoBase64,
+                    useProfile: "true",
+                    credentials: {
+                        visualFaces: [
+                            {
+                                flag: "1",
+                                template_ex_normalized_image: photoBase64,
+                            },
+                        ],
+                    },
+                    check_visualFace_img_validation: true,
+                },
+            },
+            {
+                User: {
+                    photo: photoBase64,
+                    useProfile: "true",
+                },
+            },
+            // Fallback de compatibilidad.
+            {
+                User: {
+                    photo: photoBase64,
+                },
+            },
+        ]
+        : [
+            // En BioStar, photo vacio elimina la foto actual del usuario.
+            { User: { photo: "" } },
+        ];
+
+    let lastPhotoMsg = "No se pudo actualizar la imagen en BioStar.";
+    for (const payload of photoPayloads) {
+        const putPhoto = await biostarRequest(conexion, {
+            method: "PUT",
+            url: `/api/users/${encodeURIComponent(id)}`,
+            data: payload,
+            timeout: 20000,
+        });
+        const photoCode = bioCode(putPhoto.data);
+        if (putPhoto.ok && (!photoCode || photoCode === "0")) {
+            return { ok: true };
+        }
+        const msg = bioMessage(putPhoto.data, putPhoto.message || lastPhotoMsg);
+        lastPhotoMsg = photoCode ? `${msg} (code ${photoCode})` : msg;
     }
 
-    return { ok: true };
+    return { ok: false, mensaje: lastPhotoMsg };
 };
 
 const syncEmpleadoBiostar = async ({
@@ -2340,6 +2449,11 @@ export async function crear(req: Request, res: Response): Promise<void> {
             .save()
             .then(async (reg_saved) => {
                 const { habilitarIntegracionHv, habilitarIntegracionBiostar } = await Configuracion.findOne({}, "habilitarIntegracionHv habilitarIntegracionBiostar") as IConfiguracion;
+                let hikvisionPendiente = false;
+                let biostarPendiente = false;
+                let hikvisionError = "";
+                let biostarError = "";
+
                 if (habilitarIntegracionHv) {
                     const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: accesos } });
                     for await (let panel of paneles) {
@@ -2347,33 +2461,15 @@ export async function crear(req: Request, res: Response): Promise<void> {
                             const { direccion_ip, usuario, contrasena } = panel;
                             const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
                             const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                            // Si hay foto, dejamos que el panel_server maneje la auth internamente
-                            // (evita fallas de hikvision-auth en /api/panel/seguridad).
-                            // if (nuevoUsuario.img_usuario) await HVPANEL.getTokenValue();
                             const syncRes = await HVPANEL.saverUser(mapEmpleadoToPanel(reg_saved));
                             console.log("[EMP] Panel sync respuesta (crear):", syncRes);
                             if (syncRes?.estado === false) {
-                                await Empleados.findByIdAndDelete(reg_saved._id);
-                                await FaceDescriptors.deleteOne({ id_usuario: reg_saved._id });
-                                res.status(200).json({
-                                    estado: false,
-                                    codigo: 'PANEL_SYNC_FAILED',
-                                    mensaje: syncRes?.mensaje || 'El panel no aceptó la foto.',
-                                    datos: syncRes?.datos,
-                                });
-                                return;
+                                hikvisionPendiente = true;
+                                hikvisionError = syncRes?.mensaje || "No se pudo sincronizar en Hikvision.";
                             }
                         } catch (error: any) {
-                            await Empleados.findByIdAndDelete(reg_saved._id);
-                            await FaceDescriptors.deleteOne({ id_usuario: reg_saved._id });
-                            const panelMsg = error?.response?.data?.mensaje || error?.message || 'Error al sincronizar con el panel.';
-                            res.status(200).json({
-                                estado: false,
-                                codigo: 'PANEL_SYNC_FAILED',
-                                mensaje: panelMsg,
-                                datos: error?.response?.data,
-                            });
-                            return;
+                            hikvisionPendiente = true;
+                            hikvisionError = error?.response?.data?.mensaje || error?.message || "Error al sincronizar con el panel.";
                         }
                     }
                 }
@@ -2384,29 +2480,46 @@ export async function crear(req: Request, res: Response): Promise<void> {
                         disabled: false,
                     });
                     if (!bioRes.ok) {
-                        await Empleados.findByIdAndDelete(reg_saved._id);
-                        await FaceDescriptors.deleteOne({ id_usuario: reg_saved._id });
-                        res.status(200).json({
-                            estado: false,
-                            codigo: "BIOSTAR_SYNC_FAILED",
-                            mensaje: bioRes.mensaje || "No se pudo sincronizar el empleado en BioStar.",
+                        biostarPendiente = true;
+                        biostarError = bioRes.mensaje || "No se pudo sincronizar el empleado en BioStar.";
+                    } else {
+                        await Empleados.findByIdAndUpdate(reg_saved._id, {
+                            $set: {
+                                biostar_user_id: bioRes.userId || "",
+                                biostar_group_id: bioRes.groupId || "",
+                                biostar_group_name: bioRes.groupName || "",
+                            }
                         });
-                        return;
                     }
-                    await Empleados.findByIdAndUpdate(reg_saved._id, {
-                        $set: {
-                            biostar_user_id: bioRes.userId || "",
-                            biostar_group_id: bioRes.groupId || "",
-                            biostar_group_name: bioRes.groupName || "",
-                        }
-                    });
                 }
+
+                await Empleados.findByIdAndUpdate(reg_saved._id, {
+                    $set: {
+                        sync_hikvision_pendiente: hikvisionPendiente,
+                        sync_biostar_pendiente: biostarPendiente,
+                        sync_hikvision_error: hikvisionError,
+                        sync_biostar_error: biostarError,
+                    },
+                });
+
+                const pendientes = [
+                    ...(hikvisionPendiente ? ["hikvision"] : []),
+                    ...(biostarPendiente ? ["biostar"] : []),
+                ];
                 await sincronizarUsuarioCampo({
                     empleado: reg_saved,
                     accesoCampo: !!acceso_campo,
                     idUsuarioModif: id_usuario,
                 });
-                res.status(200).json({ estado: true, datos: { usuario: true } });
+                res.status(200).json({
+                    estado: true,
+                    datos: { usuario: true },
+                    sync: {
+                        pendiente: pendientes,
+                        hikvision_error: hikvisionError || "",
+                        biostar_error: biostarError || "",
+                    },
+                });
                 setTimeout(() => {
                     (async () => {
                         if (img_usuario) {
@@ -2497,6 +2610,11 @@ export async function modificar(req: Request, res: Response): Promise<void> {
         }
 
         const { habilitarIntegracionHv, habilitarIntegracionBiostar } = await Configuracion.findOne({}, 'habilitarIntegracionHv habilitarIntegracionBiostar') as IConfiguracion;
+        let hikvisionPendiente = false;
+        let biostarPendiente = false;
+        let hikvisionError = "";
+        let biostarError = "";
+
         if (habilitarIntegracionHv) {
             const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: accesos } });
             for await (let panel of paneles) {
@@ -2504,119 +2622,19 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                     const { direccion_ip, usuario, contrasena } = panel;
                     const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
                     const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                    // Si hay foto, dejamos que el panel_server maneje la auth internamente
-                    // (evita fallas de hikvision-auth en /api/panel/seguridad).
-                    // if (registro.img_usuario) await HVPANEL.getTokenValue();
                     const syncRes = await HVPANEL.saverUser(panelPayload);
                     console.log("[EMP] Panel sync respuesta (modificar):", syncRes);
                     if (syncRes?.estado === false) {
-                        await Empleados.findByIdAndUpdate(req.params.id, { $set: {
-                            img_usuario: prevRegistro.img_usuario,
-                            nombre: prevRegistro.nombre,
-                            apellido_pat: prevRegistro.apellido_pat,
-                            apellido_mat: prevRegistro.apellido_mat,
-                            movil: prevRegistro.movil,
-                            telefono: prevRegistro.telefono,
-                            extension: prevRegistro.extension,
-                            accesos: prevRegistro.accesos,
-                            id_puesto: prevRegistro.id_puesto,
-                            id_departamento: prevRegistro.id_departamento,
-                            id_cubiculo: prevRegistro.id_cubiculo,
-                            id_empresa: prevRegistro.id_empresa,
-                            id_piso: prevRegistro.id_piso,
-                            correo: prevRegistro.correo,
-                            esRoot: prevRegistro.esRoot,
-                        } });
-                        const prevImg = prevRegistro.img_usuario;
-                        const restorePayload = imgChanged && prevImg ? (() => {
-                            const payload = mapEmpleadoToPanel(prevRegistro);
-                            (payload as any).img_usuario = prevImg;
-                            delete (payload as any).img_usuario_prev;
-                            return payload;
-                        })() : null;
-                        res.status(200).json({
-                            estado: false,
-                            codigo: "PANEL_SYNC_FAILED",
-                            mensaje: syncRes?.mensaje || "El panel no aceptó la foto.",
-                            datos: syncRes?.datos,
-                        });
-                        setTimeout(() => {
-                            (async () => {
-                                if (prevImg) {
-                                    try {
-                                        await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: registro._id, img_usuario: prevImg });
-                                    } catch {
-                                        await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
-                                    }
-                                } else {
-                                    await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
-                                }
-                                if (restorePayload) {
-                                    HVPANEL.saverUser(restorePayload)
-                                        .then((restoreRes: any) => {
-                                            console.log("[EMP] Panel restore prev (modificar):", restoreRes);
-                                        })
-                                        .catch((restoreErr: any) => {
-                                            console.error("[EMP] Panel restore prev error:", restoreErr?.message || restoreErr);
-                                        });
-                                }
-                            })();
-                        }, 0);
-                        return;
+                        hikvisionPendiente = true;
+                        hikvisionError = syncRes?.mensaje || "No se pudo sincronizar en Hikvision.";
                     }
                 } catch (error: any) {
-                    await Empleados.findByIdAndUpdate(req.params.id, { $set: {
-                        img_usuario: prevRegistro.img_usuario,
-                        nombre: prevRegistro.nombre,
-                        apellido_pat: prevRegistro.apellido_pat,
-                        apellido_mat: prevRegistro.apellido_mat,
-                        movil: prevRegistro.movil,
-                        telefono: prevRegistro.telefono,
-                        extension: prevRegistro.extension,
-                        accesos: prevRegistro.accesos,
-                        id_puesto: prevRegistro.id_puesto,
-                        id_departamento: prevRegistro.id_departamento,
-                        id_cubiculo: prevRegistro.id_cubiculo,
-                        id_empresa: prevRegistro.id_empresa,
-                        id_piso: prevRegistro.id_piso,
-                        correo: prevRegistro.correo,
-                        esRoot: prevRegistro.esRoot,
-                    } });
-                    if (prevRegistro.img_usuario) {
-                        try {
-                            await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: registro._id, img_usuario: prevRegistro.img_usuario });
-                        } catch {
-                            await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
-                        }
-                    } else {
-                        await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
-                    }
-                    if (imgChanged && prevRegistro.img_usuario) {
-                        const { direccion_ip, usuario, contrasena } = panel;
-                        const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
-                        const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                        const restorePayload = mapEmpleadoToPanel(prevRegistro);
-                        (restorePayload as any).img_usuario = prevRegistro.img_usuario;
-                        delete (restorePayload as any).img_usuario_prev;
-                        HVPANEL.saverUser(restorePayload)
-                            .then((restoreRes: any) => {
-                                console.log("[EMP] Panel restore prev (modificar catch):", restoreRes);
-                            })
-                            .catch((restoreErr: any) => {
-                                console.error("[EMP] Panel restore prev error:", restoreErr?.message || restoreErr);
-                            });
-                    }
-                    const panelMsg = error?.response?.data?.mensaje || error?.message || "Error al sincronizar con el panel.";
-                    res.status(200).json({
-                        estado: false,
-                        codigo: "PANEL_SYNC_FAILED",
-                        mensaje: panelMsg,
-                        datos: error?.response?.data,
-                    });
-                    return;
+                    hikvisionPendiente = true;
+                    hikvisionError = error?.response?.data?.mensaje || error?.message || "Error al sincronizar con el panel.";
                 }
             }
         }
+
         if (habilitarIntegracionBiostar) {
             const bioRes = await syncEmpleadoBiostar({
                 empleado: registro as IEmpleado,
@@ -2624,45 +2642,45 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                 disabled: false,
             });
             if (!bioRes.ok) {
-                await Empleados.findByIdAndUpdate(req.params.id, { $set: {
-                    img_usuario: prevRegistro.img_usuario,
-                    nombre: prevRegistro.nombre,
-                    apellido_pat: prevRegistro.apellido_pat,
-                    apellido_mat: prevRegistro.apellido_mat,
-                    movil: prevRegistro.movil,
-                    telefono: prevRegistro.telefono,
-                    extension: prevRegistro.extension,
-                    accesos: prevRegistro.accesos,
-                    id_puesto: prevRegistro.id_puesto,
-                    id_departamento: prevRegistro.id_departamento,
-                    id_cubiculo: prevRegistro.id_cubiculo,
-                    id_empresa: prevRegistro.id_empresa,
-                    id_piso: prevRegistro.id_piso,
-                    correo: prevRegistro.correo,
-                    esRoot: prevRegistro.esRoot,
-                    biostar_group_id: (prevRegistro as any).biostar_group_id || "",
-                } });
-                res.status(200).json({
-                    estado: false,
-                    codigo: "BIOSTAR_SYNC_FAILED",
-                    mensaje: bioRes.mensaje || "No se pudo sincronizar el empleado en BioStar.",
+                biostarPendiente = true;
+                biostarError = bioRes.mensaje || "No se pudo sincronizar el empleado en BioStar.";
+            } else {
+                await Empleados.findByIdAndUpdate(req.params.id, {
+                    $set: {
+                        biostar_user_id: bioRes.userId || (prevRegistro as any)?.biostar_user_id || "",
+                        biostar_group_id: bioRes.groupId || "",
+                        biostar_group_name: bioRes.groupName || "",
+                    }
                 });
-                return;
             }
-            await Empleados.findByIdAndUpdate(req.params.id, {
-                $set: {
-                    biostar_user_id: bioRes.userId || (prevRegistro as any)?.biostar_user_id || "",
-                    biostar_group_id: bioRes.groupId || "",
-                    biostar_group_name: bioRes.groupName || "",
-                }
-            });
         }
+
+        await Empleados.findByIdAndUpdate(req.params.id, {
+            $set: {
+                sync_hikvision_pendiente: hikvisionPendiente,
+                sync_biostar_pendiente: biostarPendiente,
+                sync_hikvision_error: hikvisionError,
+                sync_biostar_error: biostarError,
+            },
+        });
+
+        const pendientes = [
+            ...(hikvisionPendiente ? ["hikvision"] : []),
+            ...(biostarPendiente ? ["biostar"] : []),
+        ];
         await sincronizarUsuarioCampo({
             empleado: registro as IEmpleado,
             accesoCampo: !!acceso_campo,
             idUsuarioModif: id_usuario,
         });
-        res.status(200).json({ estado: true });
+        res.status(200).json({
+            estado: true,
+            sync: {
+                pendiente: pendientes,
+                hikvision_error: hikvisionError || "",
+                biostar_error: biostarError || "",
+            },
+        });
         setTimeout(() => {
             (async () => {
                 if (imgChanged) {
@@ -2694,6 +2712,98 @@ export async function modificar(req: Request, res: Response): Promise<void> {
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 };
+
+export async function reintentarSync(req: Request, res: Response): Promise<void> {
+    try {
+        const id = String(req.params.id || "").trim();
+        if (!id) {
+            res.status(200).json({ estado: false, mensaje: "Id de empleado invalido." });
+            return;
+        }
+        const registro = await Empleados.findById(id);
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
+            return;
+        }
+
+        const { habilitarIntegracionHv, habilitarIntegracionBiostar } = await Configuracion.findOne({}, "habilitarIntegracionHv habilitarIntegracionBiostar") as IConfiguracion;
+
+        let hikvisionPendiente = !!(registro as any)?.sync_hikvision_pendiente;
+        let biostarPendiente = !!(registro as any)?.sync_biostar_pendiente;
+        let hikvisionError = String((registro as any)?.sync_hikvision_error || "");
+        let biostarError = String((registro as any)?.sync_biostar_error || "");
+
+        if (habilitarIntegracionHv && hikvisionPendiente) {
+            hikvisionPendiente = false;
+            hikvisionError = "";
+            const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: registro.accesos || [] } });
+            const panelPayload = mapEmpleadoToPanel(registro as IEmpleado);
+            for await (let panel of paneles) {
+                try {
+                    const { direccion_ip, usuario, contrasena } = panel;
+                    const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
+                    const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
+                    const syncRes = await HVPANEL.saverUser(panelPayload);
+                    if (syncRes?.estado === false) {
+                        hikvisionPendiente = true;
+                        hikvisionError = syncRes?.mensaje || "No se pudo sincronizar en Hikvision.";
+                    }
+                } catch (error: any) {
+                    hikvisionPendiente = true;
+                    hikvisionError = error?.response?.data?.mensaje || error?.message || "Error al sincronizar con el panel.";
+                }
+            }
+        }
+
+        if (habilitarIntegracionBiostar && biostarPendiente) {
+            const bioRes = await syncEmpleadoBiostar({
+                empleado: registro as IEmpleado,
+                biostar_group_id: String((registro as any)?.biostar_group_id || "1"),
+                disabled: !registro.activo,
+            });
+            if (!bioRes.ok) {
+                biostarPendiente = true;
+                biostarError = bioRes.mensaje || "No se pudo sincronizar el empleado en BioStar.";
+            } else {
+                biostarPendiente = false;
+                biostarError = "";
+                await Empleados.findByIdAndUpdate(id, {
+                    $set: {
+                        biostar_user_id: bioRes.userId || (registro as any)?.biostar_user_id || "",
+                        biostar_group_id: bioRes.groupId || (registro as any)?.biostar_group_id || "",
+                        biostar_group_name: bioRes.groupName || (registro as any)?.biostar_group_name || "",
+                    },
+                });
+            }
+        }
+
+        await Empleados.findByIdAndUpdate(id, {
+            $set: {
+                sync_hikvision_pendiente: hikvisionPendiente,
+                sync_biostar_pendiente: biostarPendiente,
+                sync_hikvision_error: hikvisionError,
+                sync_biostar_error: biostarError,
+            },
+        });
+
+        const pendientes = [
+            ...(hikvisionPendiente ? ["hikvision"] : []),
+            ...(biostarPendiente ? ["biostar"] : []),
+        ];
+        res.status(200).json({
+            estado: true,
+            sync: {
+                pendiente: pendientes,
+                hikvision_error: hikvisionError || "",
+                biostar_error: biostarError || "",
+            },
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
 export async function modificarEstado(req: Request, res: Response): Promise<void> {
     try {
         const { activo } = req.body;
@@ -3345,6 +3455,10 @@ const rellenarHojaEmpresasFormato = async ({ isMaster, id_empresa }: { isMaster:
             return workbook.xlsx.writeFile(nameFileExcel);
         });
 }
+
+
+
+
 
 
 

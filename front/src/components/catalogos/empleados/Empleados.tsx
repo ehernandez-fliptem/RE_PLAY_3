@@ -14,6 +14,7 @@ import { esES } from "@mui/x-data-grid/locales";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import {
   Add,
+  Autorenew,
   CheckCircleOutline,
   Close,
   Delete,
@@ -124,6 +125,7 @@ export default function Empleados() {
   const [tarjetaDescripcion, setTarjetaDescripcion] = useState("");
   const [tarjetaMensaje, setTarjetaMensaje] = useState("");
   const [biostarGroupFilter, setBiostarGroupFilter] = useState("");
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [biostarGroupOptions, setBiostarGroupOptions] = useState<
     Array<{ id_externo: string; nombre: string; total: number }>
   >([]);
@@ -491,9 +493,9 @@ export default function Empleados() {
             pagination: JSON.stringify(params.paginationModel),
             sort: JSON.stringify(params.sortModel),
           });
+          urlParams.set("biostar_live", "1");
           if (biostarGroupFilter) {
             urlParams.set("biostar_group_id", biostarGroupFilter);
-            urlParams.set("biostar_live", "1");
           }
           const res = await clienteAxios.get(
             "/api/empleados?" + urlParams.toString()
@@ -505,8 +507,12 @@ export default function Empleados() {
               ...r,
               id_empleado: Number(r.id_empleado),
             }));
-            console.log("Filas", rows);
-            
+            setPendingSyncCount(
+              rows.filter(
+                (r: any) =>
+                  !!r.sync_hikvision_pendiente || !!r.sync_biostar_pendiente
+              ).length
+            );
             rowCount = res.data.datos.totalCount[0]?.count || 0;
           }
         } catch (error) {
@@ -628,6 +634,36 @@ export default function Empleados() {
     }
   };
 
+  const reintentarSyncFila = async (ID: string) => {
+    try {
+      setRowLoading(ID, true);
+      const res = await clienteAxios.post(`/api/empleados/${ID}/reintentar-sync`);
+      if (res.data?.estado) {
+        const pendientes: string[] = Array.isArray(res.data?.sync?.pendiente)
+          ? res.data.sync.pendiente
+          : [];
+        if (pendientes.length === 0) {
+          enqueueSnackbar("Sincronización completada.", { variant: "success" });
+        } else {
+          enqueueSnackbar(
+            `Sincronización pendiente en: ${pendientes.join(", ")}.`,
+            { variant: "warning" }
+          );
+        }
+        apiRef.current?.dataSource?.fetchRows?.();
+      } else {
+        enqueueSnackbar(res.data?.mensaje || "No se pudo reintentar la sincronización.", {
+          variant: "warning",
+        });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setRowLoading(ID, false);
+    }
+  };
+
   // --- COLUMNAS OCULTAS TEMPORALMENTE ---
   // Las siguientes columnas se comentan porque no se requieren en la vista actual de empleados.
   // Si en el futuro se necesitan, solo descomentar. Motivo: simplificar la interfaz y mostrar solo lo esencial.
@@ -682,6 +718,11 @@ export default function Empleados() {
 
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
+      {pendingSyncCount > 0 && (
+        <Alert severity="warning" sx={{ mb: 1 }}>
+          Hay {pendingSyncCount} empleado(s) con sincronización pendiente con integraciones.
+        </Alert>
+      )}
       <DataGrid
         apiRef={apiRef}
         initialState={initialState}
@@ -913,6 +954,20 @@ export default function Empleados() {
                       title="Restaurar"
                     />
                   )
+                );
+              }
+              if (row.sync_hikvision_pendiente || row.sync_biostar_pendiente) {
+                const sistemas = [
+                  ...(row.sync_hikvision_pendiente ? ["Hikvision"] : []),
+                  ...(row.sync_biostar_pendiente ? ["BioStar"] : []),
+                ].join(", ");
+                gridActions.push(
+                  <GridActionsCellItem
+                    icon={<Autorenew color="warning" />}
+                    onClick={() => reintentarSyncFila(row._id)}
+                    label={`Reintentar sync (${sistemas})`}
+                    title={`Reintentar sync (${sistemas})`}
+                  />
                 );
               }
               return gridActions;

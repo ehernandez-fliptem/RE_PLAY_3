@@ -23,6 +23,7 @@ import {
     reenviarHuellaEmpleadoPanel,
     registrarTarjetaEmpleadoPanel,
     eliminarTarjetaEmpleadoPanel,
+    reintentarSync,
 } from "../controllers/empleados.controller";
 
 const router = Router();
@@ -39,6 +40,7 @@ router.get('/qr/:id', validarTokenYRol([1, 2]), obtenerQR);
 router.get('/biometria/:id', validarTokenYRol([1, 2]), obtenerBiometriaEmpleado);
 router.get("/:id", validarTokenYRol([1, 2]), obtenerUno);
 router.post("/", validarTokenYRol([1, 2]), crear);
+router.post("/:id/reintentar-sync", validarTokenYRol([1, 2]), reintentarSync);
 router.post("/cargar-formato", validarTokenYRol([1, 2]), cargarFormato);
 router.post("/programacion", validarTokenYRol([1, 2]), cargarProgramacionEmpleados);
 router.put("/:id", validarTokenYRol([1, 2]), modificar);
