@@ -38,6 +38,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
         const id_usuario = (req as UserRequest).userId;
         const isMaster = (req as UserRequest).isMaster;
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
+        const biostarGroupId = String((req.query as any)?.biostar_group_id || "").trim();
 
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
@@ -58,7 +59,8 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
             {
                 $match: {
                     $and: [
-                        isMaster ? {} : { id_empresa: new Types.ObjectId(id_empresa) }
+                        isMaster ? {} : { id_empresa: new Types.ObjectId(id_empresa) },
+                        biostarGroupId ? { biostar_group_id: biostarGroupId, biostar_user_id: { $nin: ["", null] } } : {},
                     ]
                 }
             },
@@ -1877,6 +1879,51 @@ const getBiostarConexionActiva = async (): Promise<any | null> => {
     if (global) return global;
     return DispositivosBiostar.findOne({ activo: true }).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
 };
+
+export async function obtenerResumenGruposBiostarRegistrados(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const isMaster = (req as UserRequest).isMaster;
+        const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
+
+        const match: any = {
+            biostar_user_id: { $nin: ["", null] },
+            biostar_group_id: { $nin: ["", null] },
+        };
+        if (!isMaster) match.id_empresa = new Types.ObjectId(id_empresa);
+
+        const rows = await Empleados.aggregate([
+            { $match: match },
+            {
+                $group: {
+                    _id: "$biostar_group_id",
+                    nombre: { $first: "$biostar_group_name" },
+                    total: { $sum: 1 },
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    id_externo: "$_id",
+                    nombre: {
+                        $cond: [
+                            { $or: [{ $eq: ["$nombre", ""] }, { $eq: ["$nombre", null] }] },
+                            "Sin nombre",
+                            "$nombre"
+                        ]
+                    },
+                    total: 1,
+                }
+            },
+            { $sort: { nombre: 1 } }
+        ]);
+
+        res.status(200).json({ estado: true, datos: rows });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
 
 const resolveBiostarGroup = async (conexion: any, idGrupo?: string) => {
     const allUsers = { id: "1", name: "All Users" };

@@ -33,7 +33,11 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControl,
   IconButton,
+  InputLabel,
+  MenuItem,
+  Select,
   TextField,
   Tooltip,
 } from "@mui/material";
@@ -119,6 +123,10 @@ export default function Empleados() {
   const [tarjetaNombre, setTarjetaNombre] = useState("");
   const [tarjetaDescripcion, setTarjetaDescripcion] = useState("");
   const [tarjetaMensaje, setTarjetaMensaje] = useState("");
+  const [biostarGroupFilter, setBiostarGroupFilter] = useState("");
+  const [biostarGroupOptions, setBiostarGroupOptions] = useState<
+    Array<{ id_externo: string; nombre: string; total: number }>
+  >([]);
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
 
@@ -420,6 +428,20 @@ export default function Empleados() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state, habilitarIntegracionHvBiometria]);
 
+  useEffect(() => {
+    const cargarResumenGrupos = async () => {
+      try {
+        const res = await clienteAxios.get("/api/empleados/biostar-grupos-resumen");
+        if (res.data?.estado) {
+          setBiostarGroupOptions(Array.isArray(res.data.datos) ? res.data.datos : []);
+        }
+      } catch {
+        setBiostarGroupOptions([]);
+      }
+    };
+    cargarResumenGrupos();
+  }, []);
+
   const devReplayEnabled = false;
   const biometriaBadgeWidth = 126;
 
@@ -469,6 +491,9 @@ export default function Empleados() {
             pagination: JSON.stringify(params.paginationModel),
             sort: JSON.stringify(params.sortModel),
           });
+          if (biostarGroupFilter) {
+            urlParams.set("biostar_group_id", biostarGroupFilter);
+          }
           const res = await clienteAxios.get(
             "/api/empleados?" + urlParams.toString()
           );
@@ -495,8 +520,12 @@ export default function Empleados() {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [biostarGroupFilter]
   );
+
+  useEffect(() => {
+    apiRef.current?.dataSource?.fetchRows?.();
+  }, [biostarGroupFilter, apiRef]);
 
   const initialState: GridInitialState = useMemo(
     () => ({
@@ -928,6 +957,31 @@ export default function Empleados() {
               tableTitle="Gestión de Empleados"
               customActionButtons={
                 <Fragment>
+                  <FormControl
+                    size="small"
+                    sx={{ minWidth: 260, mr: 1 }}
+                  >
+                    <InputLabel id="grupo-biostar-filter-label">
+                      Grupo BioStar
+                    </InputLabel>
+                    <Select
+                      labelId="grupo-biostar-filter-label"
+                      value={biostarGroupFilter}
+                      label="Grupo BioStar"
+                      onChange={(e) =>
+                        setBiostarGroupFilter(String(e.target.value || ""))
+                      }
+                    >
+                      <MenuItem value="">
+                        Todos los registrados ({biostarGroupOptions.reduce((a, b) => a + (b.total || 0), 0)})
+                      </MenuItem>
+                      {biostarGroupOptions.map((item) => (
+                        <MenuItem key={item.id_externo} value={item.id_externo}>
+                          {item.nombre} ({item.total})
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                   <Tooltip title="Agregar">
                     <IconButton onClick={nuevoRegistro}>
                       <Add fontSize="small" />
