@@ -2819,52 +2819,8 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
             res.status(200).json({ estado: false, mensaje: 'Usuario no encontrado.' });
             return;
         }
-        const registroPanel = mapEmpleadoToPanel(registro);
-        registroPanel.activo = !activo;
+        // Cambio de estado solo en RE (no borrar ni sincronizar en BioStar/Hikvision).
         await FaceDescriptors.updateOne({ id_usuario: req.params.id }, { $set: { activo: !activo } });
-        const { habilitarIntegracionHv, habilitarIntegracionBiostar } = await Configuracion.findOne({}, 'habilitarIntegracionHv habilitarIntegracionBiostar') as IConfiguracion;
-        if (habilitarIntegracionHv) {
-            const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: registro.accesos } });
-            for await (let panel of paneles) {
-                try {
-                    const { direccion_ip, usuario, contrasena } = panel;
-                    const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
-                    const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                    await HVPANEL.saverUser(registroPanel);
-                } catch (error: any) {
-                    console.warn("[EMPLEADOS][ESTADO] Sync panel falló:", error?.message || error);
-                }
-            }
-        }
-        if (habilitarIntegracionBiostar) {
-            const nuevoActivo = !activo;
-            if (!nuevoActivo) {
-                const del = await deleteEmpleadoBiostar((registro as any)?.biostar_user_id || String((registro as any)?.id_empleado || ""));
-                if (!del.ok) {
-                    await Empleados.findByIdAndUpdate(req.params.id, { $set: { activo } });
-                    res.status(200).json({ estado: false, codigo: "BIOSTAR_SYNC_FAILED", mensaje: del.mensaje || "No se pudo eliminar el empleado en BioStar." });
-                    return;
-                }
-            } else {
-                const bioRes = await syncEmpleadoBiostar({
-                    empleado: registro as IEmpleado,
-                    biostar_group_id: String((registro as any)?.biostar_group_id || "1"),
-                    disabled: false,
-                });
-                if (!bioRes.ok) {
-                    await Empleados.findByIdAndUpdate(req.params.id, { $set: { activo } });
-                    res.status(200).json({ estado: false, codigo: "BIOSTAR_SYNC_FAILED", mensaje: bioRes.mensaje || "No se pudo activar el empleado en BioStar." });
-                    return;
-                }
-                await Empleados.findByIdAndUpdate(req.params.id, {
-                    $set: {
-                        biostar_user_id: bioRes.userId || "",
-                        biostar_group_id: bioRes.groupId || "",
-                        biostar_group_name: bioRes.groupName || "",
-                    }
-                });
-            }
-        }
         res.status(200).json({ estado: true });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
