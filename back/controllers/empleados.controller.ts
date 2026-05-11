@@ -1906,7 +1906,14 @@ const syncEmpleadoBiostar = async ({
     const now = new Date();
     const farFuture = new Date(now);
     farFuture.setFullYear(farFuture.getFullYear() + 30);
-    const toBioIso = (d: Date) => d.toISOString().slice(0, 19);
+    const toBioIso = (d: Date, endOfDay = false) => {
+        const yyyy = d.getUTCFullYear();
+        const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const dd = String(d.getUTCDate()).padStart(2, "0");
+        const hh = endOfDay ? "23" : "00";
+        const min = endOfDay ? "59" : "00";
+        return `${yyyy}-${mm}-${dd}T${hh}:${min}:00.00Z`;
+    };
 
     const exists = await biostarRequest(conexion, { method: "GET", url: `/api/users/${encodeURIComponent(userId)}` });
     const isEdit = exists.ok && exists.data?.User;
@@ -1920,8 +1927,8 @@ const syncEmpleadoBiostar = async ({
                 name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || userId),
                 user_group_id: { id: Number(grupo.id) || grupo.id, name: grupo.name },
                 disabled: !!disabled,
-                start_datetime: toBioIso(now),
-                expiry_datetime: toBioIso(farFuture),
+                start_datetime: toBioIso(now, false),
+                expiry_datetime: toBioIso(farFuture, true),
             },
         },
         {
@@ -1930,8 +1937,8 @@ const syncEmpleadoBiostar = async ({
                 name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || userId),
                 user_group_id: { id: Number(grupo.id) || grupo.id },
                 disabled: !!disabled,
-                start_datetime: toBioIso(now),
-                expiry_datetime: toBioIso(farFuture),
+                start_datetime: toBioIso(now, false),
+                expiry_datetime: toBioIso(farFuture, true),
             },
         },
         {
@@ -1940,8 +1947,8 @@ const syncEmpleadoBiostar = async ({
                 name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || userId),
                 user_group_id: Number(grupo.id) || grupo.id,
                 disabled: !!disabled,
-                start_datetime: toBioIso(now),
-                expiry_datetime: toBioIso(farFuture),
+                start_datetime: toBioIso(now, false),
+                expiry_datetime: toBioIso(farFuture, true),
             },
         },
         {
