@@ -1968,6 +1968,60 @@ const resolveBiostarGroup = async (conexion: any, idGrupo?: string) => {
     return { id: String(found.id), name: String(found.name || "All Users") };
 };
 
+const cleanBase64Image = (img?: string) => String(img || "").replace(/^data:image\/\w+;base64,/, "").trim();
+
+const syncEmpleadoBiostarPhoto = async ({
+    conexion,
+    userId,
+    imgUsuario,
+}: {
+    conexion: any;
+    userId: string;
+    imgUsuario?: string;
+}): Promise<{ ok: boolean; mensaje?: string }> => {
+    const id = String(userId || "").trim();
+    if (!id) return { ok: false, mensaje: "No se pudo sincronizar la imagen en BioStar: user_id vacio." };
+
+    const hasImage = !!String(imgUsuario || "").trim();
+    let photoBase64 = "";
+
+    if (hasImage) {
+        const jpgDataUrl = await resizeImage(String(imgUsuario), true, 300, "jpeg");
+        photoBase64 = cleanBase64Image(jpgDataUrl);
+        if (!photoBase64) {
+            return { ok: false, mensaje: "No se pudo convertir la imagen para BioStar." };
+        }
+
+        // Validacion de formato como en el flujo oficial del HAR.
+        const check = await biostarRequest(conexion, {
+            method: "PUT",
+            url: "/api/users/check/upload_picture",
+            data: { template_ex_picture: photoBase64 },
+            timeout: 20000,
+        });
+        const checkCode = bioCode(check.data);
+        if (!(check.ok && (!checkCode || checkCode === "0"))) {
+            const checkMsg = bioMessage(check.data, check.message || "BioStar rechazo la imagen.");
+            return { ok: false, mensaje: checkCode ? `${checkMsg} (code ${checkCode})` : checkMsg };
+        }
+    }
+
+    // En BioStar, photo vacio elimina la foto actual del usuario.
+    const putPhoto = await biostarRequest(conexion, {
+        method: "PUT",
+        url: `/api/users/${encodeURIComponent(id)}`,
+        data: { User: { photo: photoBase64 } },
+        timeout: 20000,
+    });
+    const photoCode = bioCode(putPhoto.data);
+    if (!(putPhoto.ok && (!photoCode || photoCode === "0"))) {
+        const msg = bioMessage(putPhoto.data, putPhoto.message || "No se pudo actualizar la imagen en BioStar.");
+        return { ok: false, mensaje: photoCode ? `${msg} (code ${photoCode})` : msg };
+    }
+
+    return { ok: true };
+};
+
 const syncEmpleadoBiostar = async ({
     empleado,
     biostar_group_id,
@@ -2097,6 +2151,14 @@ const syncEmpleadoBiostar = async ({
         const upsert = await biostarRequest(conexion, { method, url, data: body });
         const code = bioCode(upsert.data);
         if (upsert.ok && (!code || code === "0")) {
+            const photoRes = await syncEmpleadoBiostarPhoto({
+                conexion,
+                userId,
+                imgUsuario: (empleado as any)?.img_usuario || "",
+            });
+            if (!photoRes.ok) {
+                return { ok: false, mensaje: photoRes.mensaje || "No se pudo sincronizar la imagen en BioStar." };
+            }
             return { ok: true, userId, groupId: grupo.id, groupName: grupo.name };
         }
         const msg = bioMessage(upsert.data, upsert.message || lastMsg);
@@ -2122,6 +2184,14 @@ const syncEmpleadoBiostar = async ({
             const retry = await biostarRequest(conexion, { method: "POST", url: "/api/users", data: altPayload });
             const retryCode = bioCode(retry.data);
             if (retry.ok && (!retryCode || retryCode === "0")) {
+                const photoRes = await syncEmpleadoBiostarPhoto({
+                    conexion,
+                    userId: altUserId,
+                    imgUsuario: (empleado as any)?.img_usuario || "",
+                });
+                if (!photoRes.ok) {
+                    return { ok: false, mensaje: photoRes.mensaje || "No se pudo sincronizar la imagen en BioStar." };
+                }
                 return { ok: true, userId: altUserId, groupId: grupo.id, groupName: grupo.name };
             }
             const retryMsg = bioMessage(retry.data, retry.message || lastMsg);
