@@ -1902,7 +1902,13 @@ const syncEmpleadoBiostar = async ({
     const grupo = await resolveBiostarGroup(conexion, biostar_group_id || (empleado as any)?.biostar_group_id || "1");
     if (!grupo) return { ok: false, mensaje: "El grupo de BioStar seleccionado no existe." };
 
-    const userId = String((empleado as any)?.biostar_user_id || empleado.id_empleado || "").trim();
+    const MAX_USER_ID_NUM = 4294967295;
+    const makeUserId = () => {
+        const base = Date.now() % MAX_USER_ID_NUM;
+        return String(base < 1 ? 1 : base);
+    };
+    let userId = String((empleado as any)?.biostar_user_id || empleado.id_empleado || "").trim();
+    if (!userId || /\s/.test(userId)) userId = makeUserId();
     const now = new Date();
     const farFuture = new Date(now);
     farFuture.setFullYear(farFuture.getFullYear() + 30);
@@ -1970,6 +1976,28 @@ const syncEmpleadoBiostar = async ({
         }
         const msg = bioMessage(upsert.data, upsert.message || lastMsg);
         lastMsg = code ? `${msg} (code ${code})` : msg;
+    }
+    if (!isEdit && lastMsg.toLowerCase().includes("code 800")) {
+        for (let i = 0; i < 3; i++) {
+            const altUserId = makeUserId();
+            const altPayload = {
+                User: {
+                    user_id: altUserId,
+                    name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || altUserId),
+                    user_group_id: { id: Number(grupo.id) || grupo.id, name: grupo.name },
+                    disabled: !!disabled,
+                    start_datetime: toBioIso(now, false),
+                    expiry_datetime: toBioIso(farFuture, true),
+                },
+            };
+            const retry = await biostarRequest(conexion, { method: "POST", url: "/api/users", data: altPayload });
+            const retryCode = bioCode(retry.data);
+            if (retry.ok && (!retryCode || retryCode === "0")) {
+                return { ok: true, userId: altUserId, groupId: grupo.id, groupName: grupo.name };
+            }
+            const retryMsg = bioMessage(retry.data, retry.message || lastMsg);
+            lastMsg = retryCode ? `${retryMsg} (code ${retryCode})` : retryMsg;
+        }
     }
     return { ok: false, mensaje: lastMsg };
 };
