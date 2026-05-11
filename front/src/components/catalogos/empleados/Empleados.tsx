@@ -39,8 +39,11 @@ import {
   InputLabel,
   MenuItem,
   Select,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
+  Typography,
 } from "@mui/material";
 import CircularProgress from "@mui/material/CircularProgress";
 import { enqueueSnackbar } from "notistack";
@@ -130,6 +133,12 @@ export default function Empleados() {
   const [biostarGroupOptions, setBiostarGroupOptions] = useState<
     Array<{ id_externo: string; nombre: string; total: number }>
   >([]);
+  const [syncBioOpen, setSyncBioOpen] = useState(false);
+  const [syncBioTab, setSyncBioTab] = useState<"listos" | "pendientes">("listos");
+  const [syncBioLoading, setSyncBioLoading] = useState(false);
+  const [syncBioImporting, setSyncBioImporting] = useState(false);
+  const [syncBioListos, setSyncBioListos] = useState<any[]>([]);
+  const [syncBioPendientes, setSyncBioPendientes] = useState<any[]>([]);
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
 
@@ -560,6 +569,53 @@ export default function Empleados() {
 
   const nuevoRegistro = () => {
     navigate("nuevo-empleado");
+  };
+
+  const cargarSyncBiostarPreview = useCallback(async () => {
+    try {
+      setSyncBioLoading(true);
+      const res = await clienteAxios.get("/api/empleados/biostar-sync/preview");
+      if (!res.data?.estado) {
+        enqueueSnackbar(res.data?.mensaje || "No se pudo consultar BioStar.", { variant: "warning" });
+        setSyncBioListos([]);
+        setSyncBioPendientes([]);
+        return;
+      }
+      setSyncBioListos(Array.isArray(res.data?.datos?.listos) ? res.data.datos.listos : []);
+      setSyncBioPendientes(Array.isArray(res.data?.datos?.pendientes) ? res.data.datos.pendientes : []);
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setSyncBioLoading(false);
+    }
+  }, [navigate]);
+
+  const abrirSyncBiostar = async () => {
+    setSyncBioOpen(true);
+    setSyncBioTab("listos");
+    await cargarSyncBiostarPreview();
+  };
+
+  const importarListosBiostar = async () => {
+    try {
+      setSyncBioImporting(true);
+      const res = await clienteAxios.post("/api/empleados/biostar-sync/import");
+      if (!res.data?.estado) {
+        enqueueSnackbar(res.data?.mensaje || "No se pudo importar desde BioStar.", { variant: "warning" });
+        return;
+      }
+      const creados = Number(res.data?.datos?.creados || 0);
+      const omitidos = Number(res.data?.datos?.omitidos || 0);
+      enqueueSnackbar(`Sincronización completada. Creados: ${creados}. Omitidos: ${omitidos}.`, { variant: "success" });
+      apiRef.current?.dataSource?.fetchRows?.();
+      await cargarSyncBiostarPreview();
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setSyncBioImporting(false);
+    }
   };
 
   const editarRegistro = (ID: string) => {
@@ -1057,6 +1113,11 @@ export default function Empleados() {
                       <Add fontSize="small" />
                     </IconButton>
                   </Tooltip>
+                  <Tooltip title="Sincronizar BioStar">
+                    <IconButton onClick={abrirSyncBiostar}>
+                      <Autorenew fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                   {/* [En proceso] Botón de carga masiva oculto porque la funcionalidad aún no está disponible
                   <Tooltip title="Carga masiva">
                     <IconButton onClick={cargaMasiva}>
@@ -1070,6 +1131,89 @@ export default function Empleados() {
           ),
         }}
       />
+      <Dialog open={syncBioOpen} onClose={() => setSyncBioOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Sincronizar BioStar</DialogTitle>
+        <DialogContent dividers>
+          <Tabs
+            value={syncBioTab}
+            onChange={(_, v) => setSyncBioTab(v)}
+            sx={{ mb: 2 }}
+          >
+            <Tab value="listos" label={`Listos (${syncBioListos.length})`} />
+            <Tab value="pendientes" label={`Pendientes (${syncBioPendientes.length})`} />
+          </Tabs>
+          {syncBioLoading ? (
+            <Spinner />
+          ) : syncBioTab === "listos" ? (
+            <Box sx={{ maxHeight: 360, overflowY: "auto" }}>
+              {syncBioListos.length === 0 ? (
+                <Typography variant="body2">No hay usuarios listos para importar.</Typography>
+              ) : (
+                syncBioListos.map((u: any) => (
+                  <Box key={String(u.biostar_user_id)} sx={{ py: 1, borderBottom: "1px solid #eee" }}>
+                    <Typography variant="body2">
+                      {u.nombre} {u.apellido_pat} - {u.correo}
+                    </Typography>
+                  </Box>
+                ))
+              )}
+            </Box>
+          ) : (
+            <Box sx={{ maxHeight: 360, overflowY: "auto" }}>
+              {syncBioPendientes.length === 0 ? (
+                <Typography variant="body2">No hay usuarios pendientes.</Typography>
+              ) : (
+                syncBioPendientes.map((u: any) => (
+                  <Box key={String(u.biostar_user_id)} sx={{ py: 1, borderBottom: "1px solid #eee" }}>
+                    <Typography variant="body2">
+                      {u.nombre || "(Sin nombre)"} - {u.correo || "(Sin correo)"}
+                    </Typography>
+                    <Typography variant="caption" color="error">
+                      {(u.motivos || []).join(", ")}
+                    </Typography>
+                    <Box sx={{ mt: 1 }}>
+                      <Button
+                        size="small"
+                        onClick={() =>
+                          navigate("nuevo-empleado", {
+                            state: {
+                              biostarPrefill: {
+                                nombre: u.nombre || "",
+                                apellido_pat: u.apellido_pat || "",
+                                apellido_mat: u.apellido_mat || "",
+                                correo: u.correo || "",
+                                telefono: u.telefono || "",
+                                movil: u.movil || "",
+                                extension: u.extension || "",
+                                biostar_group_id: u.biostar_group_id || "",
+                              },
+                            },
+                          })
+                        }
+                      >
+                        Completar
+                      </Button>
+                    </Box>
+                  </Box>
+                ))
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={cargarSyncBiostarPreview} disabled={syncBioLoading || syncBioImporting}>Recargar</Button>
+          <Button onClick={() => setSyncBioOpen(false)}>Cerrar</Button>
+          {syncBioTab === "listos" && (
+            <Button
+              variant="contained"
+              onClick={importarListosBiostar}
+              disabled={syncBioImporting || syncBioLoading || syncBioListos.length === 0}
+            >
+              Importar listos
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
       <Dialog
         open={biometriaOpen}
         onClose={cerrarBiometria}

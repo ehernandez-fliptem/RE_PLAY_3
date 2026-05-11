@@ -1992,6 +1992,186 @@ const getBiostarConexionActiva = async (): Promise<any | null> => {
     return DispositivosBiostar.findOne({ activo: true }).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
 };
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const buildBiostarDraft = (u: any) => {
+    const userId = String(u?.user_id || "").trim();
+    const fullName = String(u?.name || "").trim();
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    const nombre = String(parts[0] || "").trim();
+    const apellido_pat = String(parts.slice(1).join(" ") || "Empleado").trim();
+    const rawEmail = normalizarCorreo(u?.email || "");
+    const correo = EMAIL_RE.test(rawEmail) ? rawEmail : (userId ? `${userId.toLowerCase()}@biostar.local` : "");
+    return {
+        biostar_user_id: userId,
+        biostar_group_id: String(u?.user_group_id?.id || "").trim(),
+        biostar_group_name: String(u?.user_group_id?.name || "").trim(),
+        nombre,
+        apellido_pat,
+        apellido_mat: "",
+        correo,
+        telefono: String(u?.phone || "").trim(),
+        movil: "",
+        extension: "",
+    };
+};
+
+const getDefaultCompanyScope = async (id_usuario: string) => {
+    const usuario = await Usuarios.findById(id_usuario, "id_empresa") as IUsuario | null;
+    const id_empresa = String((usuario as any)?.id_empresa || "").trim();
+    if (!id_empresa) return null;
+    const empresa = await Empresas.findById(id_empresa, "pisos accesos esRoot") as any;
+    if (!empresa) return null;
+    const id_piso = String((empresa?.pisos?.[0] || "")).trim();
+    const id_acceso = String((empresa?.accesos?.[0] || "")).trim();
+    return { id_empresa, id_piso, id_acceso, esRoot: !!empresa?.esRoot };
+};
+
+export async function previewSyncBiostar(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const defaults = await getDefaultCompanyScope(String(id_usuario || ""));
+        if (!defaults?.id_empresa || !defaults?.id_piso || !defaults?.id_acceso) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "Falta configuración base en RE (empresa/piso/acceso) para importar automáticamente.",
+            });
+            return;
+        }
+        const conexion = await getBiostarConexionActiva();
+        if (!conexion) {
+            res.status(200).json({ estado: false, mensaje: "No hay conexión activa de BioStar." });
+            return;
+        }
+
+        const live = await biostarRequest(conexion, {
+            method: "POST",
+            url: "/api/v2/users/search?noblockui",
+            data: { limit: 5000, offset: 0 },
+        });
+        if (!live.ok) {
+            res.status(200).json({ estado: false, mensaje: bioMessage(live.data, "No se pudo consultar usuarios en BioStar.") });
+            return;
+        }
+        const rows = (live.data?.UserCollection?.rows || []) as any[];
+        const candidatos = rows.filter((u) => !isBiostarAdminUser(u));
+        const biostarIds = candidatos.map((u) => String(u?.user_id || "").trim()).filter(Boolean);
+        const existentes = await Empleados.find(
+            { biostar_user_id: { $in: biostarIds } },
+            "biostar_user_id correo"
+        ).lean();
+        const byBio = new Map<string, any>();
+        for (const e of existentes) byBio.set(String((e as any)?.biostar_user_id || "").trim(), e);
+
+        const listos: any[] = [];
+        const pendientes: any[] = [];
+        for (const u of candidatos) {
+            const draft = buildBiostarDraft(u);
+            if (!draft.biostar_user_id) continue;
+            if (byBio.has(draft.biostar_user_id)) continue;
+
+            const motivos: string[] = [];
+            if (!draft.nombre) motivos.push("Sin nombre en BioStar");
+            if (!draft.correo) motivos.push("Sin correo válido");
+
+            // Evita choque de correo.
+            if (draft.correo) {
+                const dup = await Empleados.findOne({ correo: draft.correo }, "_id biostar_user_id").lean();
+                if (dup && String((dup as any)?.biostar_user_id || "").trim() !== draft.biostar_user_id) {
+                    motivos.push("Correo ya existe en RE");
+                }
+            }
+
+            const payload = {
+                ...draft,
+                id_empresa: defaults.id_empresa,
+                id_piso: defaults.id_piso,
+                accesos: [defaults.id_acceso],
+            };
+            if (motivos.length === 0) listos.push(payload);
+            else pendientes.push({ ...payload, motivos });
+        }
+
+        res.status(200).json({
+            estado: true,
+            datos: {
+                listos,
+                pendientes,
+                resumen: { listos: listos.length, pendientes: pendientes.length },
+            },
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function importarSyncBiostar(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const previewReq = { ...req } as Request;
+        const capture: any = {};
+        const fakeRes: any = {
+            status: (_code: number) => ({
+                json: (payload: any) => { capture.payload = payload; return payload; }
+            })
+        };
+        await previewSyncBiostar(previewReq, fakeRes as Response);
+        const data = capture?.payload;
+        if (!data?.estado) {
+            res.status(200).json(data || { estado: false, mensaje: "No se pudo preparar la sincronización." });
+            return;
+        }
+        const listos = Array.isArray(data?.datos?.listos) ? data.datos.listos : [];
+        let creados = 0;
+        let omitidos = 0;
+        for (const item of listos) {
+            const exists = await Empleados.findOne({ biostar_user_id: item.biostar_user_id }, "_id").lean();
+            if (exists) { omitidos++; continue; }
+            const nuevo = new Empleados({
+                img_usuario: "",
+                nombre: item.nombre,
+                apellido_pat: item.apellido_pat || "Empleado",
+                apellido_mat: "",
+                correo: item.correo,
+                movil: item.movil || "",
+                telefono: item.telefono || "",
+                extension: item.extension || "",
+                id_puesto: null,
+                id_departamento: null,
+                id_cubiculo: null,
+                id_empresa: item.id_empresa,
+                id_piso: item.id_piso,
+                accesos: item.accesos,
+                acceso_campo: false,
+                biostar_user_id: item.biostar_user_id,
+                biostar_group_id: item.biostar_group_id || "1",
+                biostar_group_name: item.biostar_group_name || "All Users",
+                sync_hikvision_pendiente: false,
+                sync_biostar_pendiente: false,
+                sync_hikvision_error: "",
+                sync_biostar_error: "",
+                creado_por: id_usuario,
+                modificado_por: id_usuario,
+                activo: true,
+            });
+            await nuevo.save();
+            creados++;
+        }
+        res.status(200).json({
+            estado: true,
+            datos: {
+                creados,
+                omitidos,
+                pendientes: Array.isArray(data?.datos?.pendientes) ? data.datos.pendientes : [],
+            },
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
 export async function obtenerResumenGruposBiostarRegistrados(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;

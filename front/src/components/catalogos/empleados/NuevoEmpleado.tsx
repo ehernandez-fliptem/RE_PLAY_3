@@ -15,7 +15,7 @@ import ProfilePicturePreview from "../../utils/fallbackRender/ProfilePicturePrev
 import { MuiTelInput } from "mui-tel-input";
 import { setFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
@@ -175,7 +175,7 @@ export default function NuevoEmpleado() {
     reValidateMode: "onChange",
     mode: "all",
   });
-  const navigate = useNavigate();
+  const navigate = useNavigate();`r`n  const location = useLocation();
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -260,6 +260,21 @@ export default function NuevoEmpleado() {
       formContext.setValue("acceso_campo", false, { shouldValidate: true });
     }
   }, [habilitarRegistroCampo, formContext]);
+  useEffect(() => {
+    const pre = (location.state as any)?.biostarPrefill;
+    if (!pre) return;
+    formContext.setValue("nombre", String(pre.nombre || ""), { shouldValidate: true });
+    formContext.setValue("apellido_pat", String(pre.apellido_pat || ""), { shouldValidate: true });
+    formContext.setValue("apellido_mat", String(pre.apellido_mat || ""), { shouldValidate: true });
+    formContext.setValue("correo", String(pre.correo || ""), { shouldValidate: true });
+    formContext.setValue("telefono", String(pre.telefono || ""), { shouldValidate: true });
+    formContext.setValue("movil", String(pre.movil || ""), { shouldValidate: true });
+    formContext.setValue("extension", String(pre.extension || ""), { shouldValidate: true });
+    if (String(pre.biostar_group_id || "").trim()) {
+      formContext.setValue("biostar_group_id", String(pre.biostar_group_id), { shouldValidate: true });
+    }
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [formContext, location.pathname, location.state, navigate]);
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
