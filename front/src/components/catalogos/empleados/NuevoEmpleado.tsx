@@ -181,6 +181,7 @@ export default function NuevoEmpleado() {
     const state = (location.state as any) || {};
     return !!state?.reopenSyncBiostar || !!state?.biostarPrefill;
   });
+  const [biostarPrefillMeta] = useState<any>(() => ((location.state as any)?.biostarPrefill || null));
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -289,7 +290,13 @@ export default function NuevoEmpleado() {
         return;
       }
       setIsSaving(true);
-      const res = await clienteAxios.post("api/empleados", data);
+      const payload: any = { ...data };
+      if (biostarPrefillMeta?.biostar_user_id) {
+        payload.desde_pendiente_biostar = true;
+        payload.biostar_user_id = String(biostarPrefillMeta.biostar_user_id || "");
+        payload.biostar_group_name = String(biostarPrefillMeta.biostar_group_name || "");
+      }
+      const res = await clienteAxios.post("api/empleados", payload);
       if (res.data.estado) {
         const pendientes: string[] = Array.isArray(res.data?.sync?.pendiente)
           ? res.data.sync.pendiente

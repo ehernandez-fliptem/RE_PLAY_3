@@ -2607,6 +2607,9 @@ const sincronizarUsuarioCampo = async ({
 export async function crear(req: Request, res: Response): Promise<void> {
     try {
         const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, acceso_campo, biostar_group_id } = req.body;
+        const desdePendienteBiostar = !!req.body?.desde_pendiente_biostar;
+        const biostarUserIdPendiente = String(req.body?.biostar_user_id || "").trim();
+        const biostarGroupNamePendiente = String(req.body?.biostar_group_name || "").trim();
         const id_usuario = (req as UserRequest).userId;
         const empresa = await Empresas.findById(id_empresa, 'pisos accesos esRoot activo');
 
@@ -2663,22 +2666,32 @@ export async function crear(req: Request, res: Response): Promise<void> {
                     }
                 }
                 if (habilitarIntegracionBiostar) {
-                    const bioRes = await syncEmpleadoBiostar({
-                        empleado: reg_saved as IEmpleado,
-                        biostar_group_id: String(biostar_group_id || "").trim() || "1",
-                        disabled: false,
-                    });
-                    if (!bioRes.ok) {
-                        biostarPendiente = true;
-                        biostarError = bioRes.mensaje || "No se pudo sincronizar el empleado en BioStar.";
-                    } else {
+                    if (desdePendienteBiostar && biostarUserIdPendiente) {
                         await Empleados.findByIdAndUpdate(reg_saved._id, {
                             $set: {
-                                biostar_user_id: bioRes.userId || "",
-                                biostar_group_id: bioRes.groupId || "",
-                                biostar_group_name: bioRes.groupName || "",
+                                biostar_user_id: biostarUserIdPendiente,
+                                biostar_group_id: String(biostar_group_id || "").trim() || "1",
+                                biostar_group_name: biostarGroupNamePendiente || "",
                             }
                         });
+                    } else {
+                        const bioRes = await syncEmpleadoBiostar({
+                            empleado: reg_saved as IEmpleado,
+                            biostar_group_id: String(biostar_group_id || "").trim() || "1",
+                            disabled: false,
+                        });
+                        if (!bioRes.ok) {
+                            biostarPendiente = true;
+                            biostarError = bioRes.mensaje || "No se pudo sincronizar el empleado en BioStar.";
+                        } else {
+                            await Empleados.findByIdAndUpdate(reg_saved._id, {
+                                $set: {
+                                    biostar_user_id: bioRes.userId || "",
+                                    biostar_group_id: bioRes.groupId || "",
+                                    biostar_group_name: bioRes.groupName || "",
+                                }
+                            });
+                        }
                     }
                 }
 
