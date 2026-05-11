@@ -717,7 +717,7 @@ export default function NuevoEmpleado() {
         <TextField
           label="Nombre del grupo"
           value={nuevoGrupo}
-          onChange={(e) => setNuevoGrupo(String(e.target.value || ""))}
+          onChange={(e) => { const raw = String(e.target.value || ""); const normalized = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : ""; setNuevoGrupo(normalized); }}
           fullWidth
           margin="normal"
         />
