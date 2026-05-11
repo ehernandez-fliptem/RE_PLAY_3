@@ -1866,6 +1866,8 @@ const normalizarCorreo = (correo?: string) => String(correo || "").trim().toLowe
 const bioMessage = (payload: any, fallback: string) =>
     String(payload?.Response?.message || payload?.message || fallback).trim();
 
+const bioCode = (payload: any) => String(payload?.Response?.code || payload?.code || "").trim();
+
 const getBiostarConexionActiva = async (): Promise<any | null> => {
     const main = await DispositivosBiostar.findOne({ activo: true, es_main: true }).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
     if (main) return main;
@@ -1906,31 +1908,63 @@ const syncEmpleadoBiostar = async ({
     farFuture.setFullYear(farFuture.getFullYear() + 30);
     const toBioIso = (d: Date) => d.toISOString().slice(0, 19);
 
-    // Payload minimo compatible entre versiones de BioStar.
-    const payload = {
-        User: {
-            user_id: userId,
-            name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || userId),
-            user_group_id: { id: Number(grupo.id) || grupo.id, name: grupo.name },
-            disabled: !!disabled,
-            start_datetime: toBioIso(now),
-            expiry_datetime: toBioIso(farFuture),
-        },
-    };
-
     const exists = await biostarRequest(conexion, { method: "GET", url: `/api/users/${encodeURIComponent(userId)}` });
-    let upsert;
-    if (exists.ok && exists.data?.User) {
-        upsert = await biostarRequest(conexion, { method: "PUT", url: `/api/users/${encodeURIComponent(userId)}`, data: payload });
-    } else {
-        upsert = await biostarRequest(conexion, { method: "POST", url: "/api/users", data: payload });
-    }
+    const isEdit = exists.ok && exists.data?.User;
+    const method = isEdit ? "PUT" : "POST";
+    const url = isEdit ? `/api/users/${encodeURIComponent(userId)}` : "/api/users";
 
-    if (!upsert.ok || String(upsert.data?.Response?.code || "0") !== "0") {
-        return { ok: false, mensaje: bioMessage(upsert.data, upsert.message || "No se pudo sincronizar el empleado en BioStar.") };
-    }
+    const payloads = [
+        {
+            User: {
+                user_id: userId,
+                name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || userId),
+                user_group_id: { id: Number(grupo.id) || grupo.id, name: grupo.name },
+                disabled: !!disabled,
+                start_datetime: toBioIso(now),
+                expiry_datetime: toBioIso(farFuture),
+            },
+        },
+        {
+            User: {
+                user_id: userId,
+                name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || userId),
+                user_group_id: { id: Number(grupo.id) || grupo.id },
+                disabled: !!disabled,
+                start_datetime: toBioIso(now),
+                expiry_datetime: toBioIso(farFuture),
+            },
+        },
+        {
+            User: {
+                user_id: userId,
+                name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || userId),
+                user_group_id: Number(grupo.id) || grupo.id,
+                disabled: !!disabled,
+                start_datetime: toBioIso(now),
+                expiry_datetime: toBioIso(farFuture),
+            },
+        },
+        {
+            User: {
+                user_id: userId,
+                name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || userId),
+                user_group_id: { id: Number(grupo.id) || grupo.id, name: grupo.name },
+                disabled: !!disabled,
+            },
+        },
+    ];
 
-    return { ok: true, userId, groupId: grupo.id, groupName: grupo.name };
+    let lastMsg = "No se pudo sincronizar el empleado en BioStar.";
+    for (const body of payloads) {
+        const upsert = await biostarRequest(conexion, { method, url, data: body });
+        const code = bioCode(upsert.data);
+        if (upsert.ok && (!code || code === "0")) {
+            return { ok: true, userId, groupId: grupo.id, groupName: grupo.name };
+        }
+        const msg = bioMessage(upsert.data, upsert.message || lastMsg);
+        lastMsg = code ? `${msg} (code ${code})` : msg;
+    }
+    return { ok: false, mensaje: lastMsg };
 };
 
 const deleteEmpleadoBiostar = async (userId?: string): Promise<{ ok: boolean; mensaje?: string }> => {
