@@ -350,6 +350,13 @@ export default function EditarEmpleado() {
           showConfirmButton: true,
           zIndex: 20000,
           allowOutsideClick: false,
+          didOpen: () => {
+            const container = Swal.getContainer();
+            if (container) {
+              container.style.zIndex = "20000";
+              if (container.parentElement) container.parentElement.style.zIndex = "20000";
+            }
+          },
           showClass: { popup: "swal2-show" },
           hideClass: { popup: "swal2-hide" },
           didOpen: () => {
@@ -396,6 +403,13 @@ export default function EditarEmpleado() {
       state: { openBiometriaFor: ID, biometriaStep: "tarjeta" },
     });
   };
+  const swalTop = {
+    zIndex: 2400,
+    didOpen: () => {
+      const container = Swal.getContainer();
+      if (container) container.style.zIndex = "2400";
+    },
+  };
 
   const crearGrupoBiostarDesdeForm = async () => {
     if (creandoGrupo) return;
@@ -410,8 +424,10 @@ export default function EditarEmpleado() {
       text: "Espera un momento...",
       allowOutsideClick: false,
       showConfirmButton: false,
-      zIndex: 20000,
+      ...swalTop,
       didOpen: () => {
+        const container = Swal.getContainer();
+        if (container) container.style.zIndex = "2400";
         Swal.showLoading();
       },
       showClass: { popup: "swal2-show" },
@@ -428,8 +444,8 @@ export default function EditarEmpleado() {
           title: "No se pudo crear",
           text: res.data?.mensaje || "No se pudo crear el grupo.",
           showConfirmButton: true,
-          zIndex: 20000,
           allowOutsideClick: false,
+          ...swalTop,
           showClass: { popup: "swal2-show" },
           hideClass: { popup: "swal2-hide" },
         });
@@ -451,8 +467,8 @@ export default function EditarEmpleado() {
         title: "Grupo creado",
         text: "El grupo se creó correctamente.",
         showConfirmButton: true,
-          zIndex: 20000,
         allowOutsideClick: false,
+        ...swalTop,
         showClass: { popup: "swal2-show" },
         hideClass: { popup: "swal2-hide" },
       });
@@ -464,8 +480,8 @@ export default function EditarEmpleado() {
         title: "No se pudo crear",
         text: error?.response?.data?.mensaje || error?.message || "Ocurrió un error al crear el grupo.",
         showConfirmButton: true,
-          zIndex: 20000,
         allowOutsideClick: false,
+        ...swalTop,
         showClass: { popup: "swal2-show" },
         hideClass: { popup: "swal2-hide" },
       });

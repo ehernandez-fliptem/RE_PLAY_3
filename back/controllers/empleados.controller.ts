@@ -1999,6 +1999,7 @@ export async function obtenerResumenGruposBiostarRegistrados(req: Request, res: 
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
 
         const match: any = {
+            activo: true,
             biostar_user_id: { $nin: ["", null] },
             biostar_group_id: { $nin: ["", null] },
         };
