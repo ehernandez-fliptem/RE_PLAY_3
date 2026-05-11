@@ -1923,6 +1923,19 @@ const syncEmpleadoBiostar = async ({
 
     const exists = await biostarRequest(conexion, { method: "GET", url: `/api/users/${encodeURIComponent(userId)}` });
     const isEdit = exists.ok && exists.data?.User;
+    if (!isEdit && !(empleado as any)?.biostar_user_id) {
+        const nextIdRes = await biostarRequest(conexion, { method: "GET", url: "/api/users/next_user_id" });
+        const nextRaw =
+            nextIdRes.data?.User?.user_id ??
+            nextIdRes.data?.user_id ??
+            nextIdRes.data?.next_user_id ??
+            nextIdRes.data?.UserID ??
+            "";
+        const nextId = String(nextRaw || "").trim();
+        if (nextId && !/\s/.test(nextId)) {
+            userId = nextId;
+        }
+    }
     const method = isEdit ? "PUT" : "POST";
     const url = isEdit ? `/api/users/${encodeURIComponent(userId)}` : "/api/users";
 
