@@ -581,6 +581,7 @@ export default function Empleados() {
         });
         if (res.data.estado) {
           apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
+          apiRef.current?.dataSource?.fetchRows?.();
         } else {
           enqueueSnackbar(res.data.mensaje, { variant: "error" });
         }
@@ -605,6 +606,7 @@ export default function Empleados() {
             });
             if (res.data.estado) {
               apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
+              apiRef.current?.dataSource?.fetchRows?.();
             } else {
               enqueueSnackbar(res.data.mensaje, { variant: "warning" });
             }
