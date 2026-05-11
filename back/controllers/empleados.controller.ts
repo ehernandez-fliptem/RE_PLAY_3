@@ -39,6 +39,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
         const isMaster = (req as UserRequest).isMaster;
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
         const biostarGroupId = String((req.query as any)?.biostar_group_id || "").trim();
+        const biostarLive = String((req.query as any)?.biostar_live || "").trim() === "1";
 
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
@@ -162,7 +163,38 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
             }
         );
         const registros = await Empleados.aggregate(aggregation);
-        res.status(200).json({ estado: true, datos: registros[0] });
+        const result = registros?.[0] || { paginatedResults: [], totalCount: [{ count: 0 }] };
+
+        if (biostarLive && biostarGroupId && Array.isArray(result.paginatedResults) && result.paginatedResults.length > 0) {
+            const conexion = await getBiostarConexionActiva();
+            if (conexion) {
+                const groupIds = Array.from(
+                    new Set(
+                        result.paginatedResults
+                            .map((r: any) => String(r?.biostar_group_id || "").trim())
+                            .filter(Boolean)
+                    )
+                );
+
+                const liveRes = await biostarRequest(conexion, {
+                    method: "POST",
+                    url: "/api/v2/users/search?noblockui",
+                    data: { limit: 1000, offset: 0, user_group_id_list: groupIds },
+                });
+
+                if (liveRes.ok) {
+                    const liveRows = (liveRes.data?.UserCollection?.rows || []) as any[];
+                    const liveIds = new Set(liveRows.map((u: any) => String(u?.user_id || "").trim()).filter(Boolean));
+                    result.paginatedResults = result.paginatedResults.filter((r: any) => {
+                        const bioUserId = String(r?.biostar_user_id || "").trim();
+                        if (!bioUserId) return true;
+                        return liveIds.has(bioUserId);
+                    });
+                }
+            }
+        }
+
+        res.status(200).json({ estado: true, datos: result });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });

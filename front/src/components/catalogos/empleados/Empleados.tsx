@@ -493,6 +493,7 @@ export default function Empleados() {
           });
           if (biostarGroupFilter) {
             urlParams.set("biostar_group_id", biostarGroupFilter);
+            urlParams.set("biostar_live", "1");
           }
           const res = await clienteAxios.get(
             "/api/empleados?" + urlParams.toString()
@@ -526,6 +527,13 @@ export default function Empleados() {
   useEffect(() => {
     apiRef.current?.dataSource?.fetchRows?.();
   }, [biostarGroupFilter, apiRef]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      apiRef.current?.dataSource?.fetchRows?.();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [apiRef]);
 
   const initialState: GridInitialState = useMemo(
     () => ({
@@ -973,7 +981,7 @@ export default function Empleados() {
                       }
                     >
                       <MenuItem value="">
-                        Todos los registrados ({biostarGroupOptions.reduce((a, b) => a + (b.total || 0), 0)})
+                        Todos
                       </MenuItem>
                       {biostarGroupOptions.map((item) => (
                         <MenuItem key={item.id_externo} value={item.id_externo}>
