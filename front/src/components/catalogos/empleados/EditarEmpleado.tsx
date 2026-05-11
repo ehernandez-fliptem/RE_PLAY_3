@@ -204,6 +204,7 @@ export default function EditarEmpleado() {
   const [biostarGrupos, setBiostarGrupos] = useState<Array<{ id_externo: string; nombre: string }>>([]);
   const [modalGrupoOpen, setModalGrupoOpen] = useState(false);
   const [nuevoGrupo, setNuevoGrupo] = useState("");
+  const [creandoGrupo, setCreandoGrupo] = useState(false);
   const initialFormRef = useRef<FormValues | null>(null);
   const [postSaveOpen, setPostSaveOpen] = useState(false);
   const [postSaveStep, setPostSaveStep] = useState<"huella" | "tarjeta">(
@@ -307,6 +308,8 @@ export default function EditarEmpleado() {
           initial.extension === data.extension &&
           initial.correo === data.correo &&
           initial.acceso_campo === data.acceso_campo &&
+          String(initial.biostar_group_id || "").trim() ===
+            String(data.biostar_group_id || "").trim() &&
           sameAccesos;
         if (noChanges) {
           navigate("/empleados");
@@ -386,34 +389,76 @@ export default function EditarEmpleado() {
   };
 
   const crearGrupoBiostarDesdeForm = async () => {
+    if (creandoGrupo) return;
     const base = nuevoGrupo.trim();
     const nombre = base ? base.charAt(0).toUpperCase() + base.slice(1) : "";
     if (!nombre) return;
-    const res = await clienteAxios.post("/api/biostar-grupos", { nombre });
-    if (!res.data?.estado) {
-      enqueueSnackbar(res.data?.mensaje || "No se pudo crear el grupo.", { variant: "warning" });
-      return;
-    }
-    const gruposRes = await clienteAxios.get("/api/biostar-grupos");
-    if (gruposRes.data?.estado) {
-      const list = Array.isArray(gruposRes.data?.datos) ? gruposRes.data.datos : [];
-      setBiostarGrupos(list);
-      const creado = list.find((g: any) => String(g.nombre || "").toLowerCase() === nombre.toLowerCase());
-      if (creado?.id_externo) {
-        formContext.setValue("biostar_group_id", String(creado.id_externo), { shouldValidate: true });
-      }
-    }
-    await Swal.fire({
-      icon: "success",
-      title: "Grupo creado",
-      text: "El grupo se creó correctamente.",
-      showConfirmButton: true,
+    setCreandoGrupo(true);
+    setModalGrupoOpen(false);
+
+    Swal.fire({
+      title: "Creando grupo",
+      text: "Espera un momento...",
       allowOutsideClick: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
       showClass: { popup: "swal2-show" },
       hideClass: { popup: "swal2-hide" },
     });
-    setNuevoGrupo("");
-    setModalGrupoOpen(false);
+
+    try {
+      const res = await clienteAxios.post("/api/biostar-grupos", { nombre });
+      Swal.close();
+
+      if (!res.data?.estado) {
+        await Swal.fire({
+          icon: "error",
+          title: "No se pudo crear",
+          text: res.data?.mensaje || "No se pudo crear el grupo.",
+          showConfirmButton: true,
+          allowOutsideClick: false,
+          showClass: { popup: "swal2-show" },
+          hideClass: { popup: "swal2-hide" },
+        });
+        return;
+      }
+
+      const gruposRes = await clienteAxios.get("/api/biostar-grupos");
+      if (gruposRes.data?.estado) {
+        const list = Array.isArray(gruposRes.data?.datos) ? gruposRes.data.datos : [];
+        setBiostarGrupos(list);
+        const creado = list.find((g: any) => String(g.nombre || "").toLowerCase() === nombre.toLowerCase());
+        if (creado?.id_externo) {
+          formContext.setValue("biostar_group_id", String(creado.id_externo), { shouldValidate: true });
+        }
+      }
+
+      await Swal.fire({
+        icon: "success",
+        title: "Grupo creado",
+        text: "El grupo se creó correctamente.",
+        showConfirmButton: true,
+        allowOutsideClick: false,
+        showClass: { popup: "swal2-show" },
+        hideClass: { popup: "swal2-hide" },
+      });
+      setNuevoGrupo("");
+    } catch (error: any) {
+      Swal.close();
+      await Swal.fire({
+        icon: "error",
+        title: "No se pudo crear",
+        text: error?.response?.data?.mensaje || error?.message || "Ocurrió un error al crear el grupo.",
+        showConfirmButton: true,
+        allowOutsideClick: false,
+        showClass: { popup: "swal2-show" },
+        hideClass: { popup: "swal2-hide" },
+      });
+    } finally {
+      setCreandoGrupo(false);
+    }
   };
 
   if (!showForm) {
@@ -779,8 +824,8 @@ export default function EditarEmpleado() {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setModalGrupoOpen(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={crearGrupoBiostarDesdeForm}>Crear</Button>
+          <Button onClick={() => setModalGrupoOpen(false)} disabled={creandoGrupo}>Cancelar</Button>
+          <Button variant="contained" onClick={crearGrupoBiostarDesdeForm} disabled={creandoGrupo}>Crear</Button>
         </DialogActions>
       </Dialog>
     </ModalContainer>
