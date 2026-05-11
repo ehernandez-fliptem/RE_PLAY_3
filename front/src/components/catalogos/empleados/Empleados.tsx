@@ -125,6 +125,7 @@ export default function Empleados() {
   const [tarjetaDescripcion, setTarjetaDescripcion] = useState("");
   const [tarjetaMensaje, setTarjetaMensaje] = useState("");
   const [biostarGroupFilter, setBiostarGroupFilter] = useState("");
+  const [estadoFiltro, setEstadoFiltro] = useState<"activos" | "inactivos" | "todos">("activos");
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [biostarGroupOptions, setBiostarGroupOptions] = useState<
     Array<{ id_externo: string; nombre: string; total: number }>
@@ -493,6 +494,7 @@ export default function Empleados() {
             pagination: JSON.stringify(params.paginationModel),
             sort: JSON.stringify(params.sortModel),
           });
+          urlParams.set("estado", estadoFiltro);
           urlParams.set("biostar_live", "1");
           if (biostarGroupFilter) {
             urlParams.set("biostar_group_id", biostarGroupFilter);
@@ -527,12 +529,12 @@ export default function Empleados() {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [biostarGroupFilter]
+    [biostarGroupFilter, estadoFiltro]
   );
 
   useEffect(() => {
     apiRef.current?.dataSource?.fetchRows?.();
-  }, [biostarGroupFilter, apiRef]);
+  }, [biostarGroupFilter, estadoFiltro, apiRef]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1020,6 +1022,26 @@ export default function Empleados() {
               tableTitle="Gestión de Empleados"
               customActionButtons={
                 <Fragment>
+                  <FormControl
+                    size="small"
+                    sx={{ minWidth: 260, mr: 1 }}
+                  >
+                    <InputLabel id="estado-empleado-filter-label">
+                      Estado
+                    </InputLabel>
+                    <Select
+                      labelId="estado-empleado-filter-label"
+                      value={estadoFiltro}
+                      label="Estado"
+                      onChange={(e) =>
+                        setEstadoFiltro(String(e.target.value) as "activos" | "inactivos" | "todos")
+                      }
+                    >
+                      <MenuItem value="activos">Activos</MenuItem>
+                      <MenuItem value="inactivos">Inactivos</MenuItem>
+                      <MenuItem value="todos">Todos</MenuItem>
+                    </Select>
+                  </FormControl>
                   <FormControl
                     size="small"
                     sx={{ minWidth: 260, mr: 1 }}

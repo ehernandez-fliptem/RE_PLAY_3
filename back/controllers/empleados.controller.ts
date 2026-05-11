@@ -40,6 +40,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
         const biostarGroupId = String((req.query as any)?.biostar_group_id || "").trim();
         const biostarLive = String((req.query as any)?.biostar_live || "").trim() === "1";
+        const estadoFiltro = String((req.query as any)?.estado || "activos").trim().toLowerCase();
 
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
@@ -61,6 +62,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                 $match: {
                     $and: [
                         isMaster ? {} : { id_empresa: new Types.ObjectId(id_empresa) },
+                        estadoFiltro === "inactivos" ? { activo: false } : estadoFiltro === "todos" ? {} : { activo: true },
                         biostarGroupId ? { biostar_group_id: biostarGroupId, biostar_user_id: { $nin: ["", null] } } : {},
                     ]
                 }
