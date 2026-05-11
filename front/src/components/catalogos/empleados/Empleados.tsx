@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment, useEffect } from "react";
+import { useState, useMemo, Fragment, useEffect, useCallback } from "react";
 import {
   DataGrid,
   useGridApiRef,
@@ -431,19 +431,20 @@ export default function Empleados() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state, habilitarIntegracionHvBiometria]);
 
-  useEffect(() => {
-    const cargarResumenGrupos = async () => {
-      try {
-        const res = await clienteAxios.get("/api/empleados/biostar-grupos-resumen");
-        if (res.data?.estado) {
-          setBiostarGroupOptions(Array.isArray(res.data.datos) ? res.data.datos : []);
-        }
-      } catch {
-        setBiostarGroupOptions([]);
+  const cargarResumenGrupos = useCallback(async () => {
+    try {
+      const res = await clienteAxios.get("/api/empleados/biostar-grupos-resumen");
+      if (res.data?.estado) {
+        setBiostarGroupOptions(Array.isArray(res.data.datos) ? res.data.datos : []);
       }
-    };
-    cargarResumenGrupos();
+    } catch {
+      setBiostarGroupOptions([]);
+    }
   }, []);
+
+  useEffect(() => {
+    cargarResumenGrupos();
+  }, [cargarResumenGrupos]);
 
   const devReplayEnabled = false;
   const biometriaBadgeWidth = 126;
@@ -534,14 +535,16 @@ export default function Empleados() {
 
   useEffect(() => {
     apiRef.current?.dataSource?.fetchRows?.();
-  }, [biostarGroupFilter, estadoFiltro, apiRef]);
+    cargarResumenGrupos();
+  }, [biostarGroupFilter, estadoFiltro, apiRef, cargarResumenGrupos]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       apiRef.current?.dataSource?.fetchRows?.();
+      cargarResumenGrupos();
     }, 15000);
     return () => clearInterval(interval);
-  }, [apiRef]);
+  }, [apiRef, cargarResumenGrupos]);
 
   const initialState: GridInitialState = useMemo(
     () => ({
@@ -1024,26 +1027,6 @@ export default function Empleados() {
               tableTitle="Gestión de Empleados"
               customActionButtons={
                 <Fragment>
-                  <FormControl
-                    size="small"
-                    sx={{ minWidth: 260, mr: 1 }}
-                  >
-                    <InputLabel id="estado-empleado-filter-label">
-                      Estado
-                    </InputLabel>
-                    <Select
-                      labelId="estado-empleado-filter-label"
-                      value={estadoFiltro}
-                      label="Estado"
-                      onChange={(e) =>
-                        setEstadoFiltro(String(e.target.value) as "activos" | "inactivos" | "todos")
-                      }
-                    >
-                      <MenuItem value="activos">Activos</MenuItem>
-                      <MenuItem value="inactivos">Inactivos</MenuItem>
-                      <MenuItem value="todos">Todos</MenuItem>
-                    </Select>
-                  </FormControl>
                   <FormControl
                     size="small"
                     sx={{ minWidth: 260, mr: 1 }}

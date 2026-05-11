@@ -177,7 +177,7 @@ export default function EditarEmpleado() {
   const { habilitarRegistroCampo } = useSelector(
     (state: IRootState) => state.config.data
   );
-  const { habilitarIntegracionBiostar } = useSelector(
+  const { habilitarIntegracionBiostar, habilitarIntegracionHv } = useSelector(
     (state: IRootState) => state.config.data
   );
   const { id: ID } = useParams();
@@ -332,8 +332,12 @@ export default function EditarEmpleado() {
           variant: "success",
         });
         parentGridDataRef.fetchRows();
-        setPostSaveStep("huella");
-        setPostSaveOpen(true);
+        if (habilitarIntegracionHv) {
+          setPostSaveStep("huella");
+          setPostSaveOpen(true);
+        } else {
+          navigate("/empleados");
+        }
       } else if (res.data.codigo === "PANEL_SYNC_FAILED") {
         setIsSaving(false);
         setShowForm(false);
@@ -344,9 +348,14 @@ export default function EditarEmpleado() {
             res.data.mensaje ||
             "El panel no aceptÃ³ la foto. Intenta con otra imagen.",
           showConfirmButton: true,
+          zIndex: 20000,
           allowOutsideClick: false,
           showClass: { popup: "swal2-show" },
           hideClass: { popup: "swal2-hide" },
+          didOpen: () => {
+            const container = Swal.getContainer();
+            if (container) container.style.zIndex = "20000";
+          },
         });
         setShowForm(true);
         return;
@@ -401,6 +410,7 @@ export default function EditarEmpleado() {
       text: "Espera un momento...",
       allowOutsideClick: false,
       showConfirmButton: false,
+      zIndex: 20000,
       didOpen: () => {
         Swal.showLoading();
       },
@@ -418,6 +428,7 @@ export default function EditarEmpleado() {
           title: "No se pudo crear",
           text: res.data?.mensaje || "No se pudo crear el grupo.",
           showConfirmButton: true,
+          zIndex: 20000,
           allowOutsideClick: false,
           showClass: { popup: "swal2-show" },
           hideClass: { popup: "swal2-hide" },
@@ -440,6 +451,7 @@ export default function EditarEmpleado() {
         title: "Grupo creado",
         text: "El grupo se creó correctamente.",
         showConfirmButton: true,
+          zIndex: 20000,
         allowOutsideClick: false,
         showClass: { popup: "swal2-show" },
         hideClass: { popup: "swal2-hide" },
@@ -452,6 +464,7 @@ export default function EditarEmpleado() {
         title: "No se pudo crear",
         text: error?.response?.data?.mensaje || error?.message || "Ocurrió un error al crear el grupo.",
         showConfirmButton: true,
+          zIndex: 20000,
         allowOutsideClick: false,
         showClass: { popup: "swal2-show" },
         hideClass: { popup: "swal2-hide" },

@@ -294,9 +294,14 @@ export default function NuevoEmpleado() {
             res.data.mensaje ||
             "El panel no aceptÃ³ la foto. Intenta con otra imagen.",
           showConfirmButton: true,
+          zIndex: 20000,
           allowOutsideClick: false,
           showClass: { popup: "swal2-show" },
           hideClass: { popup: "swal2-hide" },
+          didOpen: () => {
+            const container = Swal.getContainer();
+            if (container) container.style.zIndex = "20000";
+          },
         });
         setShowForm(true);
         return;
@@ -324,6 +329,7 @@ export default function NuevoEmpleado() {
       text: "Espera un momento...",
       allowOutsideClick: false,
       showConfirmButton: false,
+      zIndex: 20000,
       didOpen: () => {
         Swal.showLoading();
       },
@@ -341,6 +347,7 @@ export default function NuevoEmpleado() {
           title: "No se pudo crear",
           text: res.data?.mensaje || "No se pudo crear el grupo.",
           showConfirmButton: true,
+          zIndex: 20000,
           allowOutsideClick: false,
           showClass: { popup: "swal2-show" },
           hideClass: { popup: "swal2-hide" },
@@ -363,6 +370,7 @@ export default function NuevoEmpleado() {
         title: "Grupo creado",
         text: "El grupo se creó correctamente.",
         showConfirmButton: true,
+          zIndex: 20000,
         allowOutsideClick: false,
         showClass: { popup: "swal2-show" },
         hideClass: { popup: "swal2-hide" },
@@ -375,6 +383,7 @@ export default function NuevoEmpleado() {
         title: "No se pudo crear",
         text: error?.response?.data?.mensaje || error?.message || "Ocurrió un error al crear el grupo.",
         showConfirmButton: true,
+          zIndex: 20000,
         allowOutsideClick: false,
         showClass: { popup: "swal2-show" },
         hideClass: { popup: "swal2-hide" },

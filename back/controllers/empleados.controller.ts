@@ -1996,7 +1996,7 @@ export async function obtenerResumenGruposBiostarRegistrados(req: Request, res: 
         };
         if (!isMaster) match.id_empresa = new Types.ObjectId(id_empresa);
 
-        const rows = await Empleados.aggregate([
+        let rows = await Empleados.aggregate([
             { $match: match },
             {
                 $group: {
@@ -2021,6 +2021,30 @@ export async function obtenerResumenGruposBiostarRegistrados(req: Request, res: 
             },
             { $sort: { nombre: 1 } }
         ]);
+
+        // Filtra y normaliza contra grupos vivos en BioStar para evitar mostrar grupos ya eliminados.
+        const conexion = await getBiostarConexionActiva();
+        if (conexion) {
+            const liveRes = await biostarRequest(conexion, { method: "GET", url: "/api/user_groups?limit=1000" });
+            const liveRows = (liveRes.data?.UserGroupCollection?.rows || []) as any[];
+            const liveById = new Map<string, { id_externo: string; nombre: string }>();
+            for (const g of liveRows) {
+                const id = String(g?.id || "").trim();
+                const nombre = String(g?.name || "").trim();
+                if (!id) continue;
+                liveById.set(id, { id_externo: id, nombre: nombre || "Sin nombre" });
+            }
+
+            rows = rows
+                .filter((r: any) => liveById.has(String(r?.id_externo || "").trim()))
+                .map((r: any) => {
+                    const live = liveById.get(String(r?.id_externo || "").trim());
+                    return {
+                        ...r,
+                        nombre: live?.nombre || r?.nombre || "Sin nombre",
+                    };
+                });
+        }
 
         res.status(200).json({ estado: true, datos: rows });
     } catch (error: any) {
