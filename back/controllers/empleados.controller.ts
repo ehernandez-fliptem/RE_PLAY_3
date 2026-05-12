@@ -1659,10 +1659,16 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
                 );
             }
 
+            // Prepara modo de enrollment como en BioStar antes de escanear.
+            await biostarRequest(conexion, {
+                method: "GET",
+                url: "/api/devices/enrollment?type=1&nonBlock=true",
+                timeout: 10000,
+            });
+
             const capturedSamples: Array<{ template0: string; template1: string; finger_mask: string; }> = [];
-            let lastScanMsg = "No se pudo capturar la huella en BioStar.";
-            const scanAttempts = 6;
-            for (let intento = 1; intento <= scanAttempts; intento++) {
+            const requiredSamples = 2;
+            for (let sampleIdx = 0; sampleIdx < requiredSamples; sampleIdx++) {
                 const scanRes = await biostarRequest(conexion, {
                     method: "POST",
                     url: `/api/devices/${encodeURIComponent(deviceId)}/scan_fingerprint`,
@@ -1677,33 +1683,24 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
                 });
                 const scanCode = bioCode(scanRes.data);
                 if (!(scanRes.ok && (!scanCode || scanCode === "0"))) {
-                    lastScanMsg = bioMessage(scanRes.data, scanRes.message || lastScanMsg);
-                    if (intento < scanAttempts) {
-                        await new Promise((resolve) => setTimeout(resolve, 250));
-                        continue;
-                    }
+                    const msg = bioMessage(scanRes.data, scanRes.message || "No se pudo capturar la huella en BioStar.");
                     res.status(200).json({
                         estado: false,
-                        mensaje: lastScanMsg,
+                        mensaje: msg,
                     });
                     return;
                 }
 
                 const extractedSamples = extractFingerprintTemplateSamples(scanRes.data);
-                if (extractedSamples.length > 0) {
-                    for (const sample of extractedSamples) {
-                        const key = `${sample.template0}|${sample.template1}`;
-                        const exists = capturedSamples.some(
-                            (x) => `${x.template0}|${x.template1}` === key
-                        );
-                        if (!exists) capturedSamples.push(sample);
-                    }
-                    if (capturedSamples.length >= 2) break;
+                if (!extractedSamples.length) {
+                    res.status(200).json({
+                        estado: false,
+                        mensaje: `No se obtuvo plantilla en la captura ${sampleIdx + 1} de 2. Vuelve a escanear el dedo.`,
+                    });
+                    return;
                 }
-                lastScanMsg = "BioStar aun no devolvio las dos muestras de huella requeridas.";
-                if (intento < scanAttempts) {
-                    await new Promise((resolve) => setTimeout(resolve, 250));
-                }
+                const sample = extractedSamples[0];
+                capturedSamples.push(sample);
             }
             if (capturedSamples.length < 2) {
                 res.status(200).json({
