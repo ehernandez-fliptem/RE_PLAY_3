@@ -2672,11 +2672,21 @@ export async function crear(req: Request, res: Response): Promise<void> {
                 }
                 if (habilitarIntegracionBiostar) {
                     if (desdePendienteBiostar && biostarUserIdPendiente) {
+                        const empleadoSync = {
+                            ...(reg_saved as any),
+                            biostar_user_id: biostarUserIdPendiente,
+                            nombre: String(nombre || (reg_saved as any)?.nombre || "").trim(),
+                            apellido_pat: String(apellido_pat || (reg_saved as any)?.apellido_pat || "").trim(),
+                            apellido_mat: String(apellido_mat || (reg_saved as any)?.apellido_mat || "").trim(),
+                            correo: String(correo || (reg_saved as any)?.correo || "").trim(),
+                            telefono: String(telefono || (reg_saved as any)?.telefono || "").trim(),
+                            movil: String(movil || (reg_saved as any)?.movil || "").trim(),
+                            extension: String(extension || (reg_saved as any)?.extension || "").trim(),
+                            id_departamento: String(id_departamento || (reg_saved as any)?.id_departamento || "").trim(),
+                            id_puesto: String(id_puesto || (reg_saved as any)?.id_puesto || "").trim(),
+                        } as IEmpleado;
                         const bioRes = await syncEmpleadoBiostar({
-                            empleado: {
-                                ...(reg_saved as any),
-                                biostar_user_id: biostarUserIdPendiente,
-                            } as IEmpleado,
+                            empleado: empleadoSync,
                             biostar_group_id: String(biostar_group_id || "").trim() || "1",
                             disabled: false,
                             strictExistingUserId: true,
