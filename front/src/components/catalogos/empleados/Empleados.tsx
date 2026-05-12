@@ -385,11 +385,15 @@ export default function Empleados() {
 
   const abrirEnrollBiostar = async () => {
     if (!biometriaEmpleado?._id) return;
+    const selectedBioDevice = biostarDispositivos.find(
+      (d) => String(d.id) === String(biostarDispositivoSeleccionado || "")
+    );
     try {
       const res = await clienteAxios.post(
         `/api/empleados/biometria/biostar/abrir-ui/${biometriaEmpleado._id}`,
         {
           panel_biostar_id: biostarDispositivoSeleccionado || undefined,
+          panel_biostar_nombre: selectedBioDevice?.nombre || undefined,
         }
       );
       if (res.data?.estado) {

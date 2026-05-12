@@ -2908,11 +2908,13 @@ export async function abrirUiEnrollBiostar(req: Request, res: Response): Promise
         }
 
         const selectedDeviceId = String(req.body?.panel_biostar_id || "").trim();
-        const selectedDeviceName = selectedDeviceId && Types.ObjectId.isValid(selectedDeviceId)
+        const selectedDeviceNameFromUI = String(req.body?.panel_biostar_nombre || "").trim();
+        const selectedDeviceNameFromDb = selectedDeviceId && Types.ObjectId.isValid(selectedDeviceId)
             ? String(
                 (await DispositivosBiostar.findById(selectedDeviceId, "nombre").lean() as any)?.nombre || ""
             ).trim()
             : "";
+        const selectedDeviceName = selectedDeviceNameFromUI || selectedDeviceNameFromDb;
 
         const timestamp = Date.now();
         const groupParam = bioGroupId ? `&group=${encodeURIComponent(bioGroupId)}` : "";
