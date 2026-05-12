@@ -132,7 +132,7 @@ export default function Empleados() {
   const [tarjetaDescripcion, setTarjetaDescripcion] = useState("");
   const [tarjetaMensaje, setTarjetaMensaje] = useState("");
   const [biostarGroupFilter, setBiostarGroupFilter] = useState("");
-  const [estadoFiltro, setEstadoFiltro] = useState<"activos" | "inactivos" | "todos">("activos");
+  const [estadoFiltro] = useState<"activos" | "inactivos" | "todos">("activos");
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [biostarGroupOptions, setBiostarGroupOptions] = useState<
     Array<{ id_externo: string; nombre: string; total: number }>
@@ -1892,4 +1892,5 @@ export default function Empleados() {
     </div>
   );
 }
+
 

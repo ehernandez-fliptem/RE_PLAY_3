@@ -324,7 +324,6 @@ export default function NuevoEmpleado() {
             res.data.mensaje ||
             "El panel no aceptó la foto. Intenta con otra imagen.",
           showConfirmButton: true,
-          zIndex: 20000,
           allowOutsideClick: false,
           didOpen: () => {
             const container = Swal.getContainer();
@@ -335,10 +334,6 @@ export default function NuevoEmpleado() {
           },
           showClass: { popup: "swal2-show" },
           hideClass: { popup: "swal2-hide" },
-          didOpen: () => {
-            const container = Swal.getContainer();
-            if (container) container.style.zIndex = "20000";
-          },
         });
         setShowForm(true);
         return;
