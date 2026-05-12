@@ -4,7 +4,7 @@ import { useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { Box, Button, Card, CardContent, Divider, Grid, IconButton, InputAdornment, Stack, Typography } from "@mui/material";
-import { FormContainer, TextFieldElement } from "react-hook-form-mui";
+import { FormContainer, SelectElement, TextFieldElement } from "react-hook-form-mui";
 import { Close, Save, Visibility, VisibilityOff } from "@mui/icons-material";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
 import ModalContainer from "../../utils/ModalContainer";
@@ -25,6 +25,7 @@ type FormValues = {
   nombre: string;
   direccion_ip: string;
   puerto: number;
+  modo_acceso: "entrada" | "salida" | "ambos";
   usuario: string;
   contrasena: string;
 };
@@ -33,6 +34,10 @@ const resolver = yup.object().shape({
   nombre: yup.string().required("Este campo es obligatorio."),
   direccion_ip: yup.string().required("Este campo es obligatorio").matches(REGEX_IP, "Formato invalido"),
   puerto: yup.number().required("Este campo es obligatorio").min(1).max(65535),
+  modo_acceso: yup
+    .mixed<"entrada" | "salida" | "ambos">()
+    .oneOf(["entrada", "salida", "ambos"])
+    .required("Este campo es obligatorio."),
   usuario: yup.string().required("Este campo es obligatorio.").matches(REGEX_USERNAME, "Formato de usuario invalido."),
   contrasena: yup
     .string()
@@ -56,7 +61,7 @@ export default function EditarDispositivoBiostar() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const formContext = useForm<FormValues>({
-    defaultValues: { nombre: "", direccion_ip: "", puerto: 443, usuario: "", contrasena: "" },
+    defaultValues: { nombre: "", direccion_ip: "", puerto: 443, modo_acceso: "ambos", usuario: "", contrasena: "" },
     resolver: yupResolver(resolver),
     mode: "all",
   });
@@ -70,6 +75,7 @@ export default function EditarDispositivoBiostar() {
             nombre: res.data.datos.nombre,
             direccion_ip: res.data.datos.direccion_ip,
             puerto: res.data.datos.puerto || 443,
+            modo_acceso: res.data.datos.modo_acceso || "ambos",
             usuario: res.data.datos.usuario,
             contrasena: res.data.datos.contrasena || "",
           });
@@ -160,6 +166,19 @@ export default function EditarDispositivoBiostar() {
                     </Grid>
                     <Grid size={{ xs: 12 }}>
                       <TextFieldElement name="nombre" label="Nombre" required fullWidth />
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <SelectElement
+                        name="modo_acceso"
+                        label="Tipo de acceso"
+                        required
+                        fullWidth
+                        options={[
+                          { id: "entrada", label: "Entrada" },
+                          { id: "salida", label: "Salida" },
+                          { id: "ambos", label: "Ambos (alterna)" },
+                        ]}
+                      />
                     </Grid>
                     <Grid size={{ xs: 12 }}>
                       <TextFieldElement name="usuario" label="Usuario" required fullWidth />

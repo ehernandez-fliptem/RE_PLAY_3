@@ -14,7 +14,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { FormContainer, TextFieldElement } from "react-hook-form-mui";
+import { FormContainer, SelectElement, TextFieldElement } from "react-hook-form-mui";
 import { Close, Save, Visibility, VisibilityOff } from "@mui/icons-material";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
@@ -35,6 +35,7 @@ type FormValues = {
   nombre: string;
   direccion_ip: string;
   puerto: number;
+  modo_acceso: "entrada" | "salida" | "ambos";
   usuario: string;
   contrasena: string;
 };
@@ -46,6 +47,10 @@ const resolver = yup.object().shape({
     .required("Este campo es obligatorio")
     .matches(REGEX_IP, "Formato invalido"),
   puerto: yup.number().required("Este campo es obligatorio").min(1).max(65535),
+  modo_acceso: yup
+    .mixed<"entrada" | "salida" | "ambos">()
+    .oneOf(["entrada", "salida", "ambos"])
+    .required("Este campo es obligatorio."),
   usuario: yup
     .string()
     .required("Este campo es obligatorio.")
@@ -68,6 +73,7 @@ const initialValue: FormValues = {
   nombre: "",
   direccion_ip: "",
   puerto: 443,
+  modo_acceso: "ambos",
   usuario: "",
   contrasena: "",
 };
@@ -173,6 +179,19 @@ export default function NuevoDispositivoBiostar() {
                   </Grid>
                   <Grid size={{ xs: 12 }}>
                     <TextFieldElement name="nombre" label="Nombre" required fullWidth />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <SelectElement
+                      name="modo_acceso"
+                      label="Tipo de acceso"
+                      required
+                      fullWidth
+                      options={[
+                        { id: "entrada", label: "Entrada" },
+                        { id: "salida", label: "Salida" },
+                        { id: "ambos", label: "Ambos (alterna)" },
+                      ]}
+                    />
                   </Grid>
                   <Grid size={{ xs: 12 }}>
                     <TextFieldElement name="usuario" label="Usuario" required fullWidth />

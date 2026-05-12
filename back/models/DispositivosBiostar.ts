@@ -8,6 +8,7 @@ export interface IDispositivoBiostar extends Document {
   nombre: string;
   direccion_ip: string;
   puerto: number;
+  modo_acceso?: "entrada" | "salida" | "ambos";
   usuario: string;
   contrasena: string;
   session_id?: string;
@@ -40,6 +41,7 @@ const dispositivosBiostarSchema = new Schema<IDispositivoBiostar>({
     },
   },
   puerto: { type: Number, required: true, default: CONFIG.BIOSTAR_PORT },
+  modo_acceso: { type: String, enum: ["entrada", "salida", "ambos"], default: "ambos" },
   usuario: { type: String, required: true, default: '' },
   contrasena: { type: String, required: true, default: '' },
   session_id: { type: String, default: '' },

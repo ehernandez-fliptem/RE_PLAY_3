@@ -173,6 +173,23 @@ export default function DispositivosBiostar() {
           { headerName: "Nombre", field: "nombre", flex: 1, minWidth: 180 },
           { headerName: "IP", field: "direccion_ip", flex: 1, minWidth: 150 },
           { headerName: "Puerto", field: "puerto", flex: 0.5, minWidth: 90 },
+          {
+            headerName: "Acceso",
+            field: "modo_acceso",
+            flex: 0.6,
+            minWidth: 120,
+            renderCell: (params) => {
+              const value = String(params.value || "ambos");
+              return (
+                <Chip
+                  label={value === "entrada" ? "Entrada" : value === "salida" ? "Salida" : "Ambos"}
+                  color={value === "ambos" ? "default" : "primary"}
+                  size="small"
+                  sx={{ width: "100%" }}
+                />
+              );
+            },
+          },
           { headerName: "Usuario", field: "usuario", flex: 1, minWidth: 130 },
           {
             headerName: "Main",

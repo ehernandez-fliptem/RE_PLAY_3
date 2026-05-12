@@ -298,7 +298,7 @@ export async function sincronizarEventosBiostar(): Promise<void> {
 
     const [suprema, biostarLocal] = await Promise.all([
       DispositivosSuprema.find({ activo: true }, "_id nombre direccion_ip").lean<{ _id: Types.ObjectId; nombre?: string; direccion_ip?: string }[]>(),
-      DispositivosBiostar.find({ activo: true }, "_id nombre direccion_ip").lean<{ _id: Types.ObjectId; nombre?: string; direccion_ip?: string }[]>(),
+      DispositivosBiostar.find({ activo: true }, "_id nombre direccion_ip modo_acceso").lean<{ _id: Types.ObjectId; nombre?: string; direccion_ip?: string; modo_acceso?: "entrada" | "salida" | "ambos" }[]>(),
     ]);
     const panelByName = new Map<string, Types.ObjectId>();
     const panelByIp = new Map<string, Types.ObjectId>();
@@ -316,6 +316,10 @@ export async function sincronizarEventosBiostar(): Promise<void> {
       if (ip && !panelByIp.has(ip)) panelByIp.set(ip, d._id);
     });
     const biostarDeviceToPanel = new Map<string, Types.ObjectId>();
+    const panelModoById = new Map<string, "entrada" | "salida" | "ambos">();
+    biostarLocal.forEach((d) => {
+      panelModoById.set(String(d._id), d.modo_acceso || "ambos");
+    });
     activeDeviceRows.forEach((d: any) => {
       const devId = String(d?.id || "").trim();
       if (!devId) return;
@@ -380,8 +384,13 @@ export async function sincronizarEventosBiostar(): Promise<void> {
 
       const fechaEvento = parseEventDate(row);
       const eventCode = toNumber(row?.event_type_id?.code);
-        const tipo_check = biostarEventType === "ACCESS_DENIED"
+      const panelMode = idPanel ? panelModoById.get(String(idPanel)) || "ambos" : "ambos";
+      const tipo_check = biostarEventType === "ACCESS_DENIED"
         ? 7
+        : panelMode === "entrada"
+          ? 5
+          : panelMode === "salida"
+            ? 6
         : await resolveTipoCheck({
           idEmpleado: empleadoFinal?._id || null,
           idUsuario: usuarioSistema?._id || null,

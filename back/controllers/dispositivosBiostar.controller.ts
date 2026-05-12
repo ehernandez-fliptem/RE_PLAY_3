@@ -65,6 +65,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
           nombre: 1,
           direccion_ip: 1,
           puerto: 1,
+          modo_acceso: 1,
           usuario: 1,
           activo: 1,
           es_main: 1,
@@ -193,7 +194,7 @@ export async function obtenerUnoFormEditar(req: Request, res: Response): Promise
 
 export async function crear(req: Request, res: Response): Promise<void> {
   try {
-    const { nombre, direccion_ip, puerto, usuario, contrasena } = req.body;
+    const { nombre, direccion_ip, puerto, usuario, contrasena, modo_acceso } = req.body;
     const creado_porID = jwt.verify(req.headers["x-access-token"] as string, CONFIG.SECRET) as DecodedTokenUser;
 
     const hasMain = await DispositivosBiostar.exists({ es_main: true, activo: true });
@@ -201,6 +202,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
       nombre,
       direccion_ip,
       puerto: Number(puerto) || CONFIG.BIOSTAR_PORT,
+      modo_acceso: ["entrada", "salida", "ambos"].includes(String(modo_acceso)) ? modo_acceso : "ambos",
       usuario,
       contrasena,
       es_main: !hasMain,
@@ -232,7 +234,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
 
 export async function modificar(req: Request, res: Response): Promise<void> {
   try {
-    const { nombre, direccion_ip, puerto, usuario, contrasena } = req.body;
+    const { nombre, direccion_ip, puerto, usuario, contrasena, modo_acceso } = req.body;
     const modificado_porID = jwt.verify(req.headers["x-access-token"] as string, CONFIG.SECRET) as DecodedTokenUser;
 
     const registroActual = await DispositivosBiostar.findById(req.params.id);
@@ -245,6 +247,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
       nombre,
       direccion_ip,
       puerto: Number(puerto) || CONFIG.BIOSTAR_PORT,
+      modo_acceso: ["entrada", "salida", "ambos"].includes(String(modo_acceso)) ? modo_acceso : "ambos",
       usuario,
       modificado_por: modificado_porID.id,
       fecha_modificacion: Date.now(),
@@ -580,6 +583,7 @@ export async function sincronizarDispositivos(req: Request, res: Response): Prom
           nombre: device.nombre,
           direccion_ip: device.direccion_ip,
           puerto: device.puerto || CONFIG.BIOSTAR_PORT,
+          modo_acceso: "ambos",
           usuario: conexion.usuario,
           contrasena: decryptPassword(conexion.contrasena, CONFIG.SECRET_CRYPTO),
           creado_por: null,

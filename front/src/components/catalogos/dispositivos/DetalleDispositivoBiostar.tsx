@@ -22,6 +22,7 @@ type TDispositivoSuprema = {
   usuario: string;
   direccion_ip: string;
   puerto: number;
+  modo_acceso?: "entrada" | "salida" | "ambos";
   fecha_creacion?: Date | string;
   creado_por?: string;
   fecha_modificacion?: Date | string;
@@ -38,6 +39,7 @@ export default function DetalleDispositivoBiostar() {
     usuario: "",
     direccion_ip: "",
     puerto: 443,
+    modo_acceso: "ambos",
     fecha_creacion: "",
     creado_por: "",
     fecha_modificacion: "",
@@ -139,6 +141,19 @@ export default function DetalleDispositivoBiostar() {
                   </Grid>
                   <Grid size={{ xs: 12, sm: "grow" }} sx={{ ml: { xs: 2, sm: 0 } }}>
                     {datos.usuario}
+                  </Grid>
+                </Grid>
+
+                <Grid container spacing={{ xs: 0, sm: 2 }} sx={{ my: 2 }}>
+                  <Grid size="auto" sx={{ width: { xs: "100%", sm: "30%" } }}>
+                    <strong>Tipo acceso:</strong>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: "grow" }} sx={{ ml: { xs: 2, sm: 0 } }}>
+                    {datos.modo_acceso === "entrada"
+                      ? "Entrada"
+                      : datos.modo_acceso === "salida"
+                        ? "Salida"
+                        : "Ambos (alterna)"}
                   </Grid>
                 </Grid>
               </Grid>
