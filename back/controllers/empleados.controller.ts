@@ -1692,6 +1692,21 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
                     const scanCode = bioCode(scanRes.data);
                     const extractedSamples = extractFingerprintTemplateSamples(scanRes.data);
                     lastScanMsg = bioMessage(scanRes.data, scanRes.message || "").trim();
+                    bioDebugLog("scan_fingerprint", {
+                        sample: sampleIdx + 1,
+                        attempt,
+                        ok: scanRes.ok,
+                        code: scanCode,
+                        message: lastScanMsg,
+                        templatesFound: extractedSamples.length,
+                    });
+                    if (!extractedSamples.length) {
+                        bioDebugLog("scan_fingerprint_raw", {
+                            sample: sampleIdx + 1,
+                            attempt,
+                            data: scanRes.data,
+                        });
+                    }
 
                     if (extractedSamples.length > 0) {
                         const uniqueSample = extractedSamples.find((candidate) => {
@@ -2292,6 +2307,16 @@ const bioMessage = (payload: any, fallback: string) =>
     String(payload?.Response?.message || payload?.message || fallback).trim();
 
 const bioCode = (payload: any) => String(payload?.Response?.code || payload?.code || "").trim();
+const bioDebugEnabled = () => String(process.env.BIOSTAR_DEBUG || "").trim() === "1";
+const bioDebugLog = (...args: any[]) => {
+    if (!bioDebugEnabled()) return;
+    try {
+        // eslint-disable-next-line no-console
+        console.log("[BIOSTAR_DEBUG]", ...args);
+    } catch {
+        // ignore debug logging errors
+    }
+};
 const isBiostarAdminUser = (user: any): boolean => {
     const userId = String(user?.user_id || user?.User?.user_id || "").trim().toLowerCase();
     const loginId = String(user?.login_id || user?.User?.login_id || "").trim().toLowerCase();
