@@ -2356,7 +2356,7 @@ const bypassCertificateInterstitial = async (page: Page) => {
         if (!content.includes("Your connection is not private") && !content.includes("Privacy error")) return;
         const detailsButton = await page.$("#details-button");
         if (detailsButton) await detailsButton.click();
-        await page.waitForTimeout(150);
+        await new Promise((resolve) => setTimeout(resolve, 150));
         const proceedLink = await page.$("#proceed-link");
         if (proceedLink) await proceedLink.click();
     } catch {
