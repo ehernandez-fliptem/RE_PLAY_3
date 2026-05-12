@@ -8,13 +8,15 @@ import Usuarios from "../../models/Usuarios";
 import Eventos from "../../models/Eventos";
 import { biostarRequest } from "../../classes/Biostar";
 
-const BIOSTAR_EVENT_LOOKBACK_HOURS = 24;
+const BIOSTAR_EVENT_INITIAL_LOOKBACK_HOURS = 24;
+const BIOSTAR_EVENT_OVERLAP_SECONDS = 15;
 const BIOSTAR_EVENT_LIMIT = 1000;
 const BIOSTAR_TIPO_DISPOSITIVO = 3;
 const EVENT_TYPES_CACHE_TTL_MS = 10 * 60 * 1000;
 const DEVICE_CACHE_TTL_MS = 60 * 1000;
 
 let jobRunning = false;
+let lastSyncAt: dayjs.Dayjs | null = null;
 let eventTypeCache: {
   expiresAt: number;
   grantedCodes: Set<number>;
@@ -255,7 +257,9 @@ export async function sincronizarEventosBiostar(): Promise<void> {
     let omitidosDispositivoInactivo = 0;
 
     const hasta = dayjs();
-    const desde = hasta.subtract(BIOSTAR_EVENT_LOOKBACK_HOURS, "hour");
+    const desde = lastSyncAt
+      ? lastSyncAt.subtract(BIOSTAR_EVENT_OVERLAP_SECONDS, "second")
+      : hasta.subtract(BIOSTAR_EVENT_INITIAL_LOOKBACK_HOURS, "hour");
 
     const payload = {
       Query: {
@@ -285,8 +289,10 @@ export async function sincronizarEventosBiostar(): Promise<void> {
 
     if (!rows.length) {
       console.log("[BIOSTAR_EVENTS] Sin eventos en ventana.", {
-        ventanaHoras: BIOSTAR_EVENT_LOOKBACK_HOURS,
+        desde: desde.toISOString(),
+        hasta: hasta.toISOString(),
       });
+      lastSyncAt = hasta;
       return;
     }
 
@@ -410,9 +416,11 @@ export async function sincronizarEventosBiostar(): Promise<void> {
         sinPanelMap: omitidosSinPanelMap,
       },
       dispositivosActivos: activeDeviceIds.size,
-      ventanaHoras: BIOSTAR_EVENT_LOOKBACK_HOURS,
+      desde: desde.toISOString(),
+      hasta: hasta.toISOString(),
       duracionMs: Date.now() - cicloInicio,
     });
+    lastSyncAt = hasta;
   } catch (error: any) {
     console.log("[BIOSTAR_EVENTS] Error sincronizando eventos:", error?.message || error);
   } finally {

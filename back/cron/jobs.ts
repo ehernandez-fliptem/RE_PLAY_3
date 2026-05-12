@@ -19,7 +19,7 @@ cron.schedule("15 0 * * *", async () => {
     await recalibrarRelojPaneles();
 });
 
-// Sincronizacion de eventos BioStar hacia RE (kiosco/reportes)
-cron.schedule("*/20 * * * * *", async () => {
+// Sincronizacion de eventos BioStar hacia RE (kiosco/reportes) cada 5s
+cron.schedule("*/5 * * * * *", async () => {
     await sincronizarEventosBiostar();
 });
