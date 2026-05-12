@@ -2636,6 +2636,20 @@ const instalarAutoApplyFingerprint = async (page: Page) => {
                 return result;
             };
 
+            const originalEmit = target.$emit?.bind(target);
+            if (typeof originalEmit === "function") {
+                target.$emit = function (eventName: string, ...args: any[]) {
+                    const result = originalEmit(eventName, ...args);
+                    if (eventName === "closeFingerPrintScanDlg") {
+                        setTimeout(() => {
+                            const appliedByScope = callApplyInAngularScopes();
+                            if (!appliedByScope) clickApplyOnUserDetail();
+                        }, 500);
+                    }
+                    return result;
+                };
+            }
+
             w.__replayAutoApplyInstalled = true;
         });
     } catch {
