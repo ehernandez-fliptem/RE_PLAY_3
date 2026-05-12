@@ -1027,6 +1027,8 @@ export default function Empleados() {
                 {
                   headerName: "Huella",
                   field: "huellas_total",
+                  headerAlign: "center",
+                  align: "center",
                   flex: 1,
                   minWidth: 150,
                   display: "flex" as const,
@@ -1053,7 +1055,7 @@ export default function Empleados() {
                             },
                           }}
                         >
-                          {total > 0 ? `${total}` : "Sin huella"}
+                          {total > 0 ? `${total} huella(s)` : "Sin huellas"}
                         </Button>
                       </Box>
                     );
@@ -1061,8 +1063,10 @@ export default function Empleados() {
                 },
                 ...(huellaHikiEnabled
                   ? [{
-                  headerName: "Huellas Hiki",
+                  headerName: "Huellas Hikvision",
                   field: "huellas_hiki_total",
+                  headerAlign: "center",
+                  align: "center",
                   flex: 1,
                   minWidth: 130,
                   display: "flex" as const,
@@ -1081,6 +1085,8 @@ export default function Empleados() {
                   ? [{
                   headerName: "Huellas BioStar",
                   field: "huellas_biostar_total",
+                  headerAlign: "center",
+                  align: "center",
                   flex: 1,
                   minWidth: 140,
                   display: "flex" as const,
