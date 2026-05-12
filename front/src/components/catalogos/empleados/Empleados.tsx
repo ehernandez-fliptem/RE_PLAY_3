@@ -243,12 +243,13 @@ export default function Empleados() {
         setHuellaProviderQueue(queue);
         setHuellaProviderIndex(0);
         if (queue.length > 1) {
-          // En captura dual, no mezclar dedos entre sistemas en esta vista.
+          // En captura dual, iniciar ambas vistas con lo registrado para mostrar bordes verdes.
+          // Luego cada proveedor evoluciona por separado al capturar.
           setHuellasPorProveedor({
-            hiki: [],
-            biostar: [],
+            hiki: [...huellas],
+            biostar: [...huellas],
           });
-          setSelectedFinger(getNextDefaultFinger([]));
+          setSelectedFinger(getNextDefaultFinger(huellas));
         } else if (queue[0] === "biostar") {
           setHuellasPorProveedor({
             hiki: [],
