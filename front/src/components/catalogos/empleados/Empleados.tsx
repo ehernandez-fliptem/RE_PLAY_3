@@ -1404,8 +1404,7 @@ export default function Empleados() {
                               )}
                               {biostarDispositivos.map((device) => (
                                 <MenuItem key={device.id} value={device.id}>
-                                  {device.nombre || device.direccion_ip}
-                                  {device.puerto ? ` (${device.direccion_ip}:${device.puerto})` : ""}
+                                  {device.nombre || "Sin nombre"}
                                 </MenuItem>
                               ))}
                             </Select>
