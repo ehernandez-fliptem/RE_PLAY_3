@@ -1668,39 +1668,62 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
 
             const capturedSamples: Array<{ template0: string; template1: string; finger_mask: string; }> = [];
             const requiredSamples = 2;
+            const maxAttemptsPerSample = 4;
+            const sampleKeySet = new Set<string>();
+
             for (let sampleIdx = 0; sampleIdx < requiredSamples; sampleIdx++) {
-                const scanRes = await biostarRequest(conexion, {
-                    method: "POST",
-                    url: `/api/devices/${encodeURIComponent(deviceId)}/scan_fingerprint`,
-                    data: {
-                        ScanFingerprintOption: {
-                            enroll_quality: "80",
-                            raw_image: false,
+                let sampleCaptured = false;
+                let lastScanMsg = "";
+
+                for (let attempt = 1; attempt <= maxAttemptsPerSample; attempt++) {
+                    const scanRes = await biostarRequest(conexion, {
+                        method: "POST",
+                        url: `/api/devices/${encodeURIComponent(deviceId)}/scan_fingerprint`,
+                        data: {
+                            ScanFingerprintOption: {
+                                enroll_quality: "80",
+                                raw_image: false,
+                            },
+                            noblockui: true,
                         },
-                        noblockui: true,
-                    },
-                    timeout: 25000,
-                });
-                const scanCode = bioCode(scanRes.data);
-                if (!(scanRes.ok && (!scanCode || scanCode === "0"))) {
-                    const msg = bioMessage(scanRes.data, scanRes.message || "No se pudo capturar la huella en BioStar.");
-                    res.status(200).json({
-                        estado: false,
-                        mensaje: msg,
+                        timeout: 25000,
                     });
-                    return;
+
+                    const scanCode = bioCode(scanRes.data);
+                    const extractedSamples = extractFingerprintTemplateSamples(scanRes.data);
+                    lastScanMsg = bioMessage(scanRes.data, scanRes.message || "").trim();
+
+                    if (extractedSamples.length > 0) {
+                        const uniqueSample = extractedSamples.find((candidate) => {
+                            const key = `${candidate.template0}|${candidate.template1}`;
+                            return !sampleKeySet.has(key);
+                        }) || extractedSamples[0];
+
+                        const sampleKey = `${uniqueSample.template0}|${uniqueSample.template1}`;
+                        sampleKeySet.add(sampleKey);
+                        capturedSamples.push(uniqueSample);
+                        sampleCaptured = true;
+                        break;
+                    }
+
+                    if (!(scanRes.ok && (!scanCode || scanCode === "0"))) {
+                        if (attempt >= maxAttemptsPerSample) {
+                            res.status(200).json({
+                                estado: false,
+                                mensaje: lastScanMsg || "No se pudo capturar la huella en BioStar.",
+                            });
+                            return;
+                        }
+                    }
                 }
 
-                const extractedSamples = extractFingerprintTemplateSamples(scanRes.data);
-                if (!extractedSamples.length) {
+                if (!sampleCaptured) {
                     res.status(200).json({
                         estado: false,
-                        mensaje: `No se obtuvo plantilla en la captura ${sampleIdx + 1} de 2. Vuelve a escanear el dedo.`,
+                        mensaje: `No se obtuvo plantilla en la captura ${sampleIdx + 1} de 2 tras varios intentos. Vuelve a escanear el mismo dedo.`,
                     });
                     return;
                 }
-                const sample = extractedSamples[0];
-                capturedSamples.push(sample);
             }
             if (capturedSamples.length < 2) {
                 res.status(200).json({
