@@ -1305,7 +1305,9 @@ export default function Empleados() {
         }}
       >
         <DialogTitle sx={{ fontWeight: 700, fontSize: "1.1rem", color: "text.primary" }}>
-          {biometriaStep === "tarjeta" ? "Configurar tarjeta" : "Configurar huella"}
+          {biometriaStep === "tarjeta"
+            ? "Configurar tarjeta Hikvision"
+            : `Configurar huella ${proveedorHuellaActual === "biostar" ? "BioStar" : "Hikvision"}`}
           <IconButton
             onClick={cerrarBiometria}
             sx={{ position: "absolute", right: 8, top: 8 }}
