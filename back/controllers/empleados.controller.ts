@@ -2701,6 +2701,62 @@ const instalarAutoApplyFingerprint = async (page: Page) => {
     }
 };
 
+const instalarAyudaScrollYCierre = async (page: Page) => {
+    try {
+        await page.evaluate(() => {
+            const w = window as any;
+            if (w.__replayScrollCloseInstalled) return;
+
+            const scrollToBottom = () => {
+                try {
+                    const candidates = Array.from(
+                        document.querySelectorAll("section, .wrap, .panelAreaOpen, .popCnt, .dialog-content, .content, body, html")
+                    ) as HTMLElement[];
+                    for (const el of candidates) {
+                        if (el && typeof el.scrollTop === "number") {
+                            el.scrollTop = el.scrollHeight;
+                        }
+                    }
+                    window.scrollTo(0, document.body.scrollHeight || document.documentElement.scrollHeight || 999999);
+                } catch {
+                    // noop
+                }
+            };
+
+            const shouldClose = () => {
+                const hash = String(window.location.hash || "").toLowerCase();
+                // Cierra cuando vuelve a la lista de usuarios (no detalle).
+                return hash.includes("/user") && !hash.includes("/user/detail/");
+            };
+
+            const closeIfList = () => {
+                if (!shouldClose()) return;
+                try {
+                    window.close();
+                } catch {
+                    // noop
+                }
+            };
+
+            setTimeout(scrollToBottom, 400);
+            setTimeout(scrollToBottom, 1100);
+            setTimeout(scrollToBottom, 2200);
+            window.addEventListener("hashchange", () => {
+                setTimeout(scrollToBottom, 250);
+                setTimeout(closeIfList, 350);
+            });
+            window.addEventListener("popstate", () => {
+                setTimeout(scrollToBottom, 250);
+                setTimeout(closeIfList, 350);
+            });
+
+            w.__replayScrollCloseInstalled = true;
+        });
+    } catch {
+        // noop
+    }
+};
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const buildBiostarDraft = (u: any) => {
@@ -2877,6 +2933,7 @@ export async function abrirUiEnrollBiostar(req: Request, res: Response): Promise
         await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
         await bypassCertificateInterstitial(page);
         await sleep(600);
+        await instalarAyudaScrollYCierre(page);
         await instalarAutoApplyFingerprint(page);
         const openedByAngular = await abrirModalFingerprintAngular(page);
         if (!openedByAngular) {
