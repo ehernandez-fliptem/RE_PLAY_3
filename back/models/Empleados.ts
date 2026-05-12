@@ -27,6 +27,8 @@ export interface IEmpleado extends Document {
     id_horario?: mongoose.Types.ObjectId;
     accesos: mongoose.Types.ObjectId[];
     huellas_registradas: number[];
+    huellas_hiki_registradas?: number[];
+    huellas_biostar_registradas?: number[];
     huellas_template_dev?: Record<string, string>;
     tarjetas_registradas: string[];
     tarjetas_web?: Array<{
@@ -133,6 +135,8 @@ const empleadoSchema = new Schema<IEmpleado>({
     id_horario: { type: Schema.Types.ObjectId, default: null, ref: 'horarios' },
     accesos: [{ type: Schema.Types.ObjectId, required: true, ref: 'accesos' }],
     huellas_registradas: { type: [Number], default: [] },
+    huellas_hiki_registradas: { type: [Number], default: [] },
+    huellas_biostar_registradas: { type: [Number], default: [] },
     huellas_template_dev: { type: Map, of: String, default: {} },
     tarjetas_registradas: { type: [String], default: [] },
     tarjetas_web: {

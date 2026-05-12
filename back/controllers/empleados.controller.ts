@@ -1496,7 +1496,7 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
 
         const registro = await Empleados.findOne(
             filtro,
-            "nombre apellido_pat apellido_mat huellas_registradas huellas_template_dev tarjetas_registradas tarjetas_web"
+            "nombre apellido_pat apellido_mat huellas_registradas huellas_hiki_registradas huellas_biostar_registradas huellas_template_dev tarjetas_registradas tarjetas_web"
         ).lean();
 
         if (!registro) {
@@ -1513,6 +1513,12 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
             .map((key) => Number(key))
             .filter((key) => Number.isInteger(key) && key >= 1 && key <= 10)
             .sort((a, b) => a - b);
+        const huellasHikiRegistradas = Array.isArray((registro as any)?.huellas_hiki_registradas)
+            ? ((registro as any).huellas_hiki_registradas as number[]).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 10).sort((a, b) => a - b)
+            : huellasTemplateDevKeys;
+        const huellasBiostarRegistradas = Array.isArray((registro as any)?.huellas_biostar_registradas)
+            ? ((registro as any).huellas_biostar_registradas as number[]).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 10).sort((a, b) => a - b)
+            : [];
         const panelesHiki = await DispositivosHv.find(
             { activo: true, tipo_evento: { $in: [5, 6, 7] } },
             "nombre direccion_ip es_panel_maestro"
@@ -1563,6 +1569,10 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
                 tarjetas_total: tarjetas.length,
                 dev_huella_replay_enabled: true,
                 huellas_template_dev: huellasTemplateDevKeys,
+                huellas_por_proveedor: {
+                    hiki: huellasHikiRegistradas,
+                    biostar: huellasBiostarRegistradas,
+                },
                 paneles_hiki: (panelesHiki || []).map((p: any) => ({
                     id: String(p?._id || ""),
                     nombre: String(p?.nombre || "").trim(),
@@ -1870,11 +1880,16 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
 
             const huellasActuales = Array.isArray(registro.huellas_registradas) ? registro.huellas_registradas : [];
             const huellas = Array.from(new Set([...huellasActuales, dedo])).sort((a, b) => a - b);
+            const huellasBiostarActuales = Array.isArray((registro as any)?.huellas_biostar_registradas)
+                ? (registro as any).huellas_biostar_registradas
+                : [];
+            const huellasBiostar = Array.from(new Set([...huellasBiostarActuales, dedo])).sort((a, b) => a - b);
             await Empleados.findByIdAndUpdate(
                 req.params.id,
                 {
                     $set: {
                         huellas_registradas: huellas,
+                        huellas_biostar_registradas: huellasBiostar,
                         modificado_por: id_usuario,
                         fecha_modificacion: Date.now(),
                     },
@@ -1889,6 +1904,9 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
                     huellas_registradas: huellas,
                     huellas_total: huellas.length,
                     proveedor: "biostar",
+                    huellas_por_proveedor: {
+                        biostar: huellasBiostar,
+                    },
                 },
             });
             return;
@@ -2023,6 +2041,10 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
 
         const huellasActuales = Array.isArray(registro.huellas_registradas) ? registro.huellas_registradas : [];
         const huellas = Array.from(new Set([...huellasActuales, dedo])).sort((a, b) => a - b);
+        const huellasHikiActuales = Array.isArray((registro as any)?.huellas_hiki_registradas)
+            ? (registro as any).huellas_hiki_registradas
+            : [];
+        const huellasHiki = Array.from(new Set([...huellasHikiActuales, dedo])).sort((a, b) => a - b);
         const huellasTemplateDevActual = normalizeHuellaTemplateMap((registro as any)?.huellas_template_dev);
         const huellasTemplateDev = {
             ...huellasTemplateDevActual,
@@ -2034,6 +2056,7 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
             {
                 $set: {
                     huellas_registradas: huellas,
+                    huellas_hiki_registradas: huellasHiki,
                     huellas_template_dev: huellasTemplateDev,
                     modificado_por: id_usuario,
                     fecha_modificacion: Date.now(),
@@ -2055,6 +2078,9 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
                 paneles_fallidos,
                 dev_huella_replay_enabled: true,
                 huellas_template_dev: Object.keys(huellasTemplateDev).map(Number).sort((a, b) => a - b),
+                huellas_por_proveedor: {
+                    hiki: huellasHiki,
+                },
             },
         });
     } catch (error: any) {

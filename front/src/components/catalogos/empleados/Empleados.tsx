@@ -236,33 +236,32 @@ export default function Empleados() {
       const huellas = Array.isArray(datos?.huellas_registradas)
         ? datos.huellas_registradas
         : [];
+      const huellasPorProveedorResp = {
+        hiki: Array.isArray(datos?.huellas_por_proveedor?.hiki)
+          ? datos.huellas_por_proveedor.hiki.map((v: any) => Number(v)).filter((v: number) => Number.isInteger(v) && v >= 1 && v <= 10)
+          : [],
+        biostar: Array.isArray(datos?.huellas_por_proveedor?.biostar)
+          ? datos.huellas_por_proveedor.biostar.map((v: any) => Number(v)).filter((v: number) => Number.isInteger(v) && v >= 1 && v <= 10)
+          : [],
+      };
       if (step === "huella") {
         const queue: Array<"hiki" | "biostar"> = [];
         if (huellaHikiEnabled) queue.push("hiki");
         if (huellaBiostarEnabled) queue.push("biostar");
         setHuellaProviderQueue(queue);
         setHuellaProviderIndex(0);
-        if (queue.length > 1) {
-          // En captura dual, iniciar ambas vistas con lo registrado para mostrar bordes verdes.
-          // Luego cada proveedor evoluciona por separado al capturar.
-          setHuellasPorProveedor({
-            hiki: [...huellas],
-            biostar: [...huellas],
-          });
-          setSelectedFinger(getNextDefaultFinger(huellas));
-        } else if (queue[0] === "biostar") {
-          setHuellasPorProveedor({
-            hiki: [],
-            biostar: [...huellas],
-          });
-          setSelectedFinger(getNextDefaultFinger(huellas));
-        } else {
-          setHuellasPorProveedor({
-            hiki: [...huellas],
-            biostar: [],
-          });
-          setSelectedFinger(getNextDefaultFinger(huellas));
-        }
+        setHuellasPorProveedor({
+          hiki: [...huellasPorProveedorResp.hiki],
+          biostar: [...huellasPorProveedorResp.biostar],
+        });
+        const proveedorInicial = queue[0] === "biostar" ? "biostar" : "hiki";
+        const baseProveedorInicial =
+          proveedorInicial === "biostar"
+            ? huellasPorProveedorResp.biostar
+            : huellasPorProveedorResp.hiki;
+        setSelectedFinger(
+          getNextDefaultFinger(baseProveedorInicial.length ? baseProveedorInicial : huellas)
+        );
       }
       setBiometriaStep(step);
       setTarjetaStep("lista");
