@@ -1784,7 +1784,7 @@ export default function Empleados() {
                   }}
                   sx={{ fontWeight: 700 }}
                 >
-                  {haySiguienteProveedorHuella ? "Omitir BioStar" : "Hikvision"}
+                  {haySiguienteProveedorHuella ? "Omitir a BioStar" : "Regresar a Hikvision"}
                 </Button>
               )}
               <Box>
