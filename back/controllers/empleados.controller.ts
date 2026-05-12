@@ -1201,6 +1201,34 @@ const extractFingerprintTemplate = (payload: any): { template0: string; template
     return { template0: t0, template1: t1, finger_mask: mask };
 };
 
+const extractFingerprintTemplateSamples = (payload: any): Array<{ template0: string; template1: string; finger_mask: string; }> => {
+    const out: Array<{ template0: string; template1: string; finger_mask: string; }> = [];
+    const seen = new Set<string>();
+    const walk = (value: any) => {
+        const normalized = tryParseJsonString(value);
+        if (!normalized) return;
+        if (Array.isArray(normalized)) {
+            for (const item of normalized) walk(item);
+            return;
+        }
+        if (typeof normalized !== "object") return;
+
+        const sample = extractFingerprintTemplate(normalized);
+        if (sample.template0 && sample.template1) {
+            const key = `${sample.template0}|${sample.template1}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                out.push(sample);
+            }
+        }
+        for (const key of Object.keys(normalized)) {
+            walk((normalized as any)[key]);
+        }
+    };
+    walk(payload);
+    return out;
+};
+
 const captureFingerprintFromPanel = async (ip: string, user: string, pass: string, fingerNo: number) => {
     const xmlPayload =
         `<?xml version="1.0" encoding="UTF-8"?>` +
@@ -1631,11 +1659,9 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
                 );
             }
 
-            let template0 = "";
-            let template1 = "";
-            let fingerMask = "false";
+            const capturedSamples: Array<{ template0: string; template1: string; finger_mask: string; }> = [];
             let lastScanMsg = "No se pudo capturar la huella en BioStar.";
-            const scanAttempts = 4;
+            const scanAttempts = 6;
             for (let intento = 1; intento <= scanAttempts; intento++) {
                 const scanRes = await biostarRequest(conexion, {
                     method: "POST",
@@ -1663,31 +1689,41 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
                     return;
                 }
 
-                const extracted = extractFingerprintTemplate(scanRes.data);
-                if (extracted.template0 && extracted.template1) {
-                    template0 = extracted.template0;
-                    template1 = extracted.template1;
-                    fingerMask = extracted.finger_mask || "false";
-                    break;
+                const extractedSamples = extractFingerprintTemplateSamples(scanRes.data);
+                if (extractedSamples.length > 0) {
+                    for (const sample of extractedSamples) {
+                        const key = `${sample.template0}|${sample.template1}`;
+                        const exists = capturedSamples.some(
+                            (x) => `${x.template0}|${x.template1}` === key
+                        );
+                        if (!exists) capturedSamples.push(sample);
+                    }
+                    if (capturedSamples.length >= 2) break;
                 }
-                lastScanMsg = "BioStar no devolvio la plantilla de huella en este intento.";
+                lastScanMsg = "BioStar aun no devolvio las dos muestras de huella requeridas.";
                 if (intento < scanAttempts) {
                     await new Promise((resolve) => setTimeout(resolve, 250));
                 }
             }
-            if (!template0 || !template1) {
+            if (capturedSamples.length < 2) {
                 res.status(200).json({
                     estado: false,
-                    mensaje: "BioStar no devolvio la plantilla de huella tras varios intentos. Intenta de nuevo.",
+                    mensaje:
+                        "No se completaron las dos capturas de huella en BioStar. Vuelve a escanear el mismo dedo dos veces.",
                 });
                 return;
             }
+
+            const sampleForVerify = capturedSamples[0];
 
             const verifyRes = await biostarRequest(conexion, {
                 method: "POST",
                 url: `/api/devices/${encodeURIComponent(deviceId)}/verify_fingerprint`,
                 data: {
-                    FingerprintTemplate: { template0, template1 },
+                    FingerprintTemplate: {
+                        template0: sampleForVerify.template0,
+                        template1: sampleForVerify.template1,
+                    },
                     VerifyFingerprintOption: { security_level: "0" },
                 },
             });
@@ -1726,12 +1762,15 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
                     template1: String(item?.template1 || ""),
                 }))
                 .filter((item: any) => item.finger_index !== "" && item.template0 && item.template1);
-            nextTemplates.push({
-                finger_index: fingerIndex,
-                finger_mask: fingerMask,
-                template0,
-                template1,
-            });
+            const samplesForEnroll = capturedSamples.slice(0, 2);
+            for (const sample of samplesForEnroll) {
+                nextTemplates.push({
+                    finger_index: fingerIndex,
+                    finger_mask: String(sample.finger_mask || "false"),
+                    template0: sample.template0,
+                    template1: sample.template1,
+                });
+            }
 
             const putRes = await biostarRequest(conexion, {
                 method: "PUT",
