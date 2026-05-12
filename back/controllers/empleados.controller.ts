@@ -2652,7 +2652,10 @@ const instalarAutoApplyFingerprint = async (page: Page) => {
                 const loop = () => {
                     if (autoAppliedAfterClose) return;
                     const isOpen = detectEnrollModalOpen();
-                    if (isOpen) sawEnrollModal = true;
+                    if (isOpen) {
+                        sawEnrollModal = true;
+                        (window as any).__replaySawEnrollModal = true;
+                    }
                     if (sawEnrollModal && !isOpen) {
                         autoAppliedAfterClose = true;
                         runApplyBurst();
@@ -2666,6 +2669,7 @@ const instalarAutoApplyFingerprint = async (page: Page) => {
 
             target.doApplyFingerPrintScan = function (...args: any[]) {
                 const result = originalEnroll(...args);
+                (window as any).__replayEnrollTriggered = true;
                 setTimeout(() => {
                     runApplyBurst();
                 }, 700);
@@ -2677,6 +2681,7 @@ const instalarAutoApplyFingerprint = async (page: Page) => {
                 target.$emit = function (eventName: string, ...args: any[]) {
                     const result = originalEmit(eventName, ...args);
                     if (eventName === "closeFingerPrintScanDlg") {
+                        (window as any).__replayEnrollTriggered = true;
                         setTimeout(() => {
                             runApplyBurst();
                         }, 500);
@@ -2725,6 +2730,8 @@ const instalarAyudaScrollYCierre = async (page: Page) => {
 
             const shouldClose = () => {
                 const hash = String(window.location.hash || "").toLowerCase();
+                const enrollStarted = !!(window as any).__replaySawEnrollModal || !!(window as any).__replayEnrollTriggered;
+                if (!enrollStarted) return false;
                 // Cierra cuando vuelve a la lista de usuarios (no detalle).
                 return hash.includes("/user") && !hash.includes("/user/detail/");
             };
