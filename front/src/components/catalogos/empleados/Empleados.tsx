@@ -300,10 +300,19 @@ export default function Empleados() {
     setHuellasPorProveedor({ hiki: [], biostar: [] });
   };
 
-  const iniciarCapturaHuella = async () => {
+  const iniciarCapturaHuella = async (forzarFlujoRe = false) => {
     if (!biometriaEmpleado?._id) return;
-    if (proveedorHuellaActual === "biostar") {
+    if (proveedorHuellaActual === "biostar" && !forzarFlujoRe) {
       await abrirEnrollBiostar();
+      return;
+    }
+    if (
+      proveedorHuellaActual === "biostar" &&
+      !biostarDispositivoSeleccionado
+    ) {
+      enqueueSnackbar("Selecciona un dispositivo BioStar para capturar.", {
+        variant: "warning",
+      });
       return;
     }
     if (proveedorHuellaActual === "hiki" && !hikiPanelSeleccionado) {
@@ -1799,11 +1808,21 @@ export default function Empleados() {
               )}
               <Button
                 variant="contained"
-                onClick={iniciarCapturaHuella}
+                onClick={() => iniciarCapturaHuella()}
                 sx={{ fontWeight: 700, color: "common.white" }}
               >
                 {proveedorHuellaActual === "biostar" ? "Capturar en BioStar" : "Capturar"}
               </Button>
+              {proveedorHuellaActual === "biostar" && (
+                <Button
+                  variant="outlined"
+                  color="secondary"
+                  onClick={() => iniciarCapturaHuella(true)}
+                  sx={{ fontWeight: 700, ml: 1 }}
+                >
+                  Enrolar RE
+                </Button>
+              )}
               </Box>
               {huellaProviderQueue.length > 1 && (
                 <Button
