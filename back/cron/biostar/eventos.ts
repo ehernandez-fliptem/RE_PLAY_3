@@ -10,10 +10,19 @@ import { biostarRequest } from "../../classes/Biostar";
 const BIOSTAR_EVENT_POLL_WINDOW_SECONDS = 150;
 const BIOSTAR_EVENT_LIMIT = 200;
 const BIOSTAR_TIPO_DISPOSITIVO = 3;
-const BIOSTAR_ACCESS_GRANTED_CODES = new Set([4864, 4865, 4866, 4867, 4868]);
-const BIOSTAR_ACCESS_DENIED_CODES = new Set([5120, 5121, 5122, 5123, 5124, 5125, 5126, 5127, 6400, 6401]);
+const EVENT_TYPES_CACHE_TTL_MS = 10 * 60 * 1000;
+const DEVICE_CACHE_TTL_MS = 60 * 1000;
 
 let jobRunning = false;
+let eventTypeCache: {
+  expiresAt: number;
+  grantedCodes: Set<number>;
+  deniedCodes: Set<number>;
+} | null = null;
+let activeDeviceCache: {
+  expiresAt: number;
+  ids: Set<string>;
+} | null = null;
 
 function getRows(payload: any): any[] {
   const rows = payload?.EventCollection?.rows;
@@ -25,13 +34,17 @@ function toNumber(val: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function getBiostarEventType(row: any): "ACCESS_GRANTED" | "ACCESS_DENIED" | "IGNORE" {
+function getBiostarEventType(
+  row: any,
+  grantedCodes: Set<number>,
+  deniedCodes: Set<number>
+): "ACCESS_GRANTED" | "ACCESS_DENIED" | "IGNORE" {
   const userCode = String(row?.user_id?.user_id || "").trim();
   if (!userCode) return "IGNORE";
 
   const eventCode = toNumber(row?.event_type_id?.code);
-  if (BIOSTAR_ACCESS_GRANTED_CODES.has(eventCode)) return "ACCESS_GRANTED";
-  if (BIOSTAR_ACCESS_DENIED_CODES.has(eventCode)) return "ACCESS_DENIED";
+  if (grantedCodes.has(eventCode)) return "ACCESS_GRANTED";
+  if (deniedCodes.has(eventCode)) return "ACCESS_DENIED";
   return "IGNORE";
 }
 
@@ -61,6 +74,18 @@ function parseEventDate(row: any): Date {
   const raw = String(row?.datetime || row?.server_datetime || "").trim();
   const d = dayjs(raw);
   return d.isValid() ? d.toDate() : new Date();
+}
+
+function getByPath(source: any, path: string): any {
+  return path.split(".").reduce((acc: any, key) => (acc == null ? undefined : acc[key]), source);
+}
+
+function parseRows(source: any, paths: string[]): any[] {
+  for (const path of paths) {
+    const candidate = getByPath(source, path);
+    if (Array.isArray(candidate)) return candidate;
+  }
+  return [];
 }
 
 async function consultarEventosConFallback(payload: any): Promise<{
@@ -114,6 +139,96 @@ async function consultarEventosConFallback(payload: any): Promise<{
   return { ok: false, message: ultimoError };
 }
 
+async function requestWithFallback(path: string, data?: any): Promise<{
+  ok: boolean;
+  data?: any;
+  source?: string;
+  message?: string;
+}> {
+  const candidatos: Array<{ source: string; conn: any }> = [];
+  const dispositivosBiostar = await DispositivosBiostar.find({ activo: true })
+    .sort({ es_main: -1, fecha_modificacion: -1, fecha_creacion: -1, _id: -1 })
+    .limit(5);
+  dispositivosBiostar.forEach((d) => candidatos.push({ source: "biostar_dispositivos", conn: d }));
+  const dispositivosSuprema = await DispositivosSuprema.find({ activo: true })
+    .sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 })
+    .limit(5);
+  dispositivosSuprema.forEach((d) => candidatos.push({ source: "suprema_dispositivos", conn: d }));
+  const conexionGlobal = await BiostarConexion.findOne({ activo: true })
+    .sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
+  if (conexionGlobal) candidatos.push({ source: "biostar_conexion_global", conn: conexionGlobal });
+
+  let ultimoError = `Fallo consultando ${path}`;
+  for (const item of candidatos) {
+    const response = await biostarRequest(item.conn as any, {
+      method: data ? "POST" : "GET",
+      url: path,
+      data,
+      timeout: 12000,
+    });
+    if (response.ok) return { ok: true, data: response.data, source: item.source };
+    ultimoError = response.message || ultimoError;
+  }
+  return { ok: false, message: ultimoError };
+}
+
+async function getActiveDeviceIds(): Promise<Set<string>> {
+  const now = Date.now();
+  if (activeDeviceCache && activeDeviceCache.expiresAt > now) return activeDeviceCache.ids;
+
+  const result = await requestWithFallback("/api/v2/devices/only_permission_item/search", {});
+  if (!result.ok) {
+    console.log("[BIOSTAR_EVENTS] No se pudo consultar dispositivos activos:", result.message);
+    const fallback = activeDeviceCache?.ids || new Set<string>();
+    return fallback;
+  }
+
+  const rows = parseRows(result.data, ["DeviceCollection.rows", "rows", "devices"]);
+  const ids = new Set<string>();
+  rows.forEach((d: any) => {
+    const status = toNumber(d?.status);
+    if (status === 1) ids.add(String(d?.id || "").trim());
+  });
+  activeDeviceCache = { expiresAt: now + DEVICE_CACHE_TTL_MS, ids };
+  return ids;
+}
+
+async function getEventTypeMaps(): Promise<{ grantedCodes: Set<number>; deniedCodes: Set<number> }> {
+  const now = Date.now();
+  if (eventTypeCache && eventTypeCache.expiresAt > now) {
+    return { grantedCodes: eventTypeCache.grantedCodes, deniedCodes: eventTypeCache.deniedCodes };
+  }
+
+  const result = await requestWithFallback("/api/event_types");
+  if (!result.ok) {
+    console.log("[BIOSTAR_EVENTS] No se pudo consultar event_types, usando fallback por codigo.");
+    return {
+      grantedCodes: new Set([4864, 4865, 4866, 4867, 4868]),
+      deniedCodes: new Set([5120, 5121, 5122, 5123, 5124, 5125, 5126, 5127, 6146, 6400, 6401, 6402, 6403, 6404, 6405, 6406, 6407, 6418]),
+    };
+  }
+
+  const rows = parseRows(result.data, ["EventTypeCollection.rows", "rows"]);
+  const grantedCodes = new Set<number>();
+  const deniedCodes = new Set<number>();
+  rows.forEach((et: any) => {
+    const code = toNumber(et?.code);
+    const name = String(et?.name || "").toUpperCase();
+    if (!code || !name) return;
+    if (name.includes("VERIFY_SUCCESS") || name.includes("IDENTIFY_SUCCESS")) grantedCodes.add(code);
+    if (name.includes("VERIFY_FAIL") || name.includes("IDENTIFY_FAIL") || name.includes("ACCESS_DENIED") || name.includes("AUTH_FAILED")) {
+      deniedCodes.add(code);
+    }
+  });
+
+  eventTypeCache = {
+    expiresAt: now + EVENT_TYPES_CACHE_TTL_MS,
+    grantedCodes,
+    deniedCodes,
+  };
+  return { grantedCodes, deniedCodes };
+}
+
 export async function sincronizarEventosBiostar(): Promise<void> {
   if (jobRunning) return;
   jobRunning = true;
@@ -127,6 +242,7 @@ export async function sincronizarEventosBiostar(): Promise<void> {
     let omitidosDuplicados = 0;
     let omitidosSinEmpleado = 0;
     let omitidosSinPanelMap = 0;
+    let omitidosDispositivoInactivo = 0;
 
     const hasta = dayjs();
     const desde = hasta.subtract(BIOSTAR_EVENT_POLL_WINDOW_SECONDS, "second");
@@ -151,6 +267,8 @@ export async function sincronizarEventosBiostar(): Promise<void> {
       return;
     }
     console.log("[BIOSTAR_EVENTS] Fuente de conexion usada:", response.source);
+    const activeDeviceIds = await getActiveDeviceIds();
+    const { grantedCodes, deniedCodes } = await getEventTypeMaps();
 
     const rows = getRows(response.data).sort((a, b) => toNumber(a?.id) - toNumber(b?.id));
     totalRows = rows.length;
@@ -170,7 +288,13 @@ export async function sincronizarEventosBiostar(): Promise<void> {
     });
 
     for (const row of rows) {
-      const biostarEventType = getBiostarEventType(row);
+      const deviceId = String(row?.device_id?.id || "").trim();
+      if (activeDeviceIds.size > 0 && deviceId && !activeDeviceIds.has(deviceId)) {
+        omitidosDispositivoInactivo++;
+        continue;
+      }
+
+      const biostarEventType = getBiostarEventType(row, grantedCodes, deniedCodes);
       if (biostarEventType === "IGNORE") {
         omitidosIgnorados++;
         continue;
@@ -234,10 +358,12 @@ export async function sincronizarEventosBiostar(): Promise<void> {
       insertados: totalInsertados,
       omitidos: {
         ignorados: omitidosIgnorados,
+        dispositivoInactivo: omitidosDispositivoInactivo,
         duplicados: omitidosDuplicados,
         sinEmpleado: omitidosSinEmpleado,
         sinPanelMap: omitidosSinPanelMap,
       },
+      dispositivosActivos: activeDeviceIds.size,
       ventanaSegundos: BIOSTAR_EVENT_POLL_WINDOW_SECONDS,
       duracionMs: Date.now() - cicloInicio,
     });
