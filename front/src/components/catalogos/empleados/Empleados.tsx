@@ -1707,20 +1707,22 @@ export default function Empleados() {
                 onClick={iniciarCapturaHuella}
                 sx={{ fontWeight: 700, color: "common.white" }}
               >
-                Siguiente
+                Capturar
               </Button>
               </Box>
-              {huellaProviderQueue.length > 1 && haySiguienteProveedorHuella && (
+              {huellaProviderQueue.length > 1 && (
                 <Button
                   variant="outlined"
                   color="warning"
                   onClick={() => {
-                    setHuellaProviderIndex((prev) => prev + 1);
+                    setHuellaProviderIndex((prev) =>
+                      haySiguienteProveedorHuella ? prev + 1 : Math.max(0, prev - 1)
+                    );
                     setBiometriaMensaje("");
                   }}
                   sx={{ fontWeight: 700 }}
                 >
-                  Omitir
+                  {haySiguienteProveedorHuella ? "Omitir" : "Atras"}
                 </Button>
               )}
             </Box>
