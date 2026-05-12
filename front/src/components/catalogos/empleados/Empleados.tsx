@@ -1773,6 +1773,21 @@ export default function Empleados() {
         <DialogActions>
           {biometriaStep === "huella" && (
             <Box sx={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              {huellaProviderQueue.length > 1 && (
+                <Button
+                  variant="outlined"
+                  color="warning"
+                  onClick={() => {
+                    setHuellaProviderIndex((prev) =>
+                      haySiguienteProveedorHuella ? prev + 1 : Math.max(0, prev - 1)
+                    );
+                    setBiometriaMensaje("");
+                  }}
+                  sx={{ fontWeight: 700 }}
+                >
+                  {haySiguienteProveedorHuella ? "Omitir BioStar" : "Hikvision"}
+                </Button>
+              )}
               <Box>
               {devReplayEnabled && (
                 <Button
@@ -1792,21 +1807,6 @@ export default function Empleados() {
                 Capturar
               </Button>
               </Box>
-              {huellaProviderQueue.length > 1 && (
-                <Button
-                  variant="outlined"
-                  color="warning"
-                  onClick={() => {
-                    setHuellaProviderIndex((prev) =>
-                      haySiguienteProveedorHuella ? prev + 1 : Math.max(0, prev - 1)
-                    );
-                    setBiometriaMensaje("");
-                  }}
-                  sx={{ fontWeight: 700 }}
-                >
-                  {haySiguienteProveedorHuella ? "Omitir BioStar" : "Hikvision"}
-                </Button>
-              )}
             </Box>
           )}
           {biometriaStep === "ok" && (
