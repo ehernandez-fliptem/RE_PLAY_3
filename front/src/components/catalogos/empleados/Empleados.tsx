@@ -1053,12 +1053,48 @@ export default function Empleados() {
                             },
                           }}
                         >
-                          {total > 0 ? `${total} huella(s)` : "Sin huellas"}
+                          {total > 0 ? `${total}` : "Sin huella"}
                         </Button>
                       </Box>
                     );
                   },
                 },
+                ...(huellaHikiEnabled
+                  ? [{
+                  headerName: "Huellas Hiki",
+                  field: "huellas_hiki_total",
+                  flex: 1,
+                  minWidth: 130,
+                  display: "flex" as const,
+                  sortable: false,
+                  renderCell: ({ value }: any) => {
+                    const total = Number(value || 0);
+                    return (
+                      <Box sx={{ width: "100%", display: "flex", justifyContent: "center", fontWeight: 700 }}>
+                        {total}
+                      </Box>
+                    );
+                  },
+                }]
+                  : []),
+                ...(huellaBiostarEnabled
+                  ? [{
+                  headerName: "Huellas BioStar",
+                  field: "huellas_biostar_total",
+                  flex: 1,
+                  minWidth: 140,
+                  display: "flex" as const,
+                  sortable: false,
+                  renderCell: ({ value }: any) => {
+                    const total = Number(value || 0);
+                    return (
+                      <Box sx={{ width: "100%", display: "flex", justifyContent: "center", fontWeight: 700 }}>
+                        {total}
+                      </Box>
+                    );
+                  },
+                }]
+                  : []),
                 ...(tarjetaHikiEnabled
                   ? [{
                   headerName: "Tarjeta",

@@ -113,6 +113,8 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                         }
                     },
                     huellas_total: { $size: { $ifNull: ["$huellas_registradas", []] } },
+                    huellas_hiki_total: { $size: { $ifNull: ["$huellas_hiki_registradas", []] } },
+                    huellas_biostar_total: { $size: { $ifNull: ["$huellas_biostar_registradas", []] } },
                     tarjetas_total: { $size: { $ifNull: ["$tarjetas_registradas", []] } },
                 }
             },
@@ -141,6 +143,8 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                     fecha_modificacion: 0,
                     modificado_por: 0,
                     huellas_registradas: 0,
+                    huellas_hiki_registradas: 0,
+                    huellas_biostar_registradas: 0,
                     tarjetas_registradas: 0,
                 }
             },
