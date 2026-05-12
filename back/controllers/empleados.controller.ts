@@ -1904,9 +1904,11 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
         }
 
         const panelSolicitadoId = String(req.body?.panel_hiki_id || "").trim();
-        const panelCaptura = panelSolicitadoId
+        const panelMaestro = await DispositivosHv.findOne({ activo: true, es_panel_maestro: true }).lean();
+        const panelSolicitado = panelSolicitadoId
             ? await DispositivosHv.findOne({ _id: panelSolicitadoId, activo: true }).lean()
-            : await DispositivosHv.findOne({ activo: true, es_panel_maestro: true }).lean();
+            : null;
+        const panelCaptura = panelSolicitado || panelMaestro;
         if (!panelCaptura) {
             res.status(200).json({
                 estado: false,
@@ -1921,8 +1923,51 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
             id_acceso: { $in: Array.isArray(registro.accesos) ? registro.accesos : [] },
         }).lean();
 
+        const employeeNo = String(registro.id_empleado);
+        const tryCaptureFromPanel = async (panel: any) => {
+            const panelUser = String(panel?.usuario || "").trim();
+            const panelPass = decryptPassword(String(panel?.contrasena || ""), CONFIG.SECRET_CRYPTO);
+            return captureFingerprintFromPanel(
+                String(panel?.direccion_ip || ""),
+                panelUser,
+                panelPass,
+                dedo
+            );
+        };
+
+        let captureSourcePanel: any = panelCaptura;
+        let captureData: { fingerData: string; fingerPrintQuality: number; } | null = null;
+        let captureError: any = null;
+        try {
+            captureData = await tryCaptureFromPanel(panelCaptura);
+        } catch (error: any) {
+            captureError = error;
+            const msg = String(error?.message || "").toLowerCase();
+            const canFallbackToMaster =
+                !!panelMaestro &&
+                String((panelCaptura as any)?._id || "") !== String((panelMaestro as any)?._id || "");
+            const isCaptureTimeout = msg.includes("no se detectó la huella a tiempo") || msg.includes("capturetimeout");
+            if (canFallbackToMaster && isCaptureTimeout) {
+                console.log("[HIKI_DEBUG]", "capture_retry_master_after_timeout", {
+                    requestedPanelId: String((panelCaptura as any)?._id || ""),
+                    masterPanelId: String((panelMaestro as any)?._id || ""),
+                });
+                try {
+                    captureData = await tryCaptureFromPanel(panelMaestro);
+                    captureSourcePanel = panelMaestro;
+                    captureError = null;
+                } catch (errorMaster: any) {
+                    captureError = errorMaster;
+                }
+            }
+        }
+        if (!captureData) {
+            throw captureError || new Error("No se pudo capturar la huella en el panel.");
+        }
+        const { fingerData, fingerPrintQuality } = captureData;
+
         const panelesDestinoMap = new Map<string, any>();
-        panelesDestinoMap.set(String(panelCaptura._id), panelCaptura);
+        panelesDestinoMap.set(String(captureSourcePanel._id), captureSourcePanel);
         for (const panel of panelesAcceso) {
             panelesDestinoMap.set(String(panel._id), panel);
         }
@@ -1934,16 +1979,6 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
             });
             return;
         }
-
-        const employeeNo = String(registro.id_empleado);
-        const masterUser = String((panelCaptura as any).usuario || "").trim();
-        const masterPass = decryptPassword(String((panelCaptura as any).contrasena || ""), CONFIG.SECRET_CRYPTO);
-        const { fingerData, fingerPrintQuality } = await captureFingerprintFromPanel(
-            String((panelCaptura as any).direccion_ip),
-            masterUser,
-            masterPass,
-            dedo
-        );
 
         const paneles_aplicados: string[] = [];
         const paneles_fallidos: Array<{ panel: string; mensaje: string; }> = [];
