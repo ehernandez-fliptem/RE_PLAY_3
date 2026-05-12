@@ -2618,7 +2618,7 @@ export async function abrirUiEnrollBiostar(req: Request, res: Response): Promise
         }
 
         const selectedDeviceId = String(req.body?.panel_biostar_id || "").trim();
-        const selectedDeviceName = selectedDeviceId
+        const selectedDeviceName = selectedDeviceId && Types.ObjectId.isValid(selectedDeviceId)
             ? String(
                 (await DispositivosBiostar.findById(selectedDeviceId, "nombre").lean() as any)?.nombre || ""
             ).trim()

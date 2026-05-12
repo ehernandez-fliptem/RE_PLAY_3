@@ -300,14 +300,12 @@ export default function Empleados() {
 
   const iniciarCapturaHuella = async () => {
     if (!biometriaEmpleado?._id) return;
-    if (proveedorHuellaActual === "hiki" && !hikiPanelSeleccionado) {
-      enqueueSnackbar("Selecciona un panel Hikvision para capturar.", {
-        variant: "warning",
-      });
+    if (proveedorHuellaActual === "biostar") {
+      await abrirEnrollBiostar();
       return;
     }
-    if (proveedorHuellaActual === "biostar" && biostarDispositivos.length > 1 && !biostarDispositivoSeleccionado) {
-      enqueueSnackbar("Selecciona un dispositivo BioStar para capturar.", {
+    if (proveedorHuellaActual === "hiki" && !hikiPanelSeleccionado) {
+      enqueueSnackbar("Selecciona un panel Hikvision para capturar.", {
         variant: "warning",
       });
       return;
@@ -342,7 +340,7 @@ export default function Empleados() {
         const total = res.data.datos?.huellas_total ?? huellas.length;
         const nextFinger = getNextDefaultFinger(huellas);
         setHuellasPorProveedor((prev) => {
-          const key = proveedorHuellaActual === "biostar" ? "biostar" : "hiki";
+          const key = "hiki";
           const actuales = Array.isArray(prev[key]) ? prev[key] : [];
           return {
             ...prev,
@@ -1489,18 +1487,6 @@ export default function Empleados() {
                           </FormControl>
                         )}
                       </Box>
-                      {proveedorHuellaActual === "biostar" && (
-                        <Box sx={{ mb: 1.5, display: "flex", justifyContent: "flex-end" }}>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            color="secondary"
-                            onClick={abrirEnrollBiostar}
-                          >
-                            Abrir Enroll en BioStar
-                          </Button>
-                        </Box>
-                      )}
                       {proveedorHuellaActual !== "biostar" && (
                         <>
                           <Box sx={{ mb: 1, fontWeight: 700, fontSize: "0.95rem" }}>
@@ -1550,10 +1536,7 @@ export default function Empleados() {
                                       fingerShape.id,
                                       side
                                     );
-                                    const registradasProveedor =
-                                      proveedorHuellaActual === "biostar"
-                                        ? huellasPorProveedor.biostar
-                                        : huellasPorProveedor.hiki;
+                                    const registradasProveedor = huellasPorProveedor.hiki;
                                     const registrado = (
                                       (registradasProveedor || []).map((v: any) =>
                                         Number(v)
