@@ -121,6 +121,10 @@ export default function Empleados() {
   const [biometriaMensaje, setBiometriaMensaje] = useState("");
   const [huellaProviderQueue, setHuellaProviderQueue] = useState<Array<"hiki" | "biostar">>([]);
   const [huellaProviderIndex, setHuellaProviderIndex] = useState(0);
+  const [hikiPaneles, setHikiPaneles] = useState<Array<{ id: string; nombre: string; direccion_ip: string; es_panel_maestro?: boolean }>>([]);
+  const [biostarDispositivos, setBiostarDispositivos] = useState<Array<{ id: string; nombre: string; direccion_ip: string; puerto?: number }>>([]);
+  const [hikiPanelSeleccionado, setHikiPanelSeleccionado] = useState("");
+  const [biostarDispositivoSeleccionado, setBiostarDispositivoSeleccionado] = useState("");
   const [tarjetaStep, setTarjetaStep] = useState<
     "lista" | "form" | "espera" | "ok" | "error"
   >("lista");
@@ -209,6 +213,18 @@ export default function Empleados() {
       }
       const datos = res.data.datos;
       setBiometriaEmpleado(datos);
+      const panelesHikiData = Array.isArray(datos?.paneles_hiki) ? datos.paneles_hiki : [];
+      const dispositivosBiostarData = Array.isArray(datos?.dispositivos_biostar) ? datos.dispositivos_biostar : [];
+      setHikiPaneles(panelesHikiData);
+      setBiostarDispositivos(dispositivosBiostarData);
+      const panelMain =
+        panelesHikiData.find((p: any) => !!p?.es_panel_maestro)?.id ||
+        panelesHikiData[0]?.id ||
+        "";
+      setHikiPanelSeleccionado(String(panelMain || ""));
+      const defaultBio =
+        dispositivosBiostarData.length === 1 ? String(dispositivosBiostarData[0]?.id || "") : "";
+      setBiostarDispositivoSeleccionado(defaultBio);
       const huellas = Array.isArray(datos?.huellas_registradas)
         ? datos.huellas_registradas
         : [];
@@ -247,10 +263,26 @@ export default function Empleados() {
     setTarjetaMensaje("");
     setHuellaProviderQueue([]);
     setHuellaProviderIndex(0);
+    setHikiPaneles([]);
+    setBiostarDispositivos([]);
+    setHikiPanelSeleccionado("");
+    setBiostarDispositivoSeleccionado("");
   };
 
   const iniciarCapturaHuella = async () => {
     if (!biometriaEmpleado?._id) return;
+    if (proveedorHuellaActual === "hiki" && !hikiPanelSeleccionado) {
+      enqueueSnackbar("Selecciona un panel Hikvision para capturar.", {
+        variant: "warning",
+      });
+      return;
+    }
+    if (proveedorHuellaActual === "biostar" && biostarDispositivos.length > 1 && !biostarDispositivoSeleccionado) {
+      enqueueSnackbar("Selecciona un dispositivo BioStar para capturar.", {
+        variant: "warning",
+      });
+      return;
+    }
     const MIN_WAIT_MS = 2000;
     const waitMin = new Promise((resolve) =>
       setTimeout(resolve, MIN_WAIT_MS)
@@ -259,7 +291,12 @@ export default function Empleados() {
       setBiometriaStep("espera");
       const resPromise = clienteAxios.put(
         `/api/empleados/biometria/huella/${biometriaEmpleado._id}`,
-        { dedo: selectedFinger, proveedor: proveedorHuellaActual }
+        {
+          dedo: selectedFinger,
+          proveedor: proveedorHuellaActual,
+          panel_hiki_id: hikiPanelSeleccionado || undefined,
+          panel_biostar_id: biostarDispositivoSeleccionado || undefined,
+        }
       );
       const [res] = await Promise.all([resPromise, waitMin]);
       if (res.data.estado) {
@@ -1335,6 +1372,46 @@ export default function Empleados() {
                   </Box>
                   {biometriaStep === "huella" && (
                     <>
+                      <Box sx={{ mb: 1.5 }}>
+                        {proveedorHuellaActual === "hiki" ? (
+                          <FormControl size="small" fullWidth>
+                            <InputLabel id="hiki-panel-select-label">Panel Hikvision para captura</InputLabel>
+                            <Select
+                              labelId="hiki-panel-select-label"
+                              value={hikiPanelSeleccionado}
+                              label="Panel Hikvision para captura"
+                              onChange={(e) => setHikiPanelSeleccionado(String(e.target.value || ""))}
+                            >
+                              {hikiPaneles.map((panel) => (
+                                <MenuItem key={panel.id} value={panel.id}>
+                                  {panel.nombre || panel.direccion_ip}
+                                  {panel.es_panel_maestro ? " (Main)" : ""}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        ) : (
+                          <FormControl size="small" fullWidth>
+                            <InputLabel id="biostar-device-select-label">Dispositivo BioStar para captura</InputLabel>
+                            <Select
+                              labelId="biostar-device-select-label"
+                              value={biostarDispositivoSeleccionado}
+                              label="Dispositivo BioStar para captura"
+                              onChange={(e) => setBiostarDispositivoSeleccionado(String(e.target.value || ""))}
+                            >
+                              {biostarDispositivos.length > 1 && (
+                                <MenuItem value="">Selecciona un dispositivo</MenuItem>
+                              )}
+                              {biostarDispositivos.map((device) => (
+                                <MenuItem key={device.id} value={device.id}>
+                                  {device.nombre || device.direccion_ip}
+                                  {device.puerto ? ` (${device.direccion_ip}:${device.puerto})` : ""}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        )}
+                      </Box>
                       <Box sx={{ mb: 1, fontWeight: 700, fontSize: "0.95rem" }}>
                         Selecciona el dedo para capturar
                       </Box>

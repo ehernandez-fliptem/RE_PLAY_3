@@ -15,6 +15,7 @@ import Puestos from '../models/Puestos';
 import { IPiso } from '../models/Pisos';
 import { IAcceso } from '../models/Accesos';
 import DispositivosHv from '../models/DispositivosHv';
+import DispositivosSuprema from '../models/DispositivosSuprema';
 import DispositivosBiostar from '../models/DispositivosBiostar';
 import BiostarConexion from "../models/BiostarConexion";
 import Configuracion, { IConfiguracion } from '../models/Configuracion';
@@ -1421,6 +1422,14 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
             .map((key) => Number(key))
             .filter((key) => Number.isInteger(key) && key >= 1 && key <= 10)
             .sort((a, b) => a - b);
+        const panelesHiki = await DispositivosHv.find(
+            { activo: true, tipo_evento: { $in: [5, 6, 7] } },
+            "nombre direccion_ip es_panel_maestro"
+        ).lean();
+        const dispositivosBiostar = await DispositivosSuprema.find(
+            { activo: true },
+            "nombre direccion_ip puerto"
+        ).lean();
 
         res.status(200).json({
             estado: true,
@@ -1434,6 +1443,18 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
                 tarjetas_total: tarjetas.length,
                 dev_huella_replay_enabled: true,
                 huellas_template_dev: huellasTemplateDevKeys,
+                paneles_hiki: (panelesHiki || []).map((p: any) => ({
+                    id: String(p?._id || ""),
+                    nombre: String(p?.nombre || "").trim(),
+                    direccion_ip: String(p?.direccion_ip || "").trim(),
+                    es_panel_maestro: !!p?.es_panel_maestro,
+                })),
+                dispositivos_biostar: (dispositivosBiostar || []).map((d: any) => ({
+                    id: String(d?._id || ""),
+                    nombre: String(d?.nombre || "").trim(),
+                    direccion_ip: String(d?.direccion_ip || "").trim(),
+                    puerto: Number(d?.puerto || 0),
+                })),
             },
         });
     } catch (error: any) {
@@ -1522,8 +1543,11 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
             return;
         }
 
-        const panelMaestro = await DispositivosHv.findOne({ activo: true, es_panel_maestro: true }).lean();
-        if (!panelMaestro) {
+        const panelSolicitadoId = String(req.body?.panel_hiki_id || "").trim();
+        const panelCaptura = panelSolicitadoId
+            ? await DispositivosHv.findOne({ _id: panelSolicitadoId, activo: true }).lean()
+            : await DispositivosHv.findOne({ activo: true, es_panel_maestro: true }).lean();
+        if (!panelCaptura) {
             res.status(200).json({
                 estado: false,
                 mensaje: "No hay panel maestro configurado para captura de huella.",
@@ -1538,7 +1562,7 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
         }).lean();
 
         const panelesDestinoMap = new Map<string, any>();
-        panelesDestinoMap.set(String(panelMaestro._id), panelMaestro);
+        panelesDestinoMap.set(String(panelCaptura._id), panelCaptura);
         for (const panel of panelesAcceso) {
             panelesDestinoMap.set(String(panel._id), panel);
         }
@@ -1552,10 +1576,10 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
         }
 
         const employeeNo = String(registro.id_empleado);
-        const masterUser = String(panelMaestro.usuario || "").trim();
-        const masterPass = decryptPassword(String(panelMaestro.contrasena || ""), CONFIG.SECRET_CRYPTO);
+        const masterUser = String((panelCaptura as any).usuario || "").trim();
+        const masterPass = decryptPassword(String((panelCaptura as any).contrasena || ""), CONFIG.SECRET_CRYPTO);
         const { fingerData, fingerPrintQuality } = await captureFingerprintFromPanel(
-            String(panelMaestro.direccion_ip),
+            String((panelCaptura as any).direccion_ip),
             masterUser,
             masterPass,
             dedo
