@@ -98,7 +98,7 @@ const LEFT_TO_RIGHT_ID_MAP: Record<number, number> = {
 };
 
 export default function Empleados() {
-  const { habilitarIntegracionHvBiometria } = useSelector(
+  const { habilitarIntegracionHvBiometria, habilitarIntegracionBiostar } = useSelector(
     (state: IRootState) => state.config.data
   );
   const apiRef = useGridApiRef();
@@ -119,6 +119,8 @@ export default function Empleados() {
   >("huella");
   const [selectedFinger, setSelectedFinger] = useState<number>(2);
   const [biometriaMensaje, setBiometriaMensaje] = useState("");
+  const [huellaProviderQueue, setHuellaProviderQueue] = useState<Array<"hiki" | "biostar">>([]);
+  const [huellaProviderIndex, setHuellaProviderIndex] = useState(0);
   const [tarjetaStep, setTarjetaStep] = useState<
     "lista" | "form" | "espera" | "ok" | "error"
   >("lista");
@@ -138,6 +140,14 @@ export default function Empleados() {
   const [syncBioSearch, setSyncBioSearch] = useState("");
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
+  const huellaHikiEnabled = !!habilitarIntegracionHvBiometria;
+  const huellaBiostarEnabled = !!habilitarIntegracionBiostar;
+  const tarjetaHikiEnabled = !!habilitarIntegracionHvBiometria;
+  const proveedorHuellaActual =
+    huellaProviderQueue[huellaProviderIndex] ||
+    (huellaHikiEnabled ? "hiki" : "biostar");
+  const proveedorHuellaLabel = proveedorHuellaActual === "hiki" ? "Hikvision" : "BioStar";
+  const haySiguienteProveedorHuella = huellaProviderIndex < huellaProviderQueue.length - 1;
 
   const fingers = [
     { id: 1, label: "Pulgar Izq" },
@@ -185,6 +195,12 @@ export default function Empleados() {
     step: "huella" | "tarjeta" = "huella"
   ) => {
     try {
+      if (step === "tarjeta" && !tarjetaHikiEnabled) {
+        enqueueSnackbar("Tarjeta solo está disponible con Hikvision activo.", {
+          variant: "warning",
+        });
+        return;
+      }
       setBiometriaLoading(true);
       const res = await clienteAxios.get(`/api/empleados/biometria/${id}`);
       if (!res.data.estado) {
@@ -198,6 +214,13 @@ export default function Empleados() {
         : [];
       const defaultFinger = getNextDefaultFinger(huellas);
       setSelectedFinger(defaultFinger);
+      if (step === "huella") {
+        const queue: Array<"hiki" | "biostar"> = [];
+        if (huellaHikiEnabled) queue.push("hiki");
+        if (huellaBiostarEnabled) queue.push("biostar");
+        setHuellaProviderQueue(queue);
+        setHuellaProviderIndex(0);
+      }
       setBiometriaStep(step);
       setTarjetaStep("lista");
       setTarjetaNombre("");
@@ -222,6 +245,8 @@ export default function Empleados() {
     setTarjetaNombre("");
     setTarjetaDescripcion("");
     setTarjetaMensaje("");
+    setHuellaProviderQueue([]);
+    setHuellaProviderIndex(0);
   };
 
   const iniciarCapturaHuella = async () => {
@@ -234,7 +259,7 @@ export default function Empleados() {
       setBiometriaStep("espera");
       const resPromise = clienteAxios.put(
         `/api/empleados/biometria/huella/${biometriaEmpleado._id}`,
-        { dedo: selectedFinger }
+        { dedo: selectedFinger, proveedor: proveedorHuellaActual }
       );
       const [res] = await Promise.all([resPromise, waitMin]);
       if (res.data.estado) {
@@ -247,16 +272,22 @@ export default function Empleados() {
           huellas_total: total,
         }));
         setSelectedFinger(nextFinger);
-        setBiometriaMensaje(
-          res.data.mensaje || "Huella registrada correctamente."
-        );
+        setBiometriaMensaje(res.data.mensaje || `Huella registrada en ${proveedorHuellaLabel}.`);
         apiRef.current?.updateRows([
           {
             _id: biometriaEmpleado._id,
             huellas_total: total,
           },
         ]);
-        setBiometriaStep("ok");
+        if (haySiguienteProveedorHuella) {
+          setHuellaProviderIndex((prev) => prev + 1);
+          setBiometriaStep("huella");
+          enqueueSnackbar(`Huella guardada en ${proveedorHuellaLabel}. Continúa con el siguiente sistema.`, {
+            variant: "success",
+          });
+        } else {
+          setBiometriaStep("ok");
+        }
       } else {
         setBiometriaMensaje(res.data.mensaje || "No se pudo registrar la huella.");
         setBiometriaStep("error");
@@ -432,16 +463,16 @@ export default function Empleados() {
     if (
       state?.openBiometriaFor &&
       typeof state.openBiometriaFor === "string" &&
-      habilitarIntegracionHvBiometria
+      (huellaHikiEnabled || huellaBiostarEnabled)
     ) {
       abrirBiometria(
         state.openBiometriaFor,
-        state.biometriaStep === "tarjeta" ? "tarjeta" : "huella"
+        state.biometriaStep === "tarjeta" && tarjetaHikiEnabled ? "tarjeta" : "huella"
       );
       navigate(location.pathname, { replace: true, state: {} });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state, habilitarIntegracionHvBiometria]);
+  }, [location.state, huellaHikiEnabled, huellaBiostarEnabled, tarjetaHikiEnabled]);
 
   const cargarResumenGrupos = useCallback(async () => {
     try {
@@ -885,7 +916,7 @@ export default function Empleados() {
             display: "flex",
             minWidth: 180,
           },
-          ...(habilitarIntegracionHvBiometria
+          ...(huellaHikiEnabled || huellaBiostarEnabled
             ? [
                 {
                   headerName: "Huella",
@@ -922,7 +953,8 @@ export default function Empleados() {
                     );
                   },
                 },
-                {
+                ...(tarjetaHikiEnabled
+                  ? [{
                   headerName: "Tarjeta",
                   field: "tarjetas_total",
                   flex: 1,
@@ -956,7 +988,8 @@ export default function Empleados() {
                       </Box>
                     );
                   },
-                },
+                }]
+                  : []),
               ]
             : []),
           // Tipo: oculto por ahora porque no se ocupa en esta vista y se busca mantenerla simple.
@@ -1295,6 +1328,9 @@ export default function Empleados() {
                 biometriaStep === "ok" ||
                 biometriaStep === "error") && (
                 <Box>
+                  <Box sx={{ mb: 1, fontSize: "0.9rem", color: "text.secondary" }}>
+                    Sistema actual: <strong>{proveedorHuellaLabel}</strong>
+                  </Box>
                   {biometriaStep === "huella" && (
                     <>
                       <Box sx={{ mb: 1, fontWeight: 700, fontSize: "0.95rem" }}>
@@ -1576,7 +1612,8 @@ export default function Empleados() {
         </DialogContent>
         <DialogActions>
           {biometriaStep === "huella" && (
-            <>
+            <Box sx={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <Box>
               {devReplayEnabled && (
                 <Button
                   variant="outlined"
@@ -1594,7 +1631,21 @@ export default function Empleados() {
               >
                 Siguiente
               </Button>
-            </>
+              </Box>
+              {huellaProviderQueue.length > 1 && haySiguienteProveedorHuella && (
+                <Button
+                  variant="outlined"
+                  color="warning"
+                  onClick={() => {
+                    setHuellaProviderIndex((prev) => prev + 1);
+                    setBiometriaMensaje("");
+                  }}
+                  sx={{ fontWeight: 700 }}
+                >
+                  Omitir
+                </Button>
+              )}
+            </Box>
           )}
           {biometriaStep === "ok" && (
             <Button
