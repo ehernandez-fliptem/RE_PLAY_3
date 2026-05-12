@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import { Types } from "mongoose";
 import BiostarConexion from "../../models/BiostarConexion";
 import DispositivosSuprema from "../../models/DispositivosSuprema";
+import DispositivosBiostar from "../../models/DispositivosBiostar";
 import Empleados from "../../models/Empleados";
 import Eventos from "../../models/Eventos";
 import { biostarRequest } from "../../classes/Biostar";
@@ -62,6 +63,57 @@ function parseEventDate(row: any): Date {
   return d.isValid() ? d.toDate() : new Date();
 }
 
+async function consultarEventosConFallback(payload: any): Promise<{
+  ok: boolean;
+  data?: any;
+  status?: number;
+  source?: string;
+  message?: string;
+}> {
+  const candidatos: Array<{ source: string; conn: any }> = [];
+
+  const conexionGlobal = await BiostarConexion.findOne({ activo: true })
+    .sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
+  if (conexionGlobal) candidatos.push({ source: "biostar_conexion_global", conn: conexionGlobal });
+
+  const dispositivosBiostar = await DispositivosBiostar.find({ activo: true })
+    .sort({ es_main: -1, fecha_modificacion: -1, fecha_creacion: -1, _id: -1 })
+    .limit(5);
+  dispositivosBiostar.forEach((d) => candidatos.push({ source: "biostar_dispositivos", conn: d }));
+
+  const dispositivosSuprema = await DispositivosSuprema.find({ activo: true })
+    .sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 })
+    .limit(5);
+  dispositivosSuprema.forEach((d) => candidatos.push({ source: "suprema_dispositivos", conn: d }));
+
+  if (!candidatos.length) {
+    return { ok: false, message: "Sin conexiones activas para BioStar." };
+  }
+
+  let ultimoError = "No se pudo consultar eventos con ninguna conexion.";
+  for (const item of candidatos) {
+    const response = await biostarRequest(item.conn as any, {
+      method: "POST",
+      url: "/api/events/search",
+      data: payload,
+      timeout: 12000,
+    });
+    if (response.ok) {
+      return { ...response, source: item.source };
+    }
+    ultimoError = response.message || `Fallo en ${item.source}`;
+    console.log("[BIOSTAR_EVENTS] Conexion fallida", {
+      source: item.source,
+      ip: item?.conn?.direccion_ip,
+      puerto: item?.conn?.puerto,
+      user: item?.conn?.usuario,
+      reason: ultimoError,
+    });
+  }
+
+  return { ok: false, message: ultimoError };
+}
+
 export async function sincronizarEventosBiostar(): Promise<void> {
   if (jobRunning) return;
   jobRunning = true;
@@ -75,13 +127,6 @@ export async function sincronizarEventosBiostar(): Promise<void> {
     let omitidosDuplicados = 0;
     let omitidosSinEmpleado = 0;
     let omitidosSinPanelMap = 0;
-
-    const conexion = await BiostarConexion.findOne({ activo: true })
-      .sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
-    if (!conexion) {
-      console.log("[BIOSTAR_EVENTS] Sin conexion global activa.");
-      return;
-    }
 
     const hasta = dayjs();
     const desde = hasta.subtract(BIOSTAR_EVENT_POLL_WINDOW_SECONDS, "second");
@@ -99,17 +144,13 @@ export async function sincronizarEventosBiostar(): Promise<void> {
       },
     };
 
-    const response = await biostarRequest(conexion as any, {
-      method: "POST",
-      url: "/api/events/search",
-      data: payload,
-      timeout: 12000,
-    });
+    const response = await consultarEventosConFallback(payload);
 
     if (!response.ok) {
       console.log("[BIOSTAR_EVENTS] No se pudo consultar eventos:", response.message || response.status);
       return;
     }
+    console.log("[BIOSTAR_EVENTS] Fuente de conexion usada:", response.source);
 
     const rows = getRows(response.data).sort((a, b) => toNumber(a?.id) - toNumber(b?.id));
     totalRows = rows.length;
