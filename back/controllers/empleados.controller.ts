@@ -2307,9 +2307,7 @@ const bioMessage = (payload: any, fallback: string) =>
     String(payload?.Response?.message || payload?.message || fallback).trim();
 
 const bioCode = (payload: any) => String(payload?.Response?.code || payload?.code || "").trim();
-const bioDebugEnabled = () => String(process.env.BIOSTAR_DEBUG || "").trim() === "1";
 const bioDebugLog = (...args: any[]) => {
-    if (!bioDebugEnabled()) return;
     try {
         // eslint-disable-next-line no-console
         console.log("[BIOSTAR_DEBUG]", ...args);
