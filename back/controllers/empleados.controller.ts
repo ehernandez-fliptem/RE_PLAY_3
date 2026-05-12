@@ -1543,9 +1543,198 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
         const isMaster = (req as UserRequest).isMaster;
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
         const dedo = Number(req.body?.dedo);
+        const proveedor = String(req.body?.proveedor || "hiki").trim().toLowerCase();
 
         if (!Number.isInteger(dedo) || dedo < 1 || dedo > 10) {
             res.status(400).json({ estado: false, mensaje: "El dedo es inválido. Usa un valor entre 1 y 10." });
+            return;
+        }        const filtro: any = { _id: req.params.id };
+        if (!isMaster) filtro.id_empresa = id_empresa;
+
+        const registro = await Empleados.findOne(filtro);
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
+            return;
+        }
+
+        if (proveedor === "biostar") {
+            const configBio = await Configuracion.findOne({}, "habilitarIntegracionBiostar");
+            if (!configBio?.habilitarIntegracionBiostar) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: "La integracion de BioStar esta desactivada.",
+                });
+                return;
+            }
+
+            const conexion = await getBiostarConexionActiva();
+            if (!conexion) {
+                res.status(200).json({ estado: false, mensaje: "No hay conexion activa de BioStar." });
+                return;
+            }
+
+            const deviceId = String(req.body?.panel_biostar_id || "").trim();
+            if (!deviceId) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: "Selecciona un dispositivo BioStar para capturar.",
+                });
+                return;
+            }
+
+            let bioUserId = String((registro as any)?.biostar_user_id || "").trim();
+            if (!bioUserId) {
+                const syncRes = await syncEmpleadoBiostar({
+                    empleado: registro as any,
+                    biostar_group_id: String((registro as any)?.biostar_group_id || "1"),
+                });
+                if (!syncRes.ok || !String(syncRes.userId || "").trim()) {
+                    res.status(200).json({
+                        estado: false,
+                        mensaje: syncRes.mensaje || "No se pudo preparar el usuario en BioStar para capturar huella.",
+                    });
+                    return;
+                }
+                bioUserId = String(syncRes.userId || "").trim();
+                await Empleados.findByIdAndUpdate(
+                    req.params.id,
+                    {
+                        $set: {
+                            biostar_user_id: bioUserId,
+                            biostar_group_id: syncRes.groupId || String((registro as any)?.biostar_group_id || "1"),
+                            biostar_group_name: syncRes.groupName || String((registro as any)?.biostar_group_name || ""),
+                            modificado_por: id_usuario,
+                            fecha_modificacion: Date.now(),
+                        },
+                    },
+                    { runValidators: true }
+                );
+            }
+
+            const scanRes = await biostarRequest(conexion, {
+                method: "POST",
+                url: `/api/devices/${encodeURIComponent(deviceId)}/scan_fingerprint`,
+                data: {
+                    ScanFingerprintOption: {
+                        enroll_quality: "80",
+                        raw_image: false,
+                    },
+                    noblockui: true,
+                },
+                timeout: 25000,
+            });
+            const scanCode = bioCode(scanRes.data);
+            if (!(scanRes.ok && (!scanCode || scanCode === "0"))) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: bioMessage(scanRes.data, scanRes.message || "No se pudo capturar la huella en BioStar."),
+                });
+                return;
+            }
+
+            const template0 = findFirstStringByKeys(scanRes.data, ["template0", "Template0"]).trim();
+            const template1 = findFirstStringByKeys(scanRes.data, ["template1", "Template1"]).trim();
+            const fingerMaskRaw = findFirstStringByKeys(scanRes.data, ["finger_mask", "fingerMask"]).trim();
+            const fingerMask = fingerMaskRaw || "false";
+            if (!template0 || !template1) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: "BioStar no devolvio la plantilla de huella. Intenta de nuevo.",
+                });
+                return;
+            }
+
+            const verifyRes = await biostarRequest(conexion, {
+                method: "POST",
+                url: `/api/devices/${encodeURIComponent(deviceId)}/verify_fingerprint`,
+                data: {
+                    FingerprintTemplate: { template0, template1 },
+                    VerifyFingerprintOption: { security_level: "0" },
+                },
+            });
+            const verifyCode = bioCode(verifyRes.data);
+            if (!(verifyRes.ok && (!verifyCode || verifyCode === "0"))) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: bioMessage(verifyRes.data, verifyRes.message || "No se pudo verificar la huella en el dispositivo."),
+                });
+                return;
+            }
+
+            const detailRes = await biostarRequest(conexion, {
+                method: "GET",
+                url: `/api/users/${encodeURIComponent(bioUserId)}`,
+            });
+            const detailCode = bioCode(detailRes.data);
+            if (!(detailRes.ok && (!detailCode || detailCode === "0"))) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: bioMessage(detailRes.data, detailRes.message || "No se pudo consultar el usuario en BioStar."),
+                });
+                return;
+            }
+
+            const currentTemplatesRaw = Array.isArray(detailRes.data?.User?.fingerprint_templates)
+                ? detailRes.data.User.fingerprint_templates
+                : [];
+            const fingerIndex = String(Math.max(0, dedo - 1));
+            const nextTemplates = currentTemplatesRaw
+                .filter((item: any) => String(item?.finger_index ?? item?.fingerIndex ?? "") !== fingerIndex)
+                .map((item: any) => ({
+                    finger_index: String(item?.finger_index ?? item?.fingerIndex ?? ""),
+                    finger_mask: String(item?.finger_mask ?? item?.fingerMask ?? "false"),
+                    template0: String(item?.template0 || ""),
+                    template1: String(item?.template1 || ""),
+                }))
+                .filter((item: any) => item.finger_index !== "" && item.template0 && item.template1);
+            nextTemplates.push({
+                finger_index: fingerIndex,
+                finger_mask: fingerMask,
+                template0,
+                template1,
+            });
+
+            const putRes = await biostarRequest(conexion, {
+                method: "PUT",
+                url: `/api/users/${encodeURIComponent(bioUserId)}`,
+                data: {
+                    User: {
+                        fingerprint_templates: nextTemplates,
+                    },
+                },
+            });
+            const putCode = bioCode(putRes.data);
+            if (!(putRes.ok && (!putCode || putCode === "0"))) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: bioMessage(putRes.data, putRes.message || "No se pudo guardar la huella en BioStar."),
+                });
+                return;
+            }
+
+            const huellasActuales = Array.isArray(registro.huellas_registradas) ? registro.huellas_registradas : [];
+            const huellas = Array.from(new Set([...huellasActuales, dedo])).sort((a, b) => a - b);
+            await Empleados.findByIdAndUpdate(
+                req.params.id,
+                {
+                    $set: {
+                        huellas_registradas: huellas,
+                        modificado_por: id_usuario,
+                        fecha_modificacion: Date.now(),
+                    },
+                },
+                { runValidators: true }
+            );
+
+            res.status(200).json({
+                estado: true,
+                mensaje: "Huella registrada correctamente en BioStar.",
+                datos: {
+                    huellas_registradas: huellas,
+                    huellas_total: huellas.length,
+                    proveedor: "biostar",
+                },
+            });
             return;
         }
 
@@ -1553,17 +1742,8 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
         if (!config?.habilitarIntegracionHv || !config?.habilitarIntegracionHvBiometria) {
             res.status(200).json({
                 estado: false,
-                mensaje: "La integración biométrica de Hikvision está desactivada.",
+                mensaje: "La integracion biometrica de Hikvision esta desactivada.",
             });
-            return;
-        }
-
-        const filtro: any = { _id: req.params.id };
-        if (!isMaster) filtro.id_empresa = id_empresa;
-
-        const registro = await Empleados.findOne(filtro);
-        if (!registro) {
-            res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
             return;
         }
 
@@ -1813,18 +1993,7 @@ export async function registrarTarjetaEmpleadoPanel(req: Request, res: Response)
         if (!nombre) {
             res.status(400).json({ estado: false, mensaje: "El nombre de la tarjeta es obligatorio." });
             return;
-        }
-
-        const config = await Configuracion.findOne({}, "habilitarIntegracionHv habilitarIntegracionHvBiometria");
-        if (!config?.habilitarIntegracionHv || !config?.habilitarIntegracionHvBiometria) {
-            res.status(200).json({
-                estado: false,
-                mensaje: "La integración biométrica de Hikvision está desactivada.",
-            });
-            return;
-        }
-
-        const filtro: any = { _id: req.params.id };
+        }        const filtro: any = { _id: req.params.id };
         if (!isMaster) filtro.id_empresa = id_empresa;
 
         const registro = await Empleados.findOne(filtro);
@@ -3689,6 +3858,9 @@ const rellenarHojaEmpresasFormato = async ({ isMaster, id_empresa }: { isMaster:
             return workbook.xlsx.writeFile(nameFileExcel);
         });
 }
+
+
+
 
 
 
