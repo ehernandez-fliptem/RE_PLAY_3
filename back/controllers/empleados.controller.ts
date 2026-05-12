@@ -1426,10 +1426,39 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
             { activo: true, tipo_evento: { $in: [5, 6, 7] } },
             "nombre direccion_ip es_panel_maestro"
         ).lean();
-        const dispositivosBiostar = await DispositivosSuprema.find(
-            { activo: true },
-            "nombre direccion_ip puerto"
-        ).lean();
+        let dispositivosBiostar: Array<{ id: string; nombre: string; direccion_ip: string; puerto: number }> = [];
+        const conexionBio = await getBiostarConexionActiva();
+        if (conexionBio) {
+            const responses = await Promise.all([
+                biostarRequest(conexionBio as any, { method: "POST", url: "/api/devices", data: {} }),
+                biostarRequest(conexionBio as any, { method: "POST", url: "/api/devices", data: { Device: {} } }),
+                biostarRequest(conexionBio as any, { method: "GET", url: "/api/devices?limit=1000" }),
+            ]);
+            const success = responses.find((r) => r.ok);
+            const rows = (success?.data?.DeviceCollection?.rows || success?.data?.devices || success?.data?.rows || []) as any[];
+            if (Array.isArray(rows) && rows.length) {
+                dispositivosBiostar = rows
+                    .map((item: any) => ({
+                        id: String(item?.id || item?.device_id || item?.deviceID || "").trim(),
+                        nombre: String(item?.name || item?.device_name || "").trim(),
+                        direccion_ip: String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim(),
+                        puerto: Number(item?.port || item?.server_port || item?.lan?.device_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
+                    }))
+                    .filter((d) => !!d.id);
+            }
+        }
+        if (!dispositivosBiostar.length) {
+            const local = await DispositivosSuprema.find(
+                { activo: true },
+                "nombre direccion_ip puerto"
+            ).lean();
+            dispositivosBiostar = (local || []).map((d: any) => ({
+                id: String(d?._id || "").trim(),
+                nombre: String(d?.nombre || "").trim(),
+                direccion_ip: String(d?.direccion_ip || "").trim(),
+                puerto: Number(d?.puerto || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
+            }));
+        }
 
         res.status(200).json({
             estado: true,
@@ -1449,12 +1478,7 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
                     direccion_ip: String(p?.direccion_ip || "").trim(),
                     es_panel_maestro: !!p?.es_panel_maestro,
                 })),
-                dispositivos_biostar: (dispositivosBiostar || []).map((d: any) => ({
-                    id: String(d?._id || ""),
-                    nombre: String(d?.nombre || "").trim(),
-                    direccion_ip: String(d?.direccion_ip || "").trim(),
-                    puerto: Number(d?.puerto || 0),
-                })),
+                dispositivos_biostar: dispositivosBiostar,
             },
         });
     } catch (error: any) {
