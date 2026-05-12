@@ -2548,6 +2548,36 @@ const instalarAutoApplyFingerprint = async (page: Page) => {
                 if (targetBtn) targetBtn.click();
             };
 
+            const callApplyInAngularScopes = () => {
+                try {
+                    const visited2 = new Set<any>();
+                    const stack2 = [root];
+                    while (stack2.length) {
+                        const scope = stack2.pop();
+                        if (!scope || visited2.has(scope)) continue;
+                        visited2.add(scope);
+
+                        if (typeof scope.doApply === "function") {
+                            try { scope.doApply(); return true; } catch {}
+                        }
+                        if (typeof scope.ApplyInfo === "function") {
+                            try { scope.ApplyInfo(false); return true; } catch {
+                                try { scope.ApplyInfo(); return true; } catch {}
+                            }
+                        }
+                        if (typeof scope.doDlgApply === "function") {
+                            try { scope.doDlgApply(); return true; } catch {}
+                        }
+
+                        if (scope.$$childHead) stack2.push(scope.$$childHead);
+                        if (scope.$$nextSibling) stack2.push(scope.$$nextSibling);
+                    }
+                } catch {
+                    // noop
+                }
+                return false;
+            };
+
             const ensureOneFingerprintSlot = () => {
                 try {
                     const items = Array.isArray(target.fingerPrint?.fingerprint_templates)
@@ -2573,7 +2603,8 @@ const instalarAutoApplyFingerprint = async (page: Page) => {
             target.doApplyFingerPrintScan = function (...args: any[]) {
                 const result = originalEnroll(...args);
                 setTimeout(() => {
-                    clickApplyOnUserDetail();
+                    const appliedByScope = callApplyInAngularScopes();
+                    if (!appliedByScope) clickApplyOnUserDetail();
                 }, 700);
                 return result;
             };
