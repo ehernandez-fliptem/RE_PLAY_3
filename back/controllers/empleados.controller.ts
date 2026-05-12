@@ -1198,8 +1198,13 @@ const tryParseJsonString = (value: any): any => {
 
 const extractFingerprintTemplate = (payload: any): { template0: string; template1: string; finger_mask: string; } => {
     const normalized = tryParseJsonString(payload);
-    const t0 = String(findFirstStringByKeys(normalized, ["template0", "Template0"]) || "").trim();
-    const t1 = String(findFirstStringByKeys(normalized, ["template1", "Template1"]) || "").trim();
+    const t0 = String(
+        findFirstStringByKeys(normalized, ["template0", "Template0", "template", "Template"]) || ""
+    ).trim();
+    const t1Raw = String(
+        findFirstStringByKeys(normalized, ["template1", "Template1", "template_1", "Template_1"]) || ""
+    ).trim();
+    const t1 = t1Raw || t0;
     const mask = String(findFirstStringByKeys(normalized, ["finger_mask", "fingerMask"]) || "false").trim() || "false";
     return { template0: t0, template1: t1, finger_mask: mask };
 };
@@ -1217,7 +1222,7 @@ const extractFingerprintTemplateSamples = (payload: any): Array<{ template0: str
         if (typeof normalized !== "object") return;
 
         const sample = extractFingerprintTemplate(normalized);
-        if (sample.template0 && sample.template1) {
+        if (sample.template0) {
             const key = `${sample.template0}|${sample.template1}`;
             if (!seen.has(key)) {
                 seen.add(key);
