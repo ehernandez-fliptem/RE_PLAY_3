@@ -300,12 +300,8 @@ export default function Empleados() {
     setHuellasPorProveedor({ hiki: [], biostar: [] });
   };
 
-  const iniciarCapturaHuella = async (forzarFlujoRe = false) => {
+  const iniciarCapturaHuella = async () => {
     if (!biometriaEmpleado?._id) return;
-    if (proveedorHuellaActual === "biostar" && !forzarFlujoRe) {
-      await abrirEnrollBiostar();
-      return;
-    }
     if (
       proveedorHuellaActual === "biostar" &&
       !biostarDispositivoSeleccionado
@@ -391,39 +387,6 @@ export default function Empleados() {
       if (restartSession) navigate("/logout", { replace: true });
       setBiometriaMensaje("No se pudo registrar la huella.");
       setBiometriaStep("error");
-    }
-  };
-
-  const abrirEnrollBiostar = async () => {
-    if (!biometriaEmpleado?._id) return;
-    const selectedBioDevice = biostarDispositivos.find(
-      (d) => String(d.id) === String(biostarDispositivoSeleccionado || "")
-    );
-    try {
-      const res = await clienteAxios.post(
-        `/api/empleados/biometria/biostar/abrir-ui/${biometriaEmpleado._id}`,
-        {
-          panel_biostar_id: biostarDispositivoSeleccionado || undefined,
-          panel_biostar_nombre: selectedBioDevice?.nombre || undefined,
-        }
-      );
-      if (res.data?.estado) {
-        enqueueSnackbar(
-          res.data?.mensaje || "BioStar abierto en ventana externa para enrolar.",
-          { variant: "success" }
-        );
-      } else {
-        enqueueSnackbar(
-          res.data?.mensaje || "No se pudo abrir BioStar para enrolar.",
-          { variant: "error" }
-        );
-      }
-    } catch (error) {
-      const { restartSession } = handlingError(error);
-      if (restartSession) navigate("/logout", { replace: true });
-      enqueueSnackbar("No se pudo abrir BioStar para enrolar.", {
-        variant: "error",
-      });
     }
   };
 
@@ -1505,12 +1468,6 @@ export default function Empleados() {
                           </FormControl>
                         )}
                       </Box>
-                      {proveedorHuellaActual === "biostar" && (
-                        <Alert severity="info" sx={{ mb: 1.5 }}>
-                          Se abrirá una ventana externa de BioStar para registrar la huella.
-                        </Alert>
-                      )}
-                      {proveedorHuellaActual !== "biostar" && (
                         <>
                           <Box sx={{ mb: 1, fontWeight: 700, fontSize: "0.95rem" }}>
                             Selecciona el dedo para capturar
@@ -1559,7 +1516,11 @@ export default function Empleados() {
                                       fingerShape.id,
                                       side
                                     );
-                                    const registradasProveedor = huellasPorProveedor.hiki;
+                                    const proveedorKey =
+                                      proveedorHuellaActual === "biostar"
+                                        ? "biostar"
+                                        : "hiki";
+                                    const registradasProveedor = huellasPorProveedor[proveedorKey];
                                     const registrado = (
                                       (registradasProveedor || []).map((v: any) =>
                                         Number(v)
@@ -1625,7 +1586,6 @@ export default function Empleados() {
                             ))}
                           </Box>
                         </>
-                      )}
                     </>
                   )}
 
@@ -1808,21 +1768,11 @@ export default function Empleados() {
               )}
               <Button
                 variant="contained"
-                onClick={() => iniciarCapturaHuella()}
+                onClick={iniciarCapturaHuella}
                 sx={{ fontWeight: 700, color: "common.white" }}
               >
-                {proveedorHuellaActual === "biostar" ? "Capturar en BioStar" : "Capturar"}
+                Capturar
               </Button>
-              {proveedorHuellaActual === "biostar" && (
-                <Button
-                  variant="outlined"
-                  color="secondary"
-                  onClick={() => iniciarCapturaHuella(true)}
-                  sx={{ fontWeight: 700, ml: 1 }}
-                >
-                  Enrolar RE
-                </Button>
-              )}
               </Box>
               {huellaProviderQueue.length > 1 && (
                 <Button
