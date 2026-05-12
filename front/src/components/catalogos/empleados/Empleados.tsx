@@ -135,6 +135,7 @@ export default function Empleados() {
   const [syncBioLoading, setSyncBioLoading] = useState(false);
   const [syncBioPendientes, setSyncBioPendientes] = useState<any[]>([]);
   const [syncBioSelected, setSyncBioSelected] = useState<string>("");
+  const [syncBioSearch, setSyncBioSearch] = useState("");
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
 
@@ -596,6 +597,22 @@ export default function Empleados() {
     setSyncBioOpen(true);
     await cargarSyncBiostarPreview();
   };
+  const syncBioPendientesFiltrados = useMemo(() => {
+    const term = syncBioSearch.trim().toLowerCase();
+    if (!term) return syncBioPendientes;
+    return syncBioPendientes.filter((u: any) => {
+      const nombre = String(u?.nombre || "").toLowerCase();
+      const correo = String(u?.correo || "").toLowerCase();
+      const grupo = String(u?.biostar_group_name || "").toLowerCase();
+      const faltantes = String((u?.motivos || []).join(" ") || "").toLowerCase();
+      return (
+        nombre.includes(term) ||
+        correo.includes(term) ||
+        grupo.includes(term) ||
+        faltantes.includes(term)
+      );
+    });
+  }, [syncBioPendientes, syncBioSearch]);
 
   const darAltaPendiente = () => {
     const selected = syncBioPendientes.find((p: any) => String(p.biostar_user_id) === syncBioSelected);
@@ -1170,20 +1187,28 @@ export default function Empleados() {
       <Dialog open={syncBioOpen} onClose={() => setSyncBioOpen(false)} fullWidth maxWidth="md">
         <DialogTitle>Pendientes de BioStar</DialogTitle>
         <DialogContent dividers>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Buscar por nombre, correo, grupo o faltantes"
+            value={syncBioSearch}
+            onChange={(e) => setSyncBioSearch(String(e.target.value || ""))}
+            sx={{ mb: 2 }}
+          />
           <Typography variant="subtitle2" sx={{ mb: 2 }}>
-            Selecciona un registro para completar alta en RE ({syncBioPendientes.length})
+            Selecciona un registro para completar alta en RE ({syncBioPendientesFiltrados.length})
           </Typography>
           {syncBioLoading ? (
             <Spinner />
           ) : (
             <Box sx={{ width: "100%", height: 320 }}>
-              {syncBioPendientes.length === 0 ? (
+              {syncBioPendientesFiltrados.length === 0 ? (
                 <Typography variant="body2" sx={{ p: 2 }}>
-                  No hay usuarios pendientes.
+                  No hay registros para el filtro actual.
                 </Typography>
               ) : (
                 <DataGrid
-                  rows={syncBioPendientes.map((u: any) => ({
+                  rows={syncBioPendientesFiltrados.map((u: any) => ({
                     ...u,
                     id: String(u.biostar_user_id),
                     motivos_texto: (u.motivos || []).join(", "),

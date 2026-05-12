@@ -2319,10 +2319,12 @@ const syncEmpleadoBiostar = async ({
     empleado,
     biostar_group_id,
     disabled,
+    strictExistingUserId = false,
 }: {
     empleado: IEmpleado;
     biostar_group_id?: string;
     disabled?: boolean;
+    strictExistingUserId?: boolean;
 }): Promise<{ ok: boolean; mensaje?: string; userId?: string; groupId?: string; groupName?: string }> => {
     const conexion = await getBiostarConexionActiva();
     if (!conexion) return { ok: false, mensaje: "Primero configura la conexion global de BioStar." };
@@ -2355,6 +2357,9 @@ const syncEmpleadoBiostar = async ({
     const isEdit = !!(exists.ok && exists.data?.User);
     const hadBiostarUserId = !!String((empleado as any)?.biostar_user_id || "").trim();
     const biostarIdNotFound = !isEdit && hadBiostarUserId;
+    if (strictExistingUserId && hadBiostarUserId && !isEdit) {
+        return { ok: false, mensaje: "No se encontro el usuario en BioStar para actualizar." };
+    }
     // Si RE tiene biostar_user_id pero BioStar ya no lo encuentra, no reusar ese id huérfano.
     if (!isEdit && (!hadBiostarUserId || biostarIdNotFound)) {
         const nextIdRes = await biostarRequest(conexion, { method: "GET", url: "/api/users/next_user_id" });
@@ -2462,7 +2467,7 @@ const syncEmpleadoBiostar = async ({
         const msg = bioMessage(upsert.data, upsert.message || lastMsg);
         lastMsg = code ? `${msg} (code ${code})` : msg;
     }
-    if (!isEdit && lastMsg.toLowerCase().includes("code 800")) {
+    if (!strictExistingUserId && !isEdit && lastMsg.toLowerCase().includes("code 800")) {
         for (let i = 0; i < 3; i++) {
             const altUserId = makeUserId();
             const altPayload = {
@@ -2674,6 +2679,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
                             } as IEmpleado,
                             biostar_group_id: String(biostar_group_id || "").trim() || "1",
                             disabled: false,
+                            strictExistingUserId: true,
                         });
                         if (!bioRes.ok) {
                             biostarPendiente = true;
@@ -3625,6 +3631,7 @@ const rellenarHojaEmpresasFormato = async ({ isMaster, id_empresa }: { isMaster:
             return workbook.xlsx.writeFile(nameFileExcel);
         });
 }
+
 
 
 
