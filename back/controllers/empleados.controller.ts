@@ -2667,11 +2667,23 @@ export async function crear(req: Request, res: Response): Promise<void> {
                 }
                 if (habilitarIntegracionBiostar) {
                     if (desdePendienteBiostar && biostarUserIdPendiente) {
+                        const bioRes = await syncEmpleadoBiostar({
+                            empleado: {
+                                ...(reg_saved as any),
+                                biostar_user_id: biostarUserIdPendiente,
+                            } as IEmpleado,
+                            biostar_group_id: String(biostar_group_id || "").trim() || "1",
+                            disabled: false,
+                        });
+                        if (!bioRes.ok) {
+                            biostarPendiente = true;
+                            biostarError = bioRes.mensaje || "No se pudo actualizar el empleado en BioStar.";
+                        }
                         await Empleados.findByIdAndUpdate(reg_saved._id, {
                             $set: {
                                 biostar_user_id: biostarUserIdPendiente,
-                                biostar_group_id: String(biostar_group_id || "").trim() || "1",
-                                biostar_group_name: biostarGroupNamePendiente || "",
+                                biostar_group_id: bioRes.groupId || String(biostar_group_id || "").trim() || "1",
+                                biostar_group_name: bioRes.groupName || biostarGroupNamePendiente || "",
                             }
                         });
                     } else {
