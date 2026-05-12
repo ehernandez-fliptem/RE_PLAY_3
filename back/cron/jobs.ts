@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { finalizarVencidos } from "./registros/registros";
 import { validarDocumentacionPorExpirar } from "./documentos/documentos";
 import { recalibrarRelojPaneles } from "./paneles/reloj";
+import { sincronizarEventosBiostar } from "./biostar/eventos";
 
 // Se ejecuta cada 20 segundos
 cron.schedule('*/20 * * * * *', async () => {
@@ -16,4 +17,9 @@ cron.schedule('0 0 * * *', async () => {
 // Recalibración diaria de reloj por panel (offset y alertas)
 cron.schedule("15 0 * * *", async () => {
     await recalibrarRelojPaneles();
+});
+
+// Sincronizacion de eventos BioStar hacia RE (kiosco/reportes)
+cron.schedule("*/20 * * * * *", async () => {
+    await sincronizarEventosBiostar();
 });
