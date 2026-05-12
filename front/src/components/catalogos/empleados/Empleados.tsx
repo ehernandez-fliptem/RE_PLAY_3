@@ -1184,9 +1184,15 @@ export default function Empleados() {
           ),
         }}
       />
-      <Dialog open={syncBioOpen} onClose={() => setSyncBioOpen(false)} fullWidth maxWidth="md">
+      <Dialog
+        open={syncBioOpen}
+        onClose={() => setSyncBioOpen(false)}
+        fullWidth
+        maxWidth="md"
+        PaperProps={{ sx: { minHeight: 560 } }}
+      >
         <DialogTitle>Pendientes de BioStar</DialogTitle>
-        <DialogContent dividers>
+        <DialogContent dividers sx={{ minHeight: 460 }}>
           <TextField
             fullWidth
             size="small"
@@ -1198,53 +1204,51 @@ export default function Empleados() {
           <Typography variant="subtitle2" sx={{ mb: 2 }}>
             Selecciona un registro para completar alta en RE ({syncBioPendientesFiltrados.length})
           </Typography>
-          {syncBioLoading ? (
-            <Spinner />
-          ) : (
-            <Box sx={{ width: "100%", height: 320 }}>
-              {syncBioPendientesFiltrados.length === 0 ? (
-                <Typography variant="body2" sx={{ p: 2 }}>
-                  No hay registros para el filtro actual.
-                </Typography>
-              ) : (
-                <DataGrid
-                  rows={syncBioPendientesFiltrados.map((u: any) => ({
-                    ...u,
-                    id: String(u.biostar_user_id),
-                    motivos_texto: (u.motivos || []).join(", "),
-                  }))}
-                  columns={columnasPendientesBiostar as any}
-                  getRowId={(row) => row.id}
-                  onRowClick={(params) => setSyncBioSelected(String(params.row?.id || ""))}
-                  getRowClassName={(params) =>
-                    String(params.row?.id || "") === syncBioSelected ? "fila-pendiente-seleccionada" : ""
-                  }
-                  pageSizeOptions={[5, 10, 25]}
-                  initialState={{
-                    pagination: { paginationModel: { pageSize: 5, page: 0 } },
-                  }}
-                  disableRowSelectionOnClick={false}
-                  sx={{
-                    "& .MuiDataGrid-cell, & .MuiDataGrid-columnHeaderTitle": {
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    },
-                    "& .MuiDataGrid-virtualScroller": {
-                      overflowX: "hidden !important",
-                    },
-                    "& .MuiDataGrid-main": {
-                      overflowX: "hidden",
-                    },
-                    "& .fila-pendiente-seleccionada": {
-                      backgroundColor: "rgba(122,60,255,0.10)",
-                    },
-                  }}
-                  localeText={esES.components.MuiDataGrid.defaultProps.localeText}
-                />
-              )}
-            </Box>
-          )}
+          <Box sx={{ width: "100%", height: 320 }}>
+            {syncBioLoading && <Spinner />}
+            {!syncBioLoading && syncBioPendientesFiltrados.length === 0 && (
+              <Typography variant="body2" sx={{ p: 2 }}>
+                No hay registros para el filtro actual.
+              </Typography>
+            )}
+            {!syncBioLoading && syncBioPendientesFiltrados.length > 0 && (
+              <DataGrid
+                rows={syncBioPendientesFiltrados.map((u: any) => ({
+                  ...u,
+                  id: String(u.biostar_user_id),
+                  motivos_texto: (u.motivos || []).join(", "),
+                }))}
+                columns={columnasPendientesBiostar as any}
+                getRowId={(row) => row.id}
+                onRowClick={(params) => setSyncBioSelected(String(params.row?.id || ""))}
+                getRowClassName={(params) =>
+                  String(params.row?.id || "") === syncBioSelected ? "fila-pendiente-seleccionada" : ""
+                }
+                pageSizeOptions={[5, 10, 25]}
+                initialState={{
+                  pagination: { paginationModel: { pageSize: 5, page: 0 } },
+                }}
+                disableRowSelectionOnClick={false}
+                sx={{
+                  "& .MuiDataGrid-cell, & .MuiDataGrid-columnHeaderTitle": {
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  },
+                  "& .MuiDataGrid-virtualScroller": {
+                    overflowX: "hidden !important",
+                  },
+                  "& .MuiDataGrid-main": {
+                    overflowX: "hidden",
+                  },
+                  "& .fila-pendiente-seleccionada": {
+                    backgroundColor: "rgba(122,60,255,0.10)",
+                  },
+                }}
+                localeText={esES.components.MuiDataGrid.defaultProps.localeText}
+              />
+            )}
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={cargarSyncBiostarPreview} disabled={syncBioLoading}>Recargar</Button>
