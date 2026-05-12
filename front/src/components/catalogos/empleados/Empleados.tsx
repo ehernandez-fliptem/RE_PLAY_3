@@ -1490,6 +1490,11 @@ export default function Empleados() {
                           </FormControl>
                         )}
                       </Box>
+                      {proveedorHuellaActual === "biostar" && (
+                        <Alert severity="info" sx={{ mb: 1.5 }}>
+                          Se abrirá una ventana externa de BioStar para registrar la huella.
+                        </Alert>
+                      )}
                       {proveedorHuellaActual !== "biostar" && (
                         <>
                           <Box sx={{ mb: 1, fontWeight: 700, fontSize: "0.95rem" }}>

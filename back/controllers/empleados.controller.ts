@@ -2467,6 +2467,88 @@ const seleccionarDispositivoEnroll = async (page: Page, deviceIdOrName: string) 
     }, wanted);
 };
 
+const instalarAutoApplyFingerprint = async (page: Page) => {
+    try {
+        await page.evaluate(() => {
+            const w = window as any;
+            if (w.__replayAutoApplyInstalled) return;
+            const ng = w.angular;
+            if (!ng) return;
+            const injector = ng.element(document.body).injector?.();
+            if (!injector) return;
+            const root = injector.get("$rootScope");
+            if (!root) return;
+
+            const visited = new Set<any>();
+            const stack = [root];
+            let target: any = null;
+            while (stack.length) {
+                const scope = stack.pop();
+                if (!scope || visited.has(scope)) continue;
+                visited.add(scope);
+                if (
+                    typeof scope.doScanFingerPrint === "function" &&
+                    typeof scope.doApplyFingerPrintScan === "function" &&
+                    scope.fingerPrint
+                ) {
+                    target = scope;
+                    break;
+                }
+                if (scope.$$childHead) stack.push(scope.$$childHead);
+                if (scope.$$nextSibling) stack.push(scope.$$nextSibling);
+            }
+            if (!target) return;
+
+            const clickApplyOnUserDetail = () => {
+                const labels = ["apply", "aplicar", "저장", "적용"];
+                const elements = Array.from(document.querySelectorAll("button, a, span, div"));
+                const targetBtn = elements.find((el) => {
+                    const txt = String((el as HTMLElement).innerText || el.textContent || "").trim().toLowerCase();
+                    if (!txt) return false;
+                    if (!labels.some((l) => txt === l || txt.includes(l))) return false;
+                    const style = window.getComputedStyle(el as Element);
+                    return style.display !== "none" && style.visibility !== "hidden";
+                }) as HTMLElement | undefined;
+                if (targetBtn) targetBtn.click();
+            };
+
+            const ensureOneFingerprintSlot = () => {
+                try {
+                    const items = Array.isArray(target.fingerPrint?.fingerprint_templates)
+                        ? target.fingerPrint.fingerprint_templates
+                        : [];
+                    if (items.length > 0) return;
+                    if (typeof target.doAddFingerprint === "function") {
+                        target.doAddFingerprint();
+                        return;
+                    }
+                    const addBtn = Array.from(document.querySelectorAll("button, a, span"))
+                        .find((el) => String((el as HTMLElement).innerText || "").toLowerCase().includes("add")) as HTMLElement | undefined;
+                    if (addBtn) addBtn.click();
+                } catch {
+                    // noop
+                }
+            };
+
+            const originalEnroll = target.doApplyFingerPrintScan?.bind(target);
+            if (typeof originalEnroll !== "function") return;
+            ensureOneFingerprintSlot();
+
+            target.doApplyFingerPrintScan = function (...args: any[]) {
+                const result = originalEnroll(...args);
+                setTimeout(() => {
+                    clickApplyOnUserDetail();
+                }, 700);
+                return result;
+            };
+
+            w.__replayAutoApplyInstalled = true;
+        });
+    } catch {
+        // noop
+    }
+};
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const buildBiostarDraft = (u: any) => {
@@ -2643,6 +2725,7 @@ export async function abrirUiEnrollBiostar(req: Request, res: Response): Promise
         await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
         await bypassCertificateInterstitial(page);
         await sleep(600);
+        await instalarAutoApplyFingerprint(page);
         await clickTextIfFound(page, ["fingerprint", "huella"]);
         await sleep(300);
         await clickTextIfFound(page, ["enroll fingerprint", "enroll", "enrolar", "enrollar"]);
@@ -2658,7 +2741,7 @@ export async function abrirUiEnrollBiostar(req: Request, res: Response): Promise
 
         res.status(200).json({
             estado: true,
-            mensaje: "BioStar abierto y preparado para enrolar huella.",
+            mensaje: "BioStar abierto. Al escanear, se intentará aplicar automáticamente.",
         });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
