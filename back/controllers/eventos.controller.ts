@@ -3,6 +3,7 @@ import { PipelineStage, Types } from 'mongoose';
 import Configuracion, { IConfiguracion } from "../models/Configuracion";
 import Horarios, { IHorario } from "../models/Horarios";
 import DispositivosHv from "../models/DispositivosHv";
+import DispositivosSuprema from "../models/DispositivosSuprema";
 import Eventos, { IEvento } from "../models/Eventos";
 import Usuarios, { IUsuario } from "../models/Usuarios";
 import Empleados from "../models/Empleados";
@@ -239,6 +240,21 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                 }
             },
             {
+                $lookup: {
+                    from: "suprema_dispositivos",
+                    localField: "id_panel",
+                    foreignField: "_id",
+                    as: "panel_biostar",
+                    pipeline: [
+                        {
+                            $project: {
+                                nombre: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
                 $set: {
                     creado_por: { $arrayElemAt: ["$creado_por", -1] },
                     usuario: { $arrayElemAt: ["$usuario", -1] },
@@ -246,6 +262,7 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                     usuario_por_qr: { $arrayElemAt: ["$usuario_por_qr", -1] },
                     visitante: { $arrayElemAt: ["$visitante", -1] },
                     panel: { $arrayElemAt: ["$panel", -1] },
+                    panel_biostar: { $arrayElemAt: ["$panel_biostar", -1] },
                 },
             },
             {
@@ -271,7 +288,7 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                     },
                     estatus: "$tipo_check",
                     creado_por: "$creado_por.nombre",
-                    panel: "$panel.nombre",
+                    panel: { $ifNull: ["$panel.nombre", "$panel_biostar.nombre"] },
                     usuario: {
                         $cond: [
                             { $ifNull: ["$usuario", false] },
@@ -673,6 +690,21 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
             },
             {
                 $lookup: {
+                    from: "suprema_dispositivos",
+                    localField: "id_panel",
+                    foreignField: "_id",
+                    as: "panel_biostar",
+                    pipeline: [
+                        {
+                            $project: {
+                                nombre: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $lookup: {
                     from: 'accesos',
                     localField: 'id_acceso',
                     foreignField: '_id',
@@ -690,12 +722,13 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
                     registro: { $arrayElemAt: ["$registro", -1] },
                     visitante: { $arrayElemAt: ["$visitante", -1] },
                     panel: { $arrayElemAt: ["$panel", -1] },
+                    panel_biostar: { $arrayElemAt: ["$panel_biostar", -1] },
                     acceso: { $arrayElemAt: ["$acceso", -1] },
                 }
             },
             {
                 $set: {
-                    panel: "$panel.nombre",
+                    panel: { $ifNull: ["$panel.nombre", "$panel_biostar.nombre"] },
                     acceso: "$acceso.nombre",
                     generales: {
                         $cond: [
@@ -937,10 +970,15 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
 
 export async function obtenerPanelesKiosco(_req: Request, res: Response): Promise<void> {
     try {
-        const paneles = await DispositivosHv.find(
+        const panelesHv = await DispositivosHv.find(
             { activo: true },
             { nombre: 1, direccion_ip: 1 }
         ).sort({ nombre: 1 });
+        const panelesBiostar = await DispositivosSuprema.find(
+            { activo: true },
+            { nombre: 1, direccion_ip: 1 }
+        ).sort({ nombre: 1 });
+        const paneles = [...panelesHv, ...panelesBiostar];
         res.status(200).json({ estado: true, datos: paneles });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);

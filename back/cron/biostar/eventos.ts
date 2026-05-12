@@ -9,8 +9,8 @@ import { biostarRequest } from "../../classes/Biostar";
 const BIOSTAR_EVENT_POLL_WINDOW_SECONDS = 150;
 const BIOSTAR_EVENT_LIMIT = 200;
 const BIOSTAR_TIPO_DISPOSITIVO = 3;
-const BIOSTAR_IN_CODE_MIN = 4096;
-const BIOSTAR_IN_CODE_MAX = 4868;
+const BIOSTAR_ACCESS_GRANTED_CODES = new Set([4864, 4865, 4866, 4867, 4868]);
+const BIOSTAR_ACCESS_DENIED_CODES = new Set([5120, 5121, 5122, 5123, 5124, 5125, 5126, 5127, 6400, 6401]);
 
 let jobRunning = false;
 
@@ -24,12 +24,14 @@ function toNumber(val: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function isCandidateCheckEvent(row: any): boolean {
+function getBiostarEventType(row: any): "ACCESS_GRANTED" | "ACCESS_DENIED" | "IGNORE" {
   const userCode = String(row?.user_id?.user_id || "").trim();
-  if (!userCode) return false;
+  if (!userCode) return "IGNORE";
 
   const eventCode = toNumber(row?.event_type_id?.code);
-  return eventCode >= BIOSTAR_IN_CODE_MIN && eventCode <= BIOSTAR_IN_CODE_MAX;
+  if (BIOSTAR_ACCESS_GRANTED_CODES.has(eventCode)) return "ACCESS_GRANTED";
+  if (BIOSTAR_ACCESS_DENIED_CODES.has(eventCode)) return "ACCESS_DENIED";
+  return "IGNORE";
 }
 
 async function resolveTipoCheck(params: {
@@ -97,9 +99,7 @@ export async function sincronizarEventosBiostar(): Promise<void> {
       return;
     }
 
-    const rows = getRows(response.data)
-      .filter(isCandidateCheckEvent)
-      .sort((a, b) => toNumber(a?.id) - toNumber(b?.id));
+    const rows = getRows(response.data).sort((a, b) => toNumber(a?.id) - toNumber(b?.id));
 
     if (!rows.length) return;
 
@@ -111,12 +111,19 @@ export async function sincronizarEventosBiostar(): Promise<void> {
     });
 
     for (const row of rows) {
+      const biostarEventType = getBiostarEventType(row);
+      if (biostarEventType === "IGNORE") continue;
+
       const eventId = String(row?.id || "").trim();
       const userCode = toNumber(row?.user_id?.user_id);
       if (!eventId || !userCode) continue;
 
       const deviceName = String(row?.device_id?.name || "").trim().toLowerCase();
-      const idPanel = panelByName.get(deviceName) || null;
+      let idPanel = panelByName.get(deviceName) || null;
+      if (!idPanel && deviceName) {
+        const fuzzy = Array.from(panelByName.entries()).find(([key]) => key.includes(deviceName) || deviceName.includes(key));
+        if (fuzzy) idPanel = fuzzy[1];
+      }
 
       const duplicado = await Eventos.exists({
         tipo_dispositivo: BIOSTAR_TIPO_DISPOSITIVO,
@@ -130,11 +137,14 @@ export async function sincronizarEventosBiostar(): Promise<void> {
       }
 
       const fechaEvento = parseEventDate(row);
-      const tipo_check = await resolveTipoCheck({
-        idEmpleado: empleado._id,
-        idPanel,
-        fecha: fechaEvento,
-      });
+      const eventCode = toNumber(row?.event_type_id?.code);
+      const tipo_check = biostarEventType === "ACCESS_DENIED"
+        ? 7
+        : await resolveTipoCheck({
+          idEmpleado: empleado._id,
+          idPanel,
+          fecha: fechaEvento,
+        });
 
       await new Eventos({
         tipo_dispositivo: BIOSTAR_TIPO_DISPOSITIVO,
@@ -145,7 +155,7 @@ export async function sincronizarEventosBiostar(): Promise<void> {
         qr: String(userCode),
         fecha_creacion: fechaEvento,
         fecha_panel_raw: eventId,
-        comentario: `BIOSTAR_EVENT:${eventId}`,
+        comentario: `BIOSTAR_EVENT:${eventId};CODE:${eventCode};DEVICE:${String(row?.device_id?.name || "").trim()}`,
       }).save();
     }
   } catch (error: any) {
