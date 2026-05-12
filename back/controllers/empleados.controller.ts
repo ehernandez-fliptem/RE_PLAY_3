@@ -1238,6 +1238,9 @@ const extractFingerprintTemplateSamples = (payload: any): Array<{ template0: str
 };
 
 const captureFingerprintFromPanel = async (ip: string, user: string, pass: string, fingerNo: number) => {
+    const hikiDebug = (...args: any[]) => {
+        console.log("[HIKI_DEBUG]", ...args);
+    };
     const xmlPayload =
         `<?xml version="1.0" encoding="UTF-8"?>` +
         `<CaptureFingerPrintCond version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">` +
@@ -1245,8 +1248,11 @@ const captureFingerprintFromPanel = async (ip: string, user: string, pass: strin
         `</CaptureFingerPrintCond>`;
     let response: { statusCode: number; body: string; } | null = null;
     let lastError: any = null;
+    let protocolUsado = "";
+    const startedAt = Date.now();
     for (const protocol of ["https", "http"]) {
         try {
+            const startedProtocol = Date.now();
             response = await runCurlText([
                 "-k",
                 "--digest",
@@ -1260,9 +1266,25 @@ const captureFingerprintFromPanel = async (ip: string, user: string, pass: strin
                 "-d",
                 xmlPayload,
             ]);
+            protocolUsado = protocol;
+            hikiDebug("capture_fingerprint_transport_ok", {
+                ip,
+                fingerNo,
+                protocol,
+                elapsedMs: Date.now() - startedProtocol,
+                statusCode: response.statusCode,
+                bodyLength: String(response.body || "").length,
+            });
             break;
         } catch (error: any) {
             lastError = error;
+            hikiDebug("capture_fingerprint_transport_error", {
+                ip,
+                fingerNo,
+                protocol,
+                elapsedMs: Date.now() - startedAt,
+                error: error?.message || String(error),
+            });
         }
     }
     if (!response) {
@@ -1271,8 +1293,21 @@ const captureFingerprintFromPanel = async (ip: string, user: string, pass: strin
     const { statusCode, body } = response;
     const fingerData = xmlTagValue(body, "fingerData");
     const fingerPrintQuality = Number(xmlTagValue(body, "fingerPrintQuality")) || 0;
+    const parsed = parseXmlStatus(body);
+    hikiDebug("capture_fingerprint_response", {
+        ip,
+        fingerNo,
+        protocol: protocolUsado || "unknown",
+        statusCode,
+        totalElapsedMs: Date.now() - startedAt,
+        hasFingerData: Boolean(fingerData),
+        fingerDataLength: String(fingerData || "").length,
+        fingerPrintQuality,
+        statusString: parsed.statusString || "",
+        subStatusCode: parsed.subStatusCode || "",
+        errorMsg: parsed.errorMsg || "",
+    });
     if (statusCode >= 400 || !fingerData) {
-        const parsed = parseXmlStatus(body);
         const timeout = parsed.subStatusCode === "captureTimeout" || parsed.errorMsg === "captureTimeout";
         throw new Error(
             timeout
