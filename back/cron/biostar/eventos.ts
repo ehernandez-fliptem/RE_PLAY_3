@@ -72,10 +72,6 @@ async function consultarEventosConFallback(payload: any): Promise<{
 }> {
   const candidatos: Array<{ source: string; conn: any }> = [];
 
-  const conexionGlobal = await BiostarConexion.findOne({ activo: true })
-    .sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
-  if (conexionGlobal) candidatos.push({ source: "biostar_conexion_global", conn: conexionGlobal });
-
   const dispositivosBiostar = await DispositivosBiostar.find({ activo: true })
     .sort({ es_main: -1, fecha_modificacion: -1, fecha_creacion: -1, _id: -1 })
     .limit(5);
@@ -85,6 +81,10 @@ async function consultarEventosConFallback(payload: any): Promise<{
     .sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 })
     .limit(5);
   dispositivosSuprema.forEach((d) => candidatos.push({ source: "suprema_dispositivos", conn: d }));
+
+  const conexionGlobal = await BiostarConexion.findOne({ activo: true })
+    .sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
+  if (conexionGlobal) candidatos.push({ source: "biostar_conexion_global", conn: conexionGlobal });
 
   if (!candidatos.length) {
     return { ok: false, message: "Sin conexiones activas para BioStar." };
