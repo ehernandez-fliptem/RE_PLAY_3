@@ -2467,6 +2467,42 @@ const seleccionarDispositivoEnroll = async (page: Page, deviceIdOrName: string) 
     }, wanted);
 };
 
+const abrirModalFingerprintAngular = async (page: Page) => {
+    try {
+        return await page.evaluate(() => {
+            const w = window as any;
+            const ng = w.angular;
+            if (!ng) return false;
+            const injector = ng.element(document.body).injector?.();
+            if (!injector) return false;
+            const root = injector.get("$rootScope");
+            if (!root) return false;
+
+            const visited = new Set<any>();
+            const stack = [root];
+            while (stack.length) {
+                const scope = stack.pop();
+                if (!scope || visited.has(scope)) continue;
+                visited.add(scope);
+                if (typeof scope.doOpenFingerPrintScanDlg === "function") {
+                    try {
+                        scope.doOpenFingerPrintScanDlg();
+                        if (!scope.$$phase && typeof scope.$applyAsync === "function") scope.$applyAsync();
+                        return true;
+                    } catch {
+                        // continue
+                    }
+                }
+                if (scope.$$childHead) stack.push(scope.$$childHead);
+                if (scope.$$nextSibling) stack.push(scope.$$nextSibling);
+            }
+            return false;
+        });
+    } catch {
+        return false;
+    }
+};
+
 const instalarAutoApplyFingerprint = async (page: Page) => {
     try {
         await page.evaluate(() => {
@@ -2726,9 +2762,14 @@ export async function abrirUiEnrollBiostar(req: Request, res: Response): Promise
         await bypassCertificateInterstitial(page);
         await sleep(600);
         await instalarAutoApplyFingerprint(page);
-        await clickTextIfFound(page, ["fingerprint", "huella"]);
+        const openedByAngular = await abrirModalFingerprintAngular(page);
+        if (!openedByAngular) {
+            await clickTextIfFound(page, ["fingerprint", "huella"]);
+        }
         await sleep(300);
-        await clickTextIfFound(page, ["enroll fingerprint", "enroll", "enrolar", "enrollar"]);
+        if (!openedByAngular) {
+            await clickTextIfFound(page, ["enroll fingerprint", "enroll", "enrolar", "enrollar"]);
+        }
         await sleep(350);
         if (selectedDeviceName || selectedDeviceId) {
             await seleccionarDispositivoEnroll(page, selectedDeviceName || selectedDeviceId);
