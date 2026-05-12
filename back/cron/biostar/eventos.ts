@@ -7,8 +7,8 @@ import Empleados from "../../models/Empleados";
 import Eventos from "../../models/Eventos";
 import { biostarRequest } from "../../classes/Biostar";
 
-const BIOSTAR_EVENT_POLL_WINDOW_SECONDS = 150;
-const BIOSTAR_EVENT_LIMIT = 200;
+const BIOSTAR_EVENT_LOOKBACK_HOURS = 24;
+const BIOSTAR_EVENT_LIMIT = 1000;
 const BIOSTAR_TIPO_DISPOSITIVO = 3;
 const EVENT_TYPES_CACHE_TTL_MS = 10 * 60 * 1000;
 const DEVICE_CACHE_TTL_MS = 60 * 1000;
@@ -22,6 +22,7 @@ let eventTypeCache: {
 let activeDeviceCache: {
   expiresAt: number;
   ids: Set<string>;
+  rows: any[];
 } | null = null;
 
 function getRows(payload: any): any[] {
@@ -172,15 +173,16 @@ async function requestWithFallback(path: string, data?: any): Promise<{
   return { ok: false, message: ultimoError };
 }
 
-async function getActiveDeviceIds(): Promise<Set<string>> {
+async function getActiveDevices(): Promise<{ ids: Set<string>; rows: any[] }> {
   const now = Date.now();
-  if (activeDeviceCache && activeDeviceCache.expiresAt > now) return activeDeviceCache.ids;
+  if (activeDeviceCache && activeDeviceCache.expiresAt > now) {
+    return { ids: activeDeviceCache.ids, rows: activeDeviceCache.rows };
+  }
 
   const result = await requestWithFallback("/api/v2/devices/only_permission_item/search", {});
   if (!result.ok) {
     console.log("[BIOSTAR_EVENTS] No se pudo consultar dispositivos activos:", result.message);
-    const fallback = activeDeviceCache?.ids || new Set<string>();
-    return fallback;
+    return { ids: activeDeviceCache?.ids || new Set<string>(), rows: activeDeviceCache?.rows || [] };
   }
 
   const rows = parseRows(result.data, ["DeviceCollection.rows", "rows", "devices"]);
@@ -189,8 +191,8 @@ async function getActiveDeviceIds(): Promise<Set<string>> {
     const status = toNumber(d?.status);
     if (status === 1) ids.add(String(d?.id || "").trim());
   });
-  activeDeviceCache = { expiresAt: now + DEVICE_CACHE_TTL_MS, ids };
-  return ids;
+  activeDeviceCache = { expiresAt: now + DEVICE_CACHE_TTL_MS, ids, rows };
+  return { ids, rows };
 }
 
 async function getEventTypeMaps(): Promise<{ grantedCodes: Set<number>; deniedCodes: Set<number> }> {
@@ -245,7 +247,7 @@ export async function sincronizarEventosBiostar(): Promise<void> {
     let omitidosDispositivoInactivo = 0;
 
     const hasta = dayjs();
-    const desde = hasta.subtract(BIOSTAR_EVENT_POLL_WINDOW_SECONDS, "second");
+    const desde = hasta.subtract(BIOSTAR_EVENT_LOOKBACK_HOURS, "hour");
 
     const payload = {
       Query: {
@@ -267,7 +269,7 @@ export async function sincronizarEventosBiostar(): Promise<void> {
       return;
     }
     console.log("[BIOSTAR_EVENTS] Fuente de conexion usada:", response.source);
-    const activeDeviceIds = await getActiveDeviceIds();
+    const { ids: activeDeviceIds, rows: activeDeviceRows } = await getActiveDevices();
     const { grantedCodes, deniedCodes } = await getEventTypeMaps();
 
     const rows = getRows(response.data).sort((a, b) => toNumber(a?.id) - toNumber(b?.id));
@@ -275,16 +277,35 @@ export async function sincronizarEventosBiostar(): Promise<void> {
 
     if (!rows.length) {
       console.log("[BIOSTAR_EVENTS] Sin eventos en ventana.", {
-        ventanaSegundos: BIOSTAR_EVENT_POLL_WINDOW_SECONDS,
+        ventanaHoras: BIOSTAR_EVENT_LOOKBACK_HOURS,
       });
       return;
     }
 
-    const suprema = await DispositivosSuprema.find({ activo: true }, "_id nombre").lean<{ _id: Types.ObjectId; nombre?: string }[]>();
+    const suprema = await DispositivosSuprema.find({ activo: true }, "_id nombre direccion_ip").lean<{ _id: Types.ObjectId; nombre?: string; direccion_ip?: string }[]>();
     const panelByName = new Map<string, Types.ObjectId>();
+    const panelByIp = new Map<string, Types.ObjectId>();
     suprema.forEach((d) => {
       const key = String(d.nombre || "").trim().toLowerCase();
       if (key) panelByName.set(key, d._id);
+      const ip = String(d.direccion_ip || "").trim();
+      if (ip) panelByIp.set(ip, d._id);
+    });
+    const biostarDeviceToPanel = new Map<string, Types.ObjectId>();
+    activeDeviceRows.forEach((d: any) => {
+      const devId = String(d?.id || "").trim();
+      if (!devId) return;
+      const ip = String(d?.lan?.ip || d?.ip_address || d?.ip || "").trim();
+      const name = String(d?.name || "").trim().toLowerCase();
+      let panelId = (ip && panelByIp.get(ip)) || null;
+      if (!panelId && name) {
+        panelId = panelByName.get(name) || null;
+        if (!panelId) {
+          const fuzzy = Array.from(panelByName.entries()).find(([key]) => key.includes(name) || name.includes(key));
+          if (fuzzy) panelId = fuzzy[1];
+        }
+      }
+      if (panelId) biostarDeviceToPanel.set(devId, panelId);
     });
 
     for (const row of rows) {
@@ -306,10 +327,9 @@ export async function sincronizarEventosBiostar(): Promise<void> {
       if (!eventId || !userCode) continue;
 
       const deviceName = String(row?.device_id?.name || "").trim().toLowerCase();
-      let idPanel = panelByName.get(deviceName) || null;
+      let idPanel = (deviceId && biostarDeviceToPanel.get(deviceId)) || null;
       if (!idPanel && deviceName) {
-        const fuzzy = Array.from(panelByName.entries()).find(([key]) => key.includes(deviceName) || deviceName.includes(key));
-        if (fuzzy) idPanel = fuzzy[1];
+        idPanel = panelByName.get(deviceName) || null;
       }
       if (!idPanel) omitidosSinPanelMap++;
 
@@ -364,7 +384,7 @@ export async function sincronizarEventosBiostar(): Promise<void> {
         sinPanelMap: omitidosSinPanelMap,
       },
       dispositivosActivos: activeDeviceIds.size,
-      ventanaSegundos: BIOSTAR_EVENT_POLL_WINDOW_SECONDS,
+      ventanaHoras: BIOSTAR_EVENT_LOOKBACK_HOURS,
       duracionMs: Date.now() - cicloInicio,
     });
   } catch (error: any) {
