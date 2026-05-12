@@ -67,9 +67,21 @@ export async function sincronizarEventosBiostar(): Promise<void> {
   jobRunning = true;
 
   try {
+    const cicloInicio = Date.now();
+    let totalRows = 0;
+    let totalCandidatos = 0;
+    let totalInsertados = 0;
+    let omitidosIgnorados = 0;
+    let omitidosDuplicados = 0;
+    let omitidosSinEmpleado = 0;
+    let omitidosSinPanelMap = 0;
+
     const conexion = await BiostarConexion.findOne({ activo: true })
       .sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
-    if (!conexion) return;
+    if (!conexion) {
+      console.log("[BIOSTAR_EVENTS] Sin conexion global activa.");
+      return;
+    }
 
     const hasta = dayjs();
     const desde = hasta.subtract(BIOSTAR_EVENT_POLL_WINDOW_SECONDS, "second");
@@ -100,8 +112,14 @@ export async function sincronizarEventosBiostar(): Promise<void> {
     }
 
     const rows = getRows(response.data).sort((a, b) => toNumber(a?.id) - toNumber(b?.id));
+    totalRows = rows.length;
 
-    if (!rows.length) return;
+    if (!rows.length) {
+      console.log("[BIOSTAR_EVENTS] Sin eventos en ventana.", {
+        ventanaSegundos: BIOSTAR_EVENT_POLL_WINDOW_SECONDS,
+      });
+      return;
+    }
 
     const suprema = await DispositivosSuprema.find({ activo: true }, "_id nombre").lean<{ _id: Types.ObjectId; nombre?: string }[]>();
     const panelByName = new Map<string, Types.ObjectId>();
@@ -112,7 +130,11 @@ export async function sincronizarEventosBiostar(): Promise<void> {
 
     for (const row of rows) {
       const biostarEventType = getBiostarEventType(row);
-      if (biostarEventType === "IGNORE") continue;
+      if (biostarEventType === "IGNORE") {
+        omitidosIgnorados++;
+        continue;
+      }
+      totalCandidatos++;
 
       const eventId = String(row?.id || "").trim();
       const userCode = toNumber(row?.user_id?.user_id);
@@ -124,15 +146,20 @@ export async function sincronizarEventosBiostar(): Promise<void> {
         const fuzzy = Array.from(panelByName.entries()).find(([key]) => key.includes(deviceName) || deviceName.includes(key));
         if (fuzzy) idPanel = fuzzy[1];
       }
+      if (!idPanel) omitidosSinPanelMap++;
 
       const duplicado = await Eventos.exists({
         tipo_dispositivo: BIOSTAR_TIPO_DISPOSITIVO,
         fecha_panel_raw: eventId,
       });
-      if (duplicado) continue;
+      if (duplicado) {
+        omitidosDuplicados++;
+        continue;
+      }
 
       const empleado = await Empleados.findOne({ id_empleado: userCode }, "_id img_usuario").lean<{ _id: Types.ObjectId; img_usuario?: string }>();
       if (!empleado?._id) {
+        omitidosSinEmpleado++;
         continue;
       }
 
@@ -157,7 +184,22 @@ export async function sincronizarEventosBiostar(): Promise<void> {
         fecha_panel_raw: eventId,
         comentario: `BIOSTAR_EVENT:${eventId};CODE:${eventCode};DEVICE:${String(row?.device_id?.name || "").trim()}`,
       }).save();
+      totalInsertados++;
     }
+
+    console.log("[BIOSTAR_EVENTS] Resumen ciclo", {
+      consultados: totalRows,
+      candidatos: totalCandidatos,
+      insertados: totalInsertados,
+      omitidos: {
+        ignorados: omitidosIgnorados,
+        duplicados: omitidosDuplicados,
+        sinEmpleado: omitidosSinEmpleado,
+        sinPanelMap: omitidosSinPanelMap,
+      },
+      ventanaSegundos: BIOSTAR_EVENT_POLL_WINDOW_SECONDS,
+      duracionMs: Date.now() - cicloInicio,
+    });
   } catch (error: any) {
     console.log("[BIOSTAR_EVENTS] Error sincronizando eventos:", error?.message || error);
   } finally {
