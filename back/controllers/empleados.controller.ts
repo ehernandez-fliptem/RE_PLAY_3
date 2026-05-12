@@ -1181,6 +1181,26 @@ const findFirstStringByKeys = (value: any, keys: string[]): string => {
     return "";
 };
 
+const tryParseJsonString = (value: any): any => {
+    if (typeof value !== "string") return value;
+    const txt = value.trim();
+    if (!txt) return value;
+    if (!(txt.startsWith("{") || txt.startsWith("["))) return value;
+    try {
+        return JSON.parse(txt);
+    } catch {
+        return value;
+    }
+};
+
+const extractFingerprintTemplate = (payload: any): { template0: string; template1: string; finger_mask: string; } => {
+    const normalized = tryParseJsonString(payload);
+    const t0 = String(findFirstStringByKeys(normalized, ["template0", "Template0"]) || "").trim();
+    const t1 = String(findFirstStringByKeys(normalized, ["template1", "Template1"]) || "").trim();
+    const mask = String(findFirstStringByKeys(normalized, ["finger_mask", "fingerMask"]) || "false").trim() || "false";
+    return { template0: t0, template1: t1, finger_mask: mask };
+};
+
 const captureFingerprintFromPanel = async (ip: string, user: string, pass: string, fingerNo: number) => {
     const xmlPayload =
         `<?xml version="1.0" encoding="UTF-8"?>` +
@@ -1611,35 +1631,54 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
                 );
             }
 
-            const scanRes = await biostarRequest(conexion, {
-                method: "POST",
-                url: `/api/devices/${encodeURIComponent(deviceId)}/scan_fingerprint`,
-                data: {
-                    ScanFingerprintOption: {
-                        enroll_quality: "80",
-                        raw_image: false,
+            let template0 = "";
+            let template1 = "";
+            let fingerMask = "false";
+            let lastScanMsg = "No se pudo capturar la huella en BioStar.";
+            const scanAttempts = 4;
+            for (let intento = 1; intento <= scanAttempts; intento++) {
+                const scanRes = await biostarRequest(conexion, {
+                    method: "POST",
+                    url: `/api/devices/${encodeURIComponent(deviceId)}/scan_fingerprint`,
+                    data: {
+                        ScanFingerprintOption: {
+                            enroll_quality: "80",
+                            raw_image: false,
+                        },
+                        noblockui: true,
                     },
-                    noblockui: true,
-                },
-                timeout: 25000,
-            });
-            const scanCode = bioCode(scanRes.data);
-            if (!(scanRes.ok && (!scanCode || scanCode === "0"))) {
-                res.status(200).json({
-                    estado: false,
-                    mensaje: bioMessage(scanRes.data, scanRes.message || "No se pudo capturar la huella en BioStar."),
+                    timeout: 25000,
                 });
-                return;
-            }
+                const scanCode = bioCode(scanRes.data);
+                if (!(scanRes.ok && (!scanCode || scanCode === "0"))) {
+                    lastScanMsg = bioMessage(scanRes.data, scanRes.message || lastScanMsg);
+                    if (intento < scanAttempts) {
+                        await new Promise((resolve) => setTimeout(resolve, 250));
+                        continue;
+                    }
+                    res.status(200).json({
+                        estado: false,
+                        mensaje: lastScanMsg,
+                    });
+                    return;
+                }
 
-            const template0 = findFirstStringByKeys(scanRes.data, ["template0", "Template0"]).trim();
-            const template1 = findFirstStringByKeys(scanRes.data, ["template1", "Template1"]).trim();
-            const fingerMaskRaw = findFirstStringByKeys(scanRes.data, ["finger_mask", "fingerMask"]).trim();
-            const fingerMask = fingerMaskRaw || "false";
+                const extracted = extractFingerprintTemplate(scanRes.data);
+                if (extracted.template0 && extracted.template1) {
+                    template0 = extracted.template0;
+                    template1 = extracted.template1;
+                    fingerMask = extracted.finger_mask || "false";
+                    break;
+                }
+                lastScanMsg = "BioStar no devolvio la plantilla de huella en este intento.";
+                if (intento < scanAttempts) {
+                    await new Promise((resolve) => setTimeout(resolve, 250));
+                }
+            }
             if (!template0 || !template1) {
                 res.status(200).json({
                     estado: false,
-                    mensaje: "BioStar no devolvio la plantilla de huella. Intenta de nuevo.",
+                    mensaje: "BioStar no devolvio la plantilla de huella tras varios intentos. Intenta de nuevo.",
                 });
                 return;
             }
