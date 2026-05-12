@@ -390,7 +390,9 @@ export default function Empleados() {
     try {
       const res = await clienteAxios.post(
         `/api/empleados/biometria/biostar/abrir-ui/${biometriaEmpleado._id}`,
-        {}
+        {
+          panel_biostar_id: biostarDispositivoSeleccionado || undefined,
+        }
       );
       if (res.data?.estado) {
         enqueueSnackbar(
@@ -1499,121 +1501,125 @@ export default function Empleados() {
                           </Button>
                         </Box>
                       )}
-                      <Box sx={{ mb: 1, fontWeight: 700, fontSize: "0.95rem" }}>
-                        Selecciona el dedo para capturar
-                      </Box>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "center",
-                          gap: 4,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        {(["L", "R"] as const).map((side) => (
+                      {proveedorHuellaActual !== "biostar" && (
+                        <>
+                          <Box sx={{ mb: 1, fontWeight: 700, fontSize: "0.95rem" }}>
+                            Selecciona el dedo para capturar
+                          </Box>
                           <Box
-                            key={side}
                             sx={{
-                              position: "relative",
-                              width: HAND_WIDTH,
-                              height: HAND_HEIGHT,
-                              bgcolor: "transparent",
+                              display: "flex",
+                              justifyContent: "center",
+                              gap: 4,
+                              flexWrap: "wrap",
                             }}
                           >
-                            <Box
-                              sx={{
-                                position: "absolute",
-                                inset: 0,
-                                transform: getHandTransform(side),
-                                transformOrigin: "50% 55%",
-                              }}
-                            >
+                            {(["L", "R"] as const).map((side) => (
                               <Box
+                                key={side}
                                 sx={{
-                                  position: "absolute",
-                                  left: 38,
-                                  top: 78,
-                                  width: 104,
-                                  height: getPalmHeight(side),
-                                  borderRadius: "34px",
-                                  bgcolor: "#f3c998",
-                                  border: "2px solid #d89f6b",
-                                  boxShadow: "inset 0 0 0 2px #f9d8b4",
+                                  position: "relative",
+                                  width: HAND_WIDTH,
+                                  height: HAND_HEIGHT,
+                                  bgcolor: "transparent",
                                 }}
-                              />
-                              {getFingerShapesForRender(side).map((fingerShape) => {
-                                const adjust = getFingerAdjustForRender(
-                                  fingerShape.id,
-                                  side
-                                );
-                                const registradasProveedor =
-                                  proveedorHuellaActual === "biostar"
-                                    ? huellasPorProveedor.biostar
-                                    : huellasPorProveedor.hiki;
-                                const registrado = (
-                                  (registradasProveedor || []).map((v: any) =>
-                                    Number(v)
-                                  )
-                                ).includes(fingerShape.id);
-                                const selectedForCapture = selectedFinger === fingerShape.id;
-                                const highlight = selectedForCapture;
-                                const finger = fingers.find((f) => f.id === fingerShape.id);
-                                return (
-                                  <Tooltip
-                                    key={fingerShape.id}
-                                    title={`${finger?.label || "Dedo"} ${
-                                      registrado ? "(registrado)" : "(sin registrar)"
-                                    }`}
-                                  >
-                                    <Box
-                                      onClick={() => {
-                                        setSelectedFinger(fingerShape.id);
-                                      }}
-                                      sx={{
-                                        position: "absolute",
-                                        left: fingerShape.left,
-                                        top: fingerShape.top,
-                                        width: fingerShape.width,
-                                        height: clamp(fingerShape.height + adjust.h, 30, 140),
-                                        borderRadius: "14px",
-                                      transform: `translate(${adjust.dx}px, ${adjust.dy}px) rotate(${
-                                        fingerShape.rot + adjust.rot
-                                      }deg)`,
-                                      transformOrigin: "center",
+                              >
+                                <Box
+                                  sx={{
+                                    position: "absolute",
+                                    inset: 0,
+                                    transform: getHandTransform(side),
+                                    transformOrigin: "50% 55%",
+                                  }}
+                                >
+                                  <Box
+                                    sx={{
+                                      position: "absolute",
+                                      left: 38,
+                                      top: 78,
+                                      width: 104,
+                                      height: getPalmHeight(side),
+                                      borderRadius: "34px",
                                       bgcolor: "#f3c998",
-                                      border: highlight
-                                        ? "2px solid #7a3cff"
-                                        : registrado
-                                        ? "2px solid #66bb6a"
-                                        : "2px solid #d89f6b",
-                                      boxShadow: selectedForCapture
-                                        ? "0 0 0 3px rgba(122,60,255,.22)"
-                                        : registrado
-                                        ? "0 0 0 1px rgba(102,187,106,.22)"
-                                        : "none",
-                                      cursor: "pointer",
+                                      border: "2px solid #d89f6b",
+                                      boxShadow: "inset 0 0 0 2px #f9d8b4",
                                     }}
                                   />
-                                  </Tooltip>
-                                );
-                              })}
-                            </Box>
-                            <Box
-                              sx={{
-                                position: "absolute",
-                                left: "50%",
-                                bottom: 10,
-                                transform: "translateX(-50%)",
-                                fontSize: 12,
-                                color: "#6a4a2e",
-                                fontWeight: 600,
-                              }}
-                            >
-                              {side === "L" ? "Mano izquierda" : "Mano derecha"}
-                            </Box>
+                                  {getFingerShapesForRender(side).map((fingerShape) => {
+                                    const adjust = getFingerAdjustForRender(
+                                      fingerShape.id,
+                                      side
+                                    );
+                                    const registradasProveedor =
+                                      proveedorHuellaActual === "biostar"
+                                        ? huellasPorProveedor.biostar
+                                        : huellasPorProveedor.hiki;
+                                    const registrado = (
+                                      (registradasProveedor || []).map((v: any) =>
+                                        Number(v)
+                                      )
+                                    ).includes(fingerShape.id);
+                                    const selectedForCapture = selectedFinger === fingerShape.id;
+                                    const highlight = selectedForCapture;
+                                    const finger = fingers.find((f) => f.id === fingerShape.id);
+                                    return (
+                                      <Tooltip
+                                        key={fingerShape.id}
+                                        title={`${finger?.label || "Dedo"} ${
+                                          registrado ? "(registrado)" : "(sin registrar)"
+                                        }`}
+                                      >
+                                        <Box
+                                          onClick={() => {
+                                            setSelectedFinger(fingerShape.id);
+                                          }}
+                                          sx={{
+                                            position: "absolute",
+                                            left: fingerShape.left,
+                                            top: fingerShape.top,
+                                            width: fingerShape.width,
+                                            height: clamp(fingerShape.height + adjust.h, 30, 140),
+                                            borderRadius: "14px",
+                                          transform: `translate(${adjust.dx}px, ${adjust.dy}px) rotate(${
+                                            fingerShape.rot + adjust.rot
+                                          }deg)`,
+                                          transformOrigin: "center",
+                                          bgcolor: "#f3c998",
+                                          border: highlight
+                                            ? "2px solid #7a3cff"
+                                            : registrado
+                                            ? "2px solid #66bb6a"
+                                            : "2px solid #d89f6b",
+                                          boxShadow: selectedForCapture
+                                            ? "0 0 0 3px rgba(122,60,255,.22)"
+                                            : registrado
+                                            ? "0 0 0 1px rgba(102,187,106,.22)"
+                                            : "none",
+                                          cursor: "pointer",
+                                        }}
+                                      />
+                                      </Tooltip>
+                                    );
+                                  })}
+                                </Box>
+                                <Box
+                                  sx={{
+                                    position: "absolute",
+                                    left: "50%",
+                                    bottom: 10,
+                                    transform: "translateX(-50%)",
+                                    fontSize: 12,
+                                    color: "#6a4a2e",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  {side === "L" ? "Mano izquierda" : "Mano derecha"}
+                                </Box>
+                              </Box>
+                            ))}
                           </Box>
-                        ))}
-                      </Box>
+                        </>
+                      )}
                     </>
                   )}
 
@@ -1799,7 +1805,7 @@ export default function Empleados() {
                 onClick={iniciarCapturaHuella}
                 sx={{ fontWeight: 700, color: "common.white" }}
               >
-                Capturar
+                {proveedorHuellaActual === "biostar" ? "Capturar en BioStar" : "Capturar"}
               </Button>
               </Box>
               {huellaProviderQueue.length > 1 && (

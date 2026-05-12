@@ -2350,6 +2350,32 @@ const ensureBiostarUiPage = async (): Promise<Page> => {
     return biostarUiPage;
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const waitForAnySelector = async (
+    page: Page,
+    selectors: string[],
+    timeoutMs = 5000,
+    pollMs = 120
+): Promise<string | null> => {
+    const clean = (selectors || []).filter(Boolean);
+    if (!clean.length) return null;
+    const deadline = Date.now() + Math.max(0, timeoutMs);
+    while (Date.now() <= deadline) {
+        for (const selector of clean) {
+            try {
+                const el = await page.$(selector);
+                if (el) return selector;
+            } catch {
+                // continue
+            }
+        }
+        if (Date.now() >= deadline) break;
+        await sleep(pollMs);
+    }
+    return null;
+};
+
 const bypassCertificateInterstitial = async (page: Page) => {
     try {
         const content = await page.content();
@@ -2362,6 +2388,83 @@ const bypassCertificateInterstitial = async (page: Page) => {
     } catch {
         // noop
     }
+};
+
+const intentarLoginBiostarUi = async (page: Page, loginId: string, password: string) => {
+    const usuarioSelector = await waitForAnySelector(page, [
+        "input[name='login_id']",
+        "input[ng-model*='login_id']",
+        "input[type='text']",
+    ], 1600);
+    const passSelector = await waitForAnySelector(page, [
+        "input[name='password']",
+        "input[ng-model*='password']",
+        "input[type='password']",
+    ], 1600);
+
+    if (!usuarioSelector || !passSelector) return;
+
+    await page.click(usuarioSelector, { clickCount: 3 });
+    await page.type(usuarioSelector, loginId);
+    await page.click(passSelector, { clickCount: 3 });
+    await page.type(passSelector, password);
+
+    const submitSelector = await waitForAnySelector(page, [
+        "button[type='submit']",
+        "input[type='submit']",
+        "button[ng-click*='login']",
+        "button[ng-click*='Login']",
+        "button.btn-primary",
+    ], 1200);
+
+    if (submitSelector) {
+        await page.click(submitSelector);
+    } else {
+        await page.focus(passSelector);
+        await page.keyboard.press("Enter");
+    }
+    await sleep(500);
+};
+
+const clickTextIfFound = async (page: Page, labels: string[]) => {
+    const ok = await page.evaluate((rawLabels) => {
+        const labels = (rawLabels || []).map((s) => String(s || "").toLowerCase());
+        const elements = Array.from(document.querySelectorAll("button, a, span, div"));
+        const target = elements.find((el) => {
+            const txt = String((el as HTMLElement).innerText || el.textContent || "").trim().toLowerCase();
+            return txt && labels.some((l) => txt === l || txt.includes(l));
+        }) as HTMLElement | undefined;
+        if (!target) return false;
+        target.click();
+        return true;
+    }, labels);
+    return !!ok;
+};
+
+const seleccionarDispositivoEnroll = async (page: Page, deviceIdOrName: string) => {
+    const wanted = String(deviceIdOrName || "").trim().toLowerCase();
+    if (!wanted) return false;
+    return await page.evaluate((wantedValue) => {
+        const wrappers = Array.from(document.querySelectorAll("select, input, [role='combobox'], .select2-selection, .k-input"));
+        const openDropDown = (el: Element) => {
+            (el as HTMLElement).click();
+        };
+        for (const el of wrappers) {
+            const txt = String((el as HTMLElement).innerText || (el as HTMLInputElement).value || "").toLowerCase();
+            if (txt.includes("device") || txt.includes("dispositivo") || txt.includes("biostar")) {
+                openDropDown(el);
+                break;
+            }
+        }
+        const options = Array.from(document.querySelectorAll("li, option, .k-item, .select2-results__option"));
+        const match = options.find((opt) => {
+            const txt = String((opt as HTMLElement).innerText || opt.textContent || "").trim().toLowerCase();
+            return txt && txt.includes(wantedValue);
+        }) as HTMLElement | undefined;
+        if (!match) return false;
+        match.click();
+        return true;
+    }, wanted);
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -2514,6 +2617,13 @@ export async function abrirUiEnrollBiostar(req: Request, res: Response): Promise
             bioUserId = String(syncRes.userId || "").trim();
         }
 
+        const selectedDeviceId = String(req.body?.panel_biostar_id || "").trim();
+        const selectedDeviceName = selectedDeviceId
+            ? String(
+                (await DispositivosBiostar.findById(selectedDeviceId, "nombre").lean() as any)?.nombre || ""
+            ).trim()
+            : "";
+
         const timestamp = Date.now();
         const groupParam = bioGroupId ? `&group=${encodeURIComponent(bioGroupId)}` : "";
         const targetUrl = `${baseUrl}#/user/detail/${encodeURIComponent(bioUserId)}?timestamp=${timestamp}${groupParam}`;
@@ -2524,13 +2634,31 @@ export async function abrirUiEnrollBiostar(req: Request, res: Response): Promise
             await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
             await bypassCertificateInterstitial(page);
         }
+        try {
+            const pass = decryptPassword(String(conexion.contrasena || ""), CONFIG.SECRET_CRYPTO);
+            await intentarLoginBiostarUi(page, String(conexion.usuario || ""), pass);
+        } catch {
+            // continue even if login parsing fails; user may already be logged in
+        }
         await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
         await bypassCertificateInterstitial(page);
+        await sleep(600);
+        await clickTextIfFound(page, ["fingerprint", "huella"]);
+        await sleep(300);
+        await clickTextIfFound(page, ["enroll fingerprint", "enroll", "enrolar", "enrollar"]);
+        await sleep(350);
+        if (selectedDeviceName || selectedDeviceId) {
+            await seleccionarDispositivoEnroll(page, selectedDeviceName || selectedDeviceId);
+            await sleep(250);
+        }
+        await clickTextIfFound(page, ["add", "+ add"]);
+        await sleep(200);
+        await clickTextIfFound(page, ["scan", "escanear"]);
         await page.bringToFront();
 
         res.status(200).json({
             estado: true,
-            mensaje: "BioStar abierto para enrolar huella en la ventana principal.",
+            mensaje: "BioStar abierto y preparado para enrolar huella.",
         });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
