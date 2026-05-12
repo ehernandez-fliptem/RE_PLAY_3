@@ -1404,7 +1404,10 @@ export default function Empleados() {
       </Dialog>
       <Dialog
         open={biometriaOpen}
-        onClose={cerrarBiometria}
+        onClose={(_, reason) => {
+          if (reason === "backdropClick") return;
+          cerrarBiometria();
+        }}
         maxWidth="sm"
         fullWidth
         PaperProps={{
