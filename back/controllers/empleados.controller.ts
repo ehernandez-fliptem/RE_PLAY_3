@@ -2599,6 +2599,33 @@ const instalarAutoApplyFingerprint = async (page: Page) => {
             const originalEnroll = target.doApplyFingerPrintScan?.bind(target);
             if (typeof originalEnroll !== "function") return;
             ensureOneFingerprintSlot();
+            let sawEnrollModal = false;
+            let autoAppliedAfterClose = false;
+
+            const detectEnrollModalOpen = () => {
+                const nodes = Array.from(document.querySelectorAll("div, section, h1, h2, h3, h4, span"));
+                return nodes.some((el) => {
+                    const txt = String((el as HTMLElement).innerText || el.textContent || "").trim().toLowerCase();
+                    return txt.includes("enroll fingerprint") || txt === "enroll";
+                });
+            };
+
+            const watchEnrollModalClose = () => {
+                const loop = () => {
+                    if (autoAppliedAfterClose) return;
+                    const isOpen = detectEnrollModalOpen();
+                    if (isOpen) sawEnrollModal = true;
+                    if (sawEnrollModal && !isOpen) {
+                        autoAppliedAfterClose = true;
+                        const appliedByScope = callApplyInAngularScopes();
+                        if (!appliedByScope) clickApplyOnUserDetail();
+                        return;
+                    }
+                    setTimeout(loop, 400);
+                };
+                loop();
+            };
+            watchEnrollModalClose();
 
             target.doApplyFingerPrintScan = function (...args: any[]) {
                 const result = originalEnroll(...args);
