@@ -385,6 +385,33 @@ export default function Empleados() {
     }
   };
 
+  const abrirEnrollBiostar = async () => {
+    if (!biometriaEmpleado?._id) return;
+    try {
+      const res = await clienteAxios.post(
+        `/api/empleados/biometria/biostar/abrir-ui/${biometriaEmpleado._id}`,
+        {}
+      );
+      if (res.data?.estado) {
+        enqueueSnackbar(
+          res.data?.mensaje || "BioStar abierto en ventana externa para enrolar.",
+          { variant: "success" }
+        );
+      } else {
+        enqueueSnackbar(
+          res.data?.mensaje || "No se pudo abrir BioStar para enrolar.",
+          { variant: "error" }
+        );
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+      enqueueSnackbar("No se pudo abrir BioStar para enrolar.", {
+        variant: "error",
+      });
+    }
+  };
+
   const reenviarHuellaGuardada = async () => {
     if (!biometriaEmpleado?._id) return;
     const MIN_WAIT_MS = 2000;
@@ -1460,6 +1487,18 @@ export default function Empleados() {
                           </FormControl>
                         )}
                       </Box>
+                      {proveedorHuellaActual === "biostar" && (
+                        <Box sx={{ mb: 1.5, display: "flex", justifyContent: "flex-end" }}>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            color="secondary"
+                            onClick={abrirEnrollBiostar}
+                          >
+                            Abrir Enroll en BioStar
+                          </Button>
+                        </Box>
+                      )}
                       <Box sx={{ mb: 1, fontWeight: 700, fontSize: "0.95rem" }}>
                         Selecciona el dedo para capturar
                       </Box>

@@ -26,12 +26,15 @@ import { generarCodigoUnico, isEmptyObject, decryptPassword, encryptPassword, re
 import { validarModelo } from '../validators/validadores';
 import { enviarCorreoUsuario } from '../utils/correos';
 import { fecha, log } from "../middlewares/log";
+import puppeteer, { Browser, Page } from "puppeteer";
 
 import { CONFIG } from "../config";
 
 import FaceDetector from '../classes/FaceDetector';
 import FaceDescriptors from '../models/FaceDescriptors';
 const faceDetector = new FaceDetector();
+let biostarUiBrowser: Browser | null = null;
+let biostarUiPage: Page | null = null;
 
 
 export async function obtenerTodos(req: Request, res: Response): Promise<void> {
@@ -2330,6 +2333,37 @@ const getBiostarConexionActiva = async (): Promise<any | null> => {
     return DispositivosBiostar.findOne({ activo: true }).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
 };
 
+const ensureBiostarUiPage = async (): Promise<Page> => {
+    if (biostarUiPage && !biostarUiPage.isClosed()) return biostarUiPage;
+    if (!biostarUiBrowser) {
+        biostarUiBrowser = await puppeteer.launch({
+            headless: false,
+            defaultViewport: null,
+            args: ["--start-maximized", "--ignore-certificate-errors"],
+        });
+        biostarUiBrowser.on("disconnected", () => {
+            biostarUiBrowser = null;
+            biostarUiPage = null;
+        });
+    }
+    biostarUiPage = await biostarUiBrowser.newPage();
+    return biostarUiPage;
+};
+
+const bypassCertificateInterstitial = async (page: Page) => {
+    try {
+        const content = await page.content();
+        if (!content.includes("Your connection is not private") && !content.includes("Privacy error")) return;
+        const detailsButton = await page.$("#details-button");
+        if (detailsButton) await detailsButton.click();
+        await page.waitForTimeout(150);
+        const proceedLink = await page.$("#proceed-link");
+        if (proceedLink) await proceedLink.click();
+    } catch {
+        // noop
+    }
+};
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const buildBiostarDraft = (u: any) => {
@@ -2434,6 +2468,69 @@ export async function previewSyncBiostar(req: Request, res: Response): Promise<v
                 pendientes,
                 resumen: { pendientes: pendientes.length },
             },
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function abrirUiEnrollBiostar(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const isMaster = (req as UserRequest).isMaster;
+        const { id_empresa } = await Usuarios.findById(id_usuario, "id_empresa") as IUsuario;
+        const filtro: any = { _id: req.params.id };
+        if (!isMaster) filtro.id_empresa = id_empresa;
+
+        const registro = await Empleados.findOne(filtro, "biostar_user_id biostar_group_id");
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
+            return;
+        }
+
+        const conexion = await getBiostarConexionActiva();
+        if (!conexion) {
+            res.status(200).json({ estado: false, mensaje: "No hay conexion activa de BioStar." });
+            return;
+        }
+
+        const baseUrl = `https://${conexion.direccion_ip}:${conexion.puerto}/`;
+        let bioUserId = String((registro as any)?.biostar_user_id || "").trim();
+        const bioGroupId = String((registro as any)?.biostar_group_id || "").trim();
+
+        if (!bioUserId) {
+            const syncRes = await syncEmpleadoBiostar({
+                empleado: registro as any,
+                biostar_group_id: bioGroupId || "1",
+            });
+            if (!syncRes.ok || !String(syncRes.userId || "").trim()) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: syncRes.mensaje || "No se pudo preparar el usuario en BioStar.",
+                });
+                return;
+            }
+            bioUserId = String(syncRes.userId || "").trim();
+        }
+
+        const timestamp = Date.now();
+        const groupParam = bioGroupId ? `&group=${encodeURIComponent(bioGroupId)}` : "";
+        const targetUrl = `${baseUrl}#/user/detail/${encodeURIComponent(bioUserId)}?timestamp=${timestamp}${groupParam}`;
+
+        const page = await ensureBiostarUiPage();
+        const currentUrl = page.url() || "";
+        if (!currentUrl || !currentUrl.startsWith(baseUrl)) {
+            await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
+            await bypassCertificateInterstitial(page);
+        }
+        await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
+        await bypassCertificateInterstitial(page);
+        await page.bringToFront();
+
+        res.status(200).json({
+            estado: true,
+            mensaje: "BioStar abierto para enrolar huella en la ventana principal.",
         });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
