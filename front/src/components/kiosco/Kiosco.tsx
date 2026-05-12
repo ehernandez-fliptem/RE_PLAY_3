@@ -38,7 +38,7 @@ import {
 import ErrorOverlay from "../error/DataGridError";
 import SearchInput from "../recepcion/bitacora/utils/SearchInput";
 import { DatePicker } from "@mui/x-date-pickers";
-import imgSinFoto from "../../assets/img/app/NotFile.png";
+import imgSinFoto from "../../assets/img/app/UserSinImagen.png";
 
 const StyledStack = styled(Stack)(({ theme }) => ({
   width: "100%",
