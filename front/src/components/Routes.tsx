@@ -125,6 +125,7 @@ export default function Routes() {
   const esContratista = rol.includes(11);
   const esCampo = rol.includes(12);
   const puedeAdmin = esSuper || esAdmin;
+  const puedeBiostar = (esSuper || esAdmin) && habilitarIntegracionBiostar;
   const puedeKiosco = esSuper || esAdmin || esRecep;
   const puedeVisitantes = esSuper || esAdmin || esAnfitrion || esRecep;
   const usuarioSistema = esSuper || esAdmin || esAnfitrion || esRecep || esContratista || esCampo;
@@ -921,39 +922,19 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element:
-            esSuper && habilitarIntegracionBiostar ? (
-              <DispositivosBiostar />
-            ) : (
-              <Unauthorized />
-            ),
+          element: puedeBiostar ? <DispositivosBiostar /> : <Unauthorized />,
           children: [
             {
               path: "nuevo-dispositivo",
-              element:
-                esSuper && habilitarIntegracionBiostar ? (
-                  <NuevoDispositivoBiostar />
-                ) : (
-                  <Unauthorized />
-                ),
+              element: puedeBiostar ? <NuevoDispositivoBiostar /> : <Unauthorized />,
             },
             {
               path: "detalle-dispositivo/:id",
-              element:
-                esSuper && habilitarIntegracionBiostar ? (
-                  <DetalleDispositivoBiostar />
-                ) : (
-                  <Unauthorized />
-                ),
+              element: puedeBiostar ? <DetalleDispositivoBiostar /> : <Unauthorized />,
             },
             {
               path: "editar-dispositivo/:id",
-              element:
-                esSuper && habilitarIntegracionBiostar ? (
-                  <EditarDispositivoBiostar />
-                ) : (
-                  <Unauthorized />
-                ),
+              element: puedeBiostar ? <EditarDispositivoBiostar /> : <Unauthorized />,
             },
             {
               path: "*",
@@ -965,75 +946,35 @@ export default function Routes() {
     },
     {
       path: "/biostarar/dispositivos",
-      element:
-        esSuper && habilitarIntegracionBiostar ? (
-          <DispositivosBiostarRemotos />
-        ) : (
-          <Unauthorized />
-        ),
+      element: puedeBiostar ? <DispositivosBiostarRemotos /> : <Unauthorized />,
     },
     {
       path: "/biostarar/grupos",
-      element:
-        esSuper && habilitarIntegracionBiostar ? (
-          <BiostararGrupos />
-        ) : (
-          <Unauthorized />
-        ),
+      element: puedeBiostar ? <BiostararGrupos /> : <Unauthorized />,
     },
     {
       path: "/biostarar/grupos-dispositivos",
-      element:
-        esSuper && habilitarIntegracionBiostar ? (
-          <BiostararGruposDispositivos />
-        ) : (
-          <Unauthorized />
-        ),
+      element: puedeBiostar ? <BiostararGruposDispositivos /> : <Unauthorized />,
     },
     {
       path: "/biostarar/puertas",
-      element:
-        esSuper && habilitarIntegracionBiostar ? (
-          <BiostararPuertas />
-        ) : (
-          <Unauthorized />
-        ),
+      element: puedeBiostar ? <BiostararPuertas /> : <Unauthorized />,
     },
     {
       path: "/biostarar/puertas-acceso",
-      element:
-        esSuper && habilitarIntegracionBiostar ? (
-          <BiostararPuertasAcceso />
-        ) : (
-          <Unauthorized />
-        ),
+      element: puedeBiostar ? <BiostararPuertasAcceso /> : <Unauthorized />,
     },
     {
       path: "/biostarar/access-levels",
-      element:
-        esSuper && habilitarIntegracionBiostar ? (
-          <BiostararAccessLevels />
-        ) : (
-          <Unauthorized />
-        ),
+      element: puedeBiostar ? <BiostararAccessLevels /> : <Unauthorized />,
     },
     {
       path: "/biostarar/horarios",
-      element:
-        esSuper && habilitarIntegracionBiostar ? (
-          <BiostararHorarios />
-        ) : (
-          <Unauthorized />
-        ),
+      element: puedeBiostar ? <BiostararHorarios /> : <Unauthorized />,
     },
     {
       path: "/biostarar/permisos-acceso",
-      element:
-        esSuper && habilitarIntegracionBiostar ? (
-          <BiostararPermisosAcceso />
-        ) : (
-          <Unauthorized />
-        ),
+      element: puedeBiostar ? <BiostararPermisosAcceso /> : <Unauthorized />,
     },
     {
       path: "/manual-usuario",

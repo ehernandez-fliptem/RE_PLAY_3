@@ -98,6 +98,7 @@ const LEFT_TO_RIGHT_ID_MAP: Record<number, number> = {
 };
 
 export default function Empleados() {
+  const { rol } = useSelector((state: IRootState) => state.auth.data);
   const { habilitarIntegracionHvBiometria, habilitarIntegracionBiostar } = useSelector(
     (state: IRootState) => state.config.data
   );
@@ -150,8 +151,9 @@ export default function Empleados() {
   const huellaCaptureCanceledRef = useRef(false);
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
+  const esAdminOSuper = rol.includes(1) || rol.includes(2);
   const huellaHikiEnabled = !!habilitarIntegracionHvBiometria;
-  const huellaBiostarEnabled = !!habilitarIntegracionBiostar;
+  const huellaBiostarEnabled = !!habilitarIntegracionBiostar && esAdminOSuper;
   const tarjetaHikiEnabled = !!habilitarIntegracionHvBiometria;
   const proveedorHuellaActual =
     huellaProviderQueue[huellaProviderIndex] ||
