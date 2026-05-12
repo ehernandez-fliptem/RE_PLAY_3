@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment, useEffect, useCallback } from "react";
+import { useState, useMemo, Fragment, useEffect, useCallback, useRef } from "react";
 import {
   DataGrid,
   useGridApiRef,
@@ -142,6 +142,8 @@ export default function Empleados() {
   const [syncBioPendientes, setSyncBioPendientes] = useState<any[]>([]);
   const [syncBioSelected, setSyncBioSelected] = useState<string>("");
   const [syncBioSearch, setSyncBioSearch] = useState("");
+  const huellaCaptureRunRef = useRef(0);
+  const huellaCaptureCanceledRef = useRef(false);
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
   const huellaHikiEnabled = !!habilitarIntegracionHvBiometria;
@@ -243,6 +245,7 @@ export default function Empleados() {
       setTarjetaDescripcion("");
       setTarjetaMensaje("");
       setBiometriaMensaje("");
+      huellaCaptureCanceledRef.current = false;
       setBiometriaOpen(true);
     } catch (error) {
       const { restartSession } = handlingError(error);
@@ -253,6 +256,10 @@ export default function Empleados() {
   };
 
   const cerrarBiometria = () => {
+    if (biometriaStep === "espera") {
+      huellaCaptureCanceledRef.current = true;
+      huellaCaptureRunRef.current += 1;
+    }
     setBiometriaOpen(false);
     setBiometriaStep("huella");
     setBiometriaEmpleado(null);
@@ -288,6 +295,9 @@ export default function Empleados() {
       setTimeout(resolve, MIN_WAIT_MS)
     );
     try {
+      const currentRunId = huellaCaptureRunRef.current + 1;
+      huellaCaptureRunRef.current = currentRunId;
+      huellaCaptureCanceledRef.current = false;
       setBiometriaStep("espera");
       const resPromise = clienteAxios.put(
         `/api/empleados/biometria/huella/${biometriaEmpleado._id}`,
@@ -299,6 +309,12 @@ export default function Empleados() {
         }
       );
       const [res] = await Promise.all([resPromise, waitMin]);
+      if (
+        huellaCaptureCanceledRef.current ||
+        currentRunId !== huellaCaptureRunRef.current
+      ) {
+        return;
+      }
       if (res.data.estado) {
         const huellas = res.data.datos?.huellas_registradas || [];
         const total = res.data.datos?.huellas_total ?? huellas.length;
@@ -331,6 +347,7 @@ export default function Empleados() {
       }
     } catch (error) {
       await waitMin;
+      if (huellaCaptureCanceledRef.current) return;
       const { restartSession } = handlingError(error);
       if (restartSession) navigate("/logout", { replace: true });
       setBiometriaMensaje("No se pudo registrar la huella.");
@@ -1345,14 +1362,16 @@ export default function Empleados() {
           {biometriaStep === "tarjeta"
             ? "Configurar tarjeta Hikvision"
             : `Configurar huella ${proveedorHuellaActual === "biostar" ? "BioStar" : "Hikvision"}`}
-          <IconButton
-            onClick={cerrarBiometria}
-            sx={{ position: "absolute", right: 8, top: 8 }}
-            size="small"
-            color="error"
-          >
-            <Close />
-          </IconButton>
+          <Tooltip title={biometriaStep === "espera" ? "Cancelar captura" : "Cerrar"}>
+            <IconButton
+              onClick={cerrarBiometria}
+              sx={{ position: "absolute", right: 8, top: 8 }}
+              size="small"
+              color="error"
+            >
+              <Close />
+            </IconButton>
+          </Tooltip>
         </DialogTitle>
         <DialogContent dividers sx={{ bgcolor: "#ffffff" }}>
           {biometriaLoading && <Spinner />}
