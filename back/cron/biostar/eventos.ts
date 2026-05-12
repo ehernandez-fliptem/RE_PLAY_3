@@ -290,7 +290,10 @@ export async function sincronizarEventosBiostar(): Promise<void> {
       return;
     }
 
-    const suprema = await DispositivosSuprema.find({ activo: true }, "_id nombre direccion_ip").lean<{ _id: Types.ObjectId; nombre?: string; direccion_ip?: string }[]>();
+    const [suprema, biostarLocal] = await Promise.all([
+      DispositivosSuprema.find({ activo: true }, "_id nombre direccion_ip").lean<{ _id: Types.ObjectId; nombre?: string; direccion_ip?: string }[]>(),
+      DispositivosBiostar.find({ activo: true }, "_id nombre direccion_ip").lean<{ _id: Types.ObjectId; nombre?: string; direccion_ip?: string }[]>(),
+    ]);
     const panelByName = new Map<string, Types.ObjectId>();
     const panelByIp = new Map<string, Types.ObjectId>();
     suprema.forEach((d) => {
@@ -298,6 +301,13 @@ export async function sincronizarEventosBiostar(): Promise<void> {
       if (key) panelByName.set(key, d._id);
       const ip = String(d.direccion_ip || "").trim();
       if (ip) panelByIp.set(ip, d._id);
+    });
+    biostarLocal.forEach((d) => {
+      // Fallback: solo usa biostar_dispositivos si no existe mapeo en suprema_dispositivos
+      const key = String(d.nombre || "").trim().toLowerCase();
+      if (key && !panelByName.has(key)) panelByName.set(key, d._id);
+      const ip = String(d.direccion_ip || "").trim();
+      if (ip && !panelByIp.has(ip)) panelByIp.set(ip, d._id);
     });
     const biostarDeviceToPanel = new Map<string, Types.ObjectId>();
     activeDeviceRows.forEach((d: any) => {
@@ -350,31 +360,34 @@ export async function sincronizarEventosBiostar(): Promise<void> {
         continue;
       }
 
-      const [empleado, usuario] = await Promise.all([
+      const userCodeStr = String(row?.user_id?.user_id || "").trim();
+      const [empleadoByBiostarUserId, empleadoByIdEmpleado, usuarioSistema] = await Promise.all([
+        Empleados.findOne({ biostar_user_id: userCodeStr }, "_id img_usuario").lean<{ _id: Types.ObjectId; img_usuario?: string }>(),
         Empleados.findOne({ id_empleado: userCode }, "_id img_usuario").lean<{ _id: Types.ObjectId; img_usuario?: string }>(),
         Usuarios.findOne({ id_general: userCode }, "_id img_usuario").lean<{ _id: Types.ObjectId; img_usuario?: string }>(),
       ]);
-      if (!empleado?._id && !usuario?._id) {
+      const empleadoFinal = empleadoByBiostarUserId?._id ? empleadoByBiostarUserId : empleadoByIdEmpleado;
+      if (!empleadoFinal?._id && !usuarioSistema?._id) {
         omitidosSinEmpleado++;
         continue;
       }
 
       const fechaEvento = parseEventDate(row);
       const eventCode = toNumber(row?.event_type_id?.code);
-      const tipo_check = biostarEventType === "ACCESS_DENIED"
+        const tipo_check = biostarEventType === "ACCESS_DENIED"
         ? 7
         : await resolveTipoCheck({
-          idEmpleado: empleado?._id || null,
-          idUsuario: usuario?._id || null,
+          idEmpleado: empleadoFinal?._id || null,
+          idUsuario: usuarioSistema?._id || null,
           idPanel,
           fecha: fechaEvento,
         });
 
       await new Eventos({
         tipo_dispositivo: BIOSTAR_TIPO_DISPOSITIVO,
-        id_empleado: empleado?._id || null,
-        id_usuario: usuario?._id || null,
-        img_usuario: empleado?.img_usuario || usuario?.img_usuario || "",
+        id_empleado: empleadoFinal?._id || null,
+        id_usuario: usuarioSistema?._id || null,
+        img_usuario: empleadoFinal?.img_usuario || usuarioSistema?.img_usuario || "",
         id_panel: idPanel,
         tipo_check,
         qr: String(userCode),
