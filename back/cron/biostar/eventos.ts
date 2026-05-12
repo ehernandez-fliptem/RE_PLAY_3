@@ -4,6 +4,7 @@ import BiostarConexion from "../../models/BiostarConexion";
 import DispositivosSuprema from "../../models/DispositivosSuprema";
 import DispositivosBiostar from "../../models/DispositivosBiostar";
 import Empleados from "../../models/Empleados";
+import Usuarios from "../../models/Usuarios";
 import Eventos from "../../models/Eventos";
 import { biostarRequest } from "../../classes/Biostar";
 
@@ -50,14 +51,21 @@ function getBiostarEventType(
 }
 
 async function resolveTipoCheck(params: {
-  idEmpleado: Types.ObjectId;
+  idEmpleado?: Types.ObjectId | null;
+  idUsuario?: Types.ObjectId | null;
   idPanel: Types.ObjectId | null;
   fecha: Date;
 }): Promise<5 | 6> {
-  const { idEmpleado, idPanel, fecha } = params;
+  const { idEmpleado, idUsuario, idPanel, fecha } = params;
+  const personaMatch: Record<string, unknown> = idEmpleado
+    ? { id_empleado: idEmpleado }
+    : idUsuario
+      ? { id_usuario: idUsuario }
+      : {};
+  if (!Object.keys(personaMatch).length) return 5;
 
   const match: Record<string, unknown> = {
-    id_empleado: idEmpleado,
+    ...personaMatch,
     tipo_check: { $in: [5, 6] },
     fecha_creacion: { $lte: fecha },
   };
@@ -342,8 +350,11 @@ export async function sincronizarEventosBiostar(): Promise<void> {
         continue;
       }
 
-      const empleado = await Empleados.findOne({ id_empleado: userCode }, "_id img_usuario").lean<{ _id: Types.ObjectId; img_usuario?: string }>();
-      if (!empleado?._id) {
+      const [empleado, usuario] = await Promise.all([
+        Empleados.findOne({ id_empleado: userCode }, "_id img_usuario").lean<{ _id: Types.ObjectId; img_usuario?: string }>(),
+        Usuarios.findOne({ id_general: userCode }, "_id img_usuario").lean<{ _id: Types.ObjectId; img_usuario?: string }>(),
+      ]);
+      if (!empleado?._id && !usuario?._id) {
         omitidosSinEmpleado++;
         continue;
       }
@@ -353,15 +364,17 @@ export async function sincronizarEventosBiostar(): Promise<void> {
       const tipo_check = biostarEventType === "ACCESS_DENIED"
         ? 7
         : await resolveTipoCheck({
-          idEmpleado: empleado._id,
+          idEmpleado: empleado?._id || null,
+          idUsuario: usuario?._id || null,
           idPanel,
           fecha: fechaEvento,
         });
 
       await new Eventos({
         tipo_dispositivo: BIOSTAR_TIPO_DISPOSITIVO,
-        id_empleado: empleado._id,
-        img_usuario: empleado.img_usuario || "",
+        id_empleado: empleado?._id || null,
+        id_usuario: usuario?._id || null,
+        img_usuario: empleado?.img_usuario || usuario?.img_usuario || "",
         id_panel: idPanel,
         tipo_check,
         qr: String(userCode),
