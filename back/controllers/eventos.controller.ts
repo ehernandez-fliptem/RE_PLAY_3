@@ -4,6 +4,8 @@ import Configuracion, { IConfiguracion } from "../models/Configuracion";
 import Horarios, { IHorario } from "../models/Horarios";
 import DispositivosHv from "../models/DispositivosHv";
 import DispositivosSuprema from "../models/DispositivosSuprema";
+import DispositivosBiostar from "../models/DispositivosBiostar";
+import BiostarConexion from "../models/BiostarConexion";
 import Eventos, { IEvento } from "../models/Eventos";
 import Usuarios, { IUsuario } from "../models/Usuarios";
 import Empleados from "../models/Empleados";
@@ -32,6 +34,7 @@ import { REGEX_BASE64 } from "../utils/commonRegex";
 import { socket } from '../utils/socketClient';
 import FaceDetector from "../classes/FaceDetector";
 import FaceDescriptors from "../models/FaceDescriptors";
+import { biostarRequest } from "../classes/Biostar";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -41,6 +44,41 @@ const KIOSCO_PANEL_MODE = {
     CAMPO: "campo",
     TODOS: "todos",
 } as const;
+
+function parseRowsFromPayload(payload: any, keys: string[]): any[] {
+    for (const key of keys) {
+        const value = key
+            .split(".")
+            .reduce((acc: any, part: string) => (acc ? acc[part] : undefined), payload);
+        if (Array.isArray(value)) return value;
+    }
+    return [];
+}
+
+async function getConexionBiostarParaCatalogos(): Promise<any | null> {
+    const main = await DispositivosBiostar.findOne({ activo: true, es_main: true }).sort({
+        fecha_modificacion: -1,
+        fecha_creacion: -1,
+        _id: -1,
+    });
+    const globalConn = await BiostarConexion.findOne({ activo: true }).sort({
+        fecha_modificacion: -1,
+        fecha_creacion: -1,
+        _id: -1,
+    });
+    const activa = await DispositivosBiostar.findOne({ activo: true }).sort({
+        fecha_modificacion: -1,
+        fecha_creacion: -1,
+        _id: -1,
+    });
+
+    const candidates = [main, globalConn, activa].filter(Boolean) as any[];
+    for (const c of candidates) {
+        const ping = await biostarRequest(c as any, { method: "GET", url: "/api/user_groups" });
+        if (ping.ok) return c;
+    }
+    return candidates[0] || null;
+}
 
 export async function obtenerTodosPorFiltro(req: Request, res: Response): Promise<void> {
     try {
@@ -974,10 +1012,47 @@ export async function obtenerPanelesKiosco(_req: Request, res: Response): Promis
             { activo: true },
             { nombre: 1, direccion_ip: 1 }
         ).sort({ nombre: 1 });
-        const panelesBiostar = await DispositivosSuprema.find(
-            { activo: true },
-            { nombre: 1, direccion_ip: 1 }
-        ).sort({ nombre: 1 });
+
+        let panelesBiostar: Array<{ _id: Types.ObjectId; nombre: string; direccion_ip: string }> = [];
+        const conexionBio = await getConexionBiostarParaCatalogos();
+        if (conexionBio) {
+            const devicesRes = await biostarRequest(conexionBio as any, {
+                method: "POST",
+                url: "/api/v2/devices/only_permission_item/search",
+                data: {},
+            });
+            if (devicesRes.ok) {
+                const rows = parseRowsFromPayload(devicesRes.data, ["DeviceCollection.rows", "rows", "devices"]);
+                const panelesSuprema = await DispositivosSuprema.find({ activo: true }, "_id nombre direccion_ip").lean<{
+                    _id: Types.ObjectId;
+                    nombre?: string;
+                    direccion_ip?: string;
+                }[]>();
+                const byIp = new Map<string, { _id: Types.ObjectId; nombre: string; direccion_ip: string }>();
+                const byName = new Map<string, { _id: Types.ObjectId; nombre: string; direccion_ip: string }>();
+                panelesSuprema.forEach((p) => {
+                    const item = {
+                        _id: p._id,
+                        nombre: String(p.nombre || "").trim(),
+                        direccion_ip: String(p.direccion_ip || "").trim(),
+                    };
+                    if (item.direccion_ip) byIp.set(item.direccion_ip, item);
+                    if (item.nombre) byName.set(item.nombre.toLowerCase(), item);
+                });
+
+                panelesBiostar = rows
+                    .filter((d: any) => Number(d?.status) === 1)
+                    .map((d: any) => {
+                        const name = String(d?.name || "").trim();
+                        const ip = String(d?.lan?.ip || d?.ip || d?.ip_address || "").trim();
+                        const local = (ip && byIp.get(ip)) || (name && byName.get(name.toLowerCase())) || null;
+                        if (local) return local;
+                        return null;
+                    })
+                    .filter(Boolean) as Array<{ _id: Types.ObjectId; nombre: string; direccion_ip: string }>;
+            }
+        }
+
         const paneles = [...panelesHv, ...panelesBiostar];
         res.status(200).json({ estado: true, datos: paneles });
     } catch (error: any) {
