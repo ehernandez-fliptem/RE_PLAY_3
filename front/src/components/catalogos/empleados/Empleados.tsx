@@ -142,6 +142,10 @@ export default function Empleados() {
   const [syncBioPendientes, setSyncBioPendientes] = useState<any[]>([]);
   const [syncBioSelected, setSyncBioSelected] = useState<string>("");
   const [syncBioSearch, setSyncBioSearch] = useState("");
+  const [huellasPorProveedor, setHuellasPorProveedor] = useState<{
+    hiki: number[];
+    biostar: number[];
+  }>({ hiki: [], biostar: [] });
   const huellaCaptureRunRef = useRef(0);
   const huellaCaptureCanceledRef = useRef(false);
   const setRowLoading = (id: string, isLoading: boolean) =>
@@ -238,6 +242,23 @@ export default function Empleados() {
         if (huellaBiostarEnabled) queue.push("biostar");
         setHuellaProviderQueue(queue);
         setHuellaProviderIndex(0);
+        if (queue.length > 1) {
+          // En captura dual, no mezclar dedos entre sistemas en esta vista.
+          setHuellasPorProveedor({
+            hiki: [...huellas],
+            biostar: [],
+          });
+        } else if (queue[0] === "biostar") {
+          setHuellasPorProveedor({
+            hiki: [],
+            biostar: [...huellas],
+          });
+        } else {
+          setHuellasPorProveedor({
+            hiki: [...huellas],
+            biostar: [],
+          });
+        }
       }
       setBiometriaStep(step);
       setTarjetaStep("lista");
@@ -274,6 +295,7 @@ export default function Empleados() {
     setBiostarDispositivos([]);
     setHikiPanelSeleccionado("");
     setBiostarDispositivoSeleccionado("");
+    setHuellasPorProveedor({ hiki: [], biostar: [] });
   };
 
   const iniciarCapturaHuella = async () => {
@@ -319,6 +341,14 @@ export default function Empleados() {
         const huellas = res.data.datos?.huellas_registradas || [];
         const total = res.data.datos?.huellas_total ?? huellas.length;
         const nextFinger = getNextDefaultFinger(huellas);
+        setHuellasPorProveedor((prev) => {
+          const key = proveedorHuellaActual === "biostar" ? "biostar" : "hiki";
+          const actuales = Array.isArray(prev[key]) ? prev[key] : [];
+          return {
+            ...prev,
+            [key]: Array.from(new Set([...actuales, Number(selectedFinger)])).sort((a, b) => a - b),
+          };
+        });
         setBiometriaEmpleado((prev: any) => ({
           ...prev,
           huellas_registradas: huellas,
@@ -1477,8 +1507,12 @@ export default function Empleados() {
                                   fingerShape.id,
                                   side
                                 );
+                                const registradasProveedor =
+                                  proveedorHuellaActual === "biostar"
+                                    ? huellasPorProveedor.biostar
+                                    : huellasPorProveedor.hiki;
                                 const registrado = (
-                                  (biometriaEmpleado.huellas_registradas || []).map((v: any) =>
+                                  (registradasProveedor || []).map((v: any) =>
                                     Number(v)
                                   )
                                 ).includes(fingerShape.id);
