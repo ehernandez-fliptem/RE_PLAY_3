@@ -2548,6 +2548,29 @@ const instalarAutoApplyFingerprint = async (page: Page) => {
                 if (targetBtn) targetBtn.click();
             };
 
+            const clickApplyBySelector = () => {
+                const selectorCandidates = [
+                    "button.btnCntS.btnColorPoint",
+                    "button[ng-click*='doApply']",
+                    "button[ng-click*='ApplyInfo']",
+                    "button[ng-click*='doDlgApply']",
+                ];
+                for (const sel of selectorCandidates) {
+                    const nodes = Array.from(document.querySelectorAll(sel));
+                    const btn = nodes.find((el) => {
+                        const style = window.getComputedStyle(el as Element);
+                        const txt = String((el as HTMLElement).innerText || "").trim().toLowerCase();
+                        return style.display !== "none" && style.visibility !== "hidden" &&
+                            (!txt || txt.includes("apply") || txt.includes("aplicar") || txt.includes("확인") || txt.includes("적용"));
+                    }) as HTMLElement | undefined;
+                    if (btn) {
+                        btn.click();
+                        return true;
+                    }
+                }
+                return false;
+            };
+
             const callApplyInAngularScopes = () => {
                 try {
                     const visited2 = new Set<any>();
@@ -2596,6 +2619,21 @@ const instalarAutoApplyFingerprint = async (page: Page) => {
                 }
             };
 
+            const runApplyBurst = () => {
+                let tries = 0;
+                const maxTries = 10;
+                const tick = () => {
+                    tries += 1;
+                    const byScope = callApplyInAngularScopes();
+                    if (!byScope) {
+                        const bySelector = clickApplyBySelector();
+                        if (!bySelector) clickApplyOnUserDetail();
+                    }
+                    if (tries < maxTries) setTimeout(tick, 500);
+                };
+                tick();
+            };
+
             const originalEnroll = target.doApplyFingerPrintScan?.bind(target);
             if (typeof originalEnroll !== "function") return;
             ensureOneFingerprintSlot();
@@ -2617,8 +2655,7 @@ const instalarAutoApplyFingerprint = async (page: Page) => {
                     if (isOpen) sawEnrollModal = true;
                     if (sawEnrollModal && !isOpen) {
                         autoAppliedAfterClose = true;
-                        const appliedByScope = callApplyInAngularScopes();
-                        if (!appliedByScope) clickApplyOnUserDetail();
+                        runApplyBurst();
                         return;
                     }
                     setTimeout(loop, 400);
@@ -2630,8 +2667,7 @@ const instalarAutoApplyFingerprint = async (page: Page) => {
             target.doApplyFingerPrintScan = function (...args: any[]) {
                 const result = originalEnroll(...args);
                 setTimeout(() => {
-                    const appliedByScope = callApplyInAngularScopes();
-                    if (!appliedByScope) clickApplyOnUserDetail();
+                    runApplyBurst();
                 }, 700);
                 return result;
             };
@@ -2642,13 +2678,21 @@ const instalarAutoApplyFingerprint = async (page: Page) => {
                     const result = originalEmit(eventName, ...args);
                     if (eventName === "closeFingerPrintScanDlg") {
                         setTimeout(() => {
-                            const appliedByScope = callApplyInAngularScopes();
-                            if (!appliedByScope) clickApplyOnUserDetail();
+                            runApplyBurst();
                         }, 500);
                     }
                     return result;
                 };
             }
+
+            document.addEventListener("click", (evt: Event) => {
+                const targetEl = evt.target as HTMLElement | null;
+                if (!targetEl) return;
+                const txt = String(targetEl.innerText || targetEl.textContent || "").trim().toLowerCase();
+                if (txt.includes("enroll")) {
+                    setTimeout(() => runApplyBurst(), 500);
+                }
+            }, true);
 
             w.__replayAutoApplyInstalled = true;
         });
