@@ -407,6 +407,9 @@ export default function DispositivosBiostarRemotos() {
         });
         return;
       }
+      setSyncLimpioOpen(false);
+      setSyncLimpioRow(null);
+      setSyncLimpioLoading(false);
       await Swal.fire({
         icon: "success",
         title: "Proceso iniciado",
@@ -414,9 +417,8 @@ export default function DispositivosBiostarRemotos() {
           res.data.mensaje ||
           "Se inicio borrar y subir de nuevo. Puede tardar unos minutos.",
       });
-      setSyncLimpioOpen(false);
-      setSyncLimpioRow(null);
-      await cargarTodos();
+      void cargarTodos();
+      return;
     } catch (error) {
       handlingError(error);
     } finally {
