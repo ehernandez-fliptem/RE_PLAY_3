@@ -904,7 +904,7 @@ const habilitarSyncUsuariosPanel = false; // desactivado: solo empleados se sube
 
 export async function crear(req: Request, res: Response): Promise<void> {
     try {
-        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, contrasena, rol } = req.body;
+        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, contrasena, rol, modo_tablet_qr } = req.body;
         const id_usuario = (req as UserRequest).userId;
         const empresa = await Empresas.findById(id_empresa, 'pisos accesos esRoot activo');
         const hash = bcrypt.hashSync(contrasena, 10);
@@ -925,6 +925,9 @@ export async function crear(req: Request, res: Response): Promise<void> {
             extension,
             correo,
             rol,
+            modo_tablet_qr: Array.isArray(rol) && rol.includes(13) && ["entrada", "salida", "ambos"].includes(String(modo_tablet_qr))
+                ? String(modo_tablet_qr)
+                : "ambos",
             esRoot: empresa?.esRoot,
             creado_por: id_usuario
         });
@@ -981,7 +984,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
 
 export async function modificar(req: Request, res: Response): Promise<void> {
     try {
-        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, contrasena, rol } = req.body;
+        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, contrasena, rol, modo_tablet_qr } = req.body;
         const id_usuario = (req as UserRequest).userId;
         const empresa = await Empresas.findById(id_empresa, 'esRoot');
 
@@ -1008,6 +1011,9 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                 correo,
                 contrasena,
                 rol,
+                modo_tablet_qr: Array.isArray(rol) && rol.includes(13) && ["entrada", "salida", "ambos"].includes(String(modo_tablet_qr))
+                    ? String(modo_tablet_qr)
+                    : "ambos",
                 esRoot: empresa?.esRoot,
             })
         }

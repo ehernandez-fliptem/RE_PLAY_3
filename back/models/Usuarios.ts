@@ -29,6 +29,7 @@ export interface IUsuario extends Document {
     id_piso?: mongoose.Types.ObjectId;
     id_horario?: mongoose.Types.ObjectId;
     accesos?: mongoose.Types.ObjectId[];
+    modo_tablet_qr?: "entrada" | "salida" | "ambos";
     esRoot: boolean;
     insignias: number[];
     token_web?: string;
@@ -130,6 +131,7 @@ const usuarioSchema = new Schema<IUsuario>({
     id_piso: { type: Schema.Types.ObjectId, default: null, ref: 'pisos' },
     id_horario: { type: Schema.Types.ObjectId, default: null, ref: 'horarios' },
     accesos: [{ type: Schema.Types.ObjectId, ref: 'accesos' }],
+    modo_tablet_qr: { type: String, enum: ["entrada", "salida", "ambos"], default: "ambos" },
     esRoot: { type: Boolean, require: true, default: false },
     insignias: {
         type: [Number],

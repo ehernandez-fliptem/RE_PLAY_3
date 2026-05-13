@@ -1317,6 +1317,12 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;
         const id_acceso = (req as UserRequest).accessId;
+        const esTabletQr = Array.isArray((req as UserRequest).role) && (req as UserRequest).role.includes(13);
+        const modoTabletQr = ((req as UserRequest).tabletQrMode || "ambos") as "entrada" | "salida" | "ambos";
+        const resolverTipoEvento = (ultimo?: number | null) => {
+            if (!esTabletQr || modoTabletQr === "ambos") return ultimo === 5 ? 6 : 5;
+            return modoTabletQr === "entrada" ? 5 : 6;
+        };
         const { qr, tipo_check: tipo_evento, lector } = req.body;
         const regexIDGeneral = /^[\d]+$/;
         const regexCardCode = /^VST[A-Z0-9]{16}$/;
@@ -1476,7 +1482,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     tipo_check: { $in: [5, 6] }
                 }).sort({ fecha_creacion: -1 }).lean<any>();
 
-                const tipo_evento = ultimo?.tipo_check === 5 ? 6 : 5;
+                const tipo_evento = resolverTipoEvento(ultimo?.tipo_check);
                 const evento = new Eventos({
                     tipo_dispositivo: 2,
                     tipo_check: tipo_evento,
@@ -1604,7 +1610,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     res.status(200).json({ estado: false, mensaje: comentario });
                     return;
                 }
-                const tipo_evento = ulitmo_evento === 5 ? 6 : 5;
+                const tipo_evento = resolverTipoEvento(ulitmo_evento);
                 await cambiarEventoRegistro({
                     tipo_dispositivo: 2,
                     tipo_check: tipo_evento,
@@ -1672,7 +1678,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                 })
                     .sort({ fecha_creacion: -1 })
                     .lean<{ tipo_check?: number }>();
-                const tipo_evento = ultimo?.tipo_check === 5 ? 6 : 5;
+                const tipo_evento = resolverTipoEvento(ultimo?.tipo_check);
                 const evento = new Eventos({
                     tipo_dispositivo: 2,
                     tipo_check: tipo_evento,

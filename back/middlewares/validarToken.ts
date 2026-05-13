@@ -32,7 +32,7 @@ export function validarTokenYRol(rolesPermitidos: number[] = [], isRoot: boolean
 
             const decoded = jwt.verify(token, CONFIG.SECRET) as DecodedTokenUser;
             let registro = null;
-            registro = await Usuarios.findOne({ _id: decoded.id }, "nombre rol esRoot activo")
+            registro = await Usuarios.findOne({ _id: decoded.id }, "nombre rol esRoot activo modo_tablet_qr")
             registro = registro || await Visitantes.findOne({ _id: decoded.id }, "nombre rol activo");
             if (!registro) {
                 log(`${fecha()} ERROR: Usuario no existe. \n\n`);
@@ -75,6 +75,7 @@ export function validarTokenYRol(rolesPermitidos: number[] = [], isRoot: boolean
             (req as UserRequest).isMaster = !!(registro as any).esRoot;
             (req as UserRequest).accessId = id_acceso;
             (req as UserRequest).role = registro.rol;
+            (req as UserRequest).tabletQrMode = (registro as any)?.modo_tablet_qr || "ambos";
             next();
         } catch (error: any) {
             log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);

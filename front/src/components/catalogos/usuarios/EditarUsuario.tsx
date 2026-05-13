@@ -73,6 +73,7 @@ type FormValues = {
   contrasena: string;
   rol: number[];
   acceso_tablet?: string;
+  modo_tablet_qr?: "entrada" | "salida" | "ambos";
   accesos: string[];
 };
 
@@ -167,6 +168,20 @@ const resolver = yup.object().shape({
         return true;
       }
     ),
+  modo_tablet_qr: yup
+    .mixed<"entrada" | "salida" | "ambos">()
+    .oneOf(["entrada", "salida", "ambos"])
+    .test(
+      "tablet-mode-required",
+      "Selecciona el modo de tablet.",
+      function (value) {
+        const rol = (this.parent?.rol || []) as number[];
+        if (Array.isArray(rol) && rol.includes(13)) {
+          return ["entrada", "salida", "ambos"].includes(String(value || ""));
+        }
+        return true;
+      }
+    ),
   accesos: yup
     .array()
     .of(yup.string()),
@@ -183,6 +198,7 @@ const initialValue: FormValues = {
   contrasena: "",
   rol: [],
   acceso_tablet: "",
+  modo_tablet_qr: "ambos",
   accesos: [],
 };
 
@@ -240,6 +256,9 @@ export default function EditarUsuario() {
               Array.isArray(usuario.accesos) && usuario.accesos[0]
                 ? String(usuario.accesos[0])
                 : "",
+            modo_tablet_qr: ["entrada", "salida", "ambos"].includes(String((usuario as any).modo_tablet_qr))
+              ? (usuario as any).modo_tablet_qr
+              : "ambos",
           });
           setIsLoading(false);
         } else {
@@ -273,6 +292,10 @@ export default function EditarUsuario() {
           Array.isArray(data.rol) && data.rol.includes(13)
             ? (data.acceso_tablet ? [data.acceso_tablet] : [])
             : (data.accesos || []),
+        modo_tablet_qr:
+          Array.isArray(data.rol) && data.rol.includes(13)
+            ? (data.modo_tablet_qr || "ambos")
+            : "ambos",
       };
       const res = await clienteAxios.put(`/api/usuarios/${ID}`, payload);
       if (res.data.estado) {
@@ -466,32 +489,46 @@ export default function EditarUsuario() {
                       )}
                     />
                     {rolSeleccionado === 13 && (
-                      <AutocompleteElement
-                        name="acceso_tablet"
-                        label="Acceso de tablet"
-                        required
-                        options={accesosDisponibles.map((item: any) => {
-                          const label = item.identificador
-                            ? `${item.identificador} - ${item.nombre}`
-                            : item.nombre;
-                          return { id: item._id, label };
-                        })}
-                        textFieldProps={{
-                          margin: "normal",
-                          helperText:
-                            accesosDisponibles.length === 0
-                              ? "No hay accesos configurados."
-                              : "Este rol opera en ambos sentidos (entrada/salida) sobre el acceso seleccionado.",
-                        }}
-                        autocompleteProps={{
-                          noOptionsText: "No hay accesos disponibles.",
-                          onChange: (_, value) => {
-                            formContext.setValue("acceso_tablet", value?.id ? String(value.id) : "", {
-                              shouldValidate: true,
-                            });
-                          },
-                        }}
-                      />
+                      <>
+                        <AutocompleteElement
+                          name="acceso_tablet"
+                          label="Acceso de tablet"
+                          required
+                          options={accesosDisponibles.map((item: any) => {
+                            const label = item.identificador
+                              ? `${item.identificador} - ${item.nombre}`
+                              : item.nombre;
+                            return { id: item._id, label };
+                          })}
+                          textFieldProps={{
+                            margin: "normal",
+                            helperText:
+                              accesosDisponibles.length === 0
+                                ? "No hay accesos configurados."
+                                : undefined,
+                          }}
+                          autocompleteProps={{
+                            noOptionsText: "No hay accesos disponibles.",
+                            onChange: (_, value) => {
+                              formContext.setValue("acceso_tablet", value?.id ? String(value.id) : "", {
+                                shouldValidate: true,
+                              });
+                            },
+                          }}
+                        />
+                        <AutocompleteElement
+                          name="modo_tablet_qr"
+                          label="Modo de escaneo tablet"
+                          required
+                          options={[
+                            { id: "entrada", label: "Entrada" },
+                            { id: "salida", label: "Salida" },
+                            { id: "ambos", label: "Ambos" },
+                          ]}
+                          textFieldProps={{ margin: "normal" }}
+                          autocompleteProps={{ noOptionsText: "No hay opciones." }}
+                        />
+                      </>
                     )}
                   </Fragment>
                 )}
