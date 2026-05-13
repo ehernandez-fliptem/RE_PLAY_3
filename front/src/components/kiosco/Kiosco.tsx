@@ -153,14 +153,22 @@ export default function Kiosco() {
       );
       if (res.data.estado) {
         setError("");
-        setRows(res.data.datos.paginatedResults || []);
+        const rowsLimpios = (res.data.datos.paginatedResults || []).filter(
+          (item: IRegistro) => Number(item?.tipo_origen) === 1 || Number(item?.tipo_origen) === 2
+        );
+        setRows(rowsLimpios);
         setTotalCount(res.data.datos.stats?.totalCount || 0);
         setTotalCountUsersIn(res.data.datos.stats?.totalCountUserIn || 0);
         setTotalCountVisitsIn(res.data.datos.stats?.totalCountVisitIn || 0);
         setTotalCountUsersOut(res.data.datos.stats?.totalCountUserOut || 0);
         setTotalCountVisitsOut(res.data.datos.stats?.totalCountVisitOut || 0);
         if (page === 0) {
-          setFirstRecord(res.data.datos.firstRecord);
+          const firstRecord = res.data.datos.firstRecord as IRegistro | undefined;
+          if (firstRecord && (Number(firstRecord.tipo_origen) === 1 || Number(firstRecord.tipo_origen) === 2)) {
+            setFirstRecord(firstRecord);
+          } else {
+            setFirstRecord(undefined);
+          }
         }
       }
     } catch (error: unknown) {
