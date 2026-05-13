@@ -13,9 +13,10 @@ export default function EscanerQr() {
 
   const onQrValidate = useMemo(
     () => async (qr: string): Promise<ResultState> => {
+      const regexEmpleado = /^[0-9]+$/;
       const regexCardCode = /^VST[A-Z0-9]{16}$/;
-      if (!regexCardCode.test(qr)) {
-        const message = "QR invalido o no corresponde a un visitante.";
+      if (!regexCardCode.test(qr) && !regexEmpleado.test(qr)) {
+        const message = "QR invalido o no corresponde a un empleado/visitante.";
         enqueueSnackbar(message, { variant: "error" });
         return { ok: false, message };
       }

@@ -1487,6 +1487,20 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     fecha_creacion: Date.now(),
                 });
                 await evento.save();
+                if (tipo_evento === 5) {
+                    const openRes = await abrirPuertaPorAccesoBiostar({
+                        idAcceso: id_acceso || null,
+                        idPersona: visitante._id,
+                        tipoPersona: "visitante",
+                        origen: "hiki_evento",
+                    });
+                    if (!openRes.ok && !openRes.skipped) {
+                        comentario = `No se pudo abrir puerta BioStar: ${openRes.message || "Error desconocido."}`;
+                    }
+                }
+                socket.emit("eventos:nuevo-evento", {
+                    id_evento: evento._id,
+                });
 
                 res.status(200).json({
                     estado: true,
@@ -1599,6 +1613,17 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     id_acceso,
                     id_visitante
                 }, { _id: 1 }) as IRegistro;
+                if (tipo_evento === 5) {
+                    const openRes = await abrirPuertaPorAccesoBiostar({
+                        idAcceso: id_acceso || null,
+                        idPersona: id_visitante || null,
+                        tipoPersona: "visitante",
+                        origen: "hiki_evento",
+                    });
+                    if (!openRes.ok && !openRes.skipped) {
+                        comentario = `No se pudo abrir puerta BioStar: ${openRes.message || "Error desconocido."}`;
+                    }
+                }
                 res.status(200).json({
                     estado: true,
                     datos: { id_registro, puedeAcceder: canAccess, nombre, tipo_check: tipo_evento }
@@ -1607,16 +1632,12 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
             }
         }
         if (regexIDGeneral.test(qr)) {
-            if (lector === 0) {
-                res.status(200).json({ estado: false, mensaje: "No puedes leer QR de empleados en el lector de la bitacora." });
-                return;
-            }
             const empleado = await Empleados.findOne({
                 $or: [
                     { id_empleado: Number(qr) },
                     { id_general: Number(qr) }
                 ]
-            } as any, "activo id_horario");
+            } as any, "activo id_horario accesos nombre apellido_pat apellido_mat");
             if (!empleado) {
                 comentario = "El empleado no fue encontrado.";
                 await guardarEventoNoValido("", "", comentario, id_usuario, qr);
@@ -1627,6 +1648,67 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                 comentario = "El empleado ya no esta disponible.";
                 await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, id_usuario);
                 res.status(200).json({ estado: false, mensaje: comentario });
+                return;
+            }
+            if (lector === 0) {
+                if (!id_acceso) {
+                    comentario = "Tu usuario no tiene acceso asociado para validar apertura.";
+                    await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, (empleado as any)._id);
+                    res.status(200).json({ estado: false, mensaje: comentario });
+                    return;
+                }
+                const accesosEmpleado = Array.isArray((empleado as any).accesos) ? (empleado as any).accesos : [];
+                const puedeAbrirEnEsteAcceso = accesosEmpleado.some((item: any) => String(item) === String(id_acceso));
+                if (!puedeAbrirEnEsteAcceso) {
+                    comentario = "El empleado no tiene permiso para este acceso.";
+                    await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, (empleado as any)._id);
+                    res.status(200).json({ estado: false, mensaje: comentario });
+                    return;
+                }
+                const ultimo = await Eventos.findOne({
+                    id_empleado: (empleado as any)._id,
+                    id_acceso,
+                    tipo_check: { $in: [5, 6] },
+                })
+                    .sort({ fecha_creacion: -1 })
+                    .lean<{ tipo_check?: number }>();
+                const tipo_evento = ultimo?.tipo_check === 5 ? 6 : 5;
+                const evento = new Eventos({
+                    tipo_dispositivo: 2,
+                    tipo_check: tipo_evento,
+                    qr: String(qr),
+                    id_empleado: (empleado as any)._id,
+                    id_acceso,
+                    creado_por: id_usuario,
+                    fecha_creacion: Date.now(),
+                });
+                await evento.save();
+
+                let aperturaError = "";
+                if (tipo_evento === 5) {
+                    const openRes = await abrirPuertaPorAccesoBiostar({
+                        idAcceso: id_acceso,
+                        idPersona: (empleado as any)._id,
+                        tipoPersona: "empleado",
+                        origen: "hiki_evento",
+                    });
+                    if (!openRes.ok && !openRes.skipped) {
+                        aperturaError = openRes.message || "Error desconocido.";
+                    }
+                }
+                socket.emit("eventos:nuevo-evento", {
+                    id_evento: evento._id,
+                });
+                const nombre = `${(empleado as any).nombre || ""} ${(empleado as any).apellido_pat || ""} ${(empleado as any).apellido_mat || ""}`.trim();
+                res.status(200).json({
+                    estado: true,
+                    datos: {
+                        puedeAcceder: true,
+                        nombre,
+                        tipo_check: tipo_evento,
+                        advertencia_apertura: aperturaError || undefined,
+                    },
+                });
                 return;
             }
             const { validarHorario, autorizacionCheck } = await Configuracion.findOne({}) as IConfiguracion;
