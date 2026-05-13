@@ -330,6 +330,7 @@ export default function NuevoVisitante() {
                       name="img_ine"
                       label="INE"
                       variant="rounded"
+                      showViewButton
                       adjustImageToBox
                       allowFiles={["png", "jpeg", "jpg"]}
                     />

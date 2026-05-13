@@ -150,9 +150,49 @@ export default function Camera({
     [setDevices]
   );
 
-  const captureImage = () => {
+  const cropIneFromDataUrl = (dataUrl: string): Promise<string> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const srcW = img.width;
+        const srcH = img.height;
+        const cropW = Math.round(srcW * 0.78);
+        const cropH = Math.round(srcH * 0.54);
+        const cropX = Math.round((srcW - cropW) / 2);
+        const cropY = Math.round((srcH - cropH) / 2);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = cropW;
+        canvas.height = cropH;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.drawImage(
+          img,
+          cropX,
+          cropY,
+          cropW,
+          cropH,
+          0,
+          0,
+          cropW,
+          cropH
+        );
+        resolve(canvas.toDataURL("image/jpeg", 0.95));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+
+  const captureImage = async () => {
     const picture = webcamRef.current?.getScreenshot();
-    setValue(name, picture);
+    if (!picture) return;
+    const finalPicture = isIneCapture
+      ? await cropIneFromDataUrl(picture)
+      : picture;
+    setValue(name, finalPicture);
     trigger(name);
     clearErrors(name);
     if (setShow) setShow(false);
@@ -469,9 +509,7 @@ export default function Camera({
               inset: 0,
               pointerEvents: "none",
               zIndex: 5,
-              background: isIneCapture
-                ? "rgba(0,0,0,0.45)"
-                : "radial-gradient(ellipse at center, rgba(0,0,0,0) 0 45%, rgba(0,0,0,0.45) 46%)",
+              background: "rgba(0,0,0,0.45)",
             }}
           >
             <Box
@@ -489,14 +527,9 @@ export default function Camera({
                   height: isIneCapture ? "54%" : "78%",
                   borderRadius: isIneCapture ? "12px" : "50%",
                   border: "2px solid rgba(255,255,255,0.85)",
-                  boxShadow: "0 0 0 2px rgba(0,0,0,0.2) inset",
-                  ...(isIneCapture
-                    ? {
-                        backgroundColor: "transparent",
-                        boxShadow:
-                          "0 0 0 9999px rgba(0,0,0,0.45), 0 0 0 2px rgba(0,0,0,0.2) inset",
-                      }
-                    : {}),
+                  backgroundColor: "transparent",
+                  boxShadow:
+                    "0 0 0 9999px rgba(0,0,0,0.45), 0 0 0 2px rgba(0,0,0,0.2) inset",
                 }}
               />
             </Box>

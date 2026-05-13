@@ -365,6 +365,7 @@ export default function EditarVisitante() {
                       name="img_ine"
                       label="INE"
                       variant="rounded"
+                      showViewButton
                       adjustImageToBox
                       allowFiles={["png", "jpeg", "jpg"]}
                     />
