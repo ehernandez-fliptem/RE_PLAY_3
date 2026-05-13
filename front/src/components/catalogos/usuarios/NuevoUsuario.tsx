@@ -472,7 +472,7 @@ export default function NuevoUsuario() {
                       helperText:
                         accesosDisponibles.length === 0
                           ? "No hay accesos configurados."
-                          : undefined,
+                          : "Este rol opera en ambos sentidos (entrada/salida) sobre el acceso seleccionado.",
                     }}
                     autocompleteProps={{
                       noOptionsText: "No hay accesos disponibles.",
