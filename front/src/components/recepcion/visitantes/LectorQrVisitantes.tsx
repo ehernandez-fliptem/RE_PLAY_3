@@ -109,16 +109,17 @@ export default function LectorQrVisitantes({
       disableEscapeKeyDown
       open
       onClose={handleModalClose}
+      sx={hideBackdrop ? { pointerEvents: "none" } : undefined}
       slotProps={{
         backdrop: {
-          invisible: false,
-          sx: hideBackdrop ? { backgroundColor: "transparent" } : undefined,
+          invisible: hideBackdrop,
         },
       }}
     >
       <Card
         elevation={5}
         sx={{
+          pointerEvents: "auto",
           position: "absolute",
           width: { xs: "92%", md: "50%", lg: "40%", xl: "30%" },
           top: "50%",
