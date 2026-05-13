@@ -20,6 +20,7 @@ import {
     anonimizar,
     obtenerBiometriaEmpleado,
     registrarHuellaEmpleadoPanel,
+    probarSyncHuellaCruzada,
     reenviarHuellaEmpleadoPanel,
     abrirUiEnrollBiostar,
     registrarTarjetaEmpleadoPanel,
@@ -50,6 +51,7 @@ router.post("/cargar-formato", validarTokenYRol([1, 2]), cargarFormato);
 router.post("/programacion", validarTokenYRol([1, 2]), cargarProgramacionEmpleados);
 router.put("/:id", validarTokenYRol([1, 2]), modificar);
 router.put("/biometria/huella/:id", validarTokenYRol([1, 2]), registrarHuellaEmpleadoPanel);
+router.post("/biometria/huella/prueba-cruzada/:id", validarTokenYRol([1, 2]), probarSyncHuellaCruzada);
 router.post("/biometria/biostar/abrir-ui/:id", validarTokenYRol([1, 2]), abrirUiEnrollBiostar);
 router.put("/biometria/huella/reenviar/:id", validarTokenYRol([1, 2]), reenviarHuellaEmpleadoPanel);
 router.put("/biometria/tarjeta/:id", validarTokenYRol([1, 2]), registrarTarjetaEmpleadoPanel);

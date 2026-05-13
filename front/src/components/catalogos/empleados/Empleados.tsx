@@ -147,6 +147,7 @@ export default function Empleados() {
     hiki: number[];
     biostar: number[];
   }>({ hiki: [], biostar: [] });
+  const [pruebaCruceLoading, setPruebaCruceLoading] = useState(false);
   const huellaCaptureRunRef = useRef(0);
   const huellaCaptureCanceledRef = useRef(false);
   const setRowLoading = (id: string, isLoading: boolean) =>
@@ -299,6 +300,7 @@ export default function Empleados() {
     setHikiPanelSeleccionado("");
     setBiostarDispositivoSeleccionado("");
     setHuellasPorProveedor({ hiki: [], biostar: [] });
+    setPruebaCruceLoading(false);
   };
 
   const iniciarCapturaHuella = async () => {
@@ -431,6 +433,39 @@ export default function Empleados() {
       if (restartSession) navigate("/logout", { replace: true });
       setBiometriaMensaje("No se pudo reenviar la huella.");
       setBiometriaStep("error");
+    }
+  };
+
+  const probarSyncHuellaCruzada = async () => {
+    if (!biometriaEmpleado?._id) return;
+    try {
+      setPruebaCruceLoading(true);
+      const res = await clienteAxios.post(
+        `/api/empleados/biometria/huella/prueba-cruzada/${biometriaEmpleado._id}`,
+        {
+          proveedor_origen: proveedorHuellaActual,
+          dedo: selectedFinger,
+        }
+      );
+      if (res.data?.estado) {
+        enqueueSnackbar(
+          res.data?.mensaje || "Prueba de cruce ejecutada correctamente.",
+          { variant: "success" }
+        );
+      } else {
+        enqueueSnackbar(
+          res.data?.mensaje || "No se pudo ejecutar la prueba de cruce.",
+          { variant: "warning" }
+        );
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+      enqueueSnackbar("No se pudo ejecutar la prueba de cruce.", {
+        variant: "error",
+      });
+    } finally {
+      setPruebaCruceLoading(false);
     }
   };
 
@@ -1830,6 +1865,14 @@ export default function Empleados() {
                 </Button>
               )}
               <Box>
+              <Button
+                variant="outlined"
+                onClick={probarSyncHuellaCruzada}
+                disabled={pruebaCruceLoading}
+                sx={{ fontWeight: 700, mr: 1 }}
+              >
+                {pruebaCruceLoading ? "Probando..." : "Prueba Hik <-> Bio"}
+              </Button>
               {devReplayEnabled && (
                 <Button
                   variant="outlined"

@@ -2980,6 +2980,82 @@ export async function previewSyncBiostar(req: Request, res: Response): Promise<v
     }
 }
 
+export async function probarSyncHuellaCruzada(req: Request, res: Response): Promise<void> {
+    try {
+        const isMaster = (req as UserRequest).isMaster;
+        const id_usuario = (req as UserRequest).userId;
+        const { id_empresa } = await Usuarios.findById(id_usuario, "id_empresa") as IUsuario;
+        const proveedorOrigen = String(req.body?.proveedor_origen || "").trim().toLowerCase();
+        const dedo = Number(req.body?.dedo);
+
+        if (!["hiki", "biostar"].includes(proveedorOrigen)) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "Proveedor de origen invalido. Usa 'hiki' o 'biostar'.",
+            });
+            return;
+        }
+        if (!Number.isInteger(dedo) || dedo < 1 || dedo > 10) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "El dedo es invalido. Usa un valor entre 1 y 10.",
+            });
+            return;
+        }
+
+        const filtro: any = { _id: req.params.id };
+        if (!isMaster) filtro.id_empresa = id_empresa;
+        const registro = await Empleados.findOne(filtro);
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
+            return;
+        }
+
+        const huellasHiki = Array.isArray((registro as any)?.huellas_hiki_registradas)
+            ? (registro as any).huellas_hiki_registradas.map(Number)
+            : [];
+        const huellasBiostar = Array.isArray((registro as any)?.huellas_biostar_registradas)
+            ? (registro as any).huellas_biostar_registradas.map(Number)
+            : [];
+
+        if (proveedorOrigen === "hiki") {
+            const templateMap = normalizeHuellaTemplateMap((registro as any)?.huellas_template_dev);
+            const hasTemplate = !!String(templateMap[String(dedo)] || "").trim();
+            if (!hasTemplate && !huellasHiki.includes(dedo)) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: "Primero captura esa huella en Hikvision para poder probar el cruce.",
+                });
+                return;
+            }
+            res.status(200).json({
+                estado: false,
+                mensaje:
+                    "Prueba Hikvision -> BioStar no disponible en automatico: BioStar requiere captura/enrollment propio del dispositivo.",
+                datos: { proveedor_origen: "hiki", dedo, destino: "biostar" },
+            });
+            return;
+        }
+
+        if (!huellasBiostar.includes(dedo)) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "Primero captura esa huella en BioStar para poder probar el cruce.",
+            });
+            return;
+        }
+        res.status(200).json({
+            estado: false,
+            mensaje:
+                "Prueba BioStar -> Hikvision no disponible en automatico: Hikvision requiere plantilla compatible del lector/panel Hikvision.",
+            datos: { proveedor_origen: "biostar", dedo, destino: "hiki" },
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
 export async function abrirUiEnrollBiostar(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;
