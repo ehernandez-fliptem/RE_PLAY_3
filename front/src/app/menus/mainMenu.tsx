@@ -381,6 +381,13 @@ const mainMenu = [
         path: "/biostarar/dispositivos",
       },
       {
+        id: 99.528,
+        title: "Permisos de Acceso",
+        rol: [1, 2],
+        icon: <Security fontSize="small" />,
+        path: "/biostarar/permisos-acceso",
+      },
+      {
         id: 99.525,
         title: "Puertas BioStar",
         rol: [1, 2],
@@ -400,13 +407,6 @@ const mainMenu = [
         rol: [1, 2],
         icon: <EventNote fontSize="small" />,
         path: "/biostarar/horarios",
-      },
-      {
-        id: 99.528,
-        title: "Permisos de Acceso",
-        rol: [1, 2],
-        icon: <Security fontSize="small" />,
-        path: "/biostarar/permisos-acceso",
       },
       {
         id: 99.53,
