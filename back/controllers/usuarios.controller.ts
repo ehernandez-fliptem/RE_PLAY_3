@@ -737,10 +737,7 @@ export async function obtenerFormNuevoUsuario(req: Request, res: Response): Prom
             }
         ]);
         const accesos = await Accesos.find(
-            {
-                activo: true,
-                ...(isMaster ? {} : { empresas: { $in: [new Types.ObjectId(id_empresa)] } })
-            },
+            { activo: true },
             'identificador nombre'
         ).sort({ identificador: 1, nombre: 1 }).lean();
         res.status(200).json({ estado: true, datos: { empresas, accesos } });
@@ -889,10 +886,7 @@ export async function obtenerFormEditarUsuario(req: Request, res: Response): Pro
             }
         ]);
         const accesos = await Accesos.find(
-            {
-                activo: true,
-                ...(isMaster ? {} : { empresas: { $in: [new Types.ObjectId(id_empresa)] } })
-            },
+            { activo: true },
             'identificador nombre'
         ).sort({ identificador: 1, nombre: 1 }).lean();
         res.status(200).json({
