@@ -7,6 +7,7 @@ import Empleados from "../../models/Empleados";
 import Usuarios from "../../models/Usuarios";
 import Eventos from "../../models/Eventos";
 import { biostarRequest } from "../../classes/Biostar";
+import { abrirPuertaPorAccesoBiostar } from "../../utils/biostarApertura";
 
 const BIOSTAR_EVENT_INITIAL_LOOKBACK_HOURS = 24;
 const BIOSTAR_EVENT_OVERLAP_SECONDS = 15;
@@ -298,7 +299,7 @@ export async function sincronizarEventosBiostar(): Promise<void> {
 
     const [suprema, biostarLocal] = await Promise.all([
       DispositivosSuprema.find({ activo: true }, "_id nombre direccion_ip").lean<{ _id: Types.ObjectId; nombre?: string; direccion_ip?: string }[]>(),
-      DispositivosBiostar.find({ activo: true }, "_id nombre direccion_ip modo_acceso").lean<{ _id: Types.ObjectId; nombre?: string; direccion_ip?: string; modo_acceso?: "entrada" | "salida" | "ambos" }[]>(),
+      DispositivosBiostar.find({ activo: true }, "_id nombre direccion_ip modo_acceso id_acceso").lean<{ _id: Types.ObjectId; nombre?: string; direccion_ip?: string; modo_acceso?: "entrada" | "salida" | "ambos"; id_acceso?: Types.ObjectId }[]>(),
     ]);
     const panelByName = new Map<string, Types.ObjectId>();
     const panelByIp = new Map<string, Types.ObjectId>();
@@ -317,9 +318,18 @@ export async function sincronizarEventosBiostar(): Promise<void> {
     });
     const biostarDeviceToPanel = new Map<string, Types.ObjectId>();
     const panelModoById = new Map<string, "entrada" | "salida" | "ambos">();
+    const panelAccessById = new Map<string, Types.ObjectId | null>();
+    const bioLocalByName = new Map<string, { id_acceso?: Types.ObjectId | null }>();
+    const bioLocalByIp = new Map<string, { id_acceso?: Types.ObjectId | null }>();
     biostarLocal.forEach((d) => {
       panelModoById.set(String(d._id), d.modo_acceso || "ambos");
+      panelAccessById.set(String(d._id), d.id_acceso || null);
+      const name = String(d.nombre || "").trim().toLowerCase();
+      const ip = String(d.direccion_ip || "").trim();
+      if (name) bioLocalByName.set(name, { id_acceso: d.id_acceso || null });
+      if (ip) bioLocalByIp.set(ip, { id_acceso: d.id_acceso || null });
     });
+    const biostarDeviceToAccess = new Map<string, Types.ObjectId | null>();
     activeDeviceRows.forEach((d: any) => {
       const devId = String(d?.id || "").trim();
       if (!devId) return;
@@ -334,6 +344,8 @@ export async function sincronizarEventosBiostar(): Promise<void> {
         }
       }
       if (panelId) biostarDeviceToPanel.set(devId, panelId);
+      const bioLocal = (ip && bioLocalByIp.get(ip)) || (name && bioLocalByName.get(name)) || null;
+      if (bioLocal) biostarDeviceToAccess.set(devId, bioLocal.id_acceso || null);
     });
 
     for (const row of rows) {
@@ -398,18 +410,30 @@ export async function sincronizarEventosBiostar(): Promise<void> {
           fecha: fechaEvento,
         });
 
-      await new Eventos({
+      const eventoCreado = await new Eventos({
         tipo_dispositivo: BIOSTAR_TIPO_DISPOSITIVO,
         id_empleado: empleadoFinal?._id || null,
         id_usuario: usuarioSistema?._id || null,
         img_usuario: empleadoFinal?.img_usuario || usuarioSistema?.img_usuario || "",
         id_panel: idPanel,
+        id_acceso: (deviceId && biostarDeviceToAccess.get(deviceId)) || (idPanel ? panelAccessById.get(String(idPanel)) || null : null),
         tipo_check,
         qr: String(userCode),
         fecha_creacion: fechaEvento,
         fecha_panel_raw: eventId,
         comentario: `BIOSTAR_EVENT:${eventId};CODE:${eventCode};DEVICE:${String(row?.device_id?.name || "").trim()}`,
       }).save();
+      if (tipo_check === 5) {
+        const openRes = await abrirPuertaPorAccesoBiostar({
+          idAcceso: (eventoCreado as any)?.id_acceso || null,
+          idPersona: empleadoFinal?._id || usuarioSistema?._id || null,
+          tipoPersona: empleadoFinal?._id ? "empleado" : "usuario",
+          origen: "biostar_evento",
+        });
+        if (!openRes.ok && !openRes.skipped) {
+          console.log("[BIOSTAR_EVENTS] Apertura por acceso fallo:", openRes.message);
+        }
+      }
       totalInsertados++;
     }
 

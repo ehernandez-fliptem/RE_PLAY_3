@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { DecodedTokenUser } from "../types/jsonwebtoken";
 import DispositivosBiostar from "../models/DispositivosBiostar";
 import BiostarConexion from "../models/BiostarConexion";
+import Accesos from "../models/Accesos";
 import { fecha, log } from "../middlewares/log";
 import { customAggregationForDataGrids, decryptPassword, encryptPassword, isEmptyObject } from "../utils/utils";
 import { QueryParams } from "../types/queryparams";
@@ -66,6 +67,10 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
           direccion_ip: 1,
           puerto: 1,
           modo_acceso: 1,
+          id_acceso: 1,
+          apertura_destino_habilitada: 1,
+          apertura_puerta_id: 1,
+          apertura_puerta_nombre: 1,
           usuario: 1,
           activo: 1,
           es_main: 1,
@@ -192,9 +197,53 @@ export async function obtenerUnoFormEditar(req: Request, res: Response): Promise
   }
 }
 
+export async function obtenerCatalogosFormulario(_req: Request, res: Response): Promise<void> {
+  try {
+    const [accesos, puertas] = await Promise.all([
+      Accesos.find({ activo: true }, "nombre identificador").sort({ nombre: 1 }).lean(),
+      (async () => {
+        const conexionMain = await DispositivosBiostar.findOne({ activo: true, es_main: true }).sort({
+          fecha_modificacion: -1,
+          fecha_creacion: -1,
+          _id: -1,
+        });
+        const conexionGlobal = await BiostarConexion.findOne({ activo: true }).sort({
+          fecha_modificacion: -1,
+          fecha_creacion: -1,
+          _id: -1,
+        });
+        const conexionActiva = await DispositivosBiostar.findOne({ activo: true }).sort({
+          fecha_modificacion: -1,
+          fecha_creacion: -1,
+          _id: -1,
+        });
+        const conexion = conexionMain || conexionGlobal || conexionActiva;
+        if (!conexion) return [];
+        const r = await biostarRequest(conexion as any, { method: "POST", url: "/api/v2/doors/search", data: {} });
+        if (!r.ok) return [];
+        const rows = parseRows(r.data, ["DoorCollection.rows", "rows", "doors"]);
+        return rows.map((d: any) => ({
+          id_externo: String(d?.id || "").trim(),
+          nombre: String(d?.name || "").trim(),
+        }));
+      })(),
+    ]);
+    res.status(200).json({ estado: true, datos: { accesos, puertas } });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+function parseRows(payload: any, keys: string[]): any[] {
+  for (const key of keys) {
+    const value = key.split(".").reduce((acc: any, part: string) => (acc ? acc[part] : undefined), payload);
+    if (Array.isArray(value)) return value;
+  }
+  return [];
+}
 export async function crear(req: Request, res: Response): Promise<void> {
   try {
-    const { nombre, direccion_ip, puerto, usuario, contrasena, modo_acceso } = req.body;
+    const { nombre, direccion_ip, puerto, usuario, contrasena, modo_acceso, id_acceso, apertura_destino_habilitada, apertura_puerta_id, apertura_puerta_nombre } = req.body;
     const creado_porID = jwt.verify(req.headers["x-access-token"] as string, CONFIG.SECRET) as DecodedTokenUser;
 
     const hasMain = await DispositivosBiostar.exists({ es_main: true, activo: true });
@@ -203,6 +252,10 @@ export async function crear(req: Request, res: Response): Promise<void> {
       direccion_ip,
       puerto: Number(puerto) || CONFIG.BIOSTAR_PORT,
       modo_acceso: ["entrada", "salida", "ambos"].includes(String(modo_acceso)) ? modo_acceso : "ambos",
+      id_acceso: id_acceso && Types.ObjectId.isValid(String(id_acceso)) ? new Types.ObjectId(String(id_acceso)) : null,
+      apertura_destino_habilitada: Boolean(apertura_destino_habilitada),
+      apertura_puerta_id: String(apertura_puerta_id || "").trim(),
+      apertura_puerta_nombre: String(apertura_puerta_nombre || "").trim(),
       usuario,
       contrasena,
       es_main: !hasMain,
@@ -234,7 +287,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
 
 export async function modificar(req: Request, res: Response): Promise<void> {
   try {
-    const { nombre, direccion_ip, puerto, usuario, contrasena, modo_acceso } = req.body;
+    const { nombre, direccion_ip, puerto, usuario, contrasena, modo_acceso, id_acceso, apertura_destino_habilitada, apertura_puerta_id, apertura_puerta_nombre } = req.body;
     const modificado_porID = jwt.verify(req.headers["x-access-token"] as string, CONFIG.SECRET) as DecodedTokenUser;
 
     const registroActual = await DispositivosBiostar.findById(req.params.id);
@@ -248,6 +301,10 @@ export async function modificar(req: Request, res: Response): Promise<void> {
       direccion_ip,
       puerto: Number(puerto) || CONFIG.BIOSTAR_PORT,
       modo_acceso: ["entrada", "salida", "ambos"].includes(String(modo_acceso)) ? modo_acceso : "ambos",
+      id_acceso: id_acceso && Types.ObjectId.isValid(String(id_acceso)) ? new Types.ObjectId(String(id_acceso)) : null,
+      apertura_destino_habilitada: Boolean(apertura_destino_habilitada),
+      apertura_puerta_id: String(apertura_puerta_id || "").trim(),
+      apertura_puerta_nombre: String(apertura_puerta_nombre || "").trim(),
       usuario,
       modificado_por: modificado_porID.id,
       fecha_modificacion: Date.now(),
@@ -436,6 +493,85 @@ async function getBiostarConexionActiva(): Promise<any | null> {
   }
 
   return candidates[0] || null;
+}
+
+function normalizarModoAcceso(value: any): "entrada" | "salida" | "ambos" {
+  return ["entrada", "salida", "ambos"].includes(String(value)) ? (value as "entrada" | "salida" | "ambos") : "ambos";
+}
+
+function parseBooleanValue(value: any): boolean {
+  if (typeof value === "boolean") return value;
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["1", "true", "si", "yes"].includes(normalized);
+}
+
+async function upsertConfiguracionLocalDesdeRemoto(params: {
+  conexion: any;
+  nombre: string;
+  direccion_ip: string;
+  puerto: number;
+  modo_acceso?: any;
+  id_acceso?: any;
+  apertura_destino_habilitada?: any;
+  apertura_puerta_id?: any;
+  apertura_puerta_nombre?: any;
+}) {
+  const nombre = String(params.nombre || params.direccion_ip || "").trim();
+  const direccion_ip = String(params.direccion_ip || "").trim();
+  if (!direccion_ip) return;
+
+  const updateBase: Record<string, unknown> = {
+    nombre,
+    direccion_ip,
+    puerto: Number(params.puerto || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
+    modo_acceso: normalizarModoAcceso(params.modo_acceso),
+    id_acceso: params.id_acceso && Types.ObjectId.isValid(String(params.id_acceso)) ? new Types.ObjectId(String(params.id_acceso)) : null,
+    apertura_destino_habilitada: parseBooleanValue(params.apertura_destino_habilitada),
+    apertura_puerta_id: String(params.apertura_puerta_id || "").trim(),
+    apertura_puerta_nombre: String(params.apertura_puerta_nombre || "").trim(),
+    fecha_modificacion: Date.now(),
+  };
+
+  const existente = await DispositivosBiostar.findOne({ direccion_ip });
+  if (existente) {
+    const updatePayload: Record<string, unknown> = { ...updateBase };
+    if (!String(existente.usuario || "").trim()) {
+      updatePayload.usuario = String(params.conexion?.usuario || "").trim();
+    }
+    await DispositivosBiostar.updateOne({ _id: existente._id }, { $set: updatePayload });
+    return;
+  }
+
+  const contrasenaConexion = String(params.conexion?.contrasena || "").trim();
+  const contrasenaDesencriptada = contrasenaConexion
+    ? decryptPassword(contrasenaConexion, CONFIG.SECRET_CRYPTO)
+    : "";
+
+  const nuevo = new DispositivosBiostar({
+    ...updateBase,
+    nombre: nombre || `BioStar ${direccion_ip}`,
+    usuario: String(params.conexion?.usuario || "").trim(),
+    contrasena: contrasenaDesencriptada,
+    creado_por: null,
+    fecha_creacion: Date.now(),
+  });
+  await nuevo.save();
+}
+
+async function obtenerConfigLocalPorIp(ips: string[]) {
+  const cleanedIps = Array.from(new Set((ips || []).map((ip) => String(ip || "").trim()).filter(Boolean)));
+  if (!cleanedIps.length) return new Map<string, any>();
+  const localRows = await DispositivosBiostar.find(
+    { direccion_ip: { $in: cleanedIps } },
+    "direccion_ip modo_acceso id_acceso apertura_destino_habilitada apertura_puerta_id apertura_puerta_nombre"
+  ).lean();
+  const map = new Map<string, any>();
+  localRows.forEach((row: any) => {
+    const ip = String(row?.direccion_ip || "").trim();
+    if (!ip) return;
+    map.set(ip, row);
+  });
+  return map;
 }
 
 export async function establecerMain(req: Request, res: Response): Promise<void> {
@@ -636,7 +772,7 @@ export async function probarConexion(req: Request, res: Response): Promise<void>
         ? encryptPassword(contrasenaLimpia, CONFIG.SECRET_CRYPTO)
         : registro.contrasena;
 
-      // Para editar, la prueba de conexión debe usar los datos capturados en pantalla, no solo los actuales en BD.
+      // Para editar, la prueba de conexion debe usar los datos capturados en pantalla, no solo los actuales en BD.
       dispositivo = {
         ...registro.toObject(),
         nombre: body.nombre || registro.nombre,
@@ -713,18 +849,27 @@ export async function listarDispositivosRemotos(req: Request, res: Response): Pr
     if (!rows.length) {
       rows = parseRemoteDeviceRows(successful[0]?.data);
     }
+    const ips = rows.map((item: any) => String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim());
+    const localByIp = await obtenerConfigLocalPorIp(ips);
     const mapped = rows.map((item: any) => {
       const group = extractDeviceGroup(item);
+      const direccion_ip = String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim();
+      const local = localByIp.get(direccion_ip);
       return {
       id_externo: String(item?.id || item?.device_id || item?.deviceID || ""),
       nombre: String(item?.name || item?.device_name || "").trim(),
-      direccion_ip: String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim(),
+      direccion_ip,
       puerto: Number(item?.port || item?.server_port || item?.lan?.device_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
       tipo: String(item?.device_type || item?.type || tipo || "all"),
       modelo: String(item?.model_name || item?.model || "").trim(),
       estatus: String(item?.status || item?.device_status || item?.connection_status || "unknown").trim(),
       grupo_id: group.grupo_id,
       grupo_nombre: group.grupo_nombre,
+      modo_acceso: local?.modo_acceso || "ambos",
+      id_acceso: local?.id_acceso || null,
+      apertura_destino_habilitada: !!local?.apertura_destino_habilitada,
+      apertura_puerta_id: String(local?.apertura_puerta_id || "").trim(),
+      apertura_puerta_nombre: String(local?.apertura_puerta_nombre || "").trim(),
       raw: item,
       };
     });
@@ -780,18 +925,27 @@ export async function buscarDispositivoRemoto(req: Request, res: Response): Prom
       rows = allRows.filter((item: any) => String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim() === direccion_ip);
     }
 
+    const ips = rows.map((item: any) => String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim());
+    const localByIp = await obtenerConfigLocalPorIp(ips);
     const mapped = rows.map((item: any) => {
       const group = extractDeviceGroup(item);
+      const direccion_ip = String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim();
+      const local = localByIp.get(direccion_ip);
       return {
       id_externo: String(item?.id || item?.device_id || item?.deviceID || ""),
       nombre: String(item?.name || item?.device_name || "").trim(),
-      direccion_ip: String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim(),
+      direccion_ip,
       puerto: Number(item?.port || item?.server_port || item?.lan?.device_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
       tipo: String(item?.device_type || item?.type || "all"),
       modelo: String(item?.model_name || item?.model || "").trim(),
       estatus: String(item?.status || item?.device_status || item?.connection_status || "unknown").trim(),
       grupo_id: group.grupo_id,
       grupo_nombre: group.grupo_nombre,
+      modo_acceso: local?.modo_acceso || "ambos",
+      id_acceso: local?.id_acceso || null,
+      apertura_destino_habilitada: !!local?.apertura_destino_habilitada,
+      apertura_puerta_id: String(local?.apertura_puerta_id || "").trim(),
+      apertura_puerta_nombre: String(local?.apertura_puerta_nombre || "").trim(),
       raw: item,
       };
     });
@@ -970,6 +1124,17 @@ export async function crearDispositivoRemoto(req: Request, res: Response): Promi
     for (const data of payloads) {
       const response = await biostarRequest(conexion as any, { method: "POST", url: "/api/devices", data });
       if (response.ok) {
+        await upsertConfiguracionLocalDesdeRemoto({
+          conexion,
+          nombre: nombre || discoveredName || direccion_ip,
+          direccion_ip,
+          puerto,
+          modo_acceso: req.body?.modo_acceso,
+          id_acceso: req.body?.id_acceso,
+          apertura_destino_habilitada: req.body?.apertura_destino_habilitada,
+          apertura_puerta_id: req.body?.apertura_puerta_id,
+          apertura_puerta_nombre: req.body?.apertura_puerta_nombre,
+        });
         res.status(200).json({ estado: true, mensaje: "Dispositivo agregado correctamente." });
         return;
       }
@@ -1145,7 +1310,7 @@ export async function sincronizarDispositivoRemoto(req: Request, res: Response):
     for (const attempt of attempts) {
       const r = await biostarRequest(conexion as any, attempt as any);
       if (r.ok) {
-        res.status(200).json({ estado: true, mensaje: "Sincronización enviada correctamente." });
+        res.status(200).json({ estado: true, mensaje: "Sincronizacion enviada correctamente." });
         return;
       }
       lastMessage = getBiostarResponseMessage(r.data) || r.message || lastMessage;
@@ -1261,6 +1426,17 @@ export async function editarDispositivoRemoto(req: Request, res: Response): Prom
     for (const data of payloads) {
       const response = await biostarRequest(conexion as any, { method: "PUT", url: `/api/devices/${id}`, data });
       if (response.ok) {
+        await upsertConfiguracionLocalDesdeRemoto({
+          conexion,
+          nombre,
+          direccion_ip,
+          puerto,
+          modo_acceso: req.body?.modo_acceso,
+          id_acceso: req.body?.id_acceso,
+          apertura_destino_habilitada: req.body?.apertura_destino_habilitada,
+          apertura_puerta_id: req.body?.apertura_puerta_id,
+          apertura_puerta_nombre: req.body?.apertura_puerta_nombre,
+        });
         res.status(200).json({ estado: true, mensaje: "Dispositivo editado correctamente." });
         return;
       }

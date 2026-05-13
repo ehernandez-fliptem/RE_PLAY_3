@@ -7,8 +7,12 @@ import { CONFIG } from '../config';
 export interface IDispositivoBiostar extends Document {
   nombre: string;
   direccion_ip: string;
+  id_acceso?: mongoose.Types.ObjectId | null;
   puerto: number;
   modo_acceso?: "entrada" | "salida" | "ambos";
+  apertura_destino_habilitada?: boolean;
+  apertura_puerta_id?: string;
+  apertura_puerta_nombre?: string;
   usuario: string;
   contrasena: string;
   session_id?: string;
@@ -40,8 +44,12 @@ const dispositivosBiostarSchema = new Schema<IDispositivoBiostar>({
       message: (props: { value: string }) => `'${props.value}' es una direccion IP invalida.`,
     },
   },
+  id_acceso: { type: Schema.Types.ObjectId, default: null, ref: 'accesos' },
   puerto: { type: Number, required: true, default: CONFIG.BIOSTAR_PORT },
   modo_acceso: { type: String, enum: ["entrada", "salida", "ambos"], default: "ambos" },
+  apertura_destino_habilitada: { type: Boolean, default: false },
+  apertura_puerta_id: { type: String, default: "" },
+  apertura_puerta_nombre: { type: String, default: "" },
   usuario: { type: String, required: true, default: '' },
   contrasena: { type: String, required: true, default: '' },
   session_id: { type: String, default: '' },

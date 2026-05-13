@@ -33,6 +33,11 @@ interface RemoteDevice {
   grupo_id?: string;
   grupo_nombre?: string;
   estatus?: string;
+  modo_acceso?: "entrada" | "salida" | "ambos";
+  id_acceso?: string;
+  apertura_destino_habilitada?: boolean;
+  apertura_puerta_id?: string;
+  apertura_puerta_nombre?: string;
 }
 
 interface RemoteGroup {
@@ -57,11 +62,17 @@ export default function DispositivosBiostarRemotos() {
   const [openEditar, setOpenEditar] = useState(false);
   const [guardandoEditar, setGuardandoEditar] = useState(false);
   const [editandoId, setEditandoId] = useState<string>("");
+  const [accesos, setAccesos] = useState<Array<{ _id: string; nombre: string; identificador?: string }>>([]);
+  const [puertas, setPuertas] = useState<Array<{ id_externo: string; nombre: string }>>([]);
   const [nuevoForm, setNuevoForm] = useState({
     nombre: "",
     direccion_ip: "",
     puerto: 51211,
     grupo_id: "1",
+    modo_acceso: "ambos" as "entrada" | "salida" | "ambos",
+    id_acceso: "",
+    apertura_destino_habilitada: "no" as "si" | "no",
+    apertura_puerta_id: "",
   });
 
   const gruposOrdenados = useMemo(() => {
@@ -78,7 +89,22 @@ export default function DispositivosBiostarRemotos() {
     direccion_ip: "",
     puerto: 51211,
     grupo_id: "1",
+    modo_acceso: "ambos" as "entrada" | "salida" | "ambos",
+    id_acceso: "",
+    apertura_destino_habilitada: "no" as "si" | "no",
+    apertura_puerta_id: "",
   });
+
+  const cargarCatalogosFormulario = async () => {
+    try {
+      const res = await clienteAxios.get("/api/dispositivos-biostar/catalogos-formulario");
+      if (!res.data?.estado) return;
+      setAccesos(res.data?.datos?.accesos || []);
+      setPuertas(res.data?.datos?.puertas || []);
+    } catch (error) {
+      handlingError(error);
+    }
+  };
 
   const cargarGrupos = async () => {
     try {
@@ -142,6 +168,10 @@ export default function DispositivosBiostarRemotos() {
       direccion_ip: "",
       puerto: 51211,
       grupo_id: grupoInicial,
+      modo_acceso: "ambos",
+      id_acceso: "",
+      apertura_destino_habilitada: "no",
+      apertura_puerta_id: "",
     });
     setOpenNuevo(true);
   };
@@ -161,6 +191,11 @@ export default function DispositivosBiostarRemotos() {
         puerto: Number(nuevoForm.puerto),
         device_group: Number(nuevoForm.grupo_id) || 1,
         device_group_id: { id: Number(nuevoForm.grupo_id) || 1 },
+        modo_acceso: nuevoForm.modo_acceso,
+        id_acceso: nuevoForm.id_acceso || null,
+        apertura_destino_habilitada: nuevoForm.apertura_destino_habilitada === "si",
+        apertura_puerta_id: nuevoForm.apertura_puerta_id || "",
+        apertura_puerta_nombre: puertas.find((p) => p.id_externo === nuevoForm.apertura_puerta_id)?.nombre || "",
       };
       const res = await clienteAxios.post("/api/dispositivos-biostar/remotos", payload);
       if (!res.data.estado) {
@@ -187,6 +222,10 @@ export default function DispositivosBiostarRemotos() {
       direccion_ip: row.direccion_ip || "",
       puerto: Number(row.puerto || 51211),
       grupo_id: String(row.grupo_id || "1"),
+      modo_acceso: (row.modo_acceso || "ambos") as "entrada" | "salida" | "ambos",
+      id_acceso: String(row.id_acceso || ""),
+      apertura_destino_habilitada: row.apertura_destino_habilitada ? "si" : "no",
+      apertura_puerta_id: String(row.apertura_puerta_id || ""),
     });
     setOpenEditar(true);
   };
@@ -207,6 +246,11 @@ export default function DispositivosBiostarRemotos() {
         puerto: Number(editarForm.puerto),
         device_group: Number(editarForm.grupo_id) || 1,
         device_group_id: { id: Number(editarForm.grupo_id) || 1 },
+        modo_acceso: editarForm.modo_acceso,
+        id_acceso: editarForm.id_acceso || null,
+        apertura_destino_habilitada: editarForm.apertura_destino_habilitada === "si",
+        apertura_puerta_id: editarForm.apertura_puerta_id || "",
+        apertura_puerta_nombre: puertas.find((p) => p.id_externo === editarForm.apertura_puerta_id)?.nombre || "",
       };
       const res = await clienteAxios.put(`/api/dispositivos-biostar/remotos/${editandoId}`, payload);
       if (!res.data.estado) {
@@ -340,6 +384,7 @@ export default function DispositivosBiostarRemotos() {
   };
 
   useEffect(() => {
+    cargarCatalogosFormulario();
     cargarGrupos();
     cargarTodos();
   }, []);
@@ -386,6 +431,25 @@ export default function DispositivosBiostarRemotos() {
     const base: GridColDef<RemoteDevice>[] = [
       { field: "nombre", headerName: "Nombre del dispositivo", flex: 1, minWidth: 220 },
       { field: "direccion_ip", headerName: "IP", flex: 1, minWidth: 150 },
+      {
+        field: "modo_acceso",
+        headerName: "Acceso",
+        flex: 0.7,
+        minWidth: 130,
+        valueGetter: (_value, row) => {
+          const mode = String(row?.modo_acceso || "ambos");
+          if (mode === "entrada") return "Entrada";
+          if (mode === "salida") return "Salida";
+          return "Ambos";
+        },
+      },
+      {
+        field: "apertura_destino_habilitada",
+        headerName: "Abrir",
+        flex: 0.5,
+        minWidth: 90,
+        valueGetter: (_value, row) => (row?.apertura_destino_habilitada ? "Si" : "No"),
+      },
       {
         field: "estatus",
         headerName: "Estatus",
@@ -552,6 +616,63 @@ export default function DispositivosBiostarRemotos() {
                 Grupo
               </Button>
             </Stack>
+            <FormControl fullWidth>
+              <InputLabel id="nuevo-modo-acceso-label">Tipo de acceso</InputLabel>
+              <Select
+                labelId="nuevo-modo-acceso-label"
+                value={nuevoForm.modo_acceso}
+                label="Tipo de acceso"
+                onChange={(event) => setNuevoForm((prev) => ({ ...prev, modo_acceso: event.target.value as "entrada" | "salida" | "ambos" }))}
+              >
+                <MenuItem value="entrada">Entrada</MenuItem>
+                <MenuItem value="salida">Salida</MenuItem>
+                <MenuItem value="ambos">Ambos</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel id="nuevo-id-acceso-label">Acceso</InputLabel>
+              <Select
+                labelId="nuevo-id-acceso-label"
+                value={nuevoForm.id_acceso}
+                label="Acceso"
+                onChange={(event) => setNuevoForm((prev) => ({ ...prev, id_acceso: String(event.target.value) }))}
+              >
+                <MenuItem value="">Sin acceso</MenuItem>
+                {(accesos || []).map((a) => (
+                  <MenuItem key={a._id} value={a._id}>
+                    {a.identificador ? `${a.identificador} - ${a.nombre}` : a.nombre}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel id="nuevo-apertura-hab-label">Abrir puerta BioStar por este acceso</InputLabel>
+              <Select
+                labelId="nuevo-apertura-hab-label"
+                value={nuevoForm.apertura_destino_habilitada}
+                label="Abrir puerta BioStar por este acceso"
+                onChange={(event) => setNuevoForm((prev) => ({ ...prev, apertura_destino_habilitada: event.target.value as "si" | "no" }))}
+              >
+                <MenuItem value="no">No</MenuItem>
+                <MenuItem value="si">Si</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel id="nuevo-puerta-destino-label">Puerta destino</InputLabel>
+              <Select
+                labelId="nuevo-puerta-destino-label"
+                value={nuevoForm.apertura_puerta_id}
+                label="Puerta destino"
+                onChange={(event) => setNuevoForm((prev) => ({ ...prev, apertura_puerta_id: String(event.target.value) }))}
+              >
+                <MenuItem value="">Sin puerta</MenuItem>
+                {(puertas || []).map((p) => (
+                  <MenuItem key={p.id_externo} value={p.id_externo}>
+                    {`${p.id_externo} - ${p.nombre}`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -614,6 +735,63 @@ export default function DispositivosBiostarRemotos() {
                 Grupo
               </Button>
             </Stack>
+            <FormControl fullWidth>
+              <InputLabel id="editar-modo-acceso-label">Tipo de acceso</InputLabel>
+              <Select
+                labelId="editar-modo-acceso-label"
+                value={editarForm.modo_acceso}
+                label="Tipo de acceso"
+                onChange={(event) => setEditarForm((prev) => ({ ...prev, modo_acceso: event.target.value as "entrada" | "salida" | "ambos" }))}
+              >
+                <MenuItem value="entrada">Entrada</MenuItem>
+                <MenuItem value="salida">Salida</MenuItem>
+                <MenuItem value="ambos">Ambos</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel id="editar-id-acceso-label">Acceso</InputLabel>
+              <Select
+                labelId="editar-id-acceso-label"
+                value={editarForm.id_acceso}
+                label="Acceso"
+                onChange={(event) => setEditarForm((prev) => ({ ...prev, id_acceso: String(event.target.value) }))}
+              >
+                <MenuItem value="">Sin acceso</MenuItem>
+                {(accesos || []).map((a) => (
+                  <MenuItem key={a._id} value={a._id}>
+                    {a.identificador ? `${a.identificador} - ${a.nombre}` : a.nombre}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel id="editar-apertura-hab-label">Abrir puerta BioStar por este acceso</InputLabel>
+              <Select
+                labelId="editar-apertura-hab-label"
+                value={editarForm.apertura_destino_habilitada}
+                label="Abrir puerta BioStar por este acceso"
+                onChange={(event) => setEditarForm((prev) => ({ ...prev, apertura_destino_habilitada: event.target.value as "si" | "no" }))}
+              >
+                <MenuItem value="no">No</MenuItem>
+                <MenuItem value="si">Si</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel id="editar-puerta-destino-label">Puerta destino</InputLabel>
+              <Select
+                labelId="editar-puerta-destino-label"
+                value={editarForm.apertura_puerta_id}
+                label="Puerta destino"
+                onChange={(event) => setEditarForm((prev) => ({ ...prev, apertura_puerta_id: String(event.target.value) }))}
+              >
+                <MenuItem value="">Sin puerta</MenuItem>
+                {(puertas || []).map((p) => (
+                  <MenuItem key={p.id_externo} value={p.id_externo}>
+                    {`${p.id_externo} - ${p.nombre}`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>

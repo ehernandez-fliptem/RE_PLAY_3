@@ -4,6 +4,7 @@ import {
   obtenerTodos,
   obtenerUno,
   obtenerUnoFormEditar,
+  obtenerCatalogosFormulario,
   obtenerConexionGlobal,
   guardarConexionGlobal,
   probarConexionGlobal,
@@ -29,6 +30,7 @@ const router = Router();
 
 router.get("/", validarTokenYRol([1], true), obtenerTodos);
 router.get("/conexion-global", validarTokenYRol([1], true), obtenerConexionGlobal);
+router.get("/catalogos-formulario", validarTokenYRol([1], true), obtenerCatalogosFormulario);
 router.get("/form-editar/:id", validarTokenYRol([1], true), obtenerUnoFormEditar);
 router.put("/conexion-global", validarTokenYRol([1], true), guardarConexionGlobal);
 router.post("/conexion-global/probar", validarTokenYRol([1], true), probarConexionGlobal);

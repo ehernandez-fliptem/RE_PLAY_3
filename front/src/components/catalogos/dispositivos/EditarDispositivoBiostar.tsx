@@ -26,6 +26,10 @@ type FormValues = {
   direccion_ip: string;
   puerto: number;
   modo_acceso: "entrada" | "salida" | "ambos";
+  id_acceso: string;
+  apertura_destino_habilitada: "si" | "no";
+  apertura_puerta_id: string;
+  apertura_puerta_nombre?: string;
   usuario: string;
   contrasena: string;
 };
@@ -38,6 +42,13 @@ const resolver = yup.object().shape({
     .mixed<"entrada" | "salida" | "ambos">()
     .oneOf(["entrada", "salida", "ambos"])
     .required("Este campo es obligatorio."),
+  id_acceso: yup.string().required("Este campo es obligatorio."),
+  apertura_destino_habilitada: yup.mixed<"si" | "no">().oneOf(["si", "no"]).required("Este campo es obligatorio."),
+  apertura_puerta_id: yup.string().when("apertura_destino_habilitada", {
+    is: "si",
+    then: (schema) => schema.required("Selecciona la puerta objetivo."),
+    otherwise: (schema) => schema.notRequired(),
+  }),
   usuario: yup.string().required("Este campo es obligatorio.").matches(REGEX_USERNAME, "Formato de usuario invalido."),
   contrasena: yup
     .string()
@@ -60,8 +71,21 @@ export default function EditarDispositivoBiostar() {
   const [isLoading, setIsLoading] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [accesos, setAccesos] = useState<Array<{ _id: string; nombre: string; identificador?: string }>>([]);
+  const [puertas, setPuertas] = useState<Array<{ id_externo: string; nombre: string }>>([]);
   const formContext = useForm<FormValues>({
-    defaultValues: { nombre: "", direccion_ip: "", puerto: 443, modo_acceso: "ambos", usuario: "", contrasena: "" },
+    defaultValues: {
+      nombre: "",
+      direccion_ip: "",
+      puerto: 443,
+      modo_acceso: "ambos",
+      id_acceso: "",
+      apertura_destino_habilitada: "no",
+      apertura_puerta_id: "",
+      apertura_puerta_nombre: "",
+      usuario: "",
+      contrasena: "",
+    },
     resolver: yupResolver(resolver),
     mode: "all",
   });
@@ -69,6 +93,11 @@ export default function EditarDispositivoBiostar() {
   useEffect(() => {
     const run = async () => {
       try {
+        const catRes = await clienteAxios.get("/api/dispositivos-biostar/catalogos-formulario");
+        if (catRes.data?.estado) {
+          setAccesos(catRes.data?.datos?.accesos || []);
+          setPuertas(catRes.data?.datos?.puertas || []);
+        }
         const res = await clienteAxios.get(`/api/dispositivos-biostar/form-editar/${id}`);
         if (res.data.estado) {
           formContext.reset({
@@ -76,6 +105,10 @@ export default function EditarDispositivoBiostar() {
             direccion_ip: res.data.datos.direccion_ip,
             puerto: res.data.datos.puerto || 443,
             modo_acceso: res.data.datos.modo_acceso || "ambos",
+            id_acceso: res.data.datos.id_acceso || "",
+            apertura_destino_habilitada: res.data.datos.apertura_destino_habilitada ? "si" : "no",
+            apertura_puerta_id: res.data.datos.apertura_puerta_id || "",
+            apertura_puerta_nombre: res.data.datos.apertura_puerta_nombre || "",
             usuario: res.data.datos.usuario,
             contrasena: res.data.datos.contrasena || "",
           });
@@ -92,6 +125,11 @@ export default function EditarDispositivoBiostar() {
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
       setIsSaving(true);
+      const payload = {
+        ...data,
+        apertura_destino_habilitada: data.apertura_destino_habilitada === "si",
+        apertura_puerta_nombre: puertas.find((p) => p.id_externo === data.apertura_puerta_id)?.nombre || "",
+      };
       Swal.fire({
         title: "Validando conexion...",
         allowOutsideClick: false,
@@ -102,7 +140,7 @@ export default function EditarDispositivoBiostar() {
         },
       });
 
-      const testRes = await clienteAxios.post(`/api/dispositivos-biostar/probar-conexion/${id}`, data);
+      const testRes = await clienteAxios.post(`/api/dispositivos-biostar/probar-conexion/${id}`, payload);
       if (!testRes.data.estado) {
         await Swal.fire({
           icon: "error",
@@ -112,7 +150,7 @@ export default function EditarDispositivoBiostar() {
         return;
       }
 
-      const res = await clienteAxios.put(`/api/dispositivos-biostar/${id}`, data);
+      const res = await clienteAxios.put(`/api/dispositivos-biostar/${id}`, payload);
       if (res.data.estado) {
         await Swal.fire({
           icon: "success",
@@ -178,6 +216,35 @@ export default function EditarDispositivoBiostar() {
                           { id: "salida", label: "Salida" },
                           { id: "ambos", label: "Ambos (alterna)" },
                         ]}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <SelectElement
+                        name="id_acceso"
+                        label="Acceso"
+                        required
+                        fullWidth
+                        options={accesos.map((a) => ({ id: a._id, label: a.identificador ? `${a.identificador} - ${a.nombre}` : a.nombre }))}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <SelectElement
+                        name="apertura_destino_habilitada"
+                        label="Abrir puerta BioStar por este acceso"
+                        required
+                        fullWidth
+                        options={[
+                          { id: "no", label: "No" },
+                          { id: "si", label: "Si" },
+                        ]}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <SelectElement
+                        name="apertura_puerta_id"
+                        label="Puerta destino (pluma/puerta real)"
+                        fullWidth
+                        options={puertas.map((p) => ({ id: p.id_externo, label: `${p.id_externo} - ${p.nombre}` }))}
                       />
                     </Grid>
                     <Grid size={{ xs: 12 }}>

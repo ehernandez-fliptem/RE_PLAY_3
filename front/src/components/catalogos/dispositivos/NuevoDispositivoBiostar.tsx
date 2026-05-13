@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -36,6 +36,10 @@ type FormValues = {
   direccion_ip: string;
   puerto: number;
   modo_acceso: "entrada" | "salida" | "ambos";
+  id_acceso: string;
+  apertura_destino_habilitada: "si" | "no";
+  apertura_puerta_id: string;
+  apertura_puerta_nombre?: string;
   usuario: string;
   contrasena: string;
 };
@@ -51,6 +55,13 @@ const resolver = yup.object().shape({
     .mixed<"entrada" | "salida" | "ambos">()
     .oneOf(["entrada", "salida", "ambos"])
     .required("Este campo es obligatorio."),
+  id_acceso: yup.string().required("Este campo es obligatorio."),
+  apertura_destino_habilitada: yup.mixed<"si" | "no">().oneOf(["si", "no"]).required("Este campo es obligatorio."),
+  apertura_puerta_id: yup.string().when("apertura_destino_habilitada", {
+    is: "si",
+    then: (schema) => schema.required("Selecciona la puerta objetivo."),
+    otherwise: (schema) => schema.notRequired(),
+  }),
   usuario: yup
     .string()
     .required("Este campo es obligatorio.")
@@ -74,6 +85,10 @@ const initialValue: FormValues = {
   direccion_ip: "",
   puerto: 443,
   modo_acceso: "ambos",
+  id_acceso: "",
+  apertura_destino_habilitada: "no",
+  apertura_puerta_id: "",
+  apertura_puerta_nombre: "",
   usuario: "",
   contrasena: "",
 };
@@ -83,12 +98,28 @@ export default function NuevoDispositivoBiostar() {
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [showPassword, setShowPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [accesos, setAccesos] = useState<Array<{ _id: string; nombre: string; identificador?: string }>>([]);
+  const [puertas, setPuertas] = useState<Array<{ id_externo: string; nombre: string }>>([]);
 
   const formContext = useForm<FormValues>({
     defaultValues: initialValue,
     resolver: yupResolver(resolver),
     mode: "all",
   });
+
+  useEffect(() => {
+    const loadCatalogs = async () => {
+      try {
+        const res = await clienteAxios.get("/api/dispositivos-biostar/catalogos-formulario");
+        if (!res.data?.estado) return;
+        setAccesos(res.data?.datos?.accesos || []);
+        setPuertas(res.data?.datos?.puertas || []);
+      } catch (error) {
+        handlingError(error);
+      }
+    };
+    loadCatalogs();
+  }, []);
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
@@ -103,9 +134,15 @@ export default function NuevoDispositivoBiostar() {
         },
       });
 
+      const payload = {
+        ...data,
+        apertura_destino_habilitada: data.apertura_destino_habilitada === "si",
+        apertura_puerta_nombre: puertas.find((p) => p.id_externo === data.apertura_puerta_id)?.nombre || "",
+      };
+
       const testRes = await clienteAxios.post(
         "/api/dispositivos-biostar/probar-conexion",
-        data
+        payload
       );
 
       if (!testRes.data.estado) {
@@ -117,7 +154,7 @@ export default function NuevoDispositivoBiostar() {
         return;
       }
 
-      const saveRes = await clienteAxios.post("/api/dispositivos-biostar", data);
+      const saveRes = await clienteAxios.post("/api/dispositivos-biostar", payload);
       if (saveRes.data.estado) {
         await Swal.fire({
           icon: "success",
@@ -191,6 +228,35 @@ export default function NuevoDispositivoBiostar() {
                         { id: "salida", label: "Salida" },
                         { id: "ambos", label: "Ambos (alterna)" },
                       ]}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <SelectElement
+                      name="id_acceso"
+                      label="Acceso"
+                      required
+                      fullWidth
+                      options={accesos.map((a) => ({ id: a._id, label: a.identificador ? `${a.identificador} - ${a.nombre}` : a.nombre }))}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <SelectElement
+                      name="apertura_destino_habilitada"
+                      label="Abrir puerta BioStar por este acceso"
+                      required
+                      fullWidth
+                      options={[
+                        { id: "no", label: "No" },
+                        { id: "si", label: "Si" },
+                      ]}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <SelectElement
+                      name="apertura_puerta_id"
+                      label="Puerta destino (pluma/puerta real)"
+                      fullWidth
+                      options={puertas.map((p) => ({ id: p.id_externo, label: `${p.id_externo} - ${p.nombre}` }))}
                     />
                   </Grid>
                   <Grid size={{ xs: 12 }}>

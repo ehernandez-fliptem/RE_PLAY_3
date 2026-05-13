@@ -35,6 +35,7 @@ import { socket } from '../utils/socketClient';
 import FaceDetector from "../classes/FaceDetector";
 import FaceDescriptors from "../models/FaceDescriptors";
 import { biostarRequest } from "../classes/Biostar";
+import { abrirPuertaPorAccesoBiostar } from "../utils/biostarApertura";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -2148,6 +2149,17 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
             });
 
             await evento.save();
+            if (Number(tipo_check_panel) === 5) {
+                const openRes = await abrirPuertaPorAccesoBiostar({
+                    idAcceso: (evento as any)?.id_acceso || null,
+                    idPersona: (evento as any)?.id_empleado || (evento as any)?.id_visitante || null,
+                    tipoPersona: (evento as any)?.id_visitante ? "visitante" : "empleado",
+                    origen: "hiki_evento",
+                });
+                if (!openRes.ok && !openRes.skipped) {
+                    panelWarn("[EVENTOS][PANEL] Apertura BioStar por acceso fallo:", openRes.message);
+                }
+            }
             socket.emit("eventos:nuevo-evento", {
                 id_evento: evento._id,
             });
