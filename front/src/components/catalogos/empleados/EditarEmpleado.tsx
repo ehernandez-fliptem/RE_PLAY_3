@@ -788,9 +788,7 @@ export default function EditarEmpleado() {
         fullWidth
       >
         <DialogTitle>
-          {postSaveStep === "huella"
-            ? "Configurar huella"
-            : "Configurar tarjeta"}
+          Configurar huella
           <IconButton
             onClick={cerrarFlujoPostSave}
             sx={{ position: "absolute", right: 8, top: 8 }}
@@ -801,34 +799,18 @@ export default function EditarEmpleado() {
           </IconButton>
         </DialogTitle>
         <DialogContent dividers>
-          {postSaveStep === "huella" ? (
-            <Typography>
-              El empleado se guardo correctamente. Quieres configurar su huella
-              ahora?
-            </Typography>
-          ) : (
-            <Typography>
-              Configuracion de tarjeta (esqueleto): este paso se habilitara en
-              la siguiente fase.
-            </Typography>
-          )}
+          <Typography>
+            El empleado se guardo correctamente. Quieres configurar su huella
+            ahora?
+          </Typography>
         </DialogContent>
         <DialogActions>
-          {postSaveStep === "huella" ? (
-            <Fragment>
-              <Button onClick={() => setPostSaveStep("tarjeta")}>Omitir</Button>
-              <Button variant="contained" onClick={abrirConfigHuella}>
-                Configurar huella
-              </Button>
-            </Fragment>
-          ) : (
-            <Fragment>
-              <Button onClick={cerrarFlujoPostSave}>Omitir</Button>
-              <Button variant="contained" onClick={abrirConfigTarjeta}>
-                Configurar tarjeta
-              </Button>
-            </Fragment>
-          )}
+          <Fragment>
+            <Button onClick={cerrarFlujoPostSave}>Omitir</Button>
+            <Button variant="contained" onClick={abrirConfigHuella}>
+              Configurar huella
+            </Button>
+          </Fragment>
         </DialogActions>
       </Dialog>
       <Dialog open={modalGrupoOpen} onClose={() => setModalGrupoOpen(false)} fullWidth maxWidth="xs">
