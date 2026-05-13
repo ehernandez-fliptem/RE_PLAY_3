@@ -51,8 +51,8 @@ async function unlockDoor(conexion: any, doorId: string): Promise<{ ok: boolean;
 }
 
 export async function abrirPuertaPorAccesoBiostar(params: {
-  idAcceso?: Types.ObjectId | null;
-  idPersona?: Types.ObjectId | null;
+  idAcceso?: Types.ObjectId | string | null;
+  idPersona?: Types.ObjectId | string | null;
   tipoPersona?: "empleado" | "visitante" | "usuario";
   origen: "hiki_evento" | "biostar_evento";
 }): Promise<{ ok: boolean; skipped?: boolean; message?: string }> {
@@ -89,4 +89,3 @@ export async function abrirPuertaPorAccesoBiostar(params: {
   lastOpenByKey.set(key, now);
   return { ok: true };
 }
-
