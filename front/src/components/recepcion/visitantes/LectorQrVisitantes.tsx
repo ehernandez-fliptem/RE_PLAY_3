@@ -6,6 +6,7 @@ import {
   CardActions,
   CardContent,
   Modal,
+  type ModalProps,
   Stack,
   Typography,
 } from "@mui/material";
@@ -88,14 +89,30 @@ export default function LectorQrVisitantes({
     }
   };
 
+  const handleModalClose: NonNullable<ModalProps["onClose"]> = (
+    _event,
+    reason
+  ) => {
+    if (reason === "escapeKeyDown" && !allowEscapeClose) return;
+    if (reason === "backdropClick" && !allowBackdropClose) return;
+    if (reason === "escapeKeyDown" && allowEscapeClose) {
+      setShow(false);
+      return;
+    }
+    if (reason === "backdropClick" && allowBackdropClose) {
+      setShow(false);
+    }
+  };
+
   return (
     <Modal
       disableEscapeKeyDown
       open
-      onClose={allowBackdropClose ? () => setShow(false) : undefined}
+      onClose={handleModalClose}
       slotProps={{
         backdrop: {
-          invisible: hideBackdrop,
+          invisible: false,
+          sx: hideBackdrop ? { backgroundColor: "transparent" } : undefined,
         },
       }}
     >
