@@ -107,9 +107,19 @@ export default function LectorQrVisitantes({
   return (
     <Modal
       disableEscapeKeyDown
+      disableAutoFocus={hideBackdrop}
+      disableEnforceFocus={hideBackdrop}
+      disableRestoreFocus={hideBackdrop}
       open
       onClose={handleModalClose}
-      sx={hideBackdrop ? { pointerEvents: "none" } : undefined}
+      sx={
+        hideBackdrop
+          ? {
+              pointerEvents: "none",
+              zIndex: (theme) => theme.zIndex.appBar - 1,
+            }
+          : undefined
+      }
       slotProps={{
         backdrop: {
           invisible: hideBackdrop,
