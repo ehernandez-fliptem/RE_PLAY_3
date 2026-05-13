@@ -72,6 +72,7 @@ type FormValues = {
   correo: string;
   contrasena: string;
   rol: number[];
+  acceso_tablet?: string;
   accesos: string[];
 };
 
@@ -148,20 +149,22 @@ const resolver = yup.object().shape({
     .of(yup.number().integer())
     .required("Este campo es obligatorio")
     .min(1, "Debe contener al menos un rol"),
-  accesos: yup
-    .array()
-    .of(yup.string())
+  acceso_tablet: yup
+    .string()
     .test(
       "tablet-access-required",
       "Selecciona un acceso para la tablet.",
       function (value) {
         const rol = (this.parent?.rol || []) as number[];
         if (Array.isArray(rol) && rol.includes(13)) {
-          return Array.isArray(value) && value.length > 0;
+          return !!String(value || "").trim();
         }
         return true;
       }
     ),
+  accesos: yup
+    .array()
+    .of(yup.string()),
 }) as yup.ObjectSchema<FormValues>;
 
 const initialValue: FormValues = {
@@ -174,6 +177,7 @@ const initialValue: FormValues = {
   correo: "",
   contrasena: "",
   rol: [],
+  acceso_tablet: "",
   accesos: [],
 };
 
@@ -211,9 +215,14 @@ export default function NuevoUsuario() {
   const [isLoading, setIsLoading] = useState(true);
   const [empresas, setEmpresas] = useState<TEmpresas[]>([]);
   const rolSeleccionado = formContext.watch("rol")?.[0];
-  const idEmpresaSeleccionada = formContext.watch("id_empresa");
-  const empresaSeleccionada = empresas.find((item) => item._id === idEmpresaSeleccionada);
-  const accesosEmpresa = (empresaSeleccionada as any)?.accesos || [];
+  const accesosDisponibles = Array.from(
+    new Map(
+      empresas
+        .flatMap((empresa: any) => empresa?.accesos || [])
+        .map((acceso: any) => [String(acceso?._id || ""), acceso])
+        .filter(([id]) => !!id)
+    ).values()
+  );
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -222,10 +231,13 @@ export default function NuevoUsuario() {
         if (res.data.estado) {
           const { usuario, empresas } = res.data.datos;
           setEmpresas(empresas);
-          const defaults = { ...usuario };
+          const defaults = { ...usuario } as any;
           if ((empresas || []).length === 1) {
             defaults.id_empresa = empresas[0]._id;
           }
+          defaults.acceso_tablet = Array.isArray(defaults.accesos) && defaults.accesos[0]
+            ? String(defaults.accesos[0])
+            : "";
           formContext.reset(defaults);
           setIsLoading(false);
         } else {
@@ -259,7 +271,14 @@ export default function NuevoUsuario() {
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
-      const res = await clienteAxios.post("api/usuarios", data);
+      const payload = {
+        ...data,
+        accesos:
+          Array.isArray(data.rol) && data.rol.includes(13)
+            ? (data.acceso_tablet ? [data.acceso_tablet] : [])
+            : (data.accesos || []),
+      };
+      const res = await clienteAxios.post("api/usuarios", payload);
       if (res.data.estado) {
         enqueueSnackbar("El usuario se creó correctamente.", {
           variant: "success",
@@ -439,10 +458,10 @@ export default function NuevoUsuario() {
                 />
                 {rolSeleccionado === 13 && (
                   <AutocompleteElement
-                    name="accesos"
+                    name="acceso_tablet"
                     label="Acceso de tablet"
                     required
-                    options={accesosEmpresa.map((item: any) => {
+                    options={accesosDisponibles.map((item: any) => {
                       const label = item.identificador
                         ? `${item.identificador} - ${item.nombre}`
                         : item.nombre;
@@ -451,14 +470,14 @@ export default function NuevoUsuario() {
                     textFieldProps={{
                       margin: "normal",
                       helperText:
-                        accesosEmpresa.length === 0
-                          ? "La empresa seleccionada no tiene accesos configurados."
+                        accesosDisponibles.length === 0
+                          ? "No hay accesos configurados."
                           : undefined,
                     }}
                     autocompleteProps={{
                       noOptionsText: "No hay accesos disponibles.",
                       onChange: (_, value) => {
-                        formContext.setValue("accesos", value?.id ? [String(value.id)] : [], {
+                        formContext.setValue("acceso_tablet", value?.id ? String(value.id) : "", {
                           shouldValidate: true,
                         });
                       },
