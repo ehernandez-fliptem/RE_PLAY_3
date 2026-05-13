@@ -26,6 +26,7 @@ import {
 
 type TUsuario = {
   img_usuario: string;
+  img_ine?: string;
   nombre: string;
   empresa: string;
   telefono?: string;
@@ -45,6 +46,7 @@ export default function DetalleVisitante() {
   const [isLoading, setIsLoading] = useState(true);
   const [datos, setDatos] = useState<TUsuario>({
     img_usuario: "",
+    img_ine: "",
     nombre: "",
     empresa: "",
     telefono: "",
@@ -64,6 +66,7 @@ export default function DetalleVisitante() {
   });
   const {
     img_usuario,
+    img_ine,
     nombre,
     empresa,
     telefono,
@@ -126,20 +129,50 @@ export default function DetalleVisitante() {
             <Spinner />
           ) : (
             <Grid container spacing={2}>
-              <Grid
-                size={12}
-                display="flex"
-                justifyContent="center"
-                alignItems="center"
-              >
-                <Avatar
-                  src={img_usuario}
-                  sx={{
-                    width: 150,
-                    height: 150,
-                    my: 2,
-                  }}
-                />
+              <Grid size={12}>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={3}
+                  justifyContent="center"
+                  alignItems="center"
+                  sx={{ my: 2 }}
+                >
+                  <Box textAlign="center">
+                    <Typography variant="overline" display="block">
+                      Foto
+                    </Typography>
+                    <Avatar
+                      src={img_usuario}
+                      sx={{
+                        width: 150,
+                        height: 150,
+                      }}
+                    />
+                  </Box>
+                  <Box textAlign="center">
+                    <Typography variant="overline" display="block">
+                      INE
+                    </Typography>
+                    {img_ine ? (
+                      <Box
+                        component="img"
+                        src={img_ine}
+                        alt="INE visitante"
+                        sx={{
+                          width: 220,
+                          height: 140,
+                          objectFit: "contain",
+                          borderRadius: 1,
+                          border: "1px solid",
+                          borderColor: "divider",
+                          bgcolor: "grey.100",
+                        }}
+                      />
+                    ) : (
+                      <Chip label="Sin INE registrada" color="default" size="small" />
+                    )}
+                  </Box>
+                </Stack>
               </Grid>
               {activo && !verificado && (
                 <Grid size={12}>
