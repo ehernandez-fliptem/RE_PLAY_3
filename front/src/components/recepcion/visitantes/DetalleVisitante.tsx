@@ -9,6 +9,8 @@ import {
   Card,
   CardContent,
   Chip,
+  Dialog,
+  DialogContent,
   Grid,
   Stack,
   Typography,
@@ -44,6 +46,9 @@ export default function DetalleVisitante() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewSrc, setPreviewSrc] = useState("");
+  const [previewTitle, setPreviewTitle] = useState("");
   const [datos, setDatos] = useState<TUsuario>({
     img_usuario: "",
     img_ine: "",
@@ -104,6 +109,13 @@ export default function DetalleVisitante() {
     navigate(`/visitantes`);
   };
 
+  const abrirPreview = (src?: string, title = "Vista previa") => {
+    if (!src) return;
+    setPreviewSrc(src);
+    setPreviewTitle(title);
+    setPreviewOpen(true);
+  };
+
   return (
     <ModalContainer containerProps={{ maxWidth: "lg" }}>
       <Card elevation={5}>
@@ -146,7 +158,9 @@ export default function DetalleVisitante() {
                       sx={{
                         width: 150,
                         height: 150,
+                        cursor: img_usuario ? "zoom-in" : "default",
                       }}
+                      onClick={() => abrirPreview(img_usuario, "Foto del visitante")}
                     />
                   </Box>
                   <Box textAlign="center">
@@ -158,6 +172,7 @@ export default function DetalleVisitante() {
                         component="img"
                         src={img_ine}
                         alt="INE visitante"
+                        onClick={() => abrirPreview(img_ine, "INE del visitante")}
                         sx={{
                           width: 220,
                           height: 140,
@@ -166,6 +181,7 @@ export default function DetalleVisitante() {
                           border: "1px solid",
                           borderColor: "divider",
                           bgcolor: "grey.100",
+                          cursor: "zoom-in",
                         }}
                       />
                     ) : (
@@ -388,6 +404,30 @@ export default function DetalleVisitante() {
           </Box>
         </CardContent>
       </Card>
+      <Dialog
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        fullWidth
+        maxWidth="lg"
+      >
+        <DialogContent sx={{ p: 2 }}>
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>
+            {previewTitle}
+          </Typography>
+          <Box
+            component="img"
+            src={previewSrc}
+            alt={previewTitle}
+            sx={{
+              width: "100%",
+              maxHeight: "80vh",
+              objectFit: "contain",
+              bgcolor: "grey.100",
+              borderRadius: 1,
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </ModalContainer>
   );
 }
