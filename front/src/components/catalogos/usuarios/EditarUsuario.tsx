@@ -56,6 +56,11 @@ type TEmpresas = {
   nombre: string;
   activo: boolean;
 };
+type TAcceso = {
+  _id: string;
+  identificador?: string;
+  nombre: string;
+};
 
 type FormValues = {
   img_usuario: string;
@@ -215,25 +220,20 @@ export default function EditarUsuario() {
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
   const [empresas, setEmpresas] = useState<TEmpresas[]>([]);
+  const [accesosCatalogo, setAccesosCatalogo] = useState<TAcceso[]>([]);
   const [esUsuarioMaestro, setEsUsuarioMaestro] = useState(false);
   const rolSeleccionado = formContext.watch("rol")?.[0];
-  const accesosDisponibles = Array.from(
-    new Map(
-      empresas
-        .flatMap((empresa: any) => empresa?.accesos || [])
-        .map((acceso: any) => [String(acceso?._id || ""), acceso])
-        .filter(([id]) => !!id)
-    ).values()
-  );
+  const accesosDisponibles = accesosCatalogo;
 
   useEffect(() => {
     const obtenerRegistro = async () => {
       try {
         const res = await clienteAxios.get(`/api/usuarios/form-editar/${ID}`);
         if (res.data.estado) {
-          const { usuario, empresas } = res.data.datos;
+          const { usuario, empresas, accesos } = res.data.datos;
           setEsUsuarioMaestro(usuario.id_general === 1);
           setEmpresas(empresas);
+          setAccesosCatalogo(accesos || []);
           formContext.reset({
             ...usuario,
             acceso_tablet:

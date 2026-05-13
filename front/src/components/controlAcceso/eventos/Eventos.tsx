@@ -311,7 +311,7 @@ export default function Eventos() {
   const abrirMapa = (row: GridValidRowModel) => {
     const coords = obtenerCoords(row?.ubicacion);
     if (!coords) {
-      enqueueSnackbar("El evento no tiene ubicaciÃƒÂ³n vÃƒÂ¡lida.", {
+      enqueueSnackbar("El evento no tiene ubicación válida.", {
         variant: "warning",
       });
       return;
@@ -693,7 +693,7 @@ export default function Eventos() {
               },
             },
             {
-              headerName: "UbicaciÃƒÂ³n",
+              headerName: "Ubicación",
               field: "ubicacion",
               type: "actions",
               align: "center",
@@ -769,7 +769,7 @@ export default function Eventos() {
             toolbar: () => (
               <DataGridToolbar
                 showSearchButton={false}
-                tableTitle="ResÃºmen"
+                tableTitle="Resúmen"
                 customActionButtons={(
                   <Button
                     size="small"
@@ -867,7 +867,7 @@ export default function Eventos() {
               {String(eventoSeleccionado?.creado_por || "Sistema")}
             </Typography>
             <Typography variant="body1" sx={{ fontSize: "1.05rem" }}>
-              <strong>UbicaciÃƒÂ³n:</strong>{" "}
+              <strong>Ubicación:</strong>{" "}
               {String(eventoSeleccionado?.ubicacion || "No disponible")}
             </Typography>
           </Stack>
@@ -880,7 +880,7 @@ export default function Eventos() {
               abrirMapa(eventoSeleccionado);
             }}
           >
-            Ver ubicaciÃƒÂ³n
+            Ver ubicación
           </Button>
         </DialogActions>
       </Dialog>
@@ -918,7 +918,7 @@ export default function Eventos() {
               fontSize: 16,
             })}
           >
-            UbicaciÃƒÂ³n del Evento
+            Ubicación del Evento
           </Box>
           <Typography variant="subtitle1" textAlign="center" sx={{ mt: 0.5 }}>
             Mapa
@@ -941,7 +941,7 @@ export default function Eventos() {
             </Stack>
           ) : (
             <Typography variant="body1" color="text.secondary" sx={{ fontSize: "1.05rem" }}>
-              El evento no tiene una ubicaciÃƒÂ³n vÃƒÂ¡lida para mostrar en mapa.
+              El evento no tiene una ubicación válida para mostrar en mapa.
             </Typography>
           )}
         </DialogContent>

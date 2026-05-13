@@ -11,6 +11,7 @@ import Empleados from '../models/Empleados';
 import Roles from '../models/Roles';
 import Empresas, { IEmpresa } from '../models/Empresas';
 import { IPiso } from '../models/Pisos';
+import Accesos from '../models/Accesos';
 import { IAcceso } from '../models/Accesos';
 import DispositivosHv from '../models/DispositivosHv';
 import Configuracion, { IConfiguracion } from '../models/Configuracion';
@@ -735,7 +736,14 @@ export async function obtenerFormNuevoUsuario(req: Request, res: Response): Prom
                 }
             }
         ]);
-        res.status(200).json({ estado: true, datos: { empresas } });
+        const accesos = await Accesos.find(
+            {
+                activo: true,
+                ...(isMaster ? {} : { empresas: { $in: [new Types.ObjectId(id_empresa)] } })
+            },
+            'identificador nombre'
+        ).sort({ identificador: 1, nombre: 1 }).lean();
+        res.status(200).json({ estado: true, datos: { empresas, accesos } });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
@@ -880,9 +888,16 @@ export async function obtenerFormEditarUsuario(req: Request, res: Response): Pro
                 }
             }
         ]);
+        const accesos = await Accesos.find(
+            {
+                activo: true,
+                ...(isMaster ? {} : { empresas: { $in: [new Types.ObjectId(id_empresa)] } })
+            },
+            'identificador nombre'
+        ).sort({ identificador: 1, nombre: 1 }).lean();
         res.status(200).json({
             estado: true, datos: {
-                usuario: usuario[0], empresas
+                usuario: usuario[0], empresas, accesos
             }
         });
     } catch (error: any) {

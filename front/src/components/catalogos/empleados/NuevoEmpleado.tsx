@@ -303,7 +303,7 @@ export default function NuevoEmpleado() {
           : [];
         if (pendientes.length > 0) {
           enqueueSnackbar(
-            `Empleado guardado, pero quedó pendiente sincronizar en: ${pendientes.join(", ")}.`,
+            `Empleado guardado, pero quedÃ³ pendiente sincronizar en: ${pendientes.join(", ")}.`,
             { variant: "warning" }
           );
         }
@@ -409,7 +409,7 @@ export default function NuevoEmpleado() {
       await Swal.fire({
         icon: "success",
         title: "Grupo creado",
-        text: "El grupo se creó correctamente.",
+        text: "El grupo se creÃ³ correctamente.",
         showConfirmButton: true,
         allowOutsideClick: false,
         ...swalTop,
@@ -422,7 +422,7 @@ export default function NuevoEmpleado() {
       await Swal.fire({
         icon: "error",
         title: "No se pudo crear",
-        text: error?.response?.data?.mensaje || error?.message || "Ocurrió un error al crear el grupo.",
+        text: error?.response?.data?.mensaje || error?.message || "OcurriÃ³ un error al crear el grupo.",
         showConfirmButton: true,
         allowOutsideClick: false,
         ...swalTop,

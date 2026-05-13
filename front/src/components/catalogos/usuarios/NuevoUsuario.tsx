@@ -61,6 +61,11 @@ type TEmpresas = {
   nombre: string;
   activo: boolean;
 };
+type TAcceso = {
+  _id: string;
+  identificador?: string;
+  nombre: string;
+};
 
 type FormValues = {
   img_usuario: string;
@@ -214,23 +219,18 @@ export default function NuevoUsuario() {
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
   const [empresas, setEmpresas] = useState<TEmpresas[]>([]);
+  const [accesosCatalogo, setAccesosCatalogo] = useState<TAcceso[]>([]);
   const rolSeleccionado = formContext.watch("rol")?.[0];
-  const accesosDisponibles = Array.from(
-    new Map(
-      empresas
-        .flatMap((empresa: any) => empresa?.accesos || [])
-        .map((acceso: any) => [String(acceso?._id || ""), acceso])
-        .filter(([id]) => !!id)
-    ).values()
-  );
+  const accesosDisponibles = accesosCatalogo;
 
   useEffect(() => {
     const obtenerRegistro = async () => {
       try {
         const res = await clienteAxios.get("/api/usuarios/form-nuevo");
         if (res.data.estado) {
-          const { usuario, empresas } = res.data.datos;
+          const { usuario, empresas, accesos } = res.data.datos;
           setEmpresas(empresas);
+          setAccesosCatalogo(accesos || []);
           const defaults = { ...usuario } as any;
           if ((empresas || []).length === 1) {
             defaults.id_empresa = empresas[0]._id;
