@@ -11,11 +11,12 @@ import {
   Chip,
   Dialog,
   DialogContent,
+  IconButton,
   Grid,
   Stack,
   Typography,
 } from "@mui/material";
-import { ChevronLeft } from "@mui/icons-material";
+import { ChevronLeft, Close } from "@mui/icons-material";
 import ModalContainer from "../../utils/ModalContainer";
 import Spinner from "../../utils/Spinner";
 import { enqueueSnackbar } from "notistack";
@@ -411,6 +412,15 @@ export default function DetalleVisitante() {
         maxWidth="lg"
       >
         <DialogContent sx={{ p: 2 }}>
+          <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 0.5 }}>
+            <IconButton
+              size="small"
+              onClick={() => setPreviewOpen(false)}
+              aria-label="Cerrar vista previa"
+            >
+              <Close fontSize="small" />
+            </IconButton>
+          </Box>
           <Typography variant="subtitle1" sx={{ mb: 1 }}>
             {previewTitle}
           </Typography>
