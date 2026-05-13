@@ -614,7 +614,15 @@ export default function DispositivosBiostarRemotos() {
           ),
         }}
       />
-      <Dialog open={openNuevo} onClose={() => !guardandoNuevo && setOpenNuevo(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={openNuevo}
+        onClose={(_event, reason) => {
+          if (reason === "backdropClick") return;
+          if (!guardandoNuevo) setOpenNuevo(false);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Nuevo Dispositivo BioStar</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
@@ -733,7 +741,15 @@ export default function DispositivosBiostarRemotos() {
           </Button>
         </DialogActions>
       </Dialog>
-      <Dialog open={openEditar} onClose={() => !guardandoEditar && setOpenEditar(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={openEditar}
+        onClose={(_event, reason) => {
+          if (reason === "backdropClick") return;
+          if (!guardandoEditar) setOpenEditar(false);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Editar Dispositivo BioStar</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
@@ -854,7 +870,8 @@ export default function DispositivosBiostarRemotos() {
       </Dialog>
       <Dialog
         open={syncLimpioOpen}
-        onClose={() => {
+        onClose={(_event, reason) => {
+          if (reason === "backdropClick") return;
           if (syncLimpioLoading) return;
           setSyncLimpioOpen(false);
           setSyncLimpioRow(null);

@@ -508,7 +508,15 @@ export default function BiostararPuertasAcceso() {
         }}
       />
 
-      <Dialog open={openNuevo} onClose={() => setOpenNuevo(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={openNuevo}
+        onClose={(_event, reason) => {
+          if (reason === "backdropClick") return;
+          setOpenNuevo(false);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Nueva Puerta BioStar</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
@@ -621,7 +629,15 @@ export default function BiostararPuertasAcceso() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={openEditar} onClose={() => setOpenEditar(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={openEditar}
+        onClose={(_event, reason) => {
+          if (reason === "backdropClick") return;
+          setOpenEditar(false);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Editar Puerta BioStar</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>

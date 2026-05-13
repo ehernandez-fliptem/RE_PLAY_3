@@ -403,7 +403,15 @@ export default function BiostararAccessLevels() {
         }}
       />
 
-      <Dialog open={openNuevo} onClose={() => setOpenNuevo(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={openNuevo}
+        onClose={(_event, reason) => {
+          if (reason === "backdropClick") return;
+          setOpenNuevo(false);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Nuevo Nivel de Acceso</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
@@ -418,7 +426,15 @@ export default function BiostararAccessLevels() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={openEditar} onClose={() => setOpenEditar(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={openEditar}
+        onClose={(_event, reason) => {
+          if (reason === "backdropClick") return;
+          setOpenEditar(false);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Editar Nivel de Acceso</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
@@ -433,7 +449,15 @@ export default function BiostararAccessLevels() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={openHorarioModal} onClose={() => !creandoHorario && cerrarCrearHorario()} maxWidth="md" fullWidth>
+      <Dialog
+        open={openHorarioModal}
+        onClose={(_event, reason) => {
+          if (reason === "backdropClick") return;
+          if (!creandoHorario) cerrarCrearHorario();
+        }}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Nuevo Horario</DialogTitle>
         <DialogContent sx={{ minHeight: 520 }}>
           <Stack spacing={2} sx={{ mt: 1 }}>

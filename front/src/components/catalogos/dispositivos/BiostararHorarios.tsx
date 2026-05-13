@@ -382,13 +382,29 @@ export default function BiostararHorarios() {
         ) }}
       />
 
-      <Dialog open={openNuevo} onClose={() => setOpenNuevo(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={openNuevo}
+        onClose={(_event, reason) => {
+          if (reason === "backdropClick") return;
+          setOpenNuevo(false);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Nuevo Horario BioStar</DialogTitle>
         <DialogContent>{formUI(formNuevo, setFormNuevo, plantillaNuevo, setPlantillaNuevo, "nuevo")}</DialogContent>
         <DialogActions><Button onClick={() => setOpenNuevo(false)}>Cancelar</Button><Button variant="contained" onClick={() => { void crear(); }}>Guardar</Button></DialogActions>
       </Dialog>
 
-      <Dialog open={openEditar} onClose={() => setOpenEditar(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={openEditar}
+        onClose={(_event, reason) => {
+          if (reason === "backdropClick") return;
+          setOpenEditar(false);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Editar Horario BioStar</DialogTitle>
         <DialogContent>{formUI(formEditar, setFormEditar, plantillaEditar, setPlantillaEditar, "editar")}</DialogContent>
         <DialogActions><Button onClick={() => setOpenEditar(false)}>Cancelar</Button><Button variant="contained" onClick={() => { void guardarEditar(); }}>Guardar</Button></DialogActions>

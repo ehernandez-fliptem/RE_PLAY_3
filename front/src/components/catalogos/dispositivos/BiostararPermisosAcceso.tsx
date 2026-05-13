@@ -279,7 +279,15 @@ export default function BiostararPermisosAcceso() {
         }}
       />
 
-      <Dialog open={openNuevo} onClose={() => setOpenNuevo(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={openNuevo}
+        onClose={(_event, reason) => {
+          if (reason === "backdropClick") return;
+          setOpenNuevo(false);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Nuevo Permiso de Acceso</DialogTitle>
         <DialogContent>{form}</DialogContent>
         <DialogActions>
@@ -288,7 +296,15 @@ export default function BiostararPermisosAcceso() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={openEditar} onClose={() => setOpenEditar(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={openEditar}
+        onClose={(_event, reason) => {
+          if (reason === "backdropClick") return;
+          setOpenEditar(false);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Editar Permiso de Acceso</DialogTitle>
         <DialogContent>{form}</DialogContent>
         <DialogActions>
