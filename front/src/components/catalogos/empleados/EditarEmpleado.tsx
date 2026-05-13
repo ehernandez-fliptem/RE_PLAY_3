@@ -207,9 +207,6 @@ export default function EditarEmpleado() {
   const [creandoGrupo, setCreandoGrupo] = useState(false);
   const initialFormRef = useRef<FormValues | null>(null);
   const [postSaveOpen, setPostSaveOpen] = useState(false);
-  const [postSaveStep, setPostSaveStep] = useState<"huella" | "tarjeta">(
-    "huella"
-  );
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -333,7 +330,6 @@ export default function EditarEmpleado() {
         });
         parentGridDataRef.fetchRows();
         if (habilitarIntegracionHv) {
-          setPostSaveStep("huella");
           setPostSaveOpen(true);
         } else {
           navigate("/empleados");
@@ -392,12 +388,6 @@ export default function EditarEmpleado() {
     });
   };
 
-  const abrirConfigTarjeta = () => {
-    setPostSaveOpen(false);
-    navigate("/empleados", {
-      state: { openBiometriaFor: ID, biometriaStep: "tarjeta" },
-    });
-  };
   const swalTop = {
     zIndex: 2400,
     didOpen: () => {
