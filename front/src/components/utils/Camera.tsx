@@ -470,7 +470,7 @@ export default function Camera({
               pointerEvents: "none",
               zIndex: 5,
               background: isIneCapture
-                ? "radial-gradient(ellipse at center, rgba(0,0,0,0) 0 38%, rgba(0,0,0,0.45) 39%)"
+                ? "rgba(0,0,0,0.45)"
                 : "radial-gradient(ellipse at center, rgba(0,0,0,0) 0 45%, rgba(0,0,0,0.45) 46%)",
             }}
           >
@@ -490,6 +490,13 @@ export default function Camera({
                   borderRadius: isIneCapture ? "12px" : "50%",
                   border: "2px solid rgba(255,255,255,0.85)",
                   boxShadow: "0 0 0 2px rgba(0,0,0,0.2) inset",
+                  ...(isIneCapture
+                    ? {
+                        backgroundColor: "transparent",
+                        boxShadow:
+                          "0 0 0 9999px rgba(0,0,0,0.45), 0 0 0 2px rgba(0,0,0,0.2) inset",
+                      }
+                    : {}),
                 }}
               />
             </Box>
