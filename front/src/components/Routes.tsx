@@ -50,6 +50,7 @@ import Reportes from "./recepcion/reportes/Reportes";
 import Check from "./controlAcceso/check/Check";
 import Eventos from "./controlAcceso/eventos/Eventos";
 import DetalleEvento from "./controlAcceso/eventos/DetalleEvento";
+import EscanerQr from "./controlAcceso/eventos/EscanerQr";
 import ReporteHoras from "./controlAcceso/reporteHoras/ReporteHoras";
 import DetalleReporteHoras from "./controlAcceso/reporteHoras/DetalleReporteHoras";
 import Pisos from "./catalogos/pisos/Pisos";
@@ -124,11 +125,12 @@ export default function Routes() {
   const esVisit = rol.includes(10);
   const esContratista = rol.includes(11);
   const esCampo = rol.includes(12);
+  const esTablet = rol.includes(13);
   const puedeAdmin = esSuper || esAdmin;
   const puedeBiostar = (esSuper || esAdmin) && habilitarIntegracionBiostar;
-  const puedeKiosco = esSuper || esAdmin || esRecep;
+  const puedeKiosco = esSuper || esAdmin || esRecep || esTablet;
   const puedeVisitantes = esSuper || esAdmin || esAnfitrion || esRecep;
-  const usuarioSistema = esSuper || esAdmin || esAnfitrion || esRecep || esContratista || esCampo;
+  const usuarioSistema = esSuper || esAdmin || esAnfitrion || esRecep || esContratista || esCampo || esTablet;
 
   return useRoutes([
     {
@@ -138,6 +140,8 @@ export default function Routes() {
           <Navigate to="/portal-contratistas/visitantes" replace />
         ) : esCampo && habilitarRegistroCampo ? (
           <Navigate to="/campo" replace />
+        ) : esTablet ? (
+          <Navigate to="/kiosco" replace />
         ) : (
           <Dashboard />
         )
@@ -943,6 +947,10 @@ export default function Routes() {
           ],
         },
       ],
+    },
+    {
+      path: "/escaner-qr",
+      element: esTablet ? <EscanerQr /> : <Unauthorized />,
     },
     {
       path: "/biostarar/dispositivos",

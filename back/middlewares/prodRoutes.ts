@@ -66,6 +66,7 @@ const PROD_ROUTES = [
     '/bitacora/editar-registro/:id',
     '/bitacora/detalle-registro/:id',
     '/eventos',
+    '/escaner-qr',
     '/eventos/detalle-evento/:id',
     '/reporte-horas',
     '/reporte-horas/detalle-reporte/:id',

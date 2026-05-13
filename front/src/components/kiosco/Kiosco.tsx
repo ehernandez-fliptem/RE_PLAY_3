@@ -1,6 +1,7 @@
 import {
   alpha,
   Box,
+  Button,
   Card,
   CardActionArea,
   CardContent,
@@ -24,6 +25,7 @@ import { Fragment } from "react/jsx-runtime";
 import { clienteAxios, handlingError } from "../../app/config/axios";
 import dayjs, { Dayjs } from "dayjs";
 import { useCallback, useEffect, useState } from "react";
+import { FormProvider, useForm } from "react-hook-form";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../app/store";
 import type { GridSortModel } from "@mui/x-data-grid";
@@ -34,11 +36,14 @@ import {
   ArrowUpward,
   ChevronLeft,
   ChevronRight,
+  QrCodeScanner,
 } from "@mui/icons-material";
 import ErrorOverlay from "../error/DataGridError";
 import SearchInput from "../recepcion/bitacora/utils/SearchInput";
 import { DatePicker } from "@mui/x-date-pickers";
 import imgSinFoto from "../../assets/img/app/UserSinImagen.png";
+import { enqueueSnackbar } from "notistack";
+import LectorQrVisitantes from "../recepcion/visitantes/LectorQrVisitantes";
 
 const StyledStack = styled(Stack)(({ theme }) => ({
   width: "100%",
@@ -100,6 +105,8 @@ export default function Kiosco() {
     (state: IRootState) => state.config.data
   );
   const [error, setError] = useState<string>();
+  const formContext = useForm({ defaultValues: { qr: "" } });
+  const [showQRScanner, setShowQRScanner] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [ROWS, setRows] = useState<IRegistro[]>([]);
   const [firstRecord, setFirstRecord] = useState<IRegistro>();
@@ -407,6 +414,44 @@ export default function Kiosco() {
   const handleClose = () => {
     setShowModal(false);
     setSelectedReg(null);
+  };
+
+  const onQrValidate = async (qr: string): Promise<{ ok: boolean; message: string }> => {
+    const regexCardCode = /^VST[A-Z0-9]{16}$/;
+    if (!regexCardCode.test(qr)) {
+      const message = "QR invalido o no corresponde a un visitante.";
+      enqueueSnackbar(message, { variant: "error" });
+      return { ok: false, message };
+    }
+    try {
+      const res = await clienteAxios.post("/api/eventos/validar-qr", { qr, lector: 0 });
+      if (!res.data.estado) {
+        const message = res.data.mensaje || "No se pudo validar el QR.";
+        enqueueSnackbar(message, { variant: "error" });
+        return { ok: false, message };
+      }
+      const puedeAcceder = res.data.datos?.puedeAcceder;
+      const nombre = res.data.datos?.nombre;
+      const tipoCheck = res.data.datos?.tipo_check;
+      if (puedeAcceder === false) {
+        const message = nombre
+          ? `Acceso pendiente para ${nombre}. Requiere validacion.`
+          : "Acceso pendiente de autorizacion. Requiere validacion.";
+        enqueueSnackbar(message, { variant: "warning" });
+        return { ok: false, message };
+      }
+      const esEntrada = tipoCheck === 6 ? false : true;
+      const message = nombre
+        ? `Acceso a ${nombre}. ${esEntrada ? "Bienvenido." : "Hasta luego."}`
+        : esEntrada
+          ? "Acceso permitido. Bienvenido."
+          : "Salida registrada. Hasta luego.";
+      enqueueSnackbar(message, { variant: "success" });
+      return { ok: true, message };
+    } catch (error) {
+      handlingError(error);
+      return { ok: false, message: "Error al validar el QR. Intenta de nuevo." };
+    }
   };
 
   return (
@@ -840,6 +885,17 @@ export default function Kiosco() {
                         }}
                         setValue={setQuickFilter}
                       />
+                      <Box sx={{ width: "100%", display: "flex", justifyContent: "end" }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => setShowQRScanner(true)}
+                          startIcon={<QrCodeScanner fontSize="small" />}
+                          sx={{ textTransform: "none" }}
+                        >
+                          Escanear QR
+                        </Button>
+                      </Box>
                     </StyledStack>
                   </Grid>
                   <Grid
@@ -1032,6 +1088,15 @@ export default function Kiosco() {
         )}
         {error && <ErrorOverlay error={error} onClick={obtenerRegistros} />}
       </Box>
+      {showQRScanner && (
+        <FormProvider {...formContext}>
+          <LectorQrVisitantes
+            name="qr"
+            setShow={setShowQRScanner}
+            onQrValidate={onQrValidate}
+          />
+        </FormProvider>
+      )}
       <Dialog
         open={showModal}
         onClose={handleClose}

@@ -14,7 +14,7 @@ import { esES } from "@mui/x-data-grid/locales";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import ErrorOverlay from "../../error/DataGridError";
 import { AxiosError } from "axios";
-import { Controller, useForm, type SubmitHandler } from "react-hook-form";
+import { Controller, FormProvider, useForm, type SubmitHandler } from "react-hook-form";
 import type { Dayjs } from "dayjs";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -47,6 +47,7 @@ import {
   ClearAll,
   Close,
   LocationOn,
+  QrCodeScanner,
   Search,
   Visibility,
 } from "@mui/icons-material";
@@ -55,6 +56,7 @@ import { DateTimePicker } from "@mui/x-date-pickers";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
 import InfiniteAutocomplete from "../../utils/InfiniteAutocomplete";
+import LectorQrVisitantes from "../../recepcion/visitantes/LectorQrVisitantes";
 
 const pageSizeOptions = [10, 25, 50];
 
@@ -145,6 +147,7 @@ export default function Eventos() {
     reValidateMode: "onChange",
     mode: "all",
   });
+  const qrFormContext = useForm({ defaultValues: { qr: "" } });
 
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();
@@ -156,6 +159,7 @@ export default function Eventos() {
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [openDetalleCampo, setOpenDetalleCampo] = useState(false);
   const [openMapa, setOpenMapa] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
   const [eventoSeleccionado, setEventoSeleccionado] =
     useState<GridValidRowModel | null>(null);
   const [eventoMapa, setEventoMapa] = useState<GridValidRowModel | null>(null);
@@ -307,7 +311,7 @@ export default function Eventos() {
   const abrirMapa = (row: GridValidRowModel) => {
     const coords = obtenerCoords(row?.ubicacion);
     if (!coords) {
-      enqueueSnackbar("El evento no tiene ubicación válida.", {
+      enqueueSnackbar("El evento no tiene ubicaciÃƒÂ³n vÃƒÂ¡lida.", {
         variant: "warning",
       });
       return;
@@ -335,6 +339,44 @@ export default function Eventos() {
     const bottom = coords.lat - delta;
     return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${coords.lat}%2C${coords.lng}`;
   })();
+
+  const onQrValidate = async (qr: string): Promise<{ ok: boolean; message: string }> => {
+    const regexCardCode = /^VST[A-Z0-9]{16}$/;
+    if (!regexCardCode.test(qr)) {
+      const message = "QR invalido o no corresponde a un visitante.";
+      enqueueSnackbar(message, { variant: "error" });
+      return { ok: false, message };
+    }
+    try {
+      const res = await clienteAxios.post("/api/eventos/validar-qr", { qr, lector: 0 });
+      if (!res.data.estado) {
+        const message = res.data.mensaje || "No se pudo validar el QR.";
+        enqueueSnackbar(message, { variant: "error" });
+        return { ok: false, message };
+      }
+      const puedeAcceder = res.data.datos?.puedeAcceder;
+      const nombre = res.data.datos?.nombre;
+      const tipoCheck = res.data.datos?.tipo_check;
+      if (puedeAcceder === false) {
+        const message = nombre
+          ? `Acceso pendiente para ${nombre}. Requiere validacion.`
+          : "Acceso pendiente de autorizacion. Requiere validacion.";
+        enqueueSnackbar(message, { variant: "warning" });
+        return { ok: false, message };
+      }
+      const esEntrada = tipoCheck === 6 ? false : true;
+      const message = nombre
+        ? `Acceso a ${nombre}. ${esEntrada ? "Bienvenido." : "Hasta luego."}`
+        : esEntrada
+          ? "Acceso permitido. Bienvenido."
+          : "Salida registrada. Hasta luego.";
+      enqueueSnackbar(message, { variant: "success" });
+      return { ok: true, message };
+    } catch (error) {
+      handlingError(error);
+      return { ok: false, message: "Error al validar el QR. Intenta de nuevo." };
+    }
+  };
 
   return (
     <Fragment>
@@ -651,7 +693,7 @@ export default function Eventos() {
               },
             },
             {
-              headerName: "Ubicación",
+              headerName: "UbicaciÃƒÂ³n",
               field: "ubicacion",
               type: "actions",
               align: "center",
@@ -725,7 +767,21 @@ export default function Eventos() {
           }}
           slots={{
             toolbar: () => (
-              <DataGridToolbar showSearchButton={false} tableTitle="Resúmen" />
+              <DataGridToolbar
+                showSearchButton={false}
+                tableTitle="ResÃºmen"
+                customActionButtons={(
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => setShowQRScanner(true)}
+                    startIcon={<QrCodeScanner fontSize="small" />}
+                    sx={{ textTransform: "none" }}
+                  >
+                    Escanear QR
+                  </Button>
+                )}
+              />
             ),
           }}
         />
@@ -736,6 +792,15 @@ export default function Eventos() {
           />
         )}
         <Outlet />
+      {showQRScanner && (
+        <FormProvider {...qrFormContext}>
+          <LectorQrVisitantes
+            name="qr"
+            setShow={setShowQRScanner}
+            onQrValidate={onQrValidate}
+          />
+        </FormProvider>
+      )}
       </div>
 
       <Dialog
@@ -802,7 +867,7 @@ export default function Eventos() {
               {String(eventoSeleccionado?.creado_por || "Sistema")}
             </Typography>
             <Typography variant="body1" sx={{ fontSize: "1.05rem" }}>
-              <strong>Ubicación:</strong>{" "}
+              <strong>UbicaciÃƒÂ³n:</strong>{" "}
               {String(eventoSeleccionado?.ubicacion || "No disponible")}
             </Typography>
           </Stack>
@@ -815,7 +880,7 @@ export default function Eventos() {
               abrirMapa(eventoSeleccionado);
             }}
           >
-            Ver ubicación
+            Ver ubicaciÃƒÂ³n
           </Button>
         </DialogActions>
       </Dialog>
@@ -853,7 +918,7 @@ export default function Eventos() {
               fontSize: 16,
             })}
           >
-            Ubicación del Evento
+            UbicaciÃƒÂ³n del Evento
           </Box>
           <Typography variant="subtitle1" textAlign="center" sx={{ mt: 0.5 }}>
             Mapa
@@ -876,7 +941,7 @@ export default function Eventos() {
             </Stack>
           ) : (
             <Typography variant="body1" color="text.secondary" sx={{ fontSize: "1.05rem" }}>
-              El evento no tiene una ubicación válida para mostrar en mapa.
+              El evento no tiene una ubicaciÃƒÂ³n vÃƒÂ¡lida para mostrar en mapa.
             </Typography>
           )}
         </DialogContent>

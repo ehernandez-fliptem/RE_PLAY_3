@@ -67,6 +67,7 @@ type FormValues = {
   correo: string;
   contrasena: string;
   rol: number[];
+  accesos: string[];
 };
 
 const resolver = yup.object().shape({
@@ -147,6 +148,20 @@ const resolver = yup.object().shape({
     .of(yup.number().integer())
     .required("Este campo es obligatorio")
     .min(1, "Debe contener al menos un rol"),
+  accesos: yup
+    .array()
+    .of(yup.string())
+    .test(
+      "tablet-access-required",
+      "Selecciona un acceso para la tablet.",
+      function (value) {
+        const rol = (this.parent?.rol || []) as number[];
+        if (Array.isArray(rol) && rol.includes(13)) {
+          return Array.isArray(value) && value.length > 0;
+        }
+        return true;
+      }
+    ),
 }) as yup.ObjectSchema<FormValues>;
 
 const initialValue: FormValues = {
@@ -159,6 +174,7 @@ const initialValue: FormValues = {
   correo: "",
   contrasena: "",
   rol: [],
+  accesos: [],
 };
 
 export default function EditarUsuario() {
@@ -172,6 +188,7 @@ export default function EditarUsuario() {
       if ([1, 2, 4, 5].includes(rol)) return true;
       if (rol === 11) return habilitarContratistas;
       if (rol === 12) return habilitarRegistroCampo;
+      if (rol === 13) return true;
       return false;
     })
     .map((item) => {
@@ -195,6 +212,10 @@ export default function EditarUsuario() {
   const [isLoading, setIsLoading] = useState(true);
   const [empresas, setEmpresas] = useState<TEmpresas[]>([]);
   const [esUsuarioMaestro, setEsUsuarioMaestro] = useState(false);
+  const rolSeleccionado = formContext.watch("rol")?.[0];
+  const idEmpresaSeleccionada = formContext.watch("id_empresa");
+  const empresaSeleccionada = empresas.find((item) => item._id === idEmpresaSeleccionada);
+  const accesosEmpresa = (empresaSeleccionada as any)?.accesos || [];
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -424,6 +445,34 @@ export default function EditarUsuario() {
                         </FormControl>
                       )}
                     />
+                    {rolSeleccionado === 13 && (
+                      <AutocompleteElement
+                        name="accesos"
+                        label="Acceso de tablet"
+                        required
+                        options={accesosEmpresa.map((item: any) => {
+                          const label = item.identificador
+                            ? `${item.identificador} - ${item.nombre}`
+                            : item.nombre;
+                          return { id: item._id, label };
+                        })}
+                        textFieldProps={{
+                          margin: "normal",
+                          helperText:
+                            accesosEmpresa.length === 0
+                              ? "La empresa seleccionada no tiene accesos configurados."
+                              : undefined,
+                        }}
+                        autocompleteProps={{
+                          noOptionsText: "No hay accesos disponibles.",
+                          onChange: (_, value) => {
+                            formContext.setValue("accesos", value?.id ? [String(value.id)] : [], {
+                              shouldValidate: true,
+                            });
+                          },
+                        }}
+                      />
+                    )}
                   </Fragment>
                 )}
                 <Divider sx={{ my: 2 }} />

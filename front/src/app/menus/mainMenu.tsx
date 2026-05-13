@@ -53,7 +53,7 @@ const mainMenu = [
   {
     id: 0.95,
     title: "Kiosco",
-    rol: [1, 2, 5],
+    rol: [1, 2, 5, 13],
     icon: <WebStories fontSize="small" />,
     path: "/kiosco",
   },
@@ -173,9 +173,16 @@ const mainMenu = [
   {
     id: 0.9,
     title: "Eventos",
-    rol: [1, 2, 5],
+    rol: [1, 2, 5, 13],
     icon: <EventNote fontSize="small" />,
     path: "/eventos",
+  },
+  {
+    id: 0.91,
+    title: "Escaner QR",
+    rol: [13],
+    icon: <EventNote fontSize="small" />,
+    path: "/escaner-qr",
   },
   {
     id: 1,

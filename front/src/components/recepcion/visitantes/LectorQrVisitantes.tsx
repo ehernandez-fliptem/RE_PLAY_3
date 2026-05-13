@@ -25,6 +25,10 @@ type Props = {
   setShow: React.Dispatch<React.SetStateAction<boolean>>;
   onQrValidate: (value: string) => Promise<ResultState>;
   testQr?: string;
+  hideBackdrop?: boolean;
+  hideActions?: boolean;
+  allowBackdropClose?: boolean;
+  allowEscapeClose?: boolean;
 };
 
 export default function LectorQrVisitantes({
@@ -32,6 +36,10 @@ export default function LectorQrVisitantes({
   setShow,
   onQrValidate,
   testQr,
+  hideBackdrop = false,
+  hideActions = false,
+  allowBackdropClose = false,
+  allowEscapeClose = true,
 }: Props) {
   const formContext = useFormContext();
   const [isLoading, setIsLoading] = useState(false);
@@ -56,6 +64,7 @@ export default function LectorQrVisitantes({
   };
 
   useEffect(() => {
+    if (!allowEscapeClose) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -65,7 +74,7 @@ export default function LectorQrVisitantes({
     };
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [setShow]);
+  }, [setShow, allowEscapeClose]);
 
   const handleTestQr = async () => {
     if (!testQr) return;
@@ -80,7 +89,16 @@ export default function LectorQrVisitantes({
   };
 
   return (
-    <Modal disableEscapeKeyDown open>
+    <Modal
+      disableEscapeKeyDown
+      open
+      onClose={allowBackdropClose ? () => setShow(false) : undefined}
+      slotProps={{
+        backdrop: {
+          invisible: hideBackdrop,
+        },
+      }}
+    >
       <Card
         elevation={5}
         sx={{
@@ -140,40 +158,42 @@ export default function LectorQrVisitantes({
             </Stack>
           )}
         </CardContent>
-        <CardActions sx={{ px: 3, pb: 3 }}>
-          <Stack
-            spacing={2}
-            direction={{ xs: "column-reverse", sm: "row" }}
-            justifyContent="end"
-            sx={{ width: "100%" }}
-          >
-            <Button
-              variant="contained"
-              color="secondary"
-              onClick={() => setShow(false)}
+        {!hideActions && (
+          <CardActions sx={{ px: 3, pb: 3 }}>
+            <Stack
+              spacing={2}
+              direction={{ xs: "column-reverse", sm: "row" }}
+              justifyContent="end"
+              sx={{ width: "100%" }}
             >
-              Cerrar
-            </Button>
-            {testQr && !result && (
+              <Button
+                variant="contained"
+                color="secondary"
+                onClick={() => setShow(false)}
+              >
+                Cerrar
+              </Button>
+              {testQr && !result && (
+                <Button
+                  variant="outlined"
+                  color="info"
+                  onClick={handleTestQr}
+                  disabled={isLoading}
+                >
+                  Validar prueba
+                </Button>
+              )}
               <Button
                 variant="outlined"
-                color="info"
-                onClick={handleTestQr}
+                startIcon={<Replay />}
+                onClick={handleRetry}
                 disabled={isLoading}
               >
-                Validar prueba
+                Escanear de nuevo
               </Button>
-            )}
-            <Button
-              variant="outlined"
-              startIcon={<Replay />}
-              onClick={handleRetry}
-              disabled={isLoading}
-            >
-              Escanear de nuevo
-            </Button>
-          </Stack>
-        </CardActions>
+            </Stack>
+          </CardActions>
+        )}
       </Card>
     </Modal>
   );

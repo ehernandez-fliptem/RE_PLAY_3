@@ -82,6 +82,7 @@ export async function connectDB(): Promise<void> {
                 { rol: 10, nombre: 'Visitante', color: "#1C344E" },
                 { rol: 11, nombre: 'Contratista', color: "#2C6B2F" },
                 { rol: 12, nombre: 'Empleado Campo', color: "#0D5A7A" },
+                { rol: 13, nombre: 'Tablet', color: "#355C7D" },
             ]);
         }
         if (validarRoles > 0) {
@@ -92,6 +93,10 @@ export async function connectDB(): Promise<void> {
             const existeCampo = await Roles.findOne({ rol: 12 }, "_id").lean();
             if (!existeCampo) {
                 await Roles.create({ rol: 12, nombre: 'Empleado Campo', color: "#0D5A7A" });
+            }
+            const existeTablet = await Roles.findOne({ rol: 13 }, "_id").lean();
+            if (!existeTablet) {
+                await Roles.create({ rol: 13, nombre: 'Tablet', color: "#355C7D" });
             }
         }
         if (validarTiposDisp === 0) {
