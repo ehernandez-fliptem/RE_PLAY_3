@@ -172,6 +172,16 @@ export default function LectorQrVisitantes({
                   {result.message}
                 </Typography>
               )}
+              {hideActions && (
+                <Button
+                  variant="outlined"
+                  startIcon={<Replay />}
+                  onClick={handleRetry}
+                  disabled={isLoading}
+                >
+                  Escanear de nuevo
+                </Button>
+              )}
             </Stack>
           )}
         </CardContent>
