@@ -122,9 +122,20 @@ export default function LectorQrVisitantes({
           pointerEvents: "auto",
           position: "absolute",
           width: { xs: "92%", md: "50%", lg: "40%", xl: "30%" },
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
+          ...(hideBackdrop
+            ? {
+                left: "50%",
+                bottom: { xs: 8, sm: 16 },
+                top: { xs: "72px", sm: "50%" },
+                transform: { xs: "translateX(-50%)", sm: "translate(-50%, -50%)" },
+                maxHeight: { xs: "calc(100dvh - 84px)", sm: "unset" },
+                overflowY: { xs: "auto", sm: "visible" },
+              }
+            : {
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+              }),
         }}
       >
         <CardContent>
