@@ -19,6 +19,8 @@ import Spinner from "../../utils/Spinner";
 type ResultState = {
   ok: boolean;
   message: string;
+  img_ine?: string;
+  nombre?: string;
 };
 
 type Props = {
@@ -189,6 +191,41 @@ export default function LectorQrVisitantes({
               <Typography variant="h6" textAlign="center">
                 {result.ok ? result.message || "Acceso permitido" : "Acceso denegado"}
               </Typography>
+              {result.ok && result.img_ine !== undefined && (
+                <Box
+                  sx={{
+                    width: "100%",
+                    maxWidth: 420,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    p: 1.5,
+                    bgcolor: "background.paper",
+                  }}
+                >
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    INE registrada
+                  </Typography>
+                  {result.img_ine ? (
+                    <Box
+                      component="img"
+                      src={result.img_ine}
+                      alt={`INE ${result.nombre || "visitante"}`}
+                      sx={{
+                        width: "100%",
+                        maxHeight: 220,
+                        objectFit: "contain",
+                        borderRadius: 1,
+                        bgcolor: "grey.100",
+                      }}
+                    />
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      Sin INE registrada.
+                    </Typography>
+                  )}
+                </Box>
+              )}
               {!result.ok && (
                 <Typography variant="body2" textAlign="center">
                   {result.message}

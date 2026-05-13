@@ -1430,7 +1430,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                 const qrValue = String(qr || "").trim();
                 const visitante = await Visitantes.findOne(
                     { card_code: qrValue },
-                    "_id nombre apellido_pat apellido_mat bloqueado desbloqueado_hasta activo verificado"
+                    "_id nombre apellido_pat apellido_mat bloqueado desbloqueado_hasta activo verificado img_ine"
                 ).lean<any>();
                 if (!visitante) {
                     comentario = "El registro no fue encontrado o ya no se encuentra disponible.";
@@ -1514,7 +1514,8 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                         id_visitante: visitante._id,
                         puedeAcceder: true,
                         nombre: nombreCompleto,
-                        tipo_check: tipo_evento
+                        tipo_check: tipo_evento,
+                        img_ine: String((visitante as any)?.img_ine || ""),
                     }
                 });
                 return;
@@ -1526,12 +1527,14 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                 res.status(200).json({ estado: false, mensaje: comentario });
                 return;
             }
+            let visitanteQrInfo: any = null;
             if (id_visitante) {
                 const visitante = await Visitantes.findById(
                     id_visitante,
-                    "bloqueado desbloqueado_hasta activo"
+                    "bloqueado desbloqueado_hasta activo img_ine"
                 ).lean<any>();
                 if (visitante) {
+                    visitanteQrInfo = visitante;
                     const ahora = dayjs();
                     const desbloqueadoHasta = visitante.desbloqueado_hasta ? dayjs(visitante.desbloqueado_hasta) : null;
                     const desbloqueadoVigente = desbloqueadoHasta ? ahora.isBefore(desbloqueadoHasta) : false;
@@ -1632,7 +1635,13 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                 }
                 res.status(200).json({
                     estado: true,
-                    datos: { id_registro, puedeAcceder: canAccess, nombre, tipo_check: tipo_evento }
+                    datos: {
+                        id_registro,
+                        puedeAcceder: canAccess,
+                        nombre,
+                        tipo_check: tipo_evento,
+                        img_ine: String((visitanteQrInfo as any)?.img_ine || ""),
+                    }
                 });
                 return;
             }

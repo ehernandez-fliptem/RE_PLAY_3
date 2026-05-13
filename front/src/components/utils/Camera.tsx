@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   Fragment,
   useCallback,
   useEffect,
@@ -132,6 +132,7 @@ export default function Camera({
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [detectionMode, setDetectionMode] = useState<1 | 2>(defaultMode);
   const [showModal, setShowModal] = useState(false);
+  const isIneCapture = String(name || "").toLowerCase().includes("ine");
 
   const handleDevices = useCallback(
     (mediaDevices: MediaDeviceInfo[]) => {
@@ -407,7 +408,7 @@ export default function Camera({
                     }}
                   />
                 ) : (
-                  <>No se estableció la función para el escáner</>
+                  <>No se estableciÃ³ la funciÃ³n para el escÃ¡ner</>
                 )}
               </Fragment>
             ) : (
@@ -468,8 +469,9 @@ export default function Camera({
               inset: 0,
               pointerEvents: "none",
               zIndex: 5,
-              background:
-                "radial-gradient(ellipse at center, rgba(0,0,0,0) 0 45%, rgba(0,0,0,0.45) 46%)",
+              background: isIneCapture
+                ? "radial-gradient(ellipse at center, rgba(0,0,0,0) 0 38%, rgba(0,0,0,0.45) 39%)"
+                : "radial-gradient(ellipse at center, rgba(0,0,0,0) 0 45%, rgba(0,0,0,0.45) 46%)",
             }}
           >
             <Box
@@ -483,9 +485,9 @@ export default function Camera({
             >
               <Box
                 sx={{
-                  width: "62%",
-                  height: "78%",
-                  borderRadius: "50%",
+                  width: isIneCapture ? "78%" : "62%",
+                  height: isIneCapture ? "54%" : "78%",
+                  borderRadius: isIneCapture ? "12px" : "50%",
                   border: "2px solid rgba(255,255,255,0.85)",
                   boxShadow: "0 0 0 2px rgba(0,0,0,0.2) inset",
                 }}
@@ -504,7 +506,9 @@ export default function Camera({
                 textShadow: "0 1px 2px rgba(0,0,0,0.6)",
               }}
             >
-              Centra tu cara dentro del óvalo
+              {isIneCapture
+                ? "Centra la INE dentro del rectángulo"
+                : "Centra tu cara dentro del óvalo"}
             </Box>
           </Box>
         )}
@@ -585,3 +589,4 @@ export default function Camera({
     </Box>
   );
 }
+

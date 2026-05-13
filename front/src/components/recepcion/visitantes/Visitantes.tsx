@@ -77,7 +77,7 @@ export default function Visitantes() {
 
   const onQrValidate = async (
     qr: string
-  ): Promise<{ ok: boolean; message: string }> => {
+  ): Promise<{ ok: boolean; message: string; img_ine?: string; nombre?: string }> => {
     const regexCardCode = /^VST[A-Z0-9]{16}$/;
     const isValid = regexCardCode.test(qr);
     if (!isValid) {
@@ -100,16 +100,22 @@ export default function Visitantes() {
             ? `Acceso pendiente para ${nombre}. Requiere validación.`
             : "Acceso pendiente de autorización. Requiere validación.";
           enqueueSnackbar(message, { variant: "warning" });
-          return { ok: false, message };
+          return { ok: false, message, nombre };
         }
         const esEntrada = tipoCheck === 6 ? false : true;
+        const ineRaw = String(res.data?.datos?.img_ine || "").trim();
         const message = nombre
           ? `Acceso a ${nombre}. ${esEntrada ? "Bienvenido." : "Hasta luego."}`
           : esEntrada
             ? "Acceso permitido. Bienvenido."
             : "Salida registrada. Hasta luego.";
         enqueueSnackbar(message, { variant: "success" });
-        return { ok: true, message };
+        return {
+          ok: true,
+          message,
+          img_ine: ineRaw || "",
+          nombre,
+        };
       }
       const message = res.data.mensaje || "No se pudo validar el QR.";
       enqueueSnackbar(message, { variant: "error" });

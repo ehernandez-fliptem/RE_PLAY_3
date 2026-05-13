@@ -424,7 +424,7 @@ export default function Kiosco() {
     setSelectedReg(null);
   };
 
-  const onQrValidate = async (qr: string): Promise<{ ok: boolean; message: string }> => {
+  const onQrValidate = async (qr: string): Promise<{ ok: boolean; message: string; img_ine?: string; nombre?: string }> => {
     const regexEmpleado = /^[0-9]+$/;
     const regexCardCode = /^VST[A-Z0-9]{16}$/;
     if (!regexCardCode.test(qr) && !regexEmpleado.test(qr)) {
@@ -437,7 +437,7 @@ export default function Kiosco() {
       if (!res.data.estado) {
         const message = res.data.mensaje || "No se pudo validar el QR.";
         enqueueSnackbar(message, { variant: "error" });
-        return { ok: false, message };
+        return { ok: false, message, nombre };
       }
       const puedeAcceder = res.data.datos?.puedeAcceder;
       const nombre = res.data.datos?.nombre;
@@ -450,13 +450,20 @@ export default function Kiosco() {
         return { ok: false, message };
       }
       const esEntrada = tipoCheck === 6 ? false : true;
+      const esVisitanteQr = regexCardCode.test(qr);
+      const ineRaw = String(res.data?.datos?.img_ine || "").trim();
       const message = nombre
         ? `Acceso a ${nombre}. ${esEntrada ? "Bienvenido." : "Hasta luego."}`
         : esEntrada
           ? "Acceso permitido. Bienvenido."
           : "Salida registrada. Hasta luego.";
       enqueueSnackbar(message, { variant: "success" });
-      return { ok: true, message };
+      return {
+        ok: true,
+        message,
+        img_ine: esVisitanteQr ? ineRaw || "" : undefined,
+        nombre,
+      };
     } catch (error) {
       handlingError(error);
       return { ok: false, message: "Error al validar el QR. Intenta de nuevo." };

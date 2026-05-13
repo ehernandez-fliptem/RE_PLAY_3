@@ -37,6 +37,7 @@ const ProfilePicture = lazy(() => import("../../utils/ProfilePicture"));
 
 type FormValues = {
   img_usuario?: string;
+  img_ine?: string;
   nombre: string;
   apellido_pat: string;
   apellido_mat?: string;
@@ -63,6 +64,16 @@ const resolver = yup.object().shape({
         } else {
           return true;
         }
+      }
+    ),
+  img_ine: yup
+    .string()
+    .test(
+      "isValidUriIne",
+      "La imagen de INE debe ser una URL válida.",
+      (value) => {
+        if (value) return REGEX_BASE64.test(value);
+        return true;
       }
     ),
   nombre: yup
@@ -114,6 +125,7 @@ const resolver = yup.object().shape({
 
 const initialValue: FormValues = {
   img_usuario: "",
+  img_ine: "",
   nombre: "",
   apellido_pat: "",
   apellido_mat: "",
@@ -300,12 +312,29 @@ export default function NuevoVisitante() {
                 <Typography variant="h4" component="h2" textAlign="center">
                   Nuevo Visitante
                 </Typography>
-                <Suspense fallback={<ProfilePicturePreview />}>
-                  <ProfilePicture
-                    name="img_usuario"
-                    allowFiles={["png", "jpeg", "jpg"]}
-                  />
-                </Suspense>
+                <Stack
+                  direction={{ xs: "column", md: "row" }}
+                  spacing={2}
+                  justifyContent="center"
+                  alignItems={{ xs: "center", md: "flex-start" }}
+                >
+                  <Suspense fallback={<ProfilePicturePreview />}>
+                    <ProfilePicture
+                      name="img_usuario"
+                      label="Foto"
+                      allowFiles={["png", "jpeg", "jpg"]}
+                    />
+                  </Suspense>
+                  <Suspense fallback={<ProfilePicturePreview />}>
+                    <ProfilePicture
+                      name="img_ine"
+                      label="INE"
+                      variant="rounded"
+                      adjustImageToBox
+                      allowFiles={["png", "jpeg", "jpg"]}
+                    />
+                  </Suspense>
+                </Stack>
                 <Typography variant="overline" component="h6">
                   Generales
                 </Typography>

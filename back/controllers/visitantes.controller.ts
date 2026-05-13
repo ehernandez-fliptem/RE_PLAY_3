@@ -835,6 +835,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
     try {
         const {
         img_usuario,
+        img_ine,
         nombre,
         apellido_pat,
         apellido_mat,
@@ -876,12 +877,14 @@ export async function crear(req: Request, res: Response): Promise<void> {
         // 4) Preparar imagen UNA sola vez
         lap("resizeImage start");
         const imgResized = await resizeImage(img_usuario);
+        const imgIneResized = await resizeImage(img_ine);
         lap("resizeImage done", { hasImg: !!imgResized });
 
         // 5) Crear visitante (SIN card_code aún)
         const nuevo = new Visitantes({
         contrasena: hash,
         img_usuario: imgResized,
+        img_ine: imgIneResized,
         nombre,
         apellido_pat,
         apellido_mat,
@@ -1144,7 +1147,7 @@ export async function obtenerQR(req: Request, res: Response): Promise<void> {
 
 export async function modificar(req: Request, res: Response): Promise<void> {
     try {
-        const { img_usuario, nombre, apellido_pat, apellido_mat, empresa, telefono, correo, contrasena, documentos_checks } = req.body;
+        const { img_usuario, img_ine, nombre, apellido_pat, apellido_mat, empresa, telefono, correo, contrasena, documentos_checks } = req.body;
         const id_usuario = (req as UserRequest).userId;
 
         const existe_usuario = await Usuarios.findOne({ correo }, '_id');
@@ -1182,6 +1185,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
 
         let updateData = {
             img_usuario: await resizeImage(img_usuario),
+            img_ine: await resizeImage(img_ine),
             nombre,
             apellido_pat,
             apellido_mat,

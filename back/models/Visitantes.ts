@@ -18,6 +18,7 @@ export interface IVisitante extends Document {
     codigo: string;
     card_code?: string;
     img_usuario?: string;
+    img_ine?: string;
     correo: string;
     contrasena: string;
     nombre: string;
@@ -121,6 +122,17 @@ const visitanteSchema = new Schema<IVisitante>({
         sua: { type: Boolean, default: false },
         permiso_entrada: { type: Boolean, default: false },
         lista_articulos: { type: Boolean, default: false },
+    },
+    img_ine: {
+        type: String,
+        default: '',
+        validate: {
+            validator: (v: string | undefined) => {
+                if (!v) return true;
+                return REGEX_BASE64.test(v);
+            },
+            message: () => `La imagen de INE es inválida.`,
+        },
     },
     rol: {
         type: [Number],
