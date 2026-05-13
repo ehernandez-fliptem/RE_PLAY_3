@@ -353,7 +353,7 @@ export default function Eventos() {
       if (!res.data.estado) {
         const message = res.data.mensaje || "No se pudo validar el QR.";
         enqueueSnackbar(message, { variant: "error" });
-        return { ok: false, message, nombre };
+        return { ok: false, message };
       }
       const puedeAcceder = res.data.datos?.puedeAcceder;
       const nombre = res.data.datos?.nombre;
