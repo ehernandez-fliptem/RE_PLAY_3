@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DataGrid, GridActionsCellItem, type GridColDef } from "@mui/x-data-grid";
 import { esES } from "@mui/x-data-grid/locales";
-import { Add, Delete, Edit, Autorenew, Sync } from "@mui/icons-material";
+import { Add, Delete, Edit, Autorenew, Sync, DeleteSweep } from "@mui/icons-material";
 import {
   Box,
   Button,
@@ -61,6 +61,9 @@ export default function DispositivosBiostarRemotos() {
   const [guardandoNuevo, setGuardandoNuevo] = useState(false);
   const [openEditar, setOpenEditar] = useState(false);
   const [guardandoEditar, setGuardandoEditar] = useState(false);
+  const [syncLimpioOpen, setSyncLimpioOpen] = useState(false);
+  const [syncLimpioLoading, setSyncLimpioLoading] = useState(false);
+  const [syncLimpioRow, setSyncLimpioRow] = useState<RemoteDevice | null>(null);
   const [editandoId, setEditandoId] = useState<string>("");
   const [accesos, setAccesos] = useState<Array<{ _id: string; nombre: string; identificador?: string }>>([]);
   const [puertas, setPuertas] = useState<Array<{ id_externo: string; nombre: string }>>([]);
@@ -383,6 +386,44 @@ export default function DispositivosBiostarRemotos() {
     }
   };
 
+  const abrirModalSyncLimpio = (row: RemoteDevice) => {
+    setSyncLimpioRow(row);
+    setSyncLimpioOpen(true);
+  };
+
+  const ejecutarSyncLimpio = async () => {
+    if (!syncLimpioRow?.id_externo) return;
+    setSyncLimpioLoading(true);
+    try {
+      const res = await clienteAxios.post(
+        `/api/dispositivos-biostar/remotos/${syncLimpioRow.id_externo}/sync`,
+        { clean: true }
+      );
+      if (!res.data.estado) {
+        await Swal.fire({
+          icon: "error",
+          title: "No se pudo iniciar",
+          text: res.data.mensaje || "No se pudo ejecutar borrar y subir de nuevo.",
+        });
+        return;
+      }
+      await Swal.fire({
+        icon: "success",
+        title: "Proceso iniciado",
+        text:
+          res.data.mensaje ||
+          "Se inicio borrar y subir de nuevo. Puede tardar unos minutos.",
+      });
+      setSyncLimpioOpen(false);
+      setSyncLimpioRow(null);
+      await cargarTodos();
+    } catch (error) {
+      handlingError(error);
+    } finally {
+      setSyncLimpioLoading(false);
+    }
+  };
+
   useEffect(() => {
     cargarCatalogosFormulario();
     cargarGrupos();
@@ -488,6 +529,12 @@ export default function DispositivosBiostarRemotos() {
       getActions: ({ row }) => [
         <GridActionsCellItem icon={<Edit color="primary" />} label="Editar" onClick={() => editarDispositivo(row)} />,
         <GridActionsCellItem icon={<Autorenew color="info" />} label="Reconectar dispositivo" onClick={() => reconectarDispositivo(row)} showInMenu={false} />,
+        <GridActionsCellItem
+          icon={<DeleteSweep color="warning" />}
+          label="Borrar y subir"
+          onClick={() => abrirModalSyncLimpio(row)}
+          showInMenu={false}
+        />,
         <GridActionsCellItem icon={<Delete color="error" />} label="Eliminar" onClick={() => eliminarDispositivo(row)} />,
       ],
     });
@@ -800,6 +847,43 @@ export default function DispositivosBiostarRemotos() {
           </Button>
           <Button onClick={guardarEdicionDispositivo} disabled={guardandoEditar} variant="contained">
             {guardandoEditar ? "Guardando..." : "Guardar"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={syncLimpioOpen}
+        onClose={() => {
+          if (syncLimpioLoading) return;
+          setSyncLimpioOpen(false);
+          setSyncLimpioRow(null);
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Borrar y subir de nuevo</DialogTitle>
+        <DialogContent>
+          Seguro que deseas borrar y subir nuevamente la configuracion de{" "}
+          <strong>{syncLimpioRow?.nombre || syncLimpioRow?.direccion_ip || "este dispositivo"}</strong>?
+          Este proceso puede tardar unos minutos.
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setSyncLimpioOpen(false);
+              setSyncLimpioRow(null);
+            }}
+            disabled={syncLimpioLoading}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            startIcon={<DeleteSweep />}
+            onClick={ejecutarSyncLimpio}
+            disabled={syncLimpioLoading}
+          >
+            {syncLimpioLoading ? "Procesando..." : "Confirmar"}
           </Button>
         </DialogActions>
       </Dialog>

@@ -1294,23 +1294,38 @@ export async function sincronizarDispositivoRemoto(req: Request, res: Response):
       res.status(200).json({ estado: false, mensaje: "ID de dispositivo invalido." });
       return;
     }
+    const clean = String(req.query?.clean ?? req.body?.clean ?? "").trim().toLowerCase() === "true";
 
     const numericId = Number(id);
     const payloadId = Number.isFinite(numericId) ? numericId : id;
 
-    const attempts = [
-      { method: "POST", url: "/api/devices/sync", data: { DeviceCollection: { total: 1, rows: [{ id: payloadId }] } } },
-      { method: "POST", url: "/api/devices/sync", data: { DeviceCollection: { rows: [{ id: payloadId }] } } },
-      { method: "POST", url: "/api/devices/sync", data: { Device: { id } } },
-      { method: "POST", url: "/api/devices/sync", data: { id } },
-      { method: "POST", url: `/api/devices/${id}/sync`, data: {} },
-    ];
+    const attempts = clean
+      ? [
+          { method: "POST", url: "/api/devices/sync?clean=true", data: { DeviceCollection: { total: 1, rows: [{ id: payloadId }] } } },
+          { method: "POST", url: "/api/devices/sync?clean=true", data: { DeviceCollection: { rows: [{ id: payloadId }] } } },
+          { method: "POST", url: "/api/devices/sync?clean=true", data: { Device: { id } } },
+          { method: "POST", url: "/api/devices/sync?clean=true", data: { id } },
+          { method: "POST", url: "/api/devices/sync", data: { DeviceCollection: { total: 1, rows: [{ id: payloadId }] } } },
+          { method: "POST", url: "/api/devices/sync", data: { DeviceCollection: { rows: [{ id: payloadId }] } } },
+        ]
+      : [
+          { method: "POST", url: "/api/devices/sync", data: { DeviceCollection: { total: 1, rows: [{ id: payloadId }] } } },
+          { method: "POST", url: "/api/devices/sync", data: { DeviceCollection: { rows: [{ id: payloadId }] } } },
+          { method: "POST", url: "/api/devices/sync", data: { Device: { id } } },
+          { method: "POST", url: "/api/devices/sync", data: { id } },
+          { method: "POST", url: `/api/devices/${id}/sync`, data: {} },
+        ];
 
     let lastMessage = "No se pudo sincronizar el dispositivo.";
     for (const attempt of attempts) {
       const r = await biostarRequest(conexion as any, attempt as any);
       if (r.ok) {
-        res.status(200).json({ estado: true, mensaje: "Sincronizacion enviada correctamente." });
+        res.status(200).json({
+          estado: true,
+          mensaje: clean
+            ? "Sincronizacion con limpieza enviada correctamente. Puede tardar unos minutos."
+            : "Sincronizacion enviada correctamente.",
+        });
         return;
       }
       lastMessage = getBiostarResponseMessage(r.data) || r.message || lastMessage;
