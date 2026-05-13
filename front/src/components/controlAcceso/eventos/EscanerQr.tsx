@@ -62,11 +62,9 @@ export default function EscanerQr() {
             onQrValidate={onQrValidate}
             hideBackdrop
             hideActions
-            allowBackdropClose
           />
         </FormProvider>
       )}
     </Box>
   );
 }
-

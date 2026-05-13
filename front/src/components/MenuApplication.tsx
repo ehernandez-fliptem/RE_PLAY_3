@@ -136,6 +136,7 @@ export default function MenuApplication({ children }: MenuProps) {
   const esVisit = rol.includes(10);
   const esContratista = rol.includes(11);
   const esCampo = rol.includes(12);
+  const esTablet = rol.includes(13);
   const esAdminOSuper = rol.includes(1) || rol.includes(2);
   const theme = useTheme();
   const navigate = useNavigate();
@@ -199,6 +200,8 @@ export default function MenuApplication({ children }: MenuProps) {
           navigate("/visitantes");
         } else if (esCampo && habilitarRegistroCampo) {
           navigate("/campo");
+        } else if (esTablet) {
+          navigate("/kiosco");
         } else if (esRecep) {
           navigate("/eventos");
         } else {
