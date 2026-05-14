@@ -112,6 +112,7 @@ export const configSlice = createSlice({
     },
     updateConfig: (state, action) => {
       state.data = {
+        ...state.data,
         ...action.payload,
         habilitarIntegracionBiostar:
           typeof action.payload.habilitarIntegracionBiostar === "boolean"
@@ -132,6 +133,7 @@ export const configSlice = createSlice({
         roles: action.payload.roles || state.data.roles,
         tipos_registros: action.payload.tipos_registros || state.data.tipos_registros,
         tipos_documentos: action.payload.tipos_documentos || state.data.tipos_documentos,
+        palette: action.payload.palette || state.data.palette,
       };
     },
     updateColorPalette: (state, action) => {
