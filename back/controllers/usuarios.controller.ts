@@ -26,6 +26,7 @@ import { CONFIG } from "../config";
 import FaceDetector from '../classes/FaceDetector';
 import FaceDescriptors from '../models/FaceDescriptors';
 const faceDetector = new FaceDetector();
+const normalizarCorreo = (correo?: string) => String(correo || "").trim().toLowerCase();
 
 export async function obtenerTodos(req: Request, res: Response): Promise<void> {
     try {
@@ -906,6 +907,10 @@ export async function crear(req: Request, res: Response): Promise<void> {
     try {
         const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, contrasena, rol, modo_tablet_qr } = req.body;
         const id_usuario = (req as UserRequest).userId;
+        const correoNormalizado = normalizarCorreo(correo);
+        const empleadoVinculado = correoNormalizado
+            ? await Empleados.findOne({ correo: correoNormalizado, activo: true }, "_id id_empleado nombre apellido_pat apellido_mat").lean()
+            : null;
         const empresa = await Empresas.findById(id_empresa, 'pisos accesos esRoot activo');
         const hash = bcrypt.hashSync(contrasena, 10);
         if (!hash) {
@@ -923,8 +928,9 @@ export async function crear(req: Request, res: Response): Promise<void> {
             movil,
             telefono,
             extension,
-            correo,
+            correo: correoNormalizado,
             rol,
+            id_empleado_vinculado: empleadoVinculado?._id || null,
             modo_tablet_qr: Array.isArray(rol) && rol.includes(13) && ["entrada", "salida", "ambos"].includes(String(modo_tablet_qr))
                 ? String(modo_tablet_qr)
                 : "ambos",
@@ -954,7 +960,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
                 const nombreCompleto = [reg_saved.nombre, reg_saved.apellido_pat, reg_saved.apellido_mat]
                     .filter(Boolean)
                     .join(" ");
-                const resultEnvioUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, nombreCompleto);
+                const resultEnvioUsuario = await enviarCorreoUsuario(correoNormalizado, contrasena, rolesString, nombreCompleto);
                 const { habilitarIntegracionHv } = await Configuracion.findOne({}, 'habilitarIntegracionHv') as IConfiguracion;
                 if (habilitarIntegracionHv && habilitarSyncUsuariosPanel) {
                     const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: accesos } });
@@ -967,7 +973,24 @@ export async function crear(req: Request, res: Response): Promise<void> {
                     }
                 }
                 {
-                    res.status(200).json({ estado: true, datos: { usuario: true, correoUsuario: resultEnvioUsuario } });
+                    res.status(200).json({
+                        estado: true,
+                        datos: {
+                            usuario: true,
+                            correoUsuario: resultEnvioUsuario,
+                            vinculadoEmpleado: !!empleadoVinculado,
+                            empleado: empleadoVinculado
+                                ? {
+                                    id: empleadoVinculado._id,
+                                    id_empleado: (empleadoVinculado as any).id_empleado,
+                                    nombre: [empleadoVinculado.nombre, empleadoVinculado.apellido_pat, empleadoVinculado.apellido_mat]
+                                        .filter(Boolean)
+                                        .join(" ")
+                                        .trim(),
+                                }
+                                : null,
+                        }
+                    });
                     return;
                 }
             })
@@ -986,6 +1009,10 @@ export async function modificar(req: Request, res: Response): Promise<void> {
     try {
         const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, contrasena, rol, modo_tablet_qr } = req.body;
         const id_usuario = (req as UserRequest).userId;
+        const correoNormalizado = normalizarCorreo(correo);
+        const empleadoVinculado = correoNormalizado
+            ? await Empleados.findOne({ correo: correoNormalizado, activo: true }, "_id").lean()
+            : null;
         const empresa = await Empresas.findById(id_empresa, 'esRoot');
 
         const esUsuarioMaestro = await Usuarios.find({ _id: req.params.id, esRoot: true, id_general: 1 }, '_id').limit(1);
@@ -1008,9 +1035,10 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             Object.assign(updateData, {
                 id_empresa,
 
-                correo,
+                correo: correoNormalizado,
                 contrasena,
                 rol,
+                id_empleado_vinculado: empleadoVinculado?._id || null,
                 modo_tablet_qr: Array.isArray(rol) && rol.includes(13) && ["entrada", "salida", "ambos"].includes(String(modo_tablet_qr))
                     ? String(modo_tablet_qr)
                     : "ambos",
@@ -1053,7 +1081,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
         } else {
             await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
         }
-        let correoEnviado = contrasena ? await enviarCorreoUsuarioNuevaContrasena(correo, contrasena) : false;
+        let correoEnviado = contrasena ? await enviarCorreoUsuarioNuevaContrasena(correoNormalizado, contrasena) : false;
         const { habilitarIntegracionHv } = await Configuracion.findOne({}, 'habilitarIntegracionHv') as IConfiguracion;
         if (habilitarIntegracionHv && habilitarSyncUsuariosPanel) {
             const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: accesos } });
@@ -1270,18 +1298,29 @@ export async function cargarProgramacionUsuarios(req: Request, res: Response): P
         for await (const registro of registros) {
             let resultCorreoUsuario = false;
             const { id_empresa, contrasena_hashed } = registro;
+            const correoNormalizado = normalizarCorreo(registro?.correo);
             const { esRoot } = await Empresas.findById(id_empresa, 'esRoot') as IEmpresa;
+            const empleadoVinculado = correoNormalizado
+                ? await Empleados.findOne({ correo: correoNormalizado, activo: true }, "_id").lean()
+                : null;
 
-            const nuevoUsuario = new Usuarios({ ...registro, contrasena: contrasena_hashed, esRoot: !!esRoot, creado_por: id_usuario });
+            const nuevoUsuario = new Usuarios({
+                ...registro,
+                correo: correoNormalizado,
+                id_empleado_vinculado: empleadoVinculado?._id || null,
+                contrasena: contrasena_hashed,
+                esRoot: !!esRoot,
+                creado_por: id_usuario
+            });
             await nuevoUsuario.save();
             if (envioCorreos) {
-                const { correo, contrasena, rol } = registro;
+                const { contrasena, rol } = registro;
                 let roles = await Roles.find({ rol: { $in: rol }, activo: true }, 'nombre');
                 const rolesString = roles.map((item) => item.nombre).join(' - ');
                 const nombreCompleto = [registro.nombre, registro.apellido_pat, registro.apellido_mat]
                     .filter(Boolean)
                     .join(" ");
-                resultCorreoUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, nombreCompleto);
+                resultCorreoUsuario = await enviarCorreoUsuario(correoNormalizado, contrasena, rolesString, nombreCompleto);
                 if (registrosGuardados) correosEnviados++;
             }
             usuariosCreados++;

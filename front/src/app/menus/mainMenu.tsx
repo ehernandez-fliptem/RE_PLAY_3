@@ -45,17 +45,17 @@ const mainMenu = [
   // },
   {
     id: 0.5,
-    title: "Usuarios",
-    rol: [1],
-    icon: <PeopleAlt fontSize="small" />,
-    path: "/usuarios",
-  },
-  {
-    id: 0.95,
     title: "Kiosco",
     rol: [1, 2, 5, 13],
     icon: <WebStories fontSize="small" />,
     path: "/kiosco",
+  },
+  {
+    id: 0.55,
+    title: "Usuarios",
+    rol: [1],
+    icon: <PeopleAlt fontSize="small" />,
+    path: "/usuarios",
   },
   {
     id: 0.6,
