@@ -1076,6 +1076,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
 export async function reenviarCorreoAcceso(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;
+        log(`${fecha()} INFO: Reenviar correo acceso solicitado. solicitante=${id_usuario} objetivo=${req.params.id}\n`);
         const usuario = await Usuarios.findById(
             req.params.id,
             'correo nombre apellido_pat apellido_mat rol activo'
@@ -1113,6 +1114,7 @@ export async function reenviarCorreoAcceso(req: Request, res: Response): Promise
             rolesString,
             nombreCompleto
         );
+        log(`${fecha()} INFO: Resultado reenvio correo. usuario=${req.params.id} correo=${String(usuario.correo || '')} enviado=${resultEnvioUsuario}\n`);
 
         if (!resultEnvioUsuario) {
             res.status(200).json({ estado: false, mensaje: 'No se pudo reenviar el correo de acceso.' });
