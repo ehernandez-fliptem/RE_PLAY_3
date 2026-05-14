@@ -361,6 +361,35 @@ export default function DispositivosBiostarRemotos() {
 
     try {
       const res = await clienteAxios.delete(`/api/dispositivos-biostar/remotos/${row.id_externo}`);
+      if (!res.data.estado && res.data.codigo === "DEVICE_IN_USE_BY_DOORS") {
+        const puertas: Array<{ id: string; nombre: string }> = res.data?.datos?.puertas || [];
+        const puertasTxt = puertas.length > 0
+          ? puertas.map((p) => p.nombre || `Puerta ${p.id}`).join(", ")
+          : "una puerta";
+        const confirmUnlink = await Swal.fire({
+          icon: "warning",
+          title: "Dispositivo en uso",
+          text: `Seguro que desea desenlazarlo de la puerta ${puertasTxt} para poder borrarlo?`,
+          showCancelButton: true,
+          confirmButtonText: "Si, desenlazar y borrar",
+          cancelButtonText: "Cancelar",
+        });
+        if (!confirmUnlink.isConfirmed) return;
+        const resForzado = await clienteAxios.delete(`/api/dispositivos-biostar/remotos/${row.id_externo}`, {
+          data: { forzar_desenlace: true },
+        });
+        if (!resForzado.data.estado) {
+          await Swal.fire({
+            icon: "error",
+            title: "No se pudo eliminar",
+            text: resForzado.data.mensaje || "No se pudo desenlazar y eliminar el dispositivo.",
+          });
+          return;
+        }
+        await Swal.fire({ icon: "success", title: "Eliminado", text: resForzado.data.mensaje || "Dispositivo eliminado." });
+        await cargarTodos();
+        return;
+      }
       if (!res.data.estado) {
         await Swal.fire({ icon: "error", title: "No se pudo eliminar", text: res.data.mensaje || "No se pudo eliminar el dispositivo." });
         return;

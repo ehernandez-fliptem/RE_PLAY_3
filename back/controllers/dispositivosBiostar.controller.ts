@@ -463,6 +463,64 @@ function getBiostarResponseMessage(payload: any): string {
   return String(message || "").trim();
 }
 
+function getBiostarResponseCode(payload: any): string {
+  const code =
+    payload?.Response?.code ||
+    payload?.response?.code ||
+    payload?.code ||
+    "";
+  return String(code || "").trim();
+}
+
+function resolveDoorDeviceId(item: any): string {
+  const deviceId =
+    item?.entry_device_id?.id ??
+    item?.relay_output_id?.device_id?.id ??
+    item?.exit_button_input_id?.device_id?.id ??
+    item?.sensor_input_id?.device_id?.id ??
+    item?.device_id?.id ??
+    item?.device_id ??
+    "";
+  return String(deviceId || "").trim();
+}
+
+async function obtenerPuertasLigadasADispositivo(conexion: any, deviceId: string): Promise<Array<{ id: string; nombre: string }>> {
+  const searchAttempts = [
+    { method: "POST", url: "/api/v2/doors/search", data: { limit: 1000, offset: 0 } },
+    { method: "POST", url: "/api/v2/doors/search", data: {} },
+    { method: "GET", url: "/api/doors?limit=1000" },
+  ];
+
+  for (const attempt of searchAttempts) {
+    const response = await biostarRequest(conexion as any, attempt as any);
+    if (!response.ok) continue;
+    const rows = parseRows(response.data, ["DoorCollection.rows", "rows", "doors"]);
+    const filtered = (rows || [])
+      .filter((item: any) => resolveDoorDeviceId(item) === String(deviceId || "").trim())
+      .map((item: any) => ({
+        id: String(item?.id || item?.door_id || "").trim(),
+        nombre: String(item?.name || item?.door_name || "").trim() || `Puerta ${String(item?.id || "").trim()}`,
+      }))
+      .filter((item: any) => item.id);
+    return filtered;
+  }
+  return [];
+}
+
+async function eliminarPuertaBiostar(conexion: any, doorId: string): Promise<{ ok: boolean; message: string }> {
+  const attempts = [
+    { method: "DELETE", url: `/api/doors/${doorId}` },
+    { method: "DELETE", url: `/api/v2/doors/${doorId}` },
+  ];
+  let lastMessage = "No se pudo desenlazar la puerta.";
+  for (const attempt of attempts) {
+    const r = await biostarRequest(conexion as any, attempt as any);
+    if (r.ok) return { ok: true, message: "" };
+    lastMessage = getBiostarResponseMessage(r.data) || r.message || lastMessage;
+  }
+  return { ok: false, message: lastMessage };
+}
+
 async function getBiostarConexionActiva(): Promise<any | null> {
   const conexionMain = await DispositivosBiostar.findOne({ activo: true, es_main: true }).sort({
     fecha_modificacion: -1,
@@ -1479,8 +1537,37 @@ export async function eliminarDispositivoRemoto(req: Request, res: Response): Pr
       return;
     }
 
+    const forzarDesenlace = String(req.body?.forzar_desenlace || "").trim().toLowerCase() === "true";
     const numericId = Number(id);
     const idValue = Number.isFinite(numericId) ? String(numericId) : id;
+    const puertasLigadas = await obtenerPuertasLigadasADispositivo(conexion, idValue);
+    if (puertasLigadas.length > 0 && !forzarDesenlace) {
+      const puertaPrincipal = puertasLigadas[0]?.nombre || `Puerta ${puertasLigadas[0]?.id || ""}`.trim();
+      res.status(200).json({
+        estado: false,
+        codigo: "DEVICE_IN_USE_BY_DOORS",
+        mensaje: `Este dispositivo esta siendo usado en una puerta (${puertaPrincipal}).`,
+        datos: {
+          puertas: puertasLigadas,
+        },
+      });
+      return;
+    }
+
+    if (puertasLigadas.length > 0 && forzarDesenlace) {
+      for (const puerta of puertasLigadas) {
+        const delPuertaRes = await eliminarPuertaBiostar(conexion, puerta.id);
+        if (!delPuertaRes.ok) {
+          res.status(200).json({
+            estado: false,
+            mensaje: `No se pudo desenlazar la puerta ${puerta.nombre}: ${delPuertaRes.message}`,
+            datos: { puertas: puertasLigadas },
+          });
+          return;
+        }
+      }
+    }
+
     const attempts = [
       { method: "DELETE", url: `/api/devices/${idValue}` },
       { method: "DELETE", url: `/api/v2/devices/${idValue}` },
@@ -1493,7 +1580,20 @@ export async function eliminarDispositivoRemoto(req: Request, res: Response): Pr
         res.status(200).json({ estado: true, mensaje: "Dispositivo eliminado correctamente." });
         return;
       }
-      lastMessage = getBiostarResponseMessage(response.data) || response.message || lastMessage;
+      const responseCode = getBiostarResponseCode(response.data);
+      const responseMessage = getBiostarResponseMessage(response.data) || response.message || lastMessage;
+      if (responseCode === "610" && !forzarDesenlace) {
+        const refreshedDoors = puertasLigadas.length > 0 ? puertasLigadas : await obtenerPuertasLigadasADispositivo(conexion, idValue);
+        const puertaPrincipal = refreshedDoors[0]?.nombre || `Puerta ${refreshedDoors[0]?.id || ""}`.trim();
+        res.status(200).json({
+          estado: false,
+          codigo: "DEVICE_IN_USE_BY_DOORS",
+          mensaje: `Este dispositivo esta siendo usado en una puerta (${puertaPrincipal}).`,
+          datos: { puertas: refreshedDoors },
+        });
+        return;
+      }
+      lastMessage = responseMessage;
     }
 
     res.status(200).json({ estado: false, mensaje: lastMessage });
