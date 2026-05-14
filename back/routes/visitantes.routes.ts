@@ -18,6 +18,7 @@ import {
     anonimizar,
     verificar,
     revertirCreacion,
+    resincronizarVisitantePaneles,
 } from "../controllers/visitantes.controller";
 
 const router = Router();
@@ -33,6 +34,7 @@ router.get('/qr/', validarTokenYRol([10]), obtenerQR);
 router.get("/:id", validarTokenYRol([1, 2, 4, 5]), obtenerUno);
 router.post("/", validarTokenYRol([1, 2, 4, 5]), crear);
 router.patch("/verificar/:id", validarTokenYRol([1, 2, 4, 5]), verificar);
+router.patch("/resync/:id", validarTokenYRol([1, 2, 4, 5]), resincronizarVisitantePaneles);
 router.post("/cargar-formato", validarTokenYRol([1, 2]), cargarFormato);
 router.post("/programacion", validarTokenYRol([1, 2]), cargarProgramacionUsuarios);
 router.put("/:id", validarTokenYRol([1, 2, 4, 5]), modificar);

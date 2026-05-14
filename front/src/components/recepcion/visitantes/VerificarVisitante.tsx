@@ -26,8 +26,6 @@ import {
   normalizeDocumentosChecks,
   type DocumentosChecks,
 } from "./documentosChecks";
-import Swal from "sweetalert2";
-import { flushSync } from "react-dom";
 
 type TUsuario = {
   img_usuario: string;
@@ -51,7 +49,6 @@ export default function VerificarVisitante() {
   const confirm = useConfirm();
   const [isLoading, setIsLoading] = useState(true);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [showForm, setShowForm] = useState(true);
   const [datos, setDatos] = useState<TUsuario>({
     img_usuario: "",
     nombre: "",
@@ -141,29 +138,17 @@ export default function VerificarVisitante() {
     try {
       const res = await clienteAxios.patch(`/api/visitantes/verificar/${id}`);
       if (res.data.estado) {
+        const sync = res.data?.datos?.sync || {};
+        const subidos = Array.isArray(sync.subidos) ? sync.subidos : [];
+        const fallidos = Array.isArray(sync.fallidos) ? sync.fallidos : [];
+        if (fallidos.length > 0) {
+          const okTxt = subidos.length > 0 ? `Subido en: ${subidos.join(", ")}.` : "No se subio en paneles.";
+          const failTxt = `Pendiente en: ${fallidos.map((f: any) => f?.ip).filter(Boolean).join(", ")}.`;
+          enqueueSnackbar(`${okTxt} ${failTxt}`, { variant: "warning" });
+        }
         enqueueSnackbar("Visitante verificado.", { variant: "success" });
         parentGridDataRef?.fetchRows?.();
         navigate("/visitantes");
-      } else if (res.data.codigo === "PANEL_SYNC_FAILED") {
-        flushSync(() => {
-          setIsVerifying(false);
-          setShowForm(false);
-        });
-        await Swal.fire({
-          icon: "error",
-          title: "No se pudo subir la foto",
-          text:
-            res.data.mensaje ||
-            "El panel no acepto la foto. Intenta con otra imagen.",
-          showConfirmButton: true,
-          allowOutsideClick: false,
-          showClass: { popup: "swal2-show" },
-          hideClass: { popup: "swal2-hide" },
-        });
-        flushSync(() => {
-          setShowForm(true);
-        });
-        return;
       } else {
         enqueueSnackbar(res.data.mensaje, { variant: "warning" });
       }
@@ -174,10 +159,6 @@ export default function VerificarVisitante() {
       setIsVerifying(false);
     }
   };
-
-  if (!showForm) {
-    return null;
-  }
 
   return (
     <ModalContainer containerProps={{ maxWidth: "lg" }}>

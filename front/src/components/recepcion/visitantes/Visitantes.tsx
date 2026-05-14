@@ -22,6 +22,7 @@ import {
   LockOpen,
   QrCodeScanner,
   RestoreFromTrash,
+  Upload,
   Verified,
   // Upload, // Carga masiva oculta temporalmente
   Visibility,
@@ -327,6 +328,37 @@ export default function Visitantes() {
     }
   };
 
+  const resincronizarPaneles = async (ID: string) => {
+    setRowLoading(ID, true);
+    try {
+      const res = await clienteAxios.patch(`/api/visitantes/resync/${ID}`);
+      if (!res.data?.estado) {
+        enqueueSnackbar(res.data?.mensaje || "No se pudo sincronizar.", { variant: "warning" });
+        return;
+      }
+      const sync = res.data?.datos?.sync || {};
+      const subidos = Array.isArray(sync.subidos) ? sync.subidos : [];
+      const fallidos = Array.isArray(sync.fallidos) ? sync.fallidos : [];
+      if (fallidos.length > 0) {
+        const okTxt = subidos.length > 0 ? `Subido en: ${subidos.join(", ")}.` : "No se subio en paneles.";
+        const failTxt = `Pendiente en: ${fallidos.map((f: any) => f?.ip).filter(Boolean).join(", ")}.`;
+        enqueueSnackbar(`${okTxt} ${failTxt}`, { variant: "warning" });
+      } else {
+        enqueueSnackbar(
+          subidos.length > 0
+            ? `Sincronizado en panel(es): ${subidos.join(", ")}`
+            : "Sincronizacion completada.",
+          { variant: "success" }
+        );
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setRowLoading(ID, false);
+    }
+  };
+
   const rowSelectionModel: GridRowSelectionModel = {
     type: "include",
     ids: new Set(selectedRowId ? [selectedRowId] : []),
@@ -602,6 +634,14 @@ const accionBloquear = (ID: string) => {
                     )
                   );
                 }
+                gridActions.push(
+                  <GridActionsCellItem
+                    icon={<Upload color="info" />}
+                    onClick={() => resincronizarPaneles(row._id)}
+                    label="Re-subir paneles"
+                    title="Re-subir paneles"
+                  />
+                );
               }
               return gridActions;
             },

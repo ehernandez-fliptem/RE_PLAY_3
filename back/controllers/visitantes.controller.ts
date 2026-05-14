@@ -83,8 +83,14 @@ async function syncVisitanteEnPaneles(params: {
   id_visitante: number;
   fullName: string;
   cardNo: string;
-}): Promise<{ ok: boolean; errores: Array<{ ip: string; stage: string; message: string }> }> {
+}): Promise<{
+  ok: boolean;
+  total: number;
+  exitos: string[];
+  errores: Array<{ ip: string; stage: string; message: string }>;
+}> {
   const errores: Array<{ ip: string; stage: string; message: string }> = [];
+  const exitos: string[] = [];
   const employeeNo = calcEmployeeNo(params.id_visitante);
   const cardNoPrimary = String(params.cardNo || "").trim();
   const cardNoFallback = String(employeeNo || "").trim();
@@ -224,10 +230,18 @@ async function syncVisitanteEnPaneles(params: {
         stage: "SYNC_ERROR",
         message: String(e?.message || e).slice(0, 500),
       });
+      continue;
     }
+
+    exitos.push(String(ip));
   }
 
-  return { ok: errores.length === 0, errores };
+  return {
+    ok: panelesOrdenados.length === 0 || exitos.length > 0,
+    total: panelesOrdenados.length,
+    exitos,
+    errores,
+  };
 }
 
 const DOC_CHECK_KEYS = [
@@ -928,20 +942,6 @@ export async function crear(req: Request, res: Response): Promise<void> {
           cardNo,
         });
 
-        if (!syncRes.ok) {
-          await Visitantes.findByIdAndDelete(reg_saved._id);
-          const firstErr = syncRes.errores[0];
-          res.status(200).json({
-            estado: false,
-            codigo: "PANEL_SYNC_FAILED",
-            mensaje:
-              firstErr?.message ||
-              "Error al sincronizar con el panel.",
-            datos: syncRes.errores,
-          });
-          return;
-        }
-
         let correoEnviado = false;
         try {
           const qrDataUrl = await QRCode.toDataURL(String(cardNo), {
@@ -963,11 +963,20 @@ export async function crear(req: Request, res: Response): Promise<void> {
         // 9) Respuesta
         res.status(200).json({
           estado: true,
+          mensaje:
+            syncRes.errores.length > 0
+              ? `Visitante creado. Subido en ${syncRes.exitos.length}/${syncRes.total} panel(es).`
+              : "Visitante creado y sincronizado en paneles.",
           datos: {
             _id: String(reg_saved._id),
             id_visitante: reg_saved.id_visitante,
             card_code: cardNo,
             correoEnviado,
+            sync: {
+              total: syncRes.total,
+              subidos: syncRes.exitos,
+              fallidos: syncRes.errores,
+            },
           },
         });
 
@@ -1038,42 +1047,77 @@ export async function verificar(req: Request, res: Response): Promise<void> {
       cardNo,
     });
 
-    if (!syncRes.ok) {
-      await Visitantes.updateOne(
-        { _id: visitante._id },
-        {
-          $set: {
-            card_code: String(visitante.card_code || ""),
-            verificado: Boolean(visitante.verificado),
-            bloqueado: Boolean(visitante.bloqueado),
-            desbloqueado_hasta: visitante.desbloqueado_hasta || null,
-          },
-        }
-      );
-      const firstErr = syncRes.errores[0];
-      res.status(200).json({
-        estado: false,
-        codigo: "PANEL_SYNC_FAILED",
-        mensaje:
-          firstErr?.message ||
-          "Error al sincronizar con el panel.",
-        datos: syncRes.errores,
-      });
-      return;
-    }
-
     res.status(200).json({
       estado: true,
+      mensaje:
+        syncRes.errores.length > 0
+          ? `Visitante verificado. Subido en ${syncRes.exitos.length}/${syncRes.total} panel(es).`
+          : "Visitante verificado y sincronizado en paneles.",
       datos: {
         _id: String(visitante._id),
         verificado: true,
         card_code: cardNo,
         bloqueado: false,
         desbloqueado_hasta: endOfTodayDate,
+        sync: {
+          total: syncRes.total,
+          subidos: syncRes.exitos,
+          fallidos: syncRes.errores,
+        },
       },
     });
   } catch (error: any) {
     console.log("[VERIFICAR] ERROR:", error?.message || error);
+    res.status(500).json({ estado: false, mensaje: "Error interno." });
+  }
+}
+
+export async function resincronizarVisitantePaneles(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "Falta el id del visitante." });
+      return;
+    }
+
+    const visitante = await Visitantes.findById(
+      id,
+      "_id id_visitante nombre apellido_pat apellido_mat card_code"
+    ).lean<any>();
+
+    if (!visitante) {
+      res.status(404).json({ estado: false, mensaje: "Visitante no encontrado." });
+      return;
+    }
+
+    const fullName = `${visitante.nombre ?? ""} ${visitante.apellido_pat ?? ""} ${visitante.apellido_mat ?? ""}`
+      .replace(/\s+/g, " ")
+      .trim();
+    const cardNo = String(visitante.card_code || "").trim() || generarCardCodeDesdeId(Number(visitante.id_visitante));
+
+    const syncRes = await syncVisitanteEnPaneles({
+      id_visitante: Number(visitante.id_visitante),
+      fullName,
+      cardNo,
+    });
+
+    res.status(200).json({
+      estado: true,
+      mensaje:
+        syncRes.errores.length > 0
+          ? `Subido en ${syncRes.exitos.length}/${syncRes.total} panel(es).`
+          : "Sincronizacion completada en paneles.",
+      datos: {
+        _id: String(visitante._id),
+        sync: {
+          total: syncRes.total,
+          subidos: syncRes.exitos,
+          fallidos: syncRes.errores,
+        },
+      },
+    });
+  } catch (error: any) {
+    console.log("[RESYNC_VISITANTE] ERROR:", error?.message || error);
     res.status(500).json({ estado: false, mensaje: "Error interno." });
   }
 }

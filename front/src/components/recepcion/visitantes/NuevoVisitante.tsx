@@ -25,8 +25,6 @@ import { setFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
-import Swal from "sweetalert2";
-import { flushSync } from "react-dom";
 import {
   DOCUMENTOS_CHECKS_LIST,
   EMPTY_DOCUMENTOS_CHECKS,
@@ -138,7 +136,6 @@ const initialValue: FormValues = {
 
 export default function NuevoVisitante() {
   const [isSaving, setIsSaving] = useState(false);
-  const [showForm, setShowForm] = useState(true);
   const formContext = useForm({
     defaultValues: initialValue,
     resolver: yupResolver(resolver),
@@ -169,89 +166,23 @@ export default function NuevoVisitante() {
     const res = await clienteAxios.post("api/visitantes", payload);
     console.log("RESP CREATE VISITANTE:", res.data);
 
-    if (!res.data.estado && res.data.codigo === "PANEL_SYNC_FAILED") {
-      setIsSaving(false);
-      setShowForm(false);
-      await Swal.fire({
-        icon: "error",
-        title: "No se pudo subir la foto",
-        text:
-          res.data.mensaje ||
-          "El panel no acepto la foto. Intenta con otra imagen.",
-        showConfirmButton: true,
-        allowOutsideClick: false,
-        showClass: { popup: "swal2-show" },
-        hideClass: { popup: "swal2-hide" },
-      });
-      setShowForm(true);
-      return;
-    }
-
     if (!res.data.estado) {
       enqueueSnackbar(res.data.mensaje, { variant: "warning" });
       return;
     }
 
-    const createdId = String(res.data?.datos?._id || "");
-    if (createdId && payload.img_usuario) {
-      let faceInvalid = false;
-      let faceInvalidMessage =
-        "La foto no es válida para el panel. Intenta con otra imagen.";
-      try {
-        const pRes = await clienteAxios.get("/api/dispositivos-hikvision/demonio");
-        const paneles = pRes.data?.datos || [];
-        if (Array.isArray(paneles) && paneles.length > 0) {
-          for (const p of paneles) {
-            try {
-              const panelId = p._id;
-              const syncRes = await clienteAxios.get(
-                `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${createdId}`
-              );
-              if (syncRes.data?.estado === false) {
-                faceInvalid = true;
-                faceInvalidMessage = syncRes.data?.mensaje || faceInvalidMessage;
-                break;
-              }
-            } catch {
-              // no bloquea si un panel falla de red
-            }
-            if (faceInvalid) break;
-          }
-        }
-      } catch {
-        // no bloquea si no se pudieron listar paneles
-      }
-
-      if (faceInvalid) {
-        try {
-          await clienteAxios.patch(`/api/visitantes/revertir-creacion/${createdId}`);
-        } catch {
-          // si falla la reversión, de todos modos mostrar error principal
-        }
-        flushSync(() => {
-          setIsSaving(false);
-          setShowForm(false);
-        });
-        await Swal.fire({
-          icon: "error",
-          title: "No se pudo subir la foto",
-          text: faceInvalidMessage,
-          showConfirmButton: true,
-          allowOutsideClick: false,
-          showClass: { popup: "swal2-show" },
-          hideClass: { popup: "swal2-hide" },
-        });
-        flushSync(() => {
-          setShowForm(true);
-        });
-        return;
-      }
+    const sync = res.data?.datos?.sync || {};
+    const subidos = Array.isArray(sync.subidos) ? sync.subidos : [];
+    const fallidos = Array.isArray(sync.fallidos) ? sync.fallidos : [];
+    if (fallidos.length > 0) {
+      const okTxt = subidos.length > 0 ? `Subido en: ${subidos.join(", ")}.` : "No se subio en paneles.";
+      const failTxt = `Pendiente en: ${fallidos.map((f: any) => f?.ip).filter(Boolean).join(", ")}.`;
+      enqueueSnackbar(`${okTxt} ${failTxt}`, { variant: "warning" });
     }
 
     enqueueSnackbar("Visitante creado con exito", {
       variant: "success",
     });
-
 
     parentGridDataRef.fetchRows();
     navigate("/visitantes");
@@ -263,7 +194,6 @@ export default function NuevoVisitante() {
     setIsSaving(false);
   }
 };
-
 
   /*
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
@@ -295,10 +225,6 @@ export default function NuevoVisitante() {
   const regresar = () => {
     navigate("/visitantes");
   };
-
-  if (!showForm) {
-    return null;
-  }
 
   return (
     <ModalContainer containerProps={{ maxWidth: "lg" }}>
@@ -467,3 +393,5 @@ export default function NuevoVisitante() {
     </ModalContainer>
   );
 }
+
+
