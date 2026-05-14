@@ -479,7 +479,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             res.status(200).json({ estado: false, mensaje: 'Documento no encontrado.' });
             return;
         }
-        const visitante = await Visitantes.findOne(doc.creado_por, 'correo');
+        const visitante = await Visitantes.findById(doc.creado_por, 'correo');
         if (!visitante) {
             res.status(200).json({ estado: false, mensaje: 'Documento no encontrado.' });
             return;

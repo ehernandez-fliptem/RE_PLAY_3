@@ -22,6 +22,7 @@ export async function enviarCodigo(req: Request, res: Response): Promise<void> {
                     correo: 'El correo es obligatorio.',
                 }
             });
+            return;
         }
 
         const documento = await Usuarios.countDocuments({ correo }) || await Visitantes.countDocuments({ correo });
