@@ -448,7 +448,7 @@ export default function Camera({
                     }}
                   />
                 ) : (
-                  <>No se estableciÃ³ la funciÃ³n para el escÃ¡ner</>
+                  <>No se estableció la función para el escáner</>
                 )}
               </Fragment>
             ) : (

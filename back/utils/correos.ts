@@ -17,10 +17,10 @@ const DESPEDIDA_SOPORTE = "Atentamente,<br>Monitoreo de Recepcion Electronica";
 /**
  * @function
  * @name enviarCorreoUsuario
- * @description FunciÃ³n para enviar el correo al usuario sobre su nueva cuenta.
+ * @description Función para enviar el correo al usuario sobre su nueva cuenta.
  * @param correo - Correo de destino.
  * @param usuario - Nombre de usuario.
- * @param contrasena - ContraseÃ±a del usuario.
+ * @param contrasena - Contraseña del usuario.
  * @param rol - Rol del usuario.
  */
 export async function enviarCorreoUsuario(
@@ -56,7 +56,7 @@ export async function enviarCorreoUsuario(
                                     <td><strong>Correo: </strong> ${correo}</td>
                                 </tr>
                                 <tr>
-                                    <td><strong>ContraseÃ±a: </strong> ${contrasena}</td>
+                                    <td><strong>Contraseña: </strong> ${contrasena}</td>
                                 </tr>
                                 ${rol ? `
                                 <tr>
@@ -80,16 +80,16 @@ export async function enviarCorreoUsuario(
 /**
  * @function
  * @name enviarCorreoUsuarioNuevaContrasena
- * @description FunciÃ³n para enviar el correo al usuario sobre el restablecimiento de su contraseÃ±a.
+ * @description Función para enviar el correo al usuario sobre el restablecimiento de su contraseña.
  * @param correo - Correo de destino.
- * @param contrasena - Nueva contraseÃ±a del usuario.
+ * @param contrasena - Nueva contraseña del usuario.
  */
 export async function enviarCorreoUsuarioNuevaContrasena(
     correo: string,
     contrasena: string
 ): Promise<boolean> {
     try {
-        const asunto = "Restablecimiento de contraseÃ±a";
+        const asunto = "Restablecimiento de contraseña";
         const saludaCorreo = SALUDO_CONTRATISTAS;
         const despedidaCorreo = DESPEDIDA_CONTRATISTAS;
 
@@ -110,13 +110,13 @@ export async function enviarCorreoUsuarioNuevaContrasena(
                                     <td>${saludaCorreo}</td>
                                 </tr>
                                 <tr>
-                                    <td><br>Se ha modificado su contraseÃ±a para ingresar al sistema de RecepciÃ³n ElectrÃ³nica de Coca Cola.</td>
+                                    <td><br>Se ha modificado su contraseña para ingresar al sistema de Recepción Electrónica de Coca Cola.</td>
                                 </tr>
                                 <tr>
-                                    <td><br><strong>ContraseÃ±a: </strong> ${contrasena}</td>
+                                    <td><br><strong>Contraseña: </strong> ${contrasena}</td>
                                 </tr>
                                 <tr>
-                                    <td><br>Para ingresar al sistema haz clic en el siguiente enlace: <a href="${CONFIG.ENDPOINT}"><b>RecepciÃ³n electrÃ³nica</b></a></td>
+                                    <td><br>Para ingresar al sistema haz clic en el siguiente enlace: <a href="${CONFIG.ENDPOINT}"><b>Recepción electrónica</b></a></td>
                                 </tr>
                                 <tr>
                                     <td><div align="center"><p>${despedidaCorreo}</p></div><br></td>
@@ -136,7 +136,7 @@ export async function enviarCorreoUsuarioNuevaContrasena(
 /** Correo de nuevo visitante en la seccion de Recepcion Visitantes
      * @function
      * @name enviarCorreoNuevoVisitanteHV
-     * @description EnvÃ­a correo al visitante con su QR de acceso.
+     * @description Envía correo al visitante con su QR de acceso.
      * @param correo - Correo de destino.
      * @param nombreCompleto - Nombre completo del visitante.
      * @param qrDataUrl - QR en formato DataURL (data:image/png;base64,...)
@@ -173,7 +173,7 @@ export async function enviarCorreoUsuarioNuevaContrasena(
                     <tr>
                     <td>
                         <p style="font-size:16px; text-align:center;">
-                        Presenta este cÃ³digo para poder ingresar a nuestras instalaciones
+                        Presenta este código para poder ingresar a nuestras instalaciones
                         </p>
                     </td>
                     </tr>
@@ -214,8 +214,8 @@ export async function enviarCorreoUsuarioNuevaContrasena(
 /**
  * @function
  * @name enviarCorreoCitaVisitante
- * @description FunciÃ³n para enviar el correo al visitante sobre la creaciÃ³n de un registro.
- * @param id_anfitrion - ID del anfitriÃ³n a visitar.
+ * @description Función para enviar el correo al visitante sobre la creación de un registro.
+ * @param id_anfitrion - ID del anfitrión a visitar.
  * @param correo - Correo de destinatario.
  * @param fecha_entrada - Fecha de entrada previamente formateada.
  * @param qr - QR de acceso.
@@ -328,11 +328,11 @@ export async function enviarCorreoCitaVisitante(
                                                     },
                                                     {
                                                         case: { $eq: ["$$item.modo", 2] },
-                                                        then: "AutomÃ¡tico",
+                                                        then: "Automático",
                                                     },
                                                     {
                                                         case: { $eq: ["$$item.modo", 3] },
-                                                        then: "Manual / AutomÃ¡tico",
+                                                        then: "Manual / Automático",
                                                     },
                                                 ],
                                                 default: "Acceso no identificado",
@@ -383,7 +383,7 @@ export async function enviarCorreoCitaVisitante(
                         ${registro.detalles.map((detalle) => `
                             <div style="padding: 15px; border-radius: 8px;
                             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5); margin: 5px;">
-                                <h3><b>AnfitriÃ³n: </b>${detalle.anfi_nombre}</h3>
+                                <h3><b>Anfitrión: </b>${detalle.anfi_nombre}</h3>
                                 <p><b>Correo: </b>${detalle.anfi_correo}</p>
                                 <p><b>Actividades: </b>${detalle.visit_actividades}</p>
                                 <p><b>Accesos:</b></p>
@@ -400,8 +400,8 @@ export async function enviarCorreoCitaVisitante(
                                          <li> 
                                             ${dayjs(horario.fecha_entrada).format("DD/MM/YYYY, HH:mm:ss a")} 
                                             <br />
-                                            ${horario.placas ? `<p><b>Placas del vehÃ­culo: </b> ${horario.placas}</p>` : ''}
-                                            ${horario.desc_vehiculo ? `<p><b>DescripciÃ³n del vehÃ­culo: </b> ${horario.desc_vehiculo}</p>` : ''}
+                                            ${horario.placas ? `<p><b>Placas del vehículo: </b> ${horario.placas}</p>` : ''}
+                                            ${horario.desc_vehiculo ? `<p><b>Descripción del vehículo: </b> ${horario.desc_vehiculo}</p>` : ''}
                                          </li>
                                      `).join('')}
                                 </ul>
@@ -430,7 +430,7 @@ export async function enviarCorreoCitaVisitante(
                                         <td>
                                         <h3>${registro.visit_nombre}</h3>
                                             <br />
-                                            Se han creado las siguientes citas para usted en el Sistema de RecepciÃ³n ElectrÃ³nica:
+                                            Se han creado las siguientes citas para usted en el Sistema de Recepción Electrónica:
                                             <br />
                                             <br />
                                         </td>
@@ -438,13 +438,13 @@ export async function enviarCorreoCitaVisitante(
                                     ${docs_faltantes ? `
                                     <tr>
                                         <td>
-                                            Ingresa al sistema para que subas la documentaciÃ³n faltante: ${docs_faltantes}, puedes hacerlo ingresando a la siguiente liga: <a href="${CONFIG.ENDPOINT}"><b>Flipbot</b></a></td>
+                                            Ingresa al sistema para que subas la documentación faltante: ${docs_faltantes}, puedes hacerlo ingresando a la siguiente liga: <a href="${CONFIG.ENDPOINT}"><b>Flipbot</b></a></td>
                                             <br />
                                             <br />
                                         </td>
                                     </tr>`: ''}
                                      <tr>
-                                        <td><strong>CÃ³digo QR para acceder: </strong></td>
+                                        <td><strong>Código QR para acceder: </strong></td>
                                     </tr>
                                     <tr>
                                         <td>
@@ -459,7 +459,7 @@ export async function enviarCorreoCitaVisitante(
                                     <tr>
                                         <td>
                                             <br />
-                                                Ante cualquier duda contacte a su anfitriÃ³n.
+                                                Ante cualquier duda contacte a su anfitrión.
                                             <br />
                                         </td>
                                     </tr>
@@ -491,7 +491,7 @@ export async function enviarCorreoCitaVisitante(
 /**
  * @function
  * @name enviarCorreoCitaAnfitrion
- * @description FunciÃ³n para enviar el correo al anfitriÃ³n sobre la creaciÃ³n de un registro.
+ * @description Función para enviar el correo al anfitrión sobre la creación de un registro.
  * @param correo - Destinatario del correo.
  * @param fecha_entrada - Fecha de entrada previamente formateada.
  */
@@ -596,11 +596,11 @@ export async function enviarCorreoCitaAnfitrion(
                                                     },
                                                     {
                                                         case: { $eq: ["$$item.modo", 2] },
-                                                        then: "AutomÃ¡tico",
+                                                        then: "Automático",
                                                     },
                                                     {
                                                         case: { $eq: ["$$item.modo", 3] },
-                                                        then: "Manual / AutomÃ¡tico",
+                                                        then: "Manual / Automático",
                                                     },
                                                 ],
                                                 default: "Acceso no identificado",
@@ -658,8 +658,8 @@ export async function enviarCorreoCitaAnfitrion(
                                              <li> 
                                                 ${dayjs(horario.fecha_entrada).format("DD/MM/YYYY, HH:mm:ss a")} 
                                                 <br />
-                                                ${horario.placas ? `<p><b>Placas del vehÃ­culo: </b> ${horario.placas}</p>` : ''}
-                                                ${horario.desc_vehiculo ? `<p><b>DescripciÃ³n del vehÃ­culo: </b> ${horario.desc_vehiculo}</p>` : ''}
+                                                ${horario.placas ? `<p><b>Placas del vehículo: </b> ${horario.placas}</p>` : ''}
+                                                ${horario.desc_vehiculo ? `<p><b>Descripción del vehículo: </b> ${horario.desc_vehiculo}</p>` : ''}
                                              </li>
                                          `).join('')}
                                     </ul>
@@ -688,7 +688,7 @@ export async function enviarCorreoCitaAnfitrion(
                                     <td>
                                     <h3>${registro.anfi_nombre}</h3>
                                         <br />
-                                        Se han creado las siguientes citas para usted en el Sistema de RecepciÃ³n ElectrÃ³nica:
+                                        Se han creado las siguientes citas para usted en el Sistema de Recepción Electrónica:
                                         <br />
                                         <br />
                                     </td>
@@ -719,8 +719,8 @@ export async function enviarCorreoCitaAnfitrion(
 /**
  * @function
  * @name enviarCorreoCitaVisitante
- * @description FunciÃ³n para enviar el correo al visitante sobre la creaciÃ³n de un registro.
- * @param id_anfitrion - ID del anfitriÃ³n a visitar.
+ * @description Función para enviar el correo al visitante sobre la creación de un registro.
+ * @param id_anfitrion - ID del anfitrión a visitar.
  * @param correo - Correo de destinatario.
  * @param fecha_entrada - Fecha de entrada previamente formateada.
  * @param qr - QR de acceso.
@@ -807,11 +807,11 @@ export async function enviarCorreoModificacionCitaVisitante(
                                                     },
                                                     {
                                                         case: { $eq: ["$$item.modo", 2] },
-                                                        then: "AutomÃ¡tico",
+                                                        then: "Automático",
                                                     },
                                                     {
                                                         case: { $eq: ["$$item.modo", 3] },
-                                                        then: "Manual / AutomÃ¡tico",
+                                                        then: "Manual / Automático",
                                                     },
                                                 ],
                                                 default: "Acceso no identificado",
@@ -849,7 +849,7 @@ export async function enviarCorreoModificacionCitaVisitante(
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>AnfitriÃ³n: </strong>${anfitrion} (${correo_anfi})</td>
+                                    <td><strong>Anfitrión: </strong>${anfitrion} (${correo_anfi})</td>
                                 </tr>
                                 <tr>
                                     <td>
@@ -863,7 +863,7 @@ export async function enviarCorreoModificacionCitaVisitante(
                                 </tr>
                                 <tr>
                                     <td>
-                                        <strong>TelÃ©fono: </strong>${telefono_visit}<br>
+                                        <strong>Teléfono: </strong>${telefono_visit}<br>
                                     </td>
                                 </tr>
                                 <tr>
@@ -895,7 +895,7 @@ export async function enviarCorreoModificacionCitaVisitante(
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>CÃ³digo QR para acceder: </strong></td>
+                                    <td><strong>Código QR para acceder: </strong></td>
                                 </tr>
                                 <tr>
                                     <td>
@@ -903,7 +903,7 @@ export async function enviarCorreoModificacionCitaVisitante(
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>Para mÃ¡s detalles revise los anexos de seguridad e ingreso:</strong></td>
+                                    <td><strong>Para más detalles revise los anexos de seguridad e ingreso:</strong></td>
                                 </tr>
                                 <tr>
                                     <td>
@@ -932,7 +932,7 @@ export async function enviarCorreoModificacionCitaVisitante(
 /**
  * @function
  * @name enviarCorreoCitaAnfitrion
- * @description FunciÃ³n para enviar el correo al anfitriÃ³n sobre la creaciÃ³n de un registro.
+ * @description Función para enviar el correo al anfitrión sobre la creación de un registro.
  * @param correo - Destinatario del correo.
  * @param fecha_entrada - Fecha de entrada previamente formateada.
  */
@@ -1015,11 +1015,11 @@ export async function enviarCorreoModificacionCitaAnfitrion(
                                                     },
                                                     {
                                                         case: { $eq: ["$$item.modo", 2] },
-                                                        then: "AutomÃ¡tico",
+                                                        then: "Automático",
                                                     },
                                                     {
                                                         case: { $eq: ["$$item.modo", 3] },
-                                                        then: "Manual / AutomÃ¡tico",
+                                                        then: "Manual / Automático",
                                                     },
                                                 ],
                                                 default: "Acceso no identificado",
@@ -1075,7 +1075,7 @@ export async function enviarCorreoModificacionCitaAnfitrion(
                                                 <strong>Correo: </strong>${correo_visit}
                                             </p>
                                             <p style="margin: 0 0 8px 0;">
-                                                <strong>TelÃ©fono: </strong>${telefono_visit}
+                                                <strong>Teléfono: </strong>${telefono_visit}
                                             </p>
                                             <p style="margin: 0 0 8px 0;">
                                                 <strong>Empresa: </strong>${empresa_visit}
@@ -1121,10 +1121,10 @@ export async function enviarCorreoModificacionCitaAnfitrion(
 /**
  * @function
  * @name enviarCorreoCancelacionCitaVisitante
- * @description FunciÃ³n para enviar el correo de cancelaciÃ³n de una cita al visitante.
+ * @description Función para enviar el correo de cancelación de una cita al visitante.
  * @param correoVisit - Correo del visitante.
- * @param id_anfitrion - Nombre del anfitriÃ³n.
- * @param motivo - Motivo de la cancelaciÃ³n.
+ * @param id_anfitrion - Nombre del anfitrión.
+ * @param motivo - Motivo de la cancelación.
  * @param fecha_entrada - Fecha de entrada previamente formateada.
  */
 export async function enviarCorreoCancelacionCitaVisitante(
@@ -1161,10 +1161,10 @@ export async function enviarCorreoCancelacionCitaVisitante(
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>Motivo de cancelaciÃ³n: </strong>${motivo}</td>
+                                    <td><strong>Motivo de cancelación: </strong>${motivo}</td>
                                 </tr>
                                 <tr>
-                                    <td><strong>AnfitriÃ³n: </strong>${anfitrion}</td>
+                                    <td><strong>Anfitrión: </strong>${anfitrion}</td>
                                 </tr>
                                 <tr>
                                     <td><strong>Fecha de entrada: </strong>${fecha_entrada}</td>
@@ -1191,11 +1191,11 @@ export async function enviarCorreoCancelacionCitaVisitante(
 /**
  * @function
  * @name enviarCorreoCancelacionCitaAnfitrion
- * @description FunciÃ³n para enviar el correo de cancelaciÃ³n de una cita al anfitriÃ³n.
- * @param correoAnfi - Destinatario del correo anfitriÃ³n.
+ * @description Función para enviar el correo de cancelación de una cita al anfitrión.
+ * @param correoAnfi - Destinatario del correo anfitrión.
  * @param correoVisit - Correo informativo del visitante.
  * @param visitante - Nombre del visitante.
- * @param motivo - Motivo de la cancelaciÃ³n.
+ * @param motivo - Motivo de la cancelación.
  * @param fecha_entrada - Fecha de entrada previamente formateada.
  */
 export async function enviarCorreoCancelacionCitaAnfitrion(
@@ -1233,7 +1233,7 @@ export async function enviarCorreoCancelacionCitaAnfitrion(
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>Motivo de cancelaciÃ³n: </strong>${motivo}</td>
+                                    <td><strong>Motivo de cancelación: </strong>${motivo}</td>
                                 </tr>
                                 <tr>
                                     <td><strong>Visitante: </strong>${visitante}</td>
@@ -1266,15 +1266,15 @@ export async function enviarCorreoCancelacionCitaAnfitrion(
 /**
  * @function
  * @name enviarCorreoRecuperarContrasena
- * @description FunciÃ³n para enviar el correo de recuperaciÃ³n de contraseÃ±a.
+ * @description Función para enviar el correo de recuperación de contraseña.
  * @param correo - Correo de destino.
- * @param codigo - CÃ³digo de recperaciÃ³n.
+ * @param codigo - Código de recperación.
 */
 export async function enviarCorreoRecuperarContrasena(correo: string, codigo: string): Promise<boolean> {
     try {
         const response = await sendEmail({
             destinatario: correo,
-            asunto: "Restablecer contraseÃ±a en Flipbot",
+            asunto: "Restablecer contraseña en Flipbot",
             texto: "",
             contenido: `
                 <table border="0" cellpadding="0" cellspacing="0" width="100%">
@@ -1283,7 +1283,7 @@ export async function enviarCorreoRecuperarContrasena(correo: string, codigo: st
                             <table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
                                 <tr>
                                     <td bgcolor="#ffffff">
-                                        <h1 align="center">Restablecer contraseÃ±a</h1>
+                                        <h1 align="center">Restablecer contraseña</h1>
                                     </td>
                                 </tr>
                                 <tr>
@@ -1294,14 +1294,14 @@ export async function enviarCorreoRecuperarContrasena(correo: string, codigo: st
                                 <tr>
                                     <td>
                                         <br>
-                                        Se ha recibido una solicitud para restablecer su contraseÃ±a en el Sistema de Flipbot.
+                                        Se ha recibido una solicitud para restablecer su contraseña en el Sistema de Flipbot.
                                         <br>
                                         <br>
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>
-                                        <strong>Para restablecer la contraseÃ±a de su cuenta por favor ingrese el siguiente cÃ³digo de verificaciÃ³n:</strong>
+                                        <strong>Para restablecer la contraseña de su cuenta por favor ingrese el siguiente código de verificación:</strong>
                                     </td>
                                 </tr>
                                 <tr>
@@ -1313,7 +1313,7 @@ export async function enviarCorreoRecuperarContrasena(correo: string, codigo: st
                                 <tr>
                                     <td>
                                         <br>
-                                        <strong>Nota: Este correo expirarÃ¡ en 7 dÃ­as. Si usted no ha solicitado el restablecimiento de su contraseÃ±a, haga caso omiso a este correo.</strong>
+                                        <strong>Nota: Este correo expirará en 7 días. Si usted no ha solicitado el restablecimiento de su contraseña, haga caso omiso a este correo.</strong>
                                         <br>
                                     </td>
                                 </tr>
@@ -1338,9 +1338,9 @@ export async function enviarCorreoRecuperarContrasena(correo: string, codigo: st
 /**
  * @function
  * @name enviarCorreoNotificarCheck
- * @description FunciÃ³n para enviar el correo para notificar check de autorizaciÃ³n.
+ * @description Función para enviar el correo para notificar check de autorización.
  * @param correo - Correo de destino.
- * @param codigo - CÃ³digo de recperaciÃ³n.
+ * @param codigo - Código de recperación.
 */
 export async function enviarCorreoNotificarCheck(
     correo: string,
@@ -1361,7 +1361,7 @@ export async function enviarCorreoNotificarCheck(
 
         const response = await sendEmail({
             destinatario: correo,
-            asunto: "AutorizaciÃ³n de check",
+            asunto: "Autorización de check",
             texto: "",
             contenido: `
                 <table border="0" cellpadding="0" cellspacing="0" width="100%">
@@ -1370,7 +1370,7 @@ export async function enviarCorreoNotificarCheck(
                     <table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
                         <tr>
                             <td bgcolor="#ffffff">
-                                <h1 align="center">AutorizaciÃ³n de check</h1>
+                                <h1 align="center">Autorización de check</h1>
                             </td>
                         </tr>
                         <tr>
@@ -1381,7 +1381,7 @@ export async function enviarCorreoNotificarCheck(
                         <tr>
                             <td>
                                 <br>
-                                    Se ha realizado una autorizaciÃ³n de ${tipo} por check en RecepciÃ³n ElectrÃ³nica.
+                                    Se ha realizado una autorización de ${tipo} por check en Recepción Electrónica.
                                 <br>
                                 <br>
                             </td>
@@ -1408,7 +1408,7 @@ export async function enviarCorreoNotificarCheck(
                         </tr>
                         <tr>
                             <td>
-                                <strong>Fecha de autorizaciÃ³n o rechazo: </strong> ${fecha_actual}
+                                <strong>Fecha de autorización o rechazo: </strong> ${fecha_actual}
                             </td>
                         </tr>
                         <tr>
@@ -1437,8 +1437,8 @@ export async function enviarCorreoNotificarCheck(
 /**
  * @function
  * @name enviarCorreoDocumentoRechazada
- * @description FunciÃ³n para enviar el correo al visitante por documentaciÃ³n rechazada.
- * @param datos - Datos para el envÃ­o.
+ * @description Función para enviar el correo al visitante por documentación rechazada.
+ * @param datos - Datos para el envío.
  * @param datos.correo - Correo del destinatario.
  * @param datos.tipo_documento - Tipo de documento a enviar.
  * @param datos.fecha_carga - Fecha de carga del documento.
@@ -1456,7 +1456,7 @@ export async function enviarCorreoDocumentoRechazada(datos: {
         const despedidaCorreo = DESPEDIDA_GENERAL;
         const response = await sendEmail({
             destinatario: correo,
-            asunto: "DocumentaciÃ³n rechazada",
+            asunto: "Documentación rechazada",
             texto: "",
             contenido: `
                 <table border="0" cellpadding="0" cellspacing="0" width="100%">
@@ -1465,7 +1465,7 @@ export async function enviarCorreoDocumentoRechazada(datos: {
                             <table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
                                 <tr>
                                     <td bgcolor="#ffffff">
-                                        <h1 align="center">DocumentaciÃ³n rechazada</h1>
+                                        <h1 align="center">Documentación rechazada</h1>
                                     </td>
                                 </tr>
                                 <tr>
@@ -1478,7 +1478,7 @@ export async function enviarCorreoDocumentoRechazada(datos: {
                                 <tr>
                                     <td>
                                         <br>
-                                            Su documentaciÃ³n fue rechazada, consulta el documento para corregirlo y subir uno nuevo:
+                                            Su documentación fue rechazada, consulta el documento para corregirlo y subir uno nuevo:
                                         <br>
                                     </td>
                                 </tr>
@@ -1519,11 +1519,11 @@ export async function enviarCorreoDocumentoRechazada(datos: {
 /**
  * @function
  * @name enviarCorreoDocumentoExpirado
- * @description FunciÃ³n para enviar el correo al visitante por documentaciÃ³n a punto de expiraciÃ³n.
- * @param datos - Datos para el envÃ­o.
+ * @description Función para enviar el correo al visitante por documentación a punto de expiración.
+ * @param datos - Datos para el envío.
  * @param datos.correo - Correo del destinatario.
  * @param datos.tipo - Tipo de documento a enviar.
- * @param datos.tiempo_restante - Tiempo restante para la expiraciÃ³n.
+ * @param datos.tiempo_restante - Tiempo restante para la expiración.
 */
 export async function enviarCorreoDocumentoExpirado(datos: {
     correo: string;
@@ -1536,7 +1536,7 @@ export async function enviarCorreoDocumentoExpirado(datos: {
         const despedidaCorreo = DESPEDIDA_GENERAL;
         const response = await sendEmail({
             destinatario: correo,
-            asunto: "DocumentaciÃ³n a punto de expirar",
+            asunto: "Documentación a punto de expirar",
             texto: "",
             contenido: `
                 <table border="0" cellpadding="0" cellspacing="0" width="100%">
@@ -1545,7 +1545,7 @@ export async function enviarCorreoDocumentoExpirado(datos: {
                             <table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
                                 <tr>
                                     <td bgcolor="#ffffff">
-                                        <h1 align="center">Actualizar DocumentaciÃ³n</h1>
+                                        <h1 align="center">Actualizar Documentación</h1>
                                     </td>
                                 </tr>
                                 <tr>
@@ -1555,7 +1555,7 @@ export async function enviarCorreoDocumentoExpirado(datos: {
                                 </tr>
                                 <tr>
                                     <td>
-                                        Su documento ${tipo} estÃ¡ a punto de expirar, tiene ${tiempo_restante} dÃ­as para actualizarlo.
+                                        Su documento ${tipo} está a punto de expirar, tiene ${tiempo_restante} días para actualizarlo.
                                     </td>
                                 </tr>
 
@@ -1580,9 +1580,9 @@ export async function enviarCorreoDocumentoExpirado(datos: {
 /**
  * @function
  * @name enviarCorreoErrorSoporte
- * @description FunciÃ³n para enviar el correo cuando ocurre un error en el sistema.
+ * @description Función para enviar el correo cuando ocurre un error en el sistema.
  * @param correo - Correo de destino.
- * @param datos - InformaciÃ³n del error capturado.
+ * @param datos - Información del error capturado.
 */
 export async function enviarCorreoErrorSoporte(
     correo: string,
@@ -1600,7 +1600,7 @@ export async function enviarCorreoErrorSoporte(
 
         const response = await sendEmail({
             destinatario: correo,
-            asunto: "Error en la aplicaciÃ³n",
+            asunto: "Error en la aplicación",
             texto: "",
             contenido: `
                 <table border="0" cellpadding="0" cellspacing="0" width="100%">
@@ -1609,7 +1609,7 @@ export async function enviarCorreoErrorSoporte(
                     <table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
                         <tr>
                             <td bgcolor="#ffffff">
-                                <h1 align="center">Error en la aplicaciÃ³n</h1>
+                                <h1 align="center">Error en la aplicación</h1>
                             </td>
                         </tr>
                         <tr>
@@ -1653,7 +1653,7 @@ export async function enviarCorreoErrorSoporte(
 /**
  * @function
  * @name enviarCorreoNuevaLigaCita
- * @description FunciÃ³n para enviar el correo cuando ocurre un error en el sistema.
+ * @description Función para enviar el correo cuando ocurre un error en el sistema.
  * @param correo - Correo de destino.
  * @param token - Token para url.
 */
@@ -1667,7 +1667,7 @@ export async function enviarCorreoNuevaLigaCita(
 
         const response = await sendEmail({
             destinatario: correo,
-            asunto: "Liga de creaciÃ³n de cita",
+            asunto: "Liga de creación de cita",
             texto: "",
             contenido: `
                 <table border="0" cellpadding="0" cellspacing="0" width="100%">
@@ -1687,7 +1687,7 @@ export async function enviarCorreoNuevaLigaCita(
                         <tr>
                             <td>
                                 <br/>
-                                Has recibido una invitaciÃ³n para generar una cita en el Sistema de RecepciÃ³n ElectrÃ³nica, para completarla puedas ingresar al siguiente enlace: <a href="${CONFIG.ENDPOINT}/nuevo-registro-visitante?t=${token}"><b>Flipbot</b></a>
+                                Has recibido una invitación para generar una cita en el Sistema de Recepción Electrónica, para completarla puedas ingresar al siguiente enlace: <a href="${CONFIG.ENDPOINT}/nuevo-registro-visitante?t=${token}"><b>Flipbot</b></a>
                             </td>
                         </tr>
                         <tr>
