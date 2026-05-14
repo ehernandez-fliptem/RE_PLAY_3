@@ -996,21 +996,22 @@ export async function verificar(req: Request, res: Response): Promise<void> {
       { $set: { card_code: cardNo, verificado: true, bloqueado: false, desbloqueado_hasta: endOfTodayDate } }
     );
 
-    QRCode.toDataURL(String(cardNo), {
-      errorCorrectionLevel: "H",
-      type: "image/png",
-      width: 500,
-      margin: 2,
-    })
-      .then((qrDataUrl) =>
-        enviarCorreoNuevoVisitanteHV(
-          visitante.correo,
-          fullName,
-          qrDataUrl
-        )
-      )
-      .then((okMail) => console.log("[VERIFICAR] mail HV ok?", okMail))
-      .catch((e) => console.log("[VERIFICAR] mail HV error:", e?.message || e));
+    try {
+      const qrDataUrl = await QRCode.toDataURL(String(cardNo), {
+        errorCorrectionLevel: "H",
+        type: "image/png",
+        width: 500,
+        margin: 2,
+      });
+      const okMail = await enviarCorreoNuevoVisitanteHV(
+        visitante.correo,
+        fullName,
+        qrDataUrl
+      );
+      log(`${fecha()} INFO: Verificar visitante correo HV. visitante=${String(visitante._id)} correo=${String(visitante.correo || "")} enviado=${okMail}\n`);
+    } catch (e: any) {
+      log(`${fecha()} ERROR: Verificar visitante correo HV. visitante=${String(visitante._id)} correo=${String(visitante.correo || "")} error=${String(e?.message || e)}\n`);
+    }
 
     const syncRes = await syncVisitanteEnPaneles({
       id_visitante: Number(visitante.id_visitante),
@@ -1371,19 +1372,16 @@ export async function cargarProgramacionUsuarios(req: Request, res: Response): P
 
             const nuevoUsuario = new Visitantes({ ...registro, contrasena: contrasena_hashed, creado_por: id_usuario });
             await nuevoUsuario.save();
-            console.log("va a enviar correo a:", registro.correo);
-            console.log("envioCorreos:", envioCorreos);
             if (envioCorreos) {
                 const { correo, contrasena } = registro;
                 let roles = await Roles.find({ rol: { $in: [10] }, activo: true }, 'nombre');
                 const rolesString = roles.map((item) => item.nombre).join(' - ');
-                console.log("enviando correo a:", correo);
                 const nombreCompleto = [registro.nombre, registro.apellido_pat, registro.apellido_mat]
                     .filter(Boolean)
                     .join(" ");
                 resultCorreoUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, nombreCompleto);
-                console.log("resultado correo:", resultCorreoUsuario);
-                if (registrosGuardados) correosEnviados++;
+                log(`${fecha()} INFO: Carga masiva visitantes correo. correo=${String(correo || "")} enviado=${resultCorreoUsuario}\n`);
+                if (resultCorreoUsuario) correosEnviados++;
             }
             usuariosCreados++;
             registrosGuardados.push({ ...registro, envioHabilitado: envioCorreos, correoEnviado: resultCorreoUsuario });
