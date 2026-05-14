@@ -443,9 +443,9 @@ export default function Usuarios() {
                       label="Estado"
                       onChange={(e) => setEstadoFiltro(e.target.value as typeof estadoFiltro)}
                     >
+                      <MenuItem value="todos">Todos</MenuItem>
                       <MenuItem value="activos">Activos</MenuItem>
                       <MenuItem value="inactivos">Inactivos</MenuItem>
-                      <MenuItem value="todos">Todos</MenuItem>
                     </Select>
                   </FormControl>
                   <Tooltip title="Agregar">
@@ -473,6 +473,7 @@ export default function Usuarios() {
     </div>
   );
 }
+
 
 
 
