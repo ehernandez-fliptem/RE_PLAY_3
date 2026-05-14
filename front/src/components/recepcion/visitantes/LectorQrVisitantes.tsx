@@ -133,15 +133,17 @@ export default function LectorQrVisitantes({
         sx={{
           pointerEvents: "auto",
           position: "absolute",
-          width: { xs: "92%", md: "50%", lg: "40%", xl: "30%" },
+          width: hideBackdrop
+            ? { xs: "calc(100vw - 16px)", sm: "min(680px, calc(100vw - 32px))" }
+            : { xs: "92%", md: "50%", lg: "40%", xl: "30%" },
           ...(hideBackdrop
             ? {
                 left: "50%",
-                bottom: { xs: 8, sm: 16 },
-                top: { xs: "72px", sm: "50%" },
-                transform: { xs: "translateX(-50%)", sm: "translate(-50%, -50%)" },
-                maxHeight: { xs: "calc(100dvh - 84px)", sm: "unset" },
-                overflowY: { xs: "auto", sm: "visible" },
+                top: { xs: 72, sm: 80 },
+                bottom: 8,
+                transform: "translateX(-50%)",
+                maxHeight: { xs: "calc(100dvh - 80px)", sm: "calc(100dvh - 96px)" },
+                overflow: "hidden",
               }
             : {
                 top: "50%",
@@ -150,7 +152,7 @@ export default function LectorQrVisitantes({
               }),
         }}
       >
-        <CardContent>
+        <CardContent sx={hideBackdrop ? { maxHeight: "100%", overflowY: "auto" } : undefined}>
           <Box
             component="section"
             sx={{
