@@ -1318,31 +1318,33 @@ export default function Empleados() {
               tableTitle="Gestión de Empleados"
               customActionButtons={
                 <Fragment>
-                  <FormControl
-                    size="small"
-                    sx={{ minWidth: 260, mr: 1 }}
-                  >
-                    <InputLabel id="grupo-biostar-filter-label">
-                      Grupo BioStar
-                    </InputLabel>
-                    <Select
-                      labelId="grupo-biostar-filter-label"
-                      value={biostarGroupFilter}
-                      label="Grupo BioStar"
-                      onChange={(e) =>
-                        setBiostarGroupFilter(String(e.target.value || ""))
-                      }
+                  {habilitarIntegracionBiostar && (
+                    <FormControl
+                      size="small"
+                      sx={{ minWidth: 260, mr: 1 }}
                     >
-                      <MenuItem value="">
-                        Todos
-                      </MenuItem>
-                      {biostarGroupOptions.map((item) => (
-                        <MenuItem key={item.id_externo} value={item.id_externo}>
-                          {item.nombre} ({item.total})
+                      <InputLabel id="grupo-biostar-filter-label">
+                        Grupo BioStar
+                      </InputLabel>
+                      <Select
+                        labelId="grupo-biostar-filter-label"
+                        value={biostarGroupFilter}
+                        label="Grupo BioStar"
+                        onChange={(e) =>
+                          setBiostarGroupFilter(String(e.target.value || ""))
+                        }
+                      >
+                        <MenuItem value="">
+                          Todos
                         </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                        {biostarGroupOptions.map((item) => (
+                          <MenuItem key={item.id_externo} value={item.id_externo}>
+                            {item.nombre} ({item.total})
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  )}
                   <Tooltip title="Agregar">
                     <IconButton onClick={nuevoRegistro}>
                       <Add fontSize="small" />
