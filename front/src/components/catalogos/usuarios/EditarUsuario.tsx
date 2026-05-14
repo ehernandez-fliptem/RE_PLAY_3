@@ -25,6 +25,7 @@ import {
 import {
   AutocompleteElement,
   FormContainer,
+  SelectElement,
   TextFieldElement,
 } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
@@ -516,17 +517,18 @@ export default function EditarUsuario() {
                             },
                           }}
                         />
-                        <AutocompleteElement
+                        <SelectElement
                           name="modo_tablet_qr"
-                          label="Modo de escaneo tablet"
+                          label="Acceso que usara"
                           required
+                          fullWidth
+                          margin="normal"
+                          slotProps={{ inputLabel: { shrink: true } }}
                           options={[
                             { id: "entrada", label: "Entrada" },
                             { id: "salida", label: "Salida" },
                             { id: "ambos", label: "Ambos" },
                           ]}
-                          textFieldProps={{ margin: "normal" }}
-                          autocompleteProps={{ noOptionsText: "No hay opciones." }}
                         />
                       </>
                     )}
