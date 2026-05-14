@@ -106,6 +106,167 @@ export default function LectorQrVisitantes({
     }
   };
 
+  const content = (
+    <>
+      <CardContent
+        sx={
+          hideBackdrop
+            ? {
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                p: 2,
+              }
+            : undefined
+        }
+      >
+        <Box
+          component="section"
+          sx={{
+            backgroundColor: "info.main",
+            color: "info.contrastText",
+            mb: 1,
+          }}
+        >
+          <Typography variant="overline" component="h5" textAlign="center">
+            ESCANEAR QR
+          </Typography>
+        </Box>
+
+        {isLoading && <Spinner />}
+
+        {!isLoading && !result && (
+          <Box component="section" sx={hideBackdrop ? { flex: 1, minHeight: 0 } : undefined}>
+            <Camera
+              showButton={false}
+              isScan
+              handleScan={handleScan}
+              name={name}
+              containerHeight={hideBackdrop ? "100%" : 350}
+            />
+          </Box>
+        )}
+
+        {!isLoading && result && (
+          <Stack spacing={2} alignItems="center" sx={{ py: 3 }}>
+            {result.ok ? (
+              <CheckCircle color="success" sx={{ fontSize: 64 }} />
+            ) : (
+              <Cancel color="error" sx={{ fontSize: 64 }} />
+            )}
+            <Typography variant="h6" textAlign="center">
+              {result.ok ? result.message || "Acceso permitido" : "Acceso denegado"}
+            </Typography>
+            {result.ok && result.img_ine !== undefined && (
+              <Box
+                sx={{
+                  width: "100%",
+                  maxWidth: 420,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 2,
+                  p: 1.5,
+                  bgcolor: "background.paper",
+                }}
+              >
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  INE registrada
+                </Typography>
+                {result.img_ine ? (
+                  <Box
+                    component="img"
+                    src={result.img_ine}
+                    alt={`INE ${result.nombre || "visitante"}`}
+                    sx={{
+                      width: "100%",
+                      maxHeight: 220,
+                      objectFit: "contain",
+                      borderRadius: 1,
+                      bgcolor: "grey.100",
+                    }}
+                  />
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Sin INE registrada.
+                  </Typography>
+                )}
+              </Box>
+            )}
+            {!result.ok && (
+              <Typography variant="body2" textAlign="center">
+                {result.message}
+              </Typography>
+            )}
+            {hideActions && (
+              <Button
+                variant="outlined"
+                startIcon={<Replay />}
+                onClick={handleRetry}
+                disabled={isLoading}
+              >
+                Escanear de nuevo
+              </Button>
+            )}
+          </Stack>
+        )}
+      </CardContent>
+      {!hideActions && (
+        <CardActions sx={{ px: 3, pb: 3 }}>
+          <Stack
+            spacing={2}
+            direction={{ xs: "column-reverse", sm: "row" }}
+            justifyContent="end"
+            sx={{ width: "100%" }}
+          >
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={() => setShow(false)}
+            >
+              Cerrar
+            </Button>
+            {testQr && !result && (
+              <Button
+                variant="outlined"
+                color="info"
+                onClick={handleTestQr}
+                disabled={isLoading}
+              >
+                Validar prueba
+              </Button>
+            )}
+            <Button
+              variant="outlined"
+              startIcon={<Replay />}
+              onClick={handleRetry}
+              disabled={isLoading}
+            >
+              Escanear de nuevo
+            </Button>
+          </Stack>
+        </CardActions>
+      )}
+    </>
+  );
+
+  if (hideBackdrop) {
+    return (
+      <Card
+        elevation={2}
+        sx={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
+        {content}
+      </Card>
+    );
+  }
+
   return (
     <Modal
       disableEscapeKeyDown
@@ -152,136 +313,7 @@ export default function LectorQrVisitantes({
               }),
         }}
       >
-        <CardContent sx={hideBackdrop ? { maxHeight: "100%", overflowY: "auto" } : undefined}>
-          <Box
-            component="section"
-            sx={{
-              backgroundColor: "info.main",
-              color: "info.contrastText",
-            }}
-          >
-            <Typography
-              variant="overline"
-              component="h5"
-              textAlign="center"
-              sx={{ mb: 2 }}
-            >
-              ESCANEAR QR
-            </Typography>
-          </Box>
-
-          {isLoading && <Spinner />}
-
-          {!isLoading && !result && (
-            <Box component="section">
-              <Camera
-                showButton={false}
-                isScan
-                handleScan={handleScan}
-                name={name}
-              />
-            </Box>
-          )}
-
-          {!isLoading && result && (
-            <Stack spacing={2} alignItems="center" sx={{ py: 3 }}>
-              {result.ok ? (
-                <CheckCircle color="success" sx={{ fontSize: 64 }} />
-              ) : (
-                <Cancel color="error" sx={{ fontSize: 64 }} />
-              )}
-              <Typography variant="h6" textAlign="center">
-                {result.ok ? result.message || "Acceso permitido" : "Acceso denegado"}
-              </Typography>
-              {result.ok && result.img_ine !== undefined && (
-                <Box
-                  sx={{
-                    width: "100%",
-                    maxWidth: 420,
-                    border: "1px solid",
-                    borderColor: "divider",
-                    borderRadius: 2,
-                    p: 1.5,
-                    bgcolor: "background.paper",
-                  }}
-                >
-                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                    INE registrada
-                  </Typography>
-                  {result.img_ine ? (
-                    <Box
-                      component="img"
-                      src={result.img_ine}
-                      alt={`INE ${result.nombre || "visitante"}`}
-                      sx={{
-                        width: "100%",
-                        maxHeight: 220,
-                        objectFit: "contain",
-                        borderRadius: 1,
-                        bgcolor: "grey.100",
-                      }}
-                    />
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      Sin INE registrada.
-                    </Typography>
-                  )}
-                </Box>
-              )}
-              {!result.ok && (
-                <Typography variant="body2" textAlign="center">
-                  {result.message}
-                </Typography>
-              )}
-              {hideActions && (
-                <Button
-                  variant="outlined"
-                  startIcon={<Replay />}
-                  onClick={handleRetry}
-                  disabled={isLoading}
-                >
-                  Escanear de nuevo
-                </Button>
-              )}
-            </Stack>
-          )}
-        </CardContent>
-        {!hideActions && (
-          <CardActions sx={{ px: 3, pb: 3 }}>
-            <Stack
-              spacing={2}
-              direction={{ xs: "column-reverse", sm: "row" }}
-              justifyContent="end"
-              sx={{ width: "100%" }}
-            >
-              <Button
-                variant="contained"
-                color="secondary"
-                onClick={() => setShow(false)}
-              >
-                Cerrar
-              </Button>
-              {testQr && !result && (
-                <Button
-                  variant="outlined"
-                  color="info"
-                  onClick={handleTestQr}
-                  disabled={isLoading}
-                >
-                  Validar prueba
-                </Button>
-              )}
-              <Button
-                variant="outlined"
-                startIcon={<Replay />}
-                onClick={handleRetry}
-                disabled={isLoading}
-              >
-                Escanear de nuevo
-              </Button>
-            </Stack>
-          </CardActions>
-        )}
+        {content}
       </Card>
     </Modal>
   );

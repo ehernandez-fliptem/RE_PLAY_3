@@ -43,6 +43,7 @@ export interface IUsuario extends Document {
     fecha_modificacion?: Date;
     modificado_por?: mongoose.Types.ObjectId;
     activo: boolean;
+    eliminado_permanente?: boolean;
 }
 
 const usuarioSchema = new Schema<IUsuario>({
@@ -149,6 +150,7 @@ const usuarioSchema = new Schema<IUsuario>({
     fecha_modificacion: { type: Date },
     modificado_por: { type: Schema.Types.ObjectId, default: null, ref: 'usuarios' },
     activo: { type: Boolean, default: true },
+    eliminado_permanente: { type: Boolean, default: false },
 });
 
 usuarioSchema.pre<IUsuario>('save', async function (next) {

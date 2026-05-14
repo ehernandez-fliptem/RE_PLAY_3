@@ -78,6 +78,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                     $and: [
                         isMaster ? {} : { id_empresa: new Types.ObjectId(id_empresa) },
                         estadoFiltro === "inactivos" ? { activo: false } : estadoFiltro === "todos" ? {} : { activo: true },
+                        { eliminado_permanente: { $ne: true } },
                         biostarGroupId ? { biostar_group_id: biostarGroupId, biostar_user_id: { $nin: ["", null] } } : {},
                     ]
                 }
@@ -4278,6 +4279,30 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
         res.status(200).json({ estado: true });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function eliminarPermanente(req: Request, res: Response): Promise<void> {
+    try {
+        const registro = await Empleados.findById(req.params.id, "activo id_empleado");
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: 'Usuario no encontrado.' });
+            return;
+        }
+        if (registro.id_empleado === 1) {
+            res.status(200).json({ estado: false, mensaje: 'No puede eliminar al usuario maestro.' });
+            return;
+        }
+        if (registro.activo) {
+            res.status(200).json({ estado: false, mensaje: 'Primero desactiva al empleado.' });
+            return;
+        }
+        await Empleados.findByIdAndUpdate(req.params.id, {
+            $set: { eliminado_permanente: true, activo: false }
+        });
+        res.status(200).json({ estado: true });
+    } catch (error: any) {
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 }

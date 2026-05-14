@@ -18,6 +18,7 @@ import {
     obtenerAnfitriones,
     anonimizar,
     reenviarCorreoAcceso,
+    eliminarPermanente,
 } from "../controllers/usuarios.controller";
 
 const router = Router();
@@ -38,6 +39,7 @@ router.put("/:id", validarTokenYRol([1]), modificar);
 router.patch('/anonimizar/:id', validarTokenYRol([1]), anonimizar);
 router.patch('/reenviar/:id', validarTokenYRol([1]), reenviarCorreoAcceso);
 router.patch("/desbloquear/:id", validarTokenYRol([1]), desbloquear);
+router.patch("/eliminar-permanente/:id", validarTokenYRol([1]), eliminarPermanente);
 router.patch("/:id", validarTokenYRol([1]), modificarEstado);
 router.patch("/:id", validarTokenYRol([1]), modificarEstado);
 

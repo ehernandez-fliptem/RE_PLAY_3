@@ -33,6 +33,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
         const id_usuario = (req as UserRequest).userId;
         const isMaster = (req as UserRequest).isMaster;
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario
+        const estadoFiltro = String((req.query as any)?.estado || "activos").trim().toLowerCase();
 
         const { filter, pagination, sort, scope } = req.query as { filter: string; pagination: string; sort: string; scope?: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
@@ -60,7 +61,9 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                 $match: {
                     $and: [
                         isMaster ? {} : { id_empresa: new Types.ObjectId(id_empresa) },
-                        scopeMatch
+                        scopeMatch,
+                        estadoFiltro === "inactivos" ? { activo: false } : estadoFiltro === "todos" ? {} : { activo: true },
+                        { eliminado_permanente: { $ne: true } },
                     ]
                 }
             },
@@ -1188,6 +1191,30 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
         res.status(200).json({ estado: true });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function eliminarPermanente(req: Request, res: Response): Promise<void> {
+    try {
+        const registro = await Usuarios.findById(req.params.id, "activo id_general");
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: 'Usuario no encontrado.' });
+            return;
+        }
+        if (registro.id_general === 1) {
+            res.status(200).json({ estado: false, mensaje: 'No puede eliminar al usuario maestro.' });
+            return;
+        }
+        if (registro.activo) {
+            res.status(200).json({ estado: false, mensaje: 'Primero desactiva al usuario.' });
+            return;
+        }
+        await Usuarios.findByIdAndUpdate(req.params.id, {
+            $set: { eliminado_permanente: true, activo: false }
+        });
+        res.status(200).json({ estado: true });
+    } catch (error: any) {
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 }

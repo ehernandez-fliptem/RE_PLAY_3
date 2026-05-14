@@ -133,7 +133,7 @@ export default function Empleados() {
   const [tarjetaDescripcion, setTarjetaDescripcion] = useState("");
   const [tarjetaMensaje, setTarjetaMensaje] = useState("");
   const [biostarGroupFilter, setBiostarGroupFilter] = useState("");
-  const [estadoFiltro] = useState<"activos" | "inactivos" | "todos">("activos");
+  const [estadoFiltro, setEstadoFiltro] = useState<"activos" | "inactivos" | "todos">("activos");
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [biostarGroupOptions, setBiostarGroupOptions] = useState<
     Array<{ id_externo: string; nombre: string; total: number }>
@@ -822,29 +822,38 @@ export default function Empleados() {
   //   navigate("carga-masiva");
   // };
 
-  const cambiarEstado = async (ID: string, activo: boolean) => {
+  const cambiarEstado = async (ID: string, activo: boolean, nombre: string) => {
     if (!activo) {
-      try {
-        setRowLoading(ID, true);
-        const res = await clienteAxios.patch(`/api/empleados/${ID}`, {
-          activo,
+      confirm({
+        title: "¿Seguro que deseas restaurar a este empleado?",
+        description: nombre,
+        allowClose: true,
+        confirmationText: "Continuar",
+      })
+        .then(async (result) => {
+          if (!result.confirmed) return;
+          setRowLoading(ID, true);
+          const res = await clienteAxios.patch(`/api/empleados/${ID}`, {
+            activo,
+          });
+          if (res.data.estado) {
+            apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
+            apiRef.current?.dataSource?.fetchRows?.();
+          } else {
+            enqueueSnackbar(res.data.mensaje, { variant: "error" });
+          }
+        })
+        .catch((error) => {
+          const { restartSession } = handlingError(error);
+          if (restartSession) navigate("/logout", { replace: true });
+        })
+        .finally(() => {
+          setRowLoading(ID, false);
         });
-        if (res.data.estado) {
-          apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
-          apiRef.current?.dataSource?.fetchRows?.();
-        } else {
-          enqueueSnackbar(res.data.mensaje, { variant: "error" });
-        }
-      } catch (error) {
-        const { restartSession } = handlingError(error);
-        if (restartSession) navigate("/logout", { replace: true });
-      } finally {
-        setRowLoading(ID, false);
-      }
     } else {
       confirm({
-        title: "Â¿Seguro que deseas desactivar a este empleado?",
-        description: "",
+        title: "¿Seguro que deseas desactivar a este empleado?",
+        description: nombre,
         allowClose: true,
         confirmationText: "Continuar",
       })
@@ -869,6 +878,31 @@ export default function Empleados() {
           if (restartSession) navigate("/logout", { replace: true });
         });
     }
+  };
+
+  const eliminarPermanente = (ID: string, nombre: string) => {
+    confirm({
+      title: "¿Seguro que deseas eliminar permanentemente este empleado?",
+      description: nombre,
+      allowClose: true,
+      confirmationText: "Continuar",
+    })
+      .then(async (result) => {
+        if (!result.confirmed) return;
+        setRowLoading(ID, true);
+        const res = await clienteAxios.patch(`/api/empleados/eliminar-permanente/${ID}`);
+        if (res.data.estado) {
+          apiRef.current?.dataSource?.fetchRows?.();
+          enqueueSnackbar("Empleado eliminado permanentemente.", { variant: "success" });
+        } else {
+          enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+        }
+      })
+      .catch((error) => {
+        const { restartSession } = handlingError(error);
+        if (restartSession) navigate("/logout", { replace: true });
+      })
+      .finally(() => setRowLoading(ID, false));
   };
 
   const descargarQr = async (ID: string, nombre: string) => {
@@ -1240,19 +1274,30 @@ export default function Empleados() {
                   row.activo ? (
                     <GridActionsCellItem
                       icon={<Delete color="success" />}
-                      onClick={() => cambiarEstado(row._id, row.activo)}
+                      onClick={() => cambiarEstado(row._id, row.activo, row.nombre)}
                       label="Desactivar"
                       title="Desactivar"
                     />
                   ) : (
                     <GridActionsCellItem
                       icon={<RestoreFromTrash color="error" />}
-                      onClick={() => cambiarEstado(row._id, row.activo)}
+                      onClick={() => cambiarEstado(row._id, row.activo, row.nombre)}
                       label="Restaurar"
                       title="Restaurar"
                     />
+                    
                   )
                 );
+                if (!row.activo) {
+                  gridActions.push(
+                    <GridActionsCellItem
+                      icon={<Delete color="error" />}
+                      onClick={() => eliminarPermanente(row._id, row.nombre)}
+                      label="Eliminar permanentemente"
+                      title="Eliminar permanentemente"
+                    />
+                  );
+                }
               }
               if (row.sync_hikvision_pendiente || row.sync_biostar_pendiente) {
                 const sistemas = [
@@ -1345,6 +1390,19 @@ export default function Empleados() {
                       </Select>
                     </FormControl>
                   )}
+                  <FormControl size="small" sx={{ minWidth: 180, mr: 1 }}>
+                    <InputLabel id="estado-empleados-label">Estado</InputLabel>
+                    <Select
+                      labelId="estado-empleados-label"
+                      value={estadoFiltro}
+                      label="Estado"
+                      onChange={(e) => setEstadoFiltro(e.target.value as typeof estadoFiltro)}
+                    >
+                      <MenuItem value="activos">Activos</MenuItem>
+                      <MenuItem value="inactivos">Inactivos</MenuItem>
+                      <MenuItem value="todos">Todos</MenuItem>
+                    </Select>
+                  </FormControl>
                   <Tooltip title="Agregar">
                     <IconButton onClick={nuevoRegistro}>
                       <Add fontSize="small" />
@@ -1965,5 +2023,7 @@ export default function Empleados() {
     </div>
   );
 }
+
+
 
 

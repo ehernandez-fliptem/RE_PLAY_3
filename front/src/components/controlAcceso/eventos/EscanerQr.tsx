@@ -61,7 +61,16 @@ export default function EscanerQr() {
   );
 
   return (
-    <Box sx={{ minHeight: 300 }}>
+    <Box
+      sx={{
+        width: "100%",
+        height: {
+          xs: "calc(100dvh - 190px)",
+          sm: "calc(100dvh - 210px)",
+        },
+        minHeight: { xs: 320, sm: 420 },
+      }}
+    >
       {showQRScanner && (
         <FormProvider {...formContext}>
           <LectorQrVisitantes

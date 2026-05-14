@@ -59,6 +59,7 @@ export interface IEmpleado extends Document {
     fecha_modificacion?: Date;
     modificado_por?: mongoose.Types.ObjectId;
     activo: boolean;
+    eliminado_permanente?: boolean;
 }
 
 const empleadoSchema = new Schema<IEmpleado>({
@@ -175,6 +176,7 @@ const empleadoSchema = new Schema<IEmpleado>({
     fecha_modificacion: { type: Date },
     modificado_por: { type: Schema.Types.ObjectId, default: null, ref: 'usuarios' },
     activo: { type: Boolean, default: true },
+    eliminado_permanente: { type: Boolean, default: false },
 });
 
 empleadoSchema.pre<IEmpleado>('save', async function (next) {

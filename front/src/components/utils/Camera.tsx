@@ -96,6 +96,7 @@ type Props = {
   showModeDetection?: boolean;
   disabledDevicesMenu?: boolean;
   discretMenuDevices?: boolean;
+  containerHeight?: number | string;
 };
 
 export default function Camera({
@@ -111,6 +112,7 @@ export default function Camera({
   showModeDetection = false,
   disabledDevicesMenu = false,
   discretMenuDevices = false,
+  containerHeight = 350,
 }: Props) {
   const { delayProximaFoto } = useSelector(
     (state: IRootState) => state.config.data
@@ -134,6 +136,17 @@ export default function Camera({
   const [showModal, setShowModal] = useState(false);
   const isIneCapture = String(name || "").toLowerCase().includes("ine");
 
+  const chooseRearCamera = (videoDevices: MediaDeviceInfo[]) => {
+    if (videoDevices.length <= 1) return videoDevices[0]?.deviceId || "";
+    const rearRegex =
+      /(back|rear|environment|trasera|posterior|world|externa|usb)/i;
+    const byLabel = videoDevices.find((d) => rearRegex.test(d.label || ""));
+    if (byLabel?.deviceId) return byLabel.deviceId;
+    return isMobile
+      ? videoDevices[videoDevices.length - 1]?.deviceId || videoDevices[0]?.deviceId || ""
+      : videoDevices[0]?.deviceId || "";
+  };
+
   const handleDevices = useCallback(
     (mediaDevices: MediaDeviceInfo[]) => {
       const videoDevices = mediaDevices.filter(
@@ -141,13 +154,11 @@ export default function Camera({
       );
       if (videoDevices.length > 0) {
         setDevices(videoDevices);
-        setDeviceId(
-          isMobile ? videoDevices[1].deviceId : videoDevices[0].deviceId
-        );
+        setDeviceId(chooseRearCamera(videoDevices));
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setDevices]
+    [setDevices, isMobile]
   );
 
   const cropIneFromDataUrl = (dataUrl: string): Promise<string> =>
@@ -402,8 +413,8 @@ export default function Camera({
           alignItems: "center",
           justifyContent: "center",
           width: "100%",
-          height: 350,
-          maxHeight: 350,
+          height: containerHeight,
+          maxHeight: typeof containerHeight === "number" ? containerHeight : "none",
           padding: 0,
           border: `1px solid ${theme.palette.divider}`,
           borderRadius: 1,
@@ -629,4 +640,3 @@ export default function Camera({
     </Box>
   );
 }
-

@@ -30,6 +30,7 @@ import {
     importarSyncBiostar,
     iniciarSyncHuellasHikvision,
     obtenerEstadoSyncHuellasHikvision,
+    eliminarPermanente,
 } from "../controllers/empleados.controller";
 
 const router = Router();
@@ -62,6 +63,7 @@ router.put("/biometria/tarjeta/:id", validarTokenYRol([1, 2]), registrarTarjetaE
 router.delete("/biometria/tarjeta/:id/:tarjetaId", validarTokenYRol([1, 2]), eliminarTarjetaEmpleadoPanel);
 router.patch('/anonimizar/:id', validarTokenYRol([1, 2]), anonimizar);
 router.patch("/desbloquear/:id", validarTokenYRol([1, 2]), desbloquear);
+router.patch("/eliminar-permanente/:id", validarTokenYRol([1, 2]), eliminarPermanente);
 router.patch("/:id", validarTokenYRol([1, 2]), modificarEstado);
 
 export default router;

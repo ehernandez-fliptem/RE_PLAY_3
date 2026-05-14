@@ -42,6 +42,7 @@ import LectorQrVisitantes from "./LectorQrVisitantes";
 import { isBlockedNow } from "../../../utils/bloqueo";
 
 import CircularProgress from "@mui/material/CircularProgress";
+import { FormControl, InputLabel, MenuItem, Select } from "@mui/material";
 import { areDocumentosChecksComplete } from "./documentosChecks";
 // sin helpers de documentos en tabla
 
@@ -68,6 +69,7 @@ export default function Visitantes() {
   });
 
   const [loadingRows, setLoadingRows] = useState<Record<string, boolean>>({});
+  const [estadoFiltro, setEstadoFiltro] = useState<"activos" | "inactivos" | "todos">("activos");
   const autoBlockedByTrashRef = useRef<Record<string, boolean>>({});
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
@@ -141,6 +143,7 @@ export default function Visitantes() {
             filter: JSON.stringify(params.filterModel.quickFilterValues),
             pagination: JSON.stringify(params.paginationModel),
             sort: JSON.stringify(params.sortModel),
+            estado: estadoFiltro,
           });
           const res = await clienteAxios.get(
             "/api/visitantes?" + urlParams.toString()
@@ -162,7 +165,7 @@ export default function Visitantes() {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [estadoFiltro]
   );
 
   const initialState: GridInitialState = useMemo(
@@ -227,41 +230,49 @@ export default function Visitantes() {
     verificarRegistro(row._id);
   };
 
-  const cambiarEstado = async (ID: string, activo: boolean) => {
+  const cambiarEstado = async (ID: string, activo: boolean, nombre: string) => {
     if (!activo) {
-      try {
-        const res = await clienteAxios.patch(`/api/visitantes/${ID}`, {
-          activo,
-        });
-        if (res.data.estado) {
-          apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
-          if (autoBlockedByTrashRef.current[ID]) {
-            setRowLoading(ID, true);
-            try {
-              const unlockRes = await clienteAxios.patch(`/api/visitantes/desbloquear/${ID}`);
-              if (unlockRes.data.estado) {
-                const v = unlockRes.data.data;
-                apiRef.current?.updateRows([
-                  { _id: ID, bloqueado: v.bloqueado, desbloqueado_hasta: v.desbloqueado_hasta ?? null },
-                ]);
+      confirm({
+        title: "�Seguro que deseas restaurar a este visitante?",
+        description: nombre,
+        allowClose: true,
+        confirmationText: "Continuar",
+      })
+        .then(async (result) => {
+          if (!result.confirmed) return;
+          const res = await clienteAxios.patch(`/api/visitantes/${ID}`, {
+            activo,
+          });
+          if (res.data.estado) {
+            apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
+            if (autoBlockedByTrashRef.current[ID]) {
+              setRowLoading(ID, true);
+              try {
+                const unlockRes = await clienteAxios.patch(`/api/visitantes/desbloquear/${ID}`);
+                if (unlockRes.data.estado) {
+                  const v = unlockRes.data.data;
+                  apiRef.current?.updateRows([
+                    { _id: ID, bloqueado: v.bloqueado, desbloqueado_hasta: v.desbloqueado_hasta ?? null },
+                  ]);
+                }
+              } finally {
+                setRowLoading(ID, false);
+                delete autoBlockedByTrashRef.current[ID];
               }
-            } finally {
-              setRowLoading(ID, false);
-              delete autoBlockedByTrashRef.current[ID];
             }
+          } else {
+            enqueueSnackbar(res.data.mensaje, { variant: "error" });
           }
-        } else {
-          enqueueSnackbar(res.data.mensaje, { variant: "error" });
-        }
-      } catch (error) {
-        const { restartSession } = handlingError(error);
-        if (restartSession) navigate("/logout", { replace: true });
-      }
+        })
+        .catch((error) => {
+          const { restartSession } = handlingError(error);
+          if (restartSession) navigate("/logout", { replace: true });
+        });
       return;
     }
 
     confirm({
-      title: "¿Seguro que deseas desactivar a este visitante?",
+      title: "�Seguro que deseas desactivar a este visitante?",
       description: "Al desactivar, se bloqueará el acceso y no se podrá editar.",
       allowClose: true,
       confirmationText: "Continuar",
@@ -328,6 +339,31 @@ export default function Visitantes() {
     }
   };
 
+  const eliminarPermanente = (ID: string, nombre: string) => {
+    confirm({
+      title: "�Seguro que deseas eliminar permanentemente este visitante?",
+      description: nombre,
+      allowClose: true,
+      confirmationText: "Continuar",
+    })
+      .then(async (result) => {
+        if (!result.confirmed) return;
+        setRowLoading(ID, true);
+        const res = await clienteAxios.patch(`/api/visitantes/eliminar-permanente/${ID}`);
+        if (res.data.estado) {
+          apiRef.current?.dataSource?.fetchRows?.();
+          enqueueSnackbar("Visitante eliminado permanentemente.", { variant: "success" });
+        } else {
+          enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+        }
+      })
+      .catch((error) => {
+        const { restartSession } = handlingError(error);
+        if (restartSession) navigate("/logout", { replace: true });
+      })
+      .finally(() => setRowLoading(ID, false));
+  };
+
   const resincronizarPaneles = async (ID: string) => {
     setRowLoading(ID, true);
     try {
@@ -382,7 +418,7 @@ const accionDesbloquear = (ID: string) => {
     return;
   }
   confirm({
-    title: "¿Seguro que desea desbloquear a este visitante?",
+    title: "�Seguro que desea desbloquear a este visitante?",
     description: "Esta acción restaura los intentos y habilita el acceso SOLO por hoy.",
     allowClose: true,
     confirmationText: "Continuar",
@@ -430,7 +466,7 @@ const accionBloquear = (ID: string) => {
     return;
   }
   confirm({
-    title: "¿Seguro que desea bloquear a este visitante?",
+    title: "�Seguro que desea bloquear a este visitante?",
     description: "Esta acción bloquea el acceso al sistema para el visitante.",
     allowClose: true,
     confirmationText: "Continuar",
@@ -621,17 +657,25 @@ const accionBloquear = (ID: string) => {
                     row.activo ? (
                       <GridActionsCellItem
                         icon={<Delete color="success" />}
-                        onClick={() => cambiarEstado(row._id, row.activo)}
+                        onClick={() => cambiarEstado(row._id, row.activo, row.nombre)}
                         label="Desactivar"
                         title="Desactivar"
                       />
                     ) : (
-                      <GridActionsCellItem
-                        icon={<RestoreFromTrash color="error" />}
-                        onClick={() => cambiarEstado(row._id, row.activo)}
-                        label="Restaurar"
-                        title="Restaurar"
-                      />
+                      <Fragment>
+                        <GridActionsCellItem
+                          icon={<RestoreFromTrash color="error" />}
+                          onClick={() => cambiarEstado(row._id, row.activo, row.nombre)}
+                          label="Restaurar"
+                          title="Restaurar"
+                        />
+                        <GridActionsCellItem
+                          icon={<Delete color="error" />}
+                          onClick={() => eliminarPermanente(row._id, row.nombre)}
+                          label="Eliminar permanentemente"
+                          title="Eliminar permanentemente"
+                        />
+                      </Fragment>
                     )
                   );
                 }
@@ -790,6 +834,19 @@ const accionBloquear = (ID: string) => {
                       Escanear QR
                     </Button>
                   </Tooltip>
+                  <FormControl size="small" sx={{ minWidth: 180, mx: 1 }}>
+                    <InputLabel id="estado-visitantes-label">Estado</InputLabel>
+                    <Select
+                      labelId="estado-visitantes-label"
+                      value={estadoFiltro}
+                      label="Estado"
+                      onChange={(e) => setEstadoFiltro(e.target.value as typeof estadoFiltro)}
+                    >
+                      <MenuItem value="activos">Activos</MenuItem>
+                      <MenuItem value="inactivos">Inactivos</MenuItem>
+                      <MenuItem value="todos">Todos</MenuItem>
+                    </Select>
+                  </FormControl>
                   {!esRecep && (
                     <Fragment>
                       <Tooltip title="Agregar">
@@ -833,5 +890,7 @@ const accionBloquear = (ID: string) => {
     </div>
   );
 }
+
+
 
 

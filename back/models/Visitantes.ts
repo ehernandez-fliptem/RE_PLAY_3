@@ -47,6 +47,7 @@ export interface IVisitante extends Document {
     verificado: boolean;
     sync_hikvision_pendiente?: boolean;
     sync_hikvision_error?: string;
+    eliminado_permanente?: boolean;
 }
 
 const visitanteSchema = new Schema<IVisitante>({
@@ -157,6 +158,7 @@ const visitanteSchema = new Schema<IVisitante>({
     verificado: { type: Boolean, default: false },
     sync_hikvision_pendiente: { type: Boolean, default: false },
     sync_hikvision_error: { type: String, default: "" },
+    eliminado_permanente: { type: Boolean, default: false },
 });
 
 visitanteSchema.pre<IVisitante>('save', async function (next) {

@@ -19,6 +19,7 @@ import {
     verificar,
     revertirCreacion,
     resincronizarVisitantePaneles,
+    eliminarPermanente,
 } from "../controllers/visitantes.controller";
 
 const router = Router();
@@ -42,6 +43,7 @@ router.put("/:id", validarTokenYRol([1, 2, 4, 5]), modificar);
 router.patch("/revertir-creacion/:id", validarTokenYRol([1, 2, 4, 5]), revertirCreacion);
 router.patch("/bloquear/:id", validarTokenYRol([1, 2]), bloquearBack);
 router.patch("/desbloquear/:id", validarTokenYRol([1, 2]), desbloquearBack);
+router.patch("/eliminar-permanente/:id", validarTokenYRol([1, 2, 4, 5]), eliminarPermanente);
 router.patch("/:id", validarTokenYRol([1, 2, 4, 5]), modificarEstado);
 
 export default router;

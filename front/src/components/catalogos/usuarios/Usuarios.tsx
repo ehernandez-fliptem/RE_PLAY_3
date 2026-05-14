@@ -38,6 +38,7 @@ export default function Usuarios() {
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();
   const [tipoVista, setTipoVista] = useState<"sistema" | "contratistas" | "campo">("sistema");
+  const [estadoFiltro, setEstadoFiltro] = useState<"activos" | "inactivos" | "todos">("activos");
   const navigate = useNavigate();
   const confirm = useConfirm();
   // QR y desbloqueo deshabilitados temporalmente junto con columnas ocultas
@@ -54,6 +55,7 @@ export default function Usuarios() {
             pagination: JSON.stringify(params.paginationModel),
             sort: JSON.stringify(params.sortModel),
             scope: tipoVista,
+            estado: estadoFiltro,
           });
           const res = await clienteAxios.get(
             "/api/usuarios?" + urlParams.toString()
@@ -81,7 +83,7 @@ export default function Usuarios() {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tipoVista]
+    [tipoVista, estadoFiltro]
   );
 
   const initialState: GridInitialState = useMemo(
@@ -120,25 +122,33 @@ export default function Usuarios() {
   //   navigate("carga-masiva");
   // };
 
-  const cambiarEstado = async (ID: string, activo: boolean) => {
+  const cambiarEstado = async (ID: string, activo: boolean, nombre: string) => {
     if (!activo) {
-      try {
-        const res = await clienteAxios.patch(`/api/usuarios/${ID}`, {
-          activo,
+      confirm({
+        title: "¿Seguro que deseas restaurar este usuario?",
+        description: nombre,
+        allowClose: true,
+        confirmationText: "Continuar",
+      })
+        .then(async (result) => {
+          if (!result.confirmed) return;
+          const res = await clienteAxios.patch(`/api/usuarios/${ID}`, {
+            activo,
+          });
+          if (res.data.estado) {
+            apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
+          } else {
+            enqueueSnackbar(res.data.mensaje, { variant: "error" });
+          }
+        })
+        .catch((error) => {
+          const { restartSession } = handlingError(error);
+          if (restartSession) navigate("/logout", { replace: true });
         });
-        if (res.data.estado) {
-          apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
-        } else {
-          enqueueSnackbar(res.data.mensaje, { variant: "error" });
-        }
-      } catch (error) {
-        const { restartSession } = handlingError(error);
-        if (restartSession) navigate("/logout", { replace: true });
-      }
     } else {
       confirm({
-        title: "Â¿Seguro que deseas desactivar a este usuario?",
-        description: "",
+        title: "¿Seguro que deseas desactivar este usuario?",
+        description: nombre,
         allowClose: true,
         confirmationText: "Continuar",
       })
@@ -159,6 +169,29 @@ export default function Usuarios() {
           if (restartSession) navigate("/logout", { replace: true });
         });
     }
+  };
+
+  const eliminarPermanente = (ID: string, nombre: string) => {
+    confirm({
+      title: "¿Seguro que deseas eliminar permanentemente este usuario?",
+      description: nombre,
+      allowClose: true,
+      confirmationText: "Continuar",
+    })
+      .then(async (result) => {
+        if (!result.confirmed) return;
+        const res = await clienteAxios.patch(`/api/usuarios/eliminar-permanente/${ID}`);
+        if (res.data.estado) {
+          (apiRef.current as any)?.dataSource?.fetchRows?.();
+          enqueueSnackbar("Usuario eliminado permanentemente.", { variant: "success" });
+        } else {
+          enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+        }
+      })
+      .catch((error) => {
+        const { restartSession } = handlingError(error);
+        if (restartSession) navigate("/logout", { replace: true });
+      });
   };
   // const descargarQr = async (ID: string, nombre: string) => { ... }
 
@@ -302,17 +335,25 @@ export default function Usuarios() {
                   row.activo ? (
                     <GridActionsCellItem
                       icon={<Delete color="success" />}
-                      onClick={() => cambiarEstado(row._id, row.activo)}
+                      onClick={() => cambiarEstado(row._id, row.activo, row.nombre)}
                       label="Desactivar"
                       title="Desactivar"
                     />
                   ) : (
-                    <GridActionsCellItem
-                      icon={<RestoreFromTrash color="error" />}
-                      onClick={() => cambiarEstado(row._id, row.activo)}
-                      label="Restaurar"
-                      title="Restaurar"
-                    />
+                    <Fragment>
+                      <GridActionsCellItem
+                        icon={<RestoreFromTrash color="success" />}
+                        onClick={() => cambiarEstado(row._id, row.activo, row.nombre)}
+                        label="Recuperar"
+                        title="Recuperar"
+                      />
+                      <GridActionsCellItem
+                        icon={<Delete color="error" />}
+                        onClick={() => eliminarPermanente(row._id, row.nombre)}
+                        label="Eliminar permanentemente"
+                        title="Eliminar permanentemente"
+                      />
+                    </Fragment>
                   )
                 );
               }
@@ -394,6 +435,19 @@ export default function Usuarios() {
                       </Select>
                     </FormControl>
                   )}
+                  <FormControl size="small" sx={{ minWidth: 180, mr: 1 }}>
+                    <InputLabel id="estado-usuarios-label">Estado</InputLabel>
+                    <Select
+                      labelId="estado-usuarios-label"
+                      value={estadoFiltro}
+                      label="Estado"
+                      onChange={(e) => setEstadoFiltro(e.target.value as typeof estadoFiltro)}
+                    >
+                      <MenuItem value="activos">Activos</MenuItem>
+                      <MenuItem value="inactivos">Inactivos</MenuItem>
+                      <MenuItem value="todos">Todos</MenuItem>
+                    </Select>
+                  </FormControl>
                   <Tooltip title="Agregar">
                     <IconButton onClick={nuevoRegistro}>
                       <Add fontSize="small" />
@@ -419,6 +473,7 @@ export default function Usuarios() {
     </div>
   );
 }
+
 
 
 

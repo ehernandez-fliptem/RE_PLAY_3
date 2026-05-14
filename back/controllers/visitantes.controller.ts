@@ -380,6 +380,7 @@ const faceDetector = new FaceDetector();
 
 export async function obtenerTodos(req: Request, res: Response): Promise<void> {
     try {
+        const estadoFiltro = String((req.query as any)?.estado || "activos").trim().toLowerCase();
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
         const querySort = JSON.parse(sort) as QueryParams["sort"];
@@ -396,6 +397,14 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
             ["id_visitante", "empresa", "nombre"]
         );
         const aggregation: PipelineStage[] = [
+            {
+                $match: {
+                    $and: [
+                        estadoFiltro === "inactivos" ? { activo: false } : estadoFiltro === "todos" ? {} : { activo: true },
+                        { eliminado_permanente: { $ne: true } },
+                    ],
+                },
+            },
             {
                 $set: {
                     nombre: {
@@ -476,6 +485,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
 
 export async function obtenerGrid(req: Request, res: Response): Promise<void> {
     try {
+        const estadoFiltro = String((req.query as any)?.estado || "activos").trim().toLowerCase();
         const { filter = "{}", pagination = "{}", sort = "{}" } = req.query as any;
 
         const queryFilter = JSON.parse(filter);
@@ -491,6 +501,14 @@ export async function obtenerGrid(req: Request, res: Response): Promise<void> {
         );
 
         const aggregation: PipelineStage[] = [
+        {
+            $match: {
+            $and: [
+                estadoFiltro === "inactivos" ? { activo: false } : estadoFiltro === "todos" ? {} : { activo: true },
+                { eliminado_permanente: { $ne: true } },
+            ],
+            },
+        },
         {
             $set: {
             // nombre completo
@@ -1384,6 +1402,26 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
         res.status(200).json({ estado: true });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function eliminarPermanente(req: Request, res: Response): Promise<void> {
+    try {
+        const registro = await Visitantes.findById(req.params.id, 'activo id_visitante');
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: 'Visitante no encontrado.' });
+            return;
+        }
+        if (registro.activo) {
+            res.status(200).json({ estado: false, mensaje: 'Primero desactiva al visitante.' });
+            return;
+        }
+        await Visitantes.findByIdAndUpdate(req.params.id, {
+            $set: { eliminado_permanente: true, activo: false }
+        });
+        res.status(200).json({ estado: true });
+    } catch (error: any) {
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 }

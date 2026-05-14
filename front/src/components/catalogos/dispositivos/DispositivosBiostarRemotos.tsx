@@ -19,6 +19,7 @@ import {
   Tooltip,
 } from "@mui/material";
 import Swal from "sweetalert2";
+import { enqueueSnackbar } from "notistack";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { useNavigate } from "react-router-dom";
@@ -181,7 +182,7 @@ export default function DispositivosBiostarRemotos() {
 
   const guardarNuevoDispositivo = async () => {
     if (!nuevoForm.nombre.trim() || !nuevoForm.direccion_ip.trim()) {
-      await Swal.fire({ icon: "warning", title: "Faltan datos", text: "Nombre e IP son obligatorios." });
+      enqueueSnackbar("Nombre e IP son obligatorios.", { variant: "warning" });
       return;
     }
     const snapshot = { ...nuevoForm };
@@ -202,12 +203,12 @@ export default function DispositivosBiostarRemotos() {
       };
       const res = await clienteAxios.post("/api/dispositivos-biostar/remotos", payload);
       if (!res.data.estado) {
-        await Swal.fire({ icon: "error", title: "No se pudo crear", text: res.data.mensaje || "No se pudo crear el dispositivo." });
+        enqueueSnackbar(res.data.mensaje || "No se pudo crear el dispositivo.", { variant: "error" });
         setNuevoForm(snapshot);
         setOpenNuevo(true);
         return;
       }
-      await Swal.fire({ icon: "success", title: "Dispositivo agregado", text: res.data.mensaje || "Registro completado." });
+      enqueueSnackbar(res.data.mensaje || "Dispositivo agregado.", { variant: "success" });
       await cargarTodos();
     } catch (error) {
       handlingError(error);
@@ -236,7 +237,7 @@ export default function DispositivosBiostarRemotos() {
   const guardarEdicionDispositivo = async () => {
     if (!editandoId) return;
     if (!editarForm.nombre.trim() || !editarForm.direccion_ip.trim()) {
-      await Swal.fire({ icon: "warning", title: "Faltan datos", text: "Nombre e IP son obligatorios." });
+      enqueueSnackbar("Nombre e IP son obligatorios.", { variant: "warning" });
       return;
     }
     const snapshot = { ...editarForm };
@@ -257,12 +258,12 @@ export default function DispositivosBiostarRemotos() {
       };
       const res = await clienteAxios.put(`/api/dispositivos-biostar/remotos/${editandoId}`, payload);
       if (!res.data.estado) {
-        await Swal.fire({ icon: "error", title: "No se pudo editar", text: res.data.mensaje || "No se pudo editar el dispositivo." });
+        enqueueSnackbar(res.data.mensaje || "No se pudo editar el dispositivo.", { variant: "error" });
         setEditarForm(snapshot);
         setOpenEditar(true);
         return;
       }
-      await Swal.fire({ icon: "success", title: "Dispositivo editado", text: res.data.mensaje || "Actualizacion completada." });
+      enqueueSnackbar(res.data.mensaje || "Dispositivo editado.", { variant: "success" });
       await cargarTodos();
     } catch (error) {
       handlingError(error);
@@ -429,23 +430,18 @@ export default function DispositivosBiostarRemotos() {
         { clean: true }
       );
       if (!res.data.estado) {
-        await Swal.fire({
-          icon: "error",
-          title: "No se pudo iniciar",
-          text: res.data.mensaje || "No se pudo ejecutar borrar y subir de nuevo.",
+        enqueueSnackbar(res.data.mensaje || "No se pudo ejecutar borrar y subir de nuevo.", {
+          variant: "error",
         });
         return;
       }
       setSyncLimpioOpen(false);
       setSyncLimpioRow(null);
       setSyncLimpioLoading(false);
-      await Swal.fire({
-        icon: "success",
-        title: "Proceso iniciado",
-        text:
-          res.data.mensaje ||
-          "Se inicio borrar y subir de nuevo. Puede tardar unos minutos.",
-      });
+      enqueueSnackbar(
+        res.data.mensaje || "Se inicio borrar y subir de nuevo. Puede tardar unos minutos.",
+        { variant: "success" }
+      );
       void cargarTodos();
       return;
     } catch (error) {
