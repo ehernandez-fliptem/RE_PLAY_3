@@ -65,6 +65,7 @@ export default function DispositivosBiostarRemotos() {
   const [syncLimpioLoading, setSyncLimpioLoading] = useState(false);
   const [syncLimpioRow, setSyncLimpioRow] = useState<RemoteDevice | null>(null);
   const [editandoId, setEditandoId] = useState<string>("");
+  const [accesos, setAccesos] = useState<Array<{ _id: string; nombre: string; identificador?: string }>>([]);
   const [puertas, setPuertas] = useState<Array<{ id_externo: string; nombre: string }>>([]);
   const [nuevoForm, setNuevoForm] = useState({
     nombre: "",
@@ -101,6 +102,7 @@ export default function DispositivosBiostarRemotos() {
     try {
       const res = await clienteAxios.get("/api/dispositivos-biostar/catalogos-formulario");
       if (!res.data?.estado) return;
+      setAccesos(res.data?.datos?.accesos || []);
       setPuertas(res.data?.datos?.puertas || []);
     } catch (error) {
       handlingError(error);
@@ -700,6 +702,63 @@ export default function DispositivosBiostarRemotos() {
                 Grupo
               </Button>
             </Stack>
+            <FormControl fullWidth>
+              <InputLabel id="nuevo-modo-acceso-label">Tipo de acceso</InputLabel>
+              <Select
+                labelId="nuevo-modo-acceso-label"
+                value={nuevoForm.modo_acceso}
+                label="Tipo de acceso"
+                onChange={(event) => setNuevoForm((prev) => ({ ...prev, modo_acceso: event.target.value as "entrada" | "salida" | "ambos" }))}
+              >
+                <MenuItem value="entrada">Entrada</MenuItem>
+                <MenuItem value="salida">Salida</MenuItem>
+                <MenuItem value="ambos">Ambos</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel id="nuevo-id-acceso-label">Acceso</InputLabel>
+              <Select
+                labelId="nuevo-id-acceso-label"
+                value={nuevoForm.id_acceso}
+                label="Acceso"
+                onChange={(event) => setNuevoForm((prev) => ({ ...prev, id_acceso: String(event.target.value) }))}
+              >
+                <MenuItem value="">Sin acceso</MenuItem>
+                {(accesos || []).map((a) => (
+                  <MenuItem key={a._id} value={a._id}>
+                    {a.identificador ? `${a.identificador} - ${a.nombre}` : a.nombre}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel id="nuevo-apertura-hab-label">Abrir puerta BioStar por este acceso</InputLabel>
+              <Select
+                labelId="nuevo-apertura-hab-label"
+                value={nuevoForm.apertura_destino_habilitada}
+                label="Abrir puerta BioStar por este acceso"
+                onChange={(event) => setNuevoForm((prev) => ({ ...prev, apertura_destino_habilitada: event.target.value as "si" | "no" }))}
+              >
+                <MenuItem value="no">No</MenuItem>
+                <MenuItem value="si">Si</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel id="nuevo-puerta-destino-label">Puerta destino</InputLabel>
+              <Select
+                labelId="nuevo-puerta-destino-label"
+                value={nuevoForm.apertura_puerta_id}
+                label="Puerta destino"
+                onChange={(event) => setNuevoForm((prev) => ({ ...prev, apertura_puerta_id: String(event.target.value) }))}
+              >
+                <MenuItem value="">Sin puerta</MenuItem>
+                {(puertas || []).map((p) => (
+                  <MenuItem key={p.id_externo} value={p.id_externo}>
+                    {`${p.id_externo} - ${p.nombre}`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -770,6 +829,63 @@ export default function DispositivosBiostarRemotos() {
                 Grupo
               </Button>
             </Stack>
+            <FormControl fullWidth>
+              <InputLabel id="editar-modo-acceso-label">Tipo de acceso</InputLabel>
+              <Select
+                labelId="editar-modo-acceso-label"
+                value={editarForm.modo_acceso}
+                label="Tipo de acceso"
+                onChange={(event) => setEditarForm((prev) => ({ ...prev, modo_acceso: event.target.value as "entrada" | "salida" | "ambos" }))}
+              >
+                <MenuItem value="entrada">Entrada</MenuItem>
+                <MenuItem value="salida">Salida</MenuItem>
+                <MenuItem value="ambos">Ambos</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel id="editar-id-acceso-label">Acceso</InputLabel>
+              <Select
+                labelId="editar-id-acceso-label"
+                value={editarForm.id_acceso}
+                label="Acceso"
+                onChange={(event) => setEditarForm((prev) => ({ ...prev, id_acceso: String(event.target.value) }))}
+              >
+                <MenuItem value="">Sin acceso</MenuItem>
+                {(accesos || []).map((a) => (
+                  <MenuItem key={a._id} value={a._id}>
+                    {a.identificador ? `${a.identificador} - ${a.nombre}` : a.nombre}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel id="editar-apertura-hab-label">Abrir puerta BioStar por este acceso</InputLabel>
+              <Select
+                labelId="editar-apertura-hab-label"
+                value={editarForm.apertura_destino_habilitada}
+                label="Abrir puerta BioStar por este acceso"
+                onChange={(event) => setEditarForm((prev) => ({ ...prev, apertura_destino_habilitada: event.target.value as "si" | "no" }))}
+              >
+                <MenuItem value="no">No</MenuItem>
+                <MenuItem value="si">Si</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel id="editar-puerta-destino-label">Puerta destino</InputLabel>
+              <Select
+                labelId="editar-puerta-destino-label"
+                value={editarForm.apertura_puerta_id}
+                label="Puerta destino"
+                onChange={(event) => setEditarForm((prev) => ({ ...prev, apertura_puerta_id: String(event.target.value) }))}
+              >
+                <MenuItem value="">Sin puerta</MenuItem>
+                {(puertas || []).map((p) => (
+                  <MenuItem key={p.id_externo} value={p.id_externo}>
+                    {`${p.id_externo} - ${p.nombre}`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
