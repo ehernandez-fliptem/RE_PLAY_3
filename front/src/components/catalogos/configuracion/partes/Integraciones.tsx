@@ -455,7 +455,6 @@ export default function Integraciones() {
         <strong>Integraciones</strong>
       </Typography>
       {!mostrarSoloIntegracionesSolicitadas && (
-      <>
       <Grid container spacing={2} sx={{ my: 2 }}>
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
@@ -593,6 +592,7 @@ export default function Integraciones() {
         </Grid>
       )}
       {!mostrarSoloIntegracionesSolicitadas && (
+      <>
       <Grid container spacing={2} sx={{ my: 2 }}>
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
