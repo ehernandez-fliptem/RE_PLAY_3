@@ -942,6 +942,24 @@ export async function crear(req: Request, res: Response): Promise<void> {
           return;
         }
 
+        let correoEnviado = false;
+        try {
+          const qrDataUrl = await QRCode.toDataURL(String(cardNo), {
+            errorCorrectionLevel: "H",
+            type: "image/png",
+            width: 500,
+            margin: 2,
+          });
+          correoEnviado = await enviarCorreoNuevoVisitanteHV(
+            correo,
+            fullName,
+            qrDataUrl
+          );
+          log(`${fecha()} INFO: Crear visitante correo HV. visitante=${String(reg_saved._id)} correo=${String(correo || "")} enviado=${correoEnviado}\n`);
+        } catch (e: any) {
+          log(`${fecha()} ERROR: Crear visitante correo HV. visitante=${String(reg_saved._id)} correo=${String(correo || "")} error=${String(e?.message || e)}\n`);
+        }
+
         // 9) Respuesta
         res.status(200).json({
           estado: true,
@@ -949,6 +967,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
             _id: String(reg_saved._id),
             id_visitante: reg_saved.id_visitante,
             card_code: cardNo,
+            correoEnviado,
           },
         });
 
