@@ -1479,13 +1479,24 @@ export async function eliminarDispositivoRemoto(req: Request, res: Response): Pr
       return;
     }
 
-    const response = await biostarRequest(conexion as any, { method: "DELETE", url: `/api/devices/${id}` });
-    if (!response.ok) {
-      res.status(200).json({ estado: false, mensaje: response.message || "No se pudo eliminar el dispositivo." });
-      return;
+    const numericId = Number(id);
+    const idValue = Number.isFinite(numericId) ? String(numericId) : id;
+    const attempts = [
+      { method: "DELETE", url: `/api/devices/${idValue}` },
+      { method: "DELETE", url: `/api/v2/devices/${idValue}` },
+    ];
+
+    let lastMessage = "No se pudo eliminar el dispositivo.";
+    for (const attempt of attempts) {
+      const response = await biostarRequest(conexion as any, attempt as any);
+      if (response.ok) {
+        res.status(200).json({ estado: true, mensaje: "Dispositivo eliminado correctamente." });
+        return;
+      }
+      lastMessage = getBiostarResponseMessage(response.data) || response.message || lastMessage;
     }
 
-    res.status(200).json({ estado: true, mensaje: "Dispositivo eliminado correctamente." });
+    res.status(200).json({ estado: false, mensaje: lastMessage });
   } catch (error: any) {
     log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
     res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
