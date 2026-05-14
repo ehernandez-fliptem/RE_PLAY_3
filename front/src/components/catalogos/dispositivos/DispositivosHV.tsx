@@ -47,7 +47,10 @@ export default function DispositivoHV() {
   const [isLoading, setIsLoading] = useState(false);
   const [syncAllInProgress, setSyncAllInProgress] = useState(false);
   const [syncAllStatus, setSyncAllStatus] = useState<string | null>(null);
+  const [syncHuellasInProgress, setSyncHuellasInProgress] = useState(false);
+  const [syncHuellasStatus, setSyncHuellasStatus] = useState<string | null>(null);
   const isMountedRef = useRef(true);
+  const syncHuellasTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const showSnackbar = (
     message: string,
     options?: Parameters<typeof enqueueSnackbar>[1]
@@ -60,6 +63,10 @@ export default function DispositivoHV() {
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
+      if (syncHuellasTimerRef.current) {
+        clearInterval(syncHuellasTimerRef.current);
+        syncHuellasTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -301,6 +308,67 @@ export default function DispositivoHV() {
     })();
   };
 
+  const detenerPollingSyncHuellas = () => {
+    if (syncHuellasTimerRef.current) {
+      clearInterval(syncHuellasTimerRef.current);
+      syncHuellasTimerRef.current = null;
+    }
+  };
+
+  const consultarEstadoSyncHuellas = async () => {
+    try {
+      const res = await clienteAxios.get("/api/empleados/biometria/huella/sync-hikvision/estado");
+      if (!res.data?.estado) return;
+      const datos = res.data?.datos || {};
+      const running = !!datos.running;
+      setSyncHuellasInProgress(running);
+      if (running) {
+        setSyncHuellasStatus(
+          `Huellas: ${Number(datos.processed || 0)}/${Number(datos.total || 0)}`
+        );
+        return;
+      }
+      setSyncHuellasStatus("Sincronizar huellas");
+      detenerPollingSyncHuellas();
+      if (Number(datos.total || 0) > 0) {
+        enqueueSnackbar(
+          `Sync huellas finalizado. OK: ${Number(datos.success || 0)} / Error: ${Number(datos.failed || 0)}`,
+          { variant: Number(datos.failed || 0) > 0 ? "warning" : "success" }
+        );
+      }
+    } catch {
+      detenerPollingSyncHuellas();
+      setSyncHuellasInProgress(false);
+      setSyncHuellasStatus("Sincronizar huellas");
+    }
+  };
+
+  const iniciarSyncHuellas = async () => {
+    if (syncHuellasInProgress) return;
+    try {
+      const res = await clienteAxios.post("/api/empleados/biometria/huella/sync-hikvision/iniciar");
+      if (!res.data?.estado) {
+        enqueueSnackbar(res.data?.mensaje || "No se pudo iniciar la sincronización de huellas.", {
+          variant: "warning",
+        });
+        return;
+      }
+      setSyncHuellasInProgress(true);
+      setSyncHuellasStatus("Huellas: iniciando...");
+      enqueueSnackbar("Sincronización de huellas iniciada en segundo plano.", {
+        variant: "success",
+      });
+      detenerPollingSyncHuellas();
+      syncHuellasTimerRef.current = setInterval(() => {
+        void consultarEstadoSyncHuellas();
+      }, 3000);
+      void consultarEstadoSyncHuellas();
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    }
+  };
+
 
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
@@ -490,6 +558,21 @@ export default function DispositivoHV() {
                     disabled={syncAllInProgress}
                   >
                     {syncAllStatus ?? "Sincronizar todos"}
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={
+                      syncHuellasInProgress ? (
+                        <CircularProgress size={16} color="inherit" />
+                      ) : (
+                        <Sync />
+                      )
+                    }
+                    onClick={iniciarSyncHuellas}
+                    disabled={syncHuellasInProgress}
+                  >
+                    {syncHuellasStatus ?? "Sincronizar huellas"}
                   </Button>
                   <Tooltip title="Agregar">
                     <IconButton size="small" onClick={nuevoRegistro}>

@@ -36,6 +36,17 @@ const faceDetector = new FaceDetector();
 let biostarUiBrowser: Browser | null = null;
 let biostarUiPage: Page | null = null;
 
+const hikvisionHuellaSyncJob = {
+    running: false,
+    startedAt: "",
+    finishedAt: "",
+    total: 0,
+    processed: 0,
+    success: 0,
+    failed: 0,
+    mensaje: "",
+};
+
 
 export async function obtenerTodos(req: Request, res: Response): Promise<void> {
     try {
@@ -1375,6 +1386,114 @@ const setupFingerprintOnPanel = async (ip: string, user: string, pass: string, e
     return { applied, statusList };
 };
 
+const applyFingerprintToPanels = async (params: {
+    paneles: any[];
+    employeeNo: string;
+    dedo: number;
+    fingerData: string;
+}) => {
+    const paneles_aplicados: string[] = [];
+    const paneles_fallidos: Array<{ panel: string; mensaje: string; }> = [];
+    for (const panel of params.paneles) {
+        const panelNombre = String(panel.nombre || panel.direccion_ip || panel._id);
+        try {
+            const panelUser = String(panel.usuario || "").trim();
+            const panelPass = decryptPassword(String(panel.contrasena || ""), CONFIG.SECRET_CRYPTO);
+            const setupRes = await setupFingerprintOnPanel(
+                String(panel.direccion_ip),
+                panelUser,
+                panelPass,
+                params.employeeNo,
+                params.dedo,
+                params.fingerData
+            );
+            if (setupRes.applied) {
+                paneles_aplicados.push(panelNombre);
+            } else {
+                paneles_fallidos.push({
+                    panel: panelNombre,
+                    mensaje: "El panel no confirmó la aplicación de la huella.",
+                });
+            }
+        } catch (error: any) {
+            paneles_fallidos.push({
+                panel: panelNombre,
+                mensaje: error?.message || "Error al aplicar huella en panel.",
+            });
+        }
+    }
+    return { paneles_aplicados, paneles_fallidos };
+};
+
+const getHikvisionPanelsByEmpleado = async (registro: any) => {
+    return DispositivosHv.find({
+        activo: true,
+        tipo_evento: { $in: [5, 6, 7] },
+        id_acceso: { $in: Array.isArray(registro?.accesos) ? registro.accesos : [] },
+    }).lean();
+};
+
+const syncAllEmpleadoFingerprintsToPanels = async (registro: any) => {
+    const templates = normalizeHuellaTemplateMap((registro as any)?.huellas_template_dev);
+    const dedos = Object.keys(templates)
+        .map((k) => Number(k))
+        .filter((n) => Number.isInteger(n) && n >= 1 && n <= 10)
+        .sort((a, b) => a - b);
+    if (dedos.length === 0) {
+        return {
+            estado: false,
+            mensaje: "No hay huellas guardadas para re-subir.",
+            datos: { dedos: [], resumen: { total_dedos: 0, dedos_ok: 0, dedos_error: 0 } },
+        };
+    }
+
+    const paneles = await getHikvisionPanelsByEmpleado(registro);
+    if (!paneles.length) {
+        return {
+            estado: false,
+            mensaje: "No hay paneles destino disponibles para re-subir huellas.",
+            datos: { dedos, resumen: { total_dedos: dedos.length, dedos_ok: 0, dedos_error: dedos.length } },
+        };
+    }
+
+    const employeeNo = String(registro.id_empleado);
+    const detalle: Array<any> = [];
+    let dedosOk = 0;
+
+    for (const dedo of dedos) {
+        const templateEncrypted = templates[String(dedo)];
+        const fingerData = decryptPassword(String(templateEncrypted || ""), CONFIG.SECRET_CRYPTO);
+        if (!fingerData) {
+            detalle.push({ dedo, estado: false, paneles_aplicados: [], paneles_fallidos: [{ panel: "-", mensaje: "No se pudo leer la plantilla guardada." }] });
+            continue;
+        }
+        const resultado = await applyFingerprintToPanels({
+            paneles,
+            employeeNo,
+            dedo,
+            fingerData,
+        });
+        if (resultado.paneles_aplicados.length > 0) dedosOk += 1;
+        detalle.push({ dedo, estado: resultado.paneles_aplicados.length > 0, ...resultado });
+    }
+
+    return {
+        estado: dedosOk > 0,
+        mensaje: dedosOk === dedos.length
+            ? "Huellas re-subidas correctamente."
+            : `Re-subida parcial de huellas (${dedosOk}/${dedos.length}).`,
+        datos: {
+            dedos,
+            detalle,
+            resumen: {
+                total_dedos: dedos.length,
+                dedos_ok: dedosOk,
+                dedos_error: dedos.length - dedosOk,
+            },
+        },
+    };
+};
+
 const captureCardFromPanel = async (ip: string, user: string, pass: string) => {
     let response: { statusCode: number; body: string; } | null = null;
     let lastError: any = null;
@@ -1994,55 +2113,6 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
             panelesDestinoMap.set(String(panel._id), panel);
         }
         const panelesDestino = Array.from(panelesDestinoMap.values());
-        if (panelesDestino.length === 0) {
-            res.status(200).json({
-                estado: false,
-                mensaje: "No hay paneles destino disponibles para aplicar la huella.",
-            });
-            return;
-        }
-
-        const paneles_aplicados: string[] = [];
-        const paneles_fallidos: Array<{ panel: string; mensaje: string; }> = [];
-
-        for (const panel of panelesDestino) {
-            const panelNombre = String(panel.nombre || panel.direccion_ip || panel._id);
-            try {
-                const panelUser = String(panel.usuario || "").trim();
-                const panelPass = decryptPassword(String(panel.contrasena || ""), CONFIG.SECRET_CRYPTO);
-                const setupRes = await setupFingerprintOnPanel(
-                    String(panel.direccion_ip),
-                    panelUser,
-                    panelPass,
-                    employeeNo,
-                    dedo,
-                    fingerData
-                );
-                if (setupRes.applied) {
-                    paneles_aplicados.push(panelNombre);
-                } else {
-                    paneles_fallidos.push({
-                        panel: panelNombre,
-                        mensaje: "El panel no confirmó la aplicación de la huella.",
-                    });
-                }
-            } catch (error: any) {
-                paneles_fallidos.push({
-                    panel: panelNombre,
-                    mensaje: error?.message || "Error al aplicar huella en panel.",
-                });
-            }
-        }
-
-        if (paneles_aplicados.length === 0) {
-            res.status(200).json({
-                estado: false,
-                mensaje: "No se pudo aplicar la huella en ningún panel.",
-                datos: { paneles_fallidos },
-            });
-            return;
-        }
-
         const huellasActuales = Array.isArray(registro.huellas_registradas) ? registro.huellas_registradas : [];
         const huellas = Array.from(new Set([...huellasActuales, dedo])).sort((a, b) => a - b);
         const huellasHikiActuales = Array.isArray((registro as any)?.huellas_hiki_registradas)
@@ -2071,15 +2141,12 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
 
         res.status(200).json({
             estado: true,
-            mensaje: paneles_fallidos.length > 0
-                ? `Huella registrada. Aplicada en ${paneles_aplicados.length} panel(es) y con fallas en ${paneles_fallidos.length}.`
-                : "Huella registrada correctamente.",
+            mensaje: "Huella registrada. Se esta sincronizando en segundo plano.",
             datos: {
                 huellas_registradas: huellas,
                 huellas_total: huellas.length,
                 finger_quality: fingerPrintQuality,
-                paneles_aplicados,
-                paneles_fallidos,
+                paneles_objetivo: panelesDestino.map((p: any) => String(p?.nombre || p?.direccion_ip || p?._id)),
                 dev_huella_replay_enabled: true,
                 huellas_template_dev: Object.keys(huellasTemplateDev).map(Number).sort((a, b) => a - b),
                 huellas_por_proveedor: {
@@ -2087,6 +2154,41 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
                 },
             },
         });
+        setTimeout(async () => {
+            try {
+                if (!panelesDestino.length) {
+                    await Empleados.findByIdAndUpdate(req.params.id, {
+                        $set: {
+                            sync_hikvision_pendiente: true,
+                            sync_hikvision_error: "No hay paneles destino disponibles para aplicar la huella.",
+                        },
+                    });
+                    return;
+                }
+                const resultado = await applyFingerprintToPanels({
+                    paneles: panelesDestino,
+                    employeeNo,
+                    dedo,
+                    fingerData,
+                });
+                const pendiente = resultado.paneles_fallidos.length > 0;
+                await Empleados.findByIdAndUpdate(req.params.id, {
+                    $set: {
+                        sync_hikvision_pendiente: pendiente,
+                        sync_hikvision_error: pendiente
+                            ? `Huella pendiente en: ${resultado.paneles_fallidos.map((f) => f.panel).join(", ")}`
+                            : "",
+                    },
+                });
+            } catch (error: any) {
+                await Empleados.findByIdAndUpdate(req.params.id, {
+                    $set: {
+                        sync_hikvision_pendiente: true,
+                        sync_hikvision_error: error?.message || "Error al sincronizar huella en segundo plano.",
+                    },
+                });
+            }
+        }, 0);
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
@@ -2098,9 +2200,9 @@ export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): 
         const id_usuario = (req as UserRequest).userId;
         const isMaster = (req as UserRequest).isMaster;
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
+        const reenviarTodos = !!req.body?.todos;
         const dedo = Number(req.body?.dedo);
-
-        if (!Number.isInteger(dedo) || dedo < 1 || dedo > 10) {
+        if (!reenviarTodos && (!Number.isInteger(dedo) || dedo < 1 || dedo > 10)) {
             res.status(400).json({ estado: false, mensaje: "El dedo es inválido. Usa un valor entre 1 y 10." });
             return;
         }
@@ -2111,6 +2213,18 @@ export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): 
         const registro = await Empleados.findOne(filtro);
         if (!registro) {
             res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
+            return;
+        }
+
+        if (reenviarTodos) {
+            const resultado = await syncAllEmpleadoFingerprintsToPanels(registro);
+            await Empleados.findByIdAndUpdate(req.params.id, {
+                $set: {
+                    sync_hikvision_pendiente: !resultado.estado,
+                    sync_hikvision_error: resultado.estado ? "" : String(resultado.mensaje || ""),
+                },
+            });
+            res.status(200).json(resultado);
             return;
         }
 
@@ -2132,11 +2246,7 @@ export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): 
             return;
         }
 
-        const panelesAcceso = await DispositivosHv.find({
-            activo: true,
-            tipo_evento: { $in: [5, 6, 7] },
-            id_acceso: { $in: Array.isArray(registro.accesos) ? registro.accesos : [] },
-        }).lean();
+        const panelesAcceso = await getHikvisionPanelsByEmpleado(registro);
         if (panelesAcceso.length === 0) {
             res.status(200).json({
                 estado: false,
@@ -2146,37 +2256,12 @@ export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): 
         }
 
         const employeeNo = String(registro.id_empleado);
-        const paneles_aplicados: string[] = [];
-        const paneles_fallidos: Array<{ panel: string; mensaje: string; }> = [];
-
-        for (const panel of panelesAcceso) {
-            const panelNombre = String(panel.nombre || panel.direccion_ip || panel._id);
-            try {
-                const panelUser = String(panel.usuario || "").trim();
-                const panelPass = decryptPassword(String(panel.contrasena || ""), CONFIG.SECRET_CRYPTO);
-                const setupRes = await setupFingerprintOnPanel(
-                    String(panel.direccion_ip),
-                    panelUser,
-                    panelPass,
-                    employeeNo,
-                    dedo,
-                    fingerData
-                );
-                if (setupRes.applied) {
-                    paneles_aplicados.push(panelNombre);
-                } else {
-                    paneles_fallidos.push({
-                        panel: panelNombre,
-                        mensaje: "El panel no confirmó la aplicación de la huella.",
-                    });
-                }
-            } catch (error: any) {
-                paneles_fallidos.push({
-                    panel: panelNombre,
-                    mensaje: error?.message || "Error al aplicar huella en panel.",
-                });
-            }
-        }
+        const { paneles_aplicados, paneles_fallidos } = await applyFingerprintToPanels({
+            paneles: panelesAcceso,
+            employeeNo,
+            dedo,
+            fingerData,
+        });
 
         if (paneles_aplicados.length === 0) {
             res.status(200).json({
@@ -2186,6 +2271,15 @@ export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): 
             });
             return;
         }
+
+        await Empleados.findByIdAndUpdate(req.params.id, {
+            $set: {
+                sync_hikvision_pendiente: paneles_fallidos.length > 0,
+                sync_hikvision_error: paneles_fallidos.length > 0
+                    ? `Huella pendiente en: ${paneles_fallidos.map((f) => f.panel).join(", ")}`
+                    : "",
+            },
+        });
 
         res.status(200).json({
             estado: true,
@@ -2201,6 +2295,88 @@ export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): 
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
+}
+
+export async function iniciarSyncHuellasHikvision(req: Request, res: Response): Promise<void> {
+    try {
+        if (hikvisionHuellaSyncJob.running) {
+            res.status(200).json({
+                estado: true,
+                mensaje: "La sincronización de huellas ya está en progreso.",
+                datos: hikvisionHuellaSyncJob,
+            });
+            return;
+        }
+
+        const registros = await Empleados.find(
+            { activo: true, huellas_template_dev: { $exists: true } },
+            "_id id_empleado nombre apellido_pat apellido_mat huellas_template_dev accesos"
+        ).lean();
+
+        const candidatos = (registros as any[]).filter((r: any) => {
+            const templates = normalizeHuellaTemplateMap(r?.huellas_template_dev);
+            return Object.keys(templates).length > 0;
+        });
+
+        hikvisionHuellaSyncJob.running = true;
+        hikvisionHuellaSyncJob.startedAt = new Date().toISOString();
+        hikvisionHuellaSyncJob.finishedAt = "";
+        hikvisionHuellaSyncJob.total = candidatos.length;
+        hikvisionHuellaSyncJob.processed = 0;
+        hikvisionHuellaSyncJob.success = 0;
+        hikvisionHuellaSyncJob.failed = 0;
+        hikvisionHuellaSyncJob.mensaje = "Sincronizando huellas en segundo plano...";
+
+        setTimeout(async () => {
+            try {
+                for (const empleado of candidatos) {
+                    try {
+                        const resultado = await syncAllEmpleadoFingerprintsToPanels(empleado);
+                        if (resultado.estado) {
+                            hikvisionHuellaSyncJob.success += 1;
+                        } else {
+                            hikvisionHuellaSyncJob.failed += 1;
+                        }
+                        await Empleados.findByIdAndUpdate(String((empleado as any)._id), {
+                            $set: {
+                                sync_hikvision_pendiente: !resultado.estado,
+                                sync_hikvision_error: resultado.estado ? "" : String(resultado.mensaje || ""),
+                            },
+                        });
+                    } catch (error: any) {
+                        hikvisionHuellaSyncJob.failed += 1;
+                        await Empleados.findByIdAndUpdate(String((empleado as any)._id), {
+                            $set: {
+                                sync_hikvision_pendiente: true,
+                                sync_hikvision_error: error?.message || "Error al sincronizar huellas.",
+                            },
+                        });
+                    } finally {
+                        hikvisionHuellaSyncJob.processed += 1;
+                    }
+                }
+                hikvisionHuellaSyncJob.mensaje = "Sincronización de huellas finalizada.";
+            } catch (error: any) {
+                hikvisionHuellaSyncJob.mensaje = error?.message || "Error al ejecutar la sincronización de huellas.";
+            } finally {
+                hikvisionHuellaSyncJob.running = false;
+                hikvisionHuellaSyncJob.finishedAt = new Date().toISOString();
+            }
+        }, 0);
+
+        res.status(200).json({
+            estado: true,
+            mensaje: "Sincronización de huellas iniciada en segundo plano.",
+            datos: hikvisionHuellaSyncJob,
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function obtenerEstadoSyncHuellasHikvision(_req: Request, res: Response): Promise<void> {
+    res.status(200).json({ estado: true, datos: hikvisionHuellaSyncJob });
 }
 
 export async function registrarTarjetaEmpleadoPanel(req: Request, res: Response): Promise<void> {
@@ -4691,6 +4867,9 @@ const rellenarHojaEmpresasFormato = async ({ isMaster, id_empresa }: { isMaster:
             return workbook.xlsx.writeFile(nameFileExcel);
         });
 }
+
+
+
 
 
 

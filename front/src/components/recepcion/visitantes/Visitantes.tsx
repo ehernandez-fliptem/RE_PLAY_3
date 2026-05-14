@@ -351,6 +351,7 @@ export default function Visitantes() {
           { variant: "success" }
         );
       }
+      (apiRef.current as any)?.dataSource?.fetchRows?.();
     } catch (error) {
       const { restartSession } = handlingError(error);
       if (restartSession) navigate("/logout", { replace: true });
@@ -634,14 +635,16 @@ const accionBloquear = (ID: string) => {
                     )
                   );
                 }
-                gridActions.push(
-                  <GridActionsCellItem
-                    icon={<Upload color="info" />}
-                    onClick={() => resincronizarPaneles(row._id)}
-                    label="Re-subir paneles"
-                    title="Re-subir paneles"
-                  />
-                );
+                if (row.sync_hikvision_pendiente) {
+                  gridActions.push(
+                    <GridActionsCellItem
+                      icon={<Upload sx={{ color: "#ed6c02" }} />}
+                      onClick={() => resincronizarPaneles(row._id)}
+                      label="Re-subir paneles"
+                      title="Re-subir paneles"
+                    />
+                  );
+                }
               }
               return gridActions;
             },

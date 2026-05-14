@@ -45,6 +45,8 @@ export interface IVisitante extends Document {
     modificado_por?: mongoose.Types.ObjectId;
     activo: boolean;
     verificado: boolean;
+    sync_hikvision_pendiente?: boolean;
+    sync_hikvision_error?: string;
 }
 
 const visitanteSchema = new Schema<IVisitante>({
@@ -153,6 +155,8 @@ const visitanteSchema = new Schema<IVisitante>({
     bloqueado: { type: Boolean, default: false },
     desbloqueado_hasta: { type: Date, default: null },
     verificado: { type: Boolean, default: false },
+    sync_hikvision_pendiente: { type: Boolean, default: false },
+    sync_hikvision_error: { type: String, default: "" },
 });
 
 visitanteSchema.pre<IVisitante>('save', async function (next) {

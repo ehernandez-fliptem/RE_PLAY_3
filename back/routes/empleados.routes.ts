@@ -28,6 +28,8 @@ import {
     reintentarSync,
     previewSyncBiostar,
     importarSyncBiostar,
+    iniciarSyncHuellasHikvision,
+    obtenerEstadoSyncHuellasHikvision,
 } from "../controllers/empleados.controller";
 
 const router = Router();
@@ -54,6 +56,8 @@ router.put("/biometria/huella/:id", validarTokenYRol([1, 2]), registrarHuellaEmp
 router.post("/biometria/huella/prueba-cruzada/:id", validarTokenYRol([1, 2]), probarSyncHuellaCruzada);
 router.post("/biometria/biostar/abrir-ui/:id", validarTokenYRol([1, 2]), abrirUiEnrollBiostar);
 router.put("/biometria/huella/reenviar/:id", validarTokenYRol([1, 2]), reenviarHuellaEmpleadoPanel);
+router.post("/biometria/huella/sync-hikvision/iniciar", validarTokenYRol([1, 2]), iniciarSyncHuellasHikvision);
+router.get("/biometria/huella/sync-hikvision/estado", validarTokenYRol([1, 2]), obtenerEstadoSyncHuellasHikvision);
 router.put("/biometria/tarjeta/:id", validarTokenYRol([1, 2]), registrarTarjetaEmpleadoPanel);
 router.delete("/biometria/tarjeta/:id/:tarjetaId", validarTokenYRol([1, 2]), eliminarTarjetaEmpleadoPanel);
 router.patch('/anonimizar/:id', validarTokenYRol([1, 2]), anonimizar);

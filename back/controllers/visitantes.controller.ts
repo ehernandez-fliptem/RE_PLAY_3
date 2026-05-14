@@ -417,6 +417,9 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                             else: true
                         }
                     },
+                    sync_hikvision_pendiente: {
+                        $ifNull: ["$sync_hikvision_pendiente", false]
+                    },
                 }
             },
             {
@@ -535,6 +538,9 @@ export async function obtenerGrid(req: Request, res: Response): Promise<void> {
                     },
                 },
                 ],
+            },
+            sync_hikvision_pendiente: {
+                $ifNull: ["$sync_hikvision_pendiente", false],
             },
             },
         },
@@ -941,6 +947,18 @@ export async function crear(req: Request, res: Response): Promise<void> {
           fullName,
           cardNo,
         });
+        const syncPendiente = syncRes.errores.length > 0;
+        await Visitantes.updateOne(
+          { _id: reg_saved._id },
+          {
+            $set: {
+              sync_hikvision_pendiente: syncPendiente,
+              sync_hikvision_error: syncPendiente
+                ? `Pendiente en: ${syncRes.errores.map((e) => e.ip).filter(Boolean).join(", ")}`
+                : "",
+            },
+          }
+        );
 
         let correoEnviado = false;
         try {
@@ -1046,6 +1064,18 @@ export async function verificar(req: Request, res: Response): Promise<void> {
       fullName,
       cardNo,
     });
+    const syncPendiente = syncRes.errores.length > 0;
+    await Visitantes.updateOne(
+      { _id: visitante._id },
+      {
+        $set: {
+          sync_hikvision_pendiente: syncPendiente,
+          sync_hikvision_error: syncPendiente
+            ? `Pendiente en: ${syncRes.errores.map((e) => e.ip).filter(Boolean).join(", ")}`
+            : "",
+        },
+      }
+    );
 
     res.status(200).json({
       estado: true,
@@ -1100,6 +1130,18 @@ export async function resincronizarVisitantePaneles(req: Request, res: Response)
       fullName,
       cardNo,
     });
+    const syncPendiente = syncRes.errores.length > 0;
+    await Visitantes.updateOne(
+      { _id: visitante._id },
+      {
+        $set: {
+          sync_hikvision_pendiente: syncPendiente,
+          sync_hikvision_error: syncPendiente
+            ? `Pendiente en: ${syncRes.errores.map((e) => e.ip).filter(Boolean).join(", ")}`
+            : "",
+        },
+      }
+    );
 
     res.status(200).json({
       estado: true,
@@ -1767,3 +1809,7 @@ export const desbloquearBack = async (req: Request, res: Response) => {
         return res.status(500).json({ estado: false, mensaje: "Error al desbloquear visitante" });
     }
 };
+
+
+
+
