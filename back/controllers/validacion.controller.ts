@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import { PipelineStage, Types } from 'mongoose';
 import Visitantes from "../models/Visitantes";
 import Usuarios from "../models/Usuarios";
+import Empleados from "../models/Empleados";
 import Configuracion from "../models/Configuracion";
 import TiposEventos from "../models/TiposEventos";
 import Roles from "../models/Roles";
@@ -21,6 +22,7 @@ import { QueryParams } from "../types/queryparams";
 import FaceDetector from "../classes/FaceDetector";
 
 const faceDetector = new FaceDetector();
+const normalizarCorreo = (correo?: string) => String(correo || "").trim().toLowerCase();
 
 
 export async function validarApp(_req: Request, res: Response): Promise<void> {
@@ -461,6 +463,10 @@ export async function crearEmpresa(req: Request, res: Response): Promise<void> {
 export async function crearUsuario(req: Request, res: Response): Promise<void> {
     try {
         const { img_usuario, nombre, apellido_pat, apellido_mat, correo, contrasena, movil, telefono, extension, id_piso, accesos } = req.body;
+        const correoNormalizado = normalizarCorreo(correo);
+        const empleadoVinculado = correoNormalizado
+            ? await Empleados.findOne({ correo: correoNormalizado, activo: true }, "_id").lean()
+            : null;
         const countUsuarios = await Usuarios.countDocuments({});
         if (countUsuarios > 0) {
             res.status(200).json({ estado: false, mensaje: "Ya no puedes usar está ruta." });
@@ -483,7 +489,7 @@ export async function crearUsuario(req: Request, res: Response): Promise<void> {
             nombre,
             apellido_pat,
             apellido_mat,
-            correo,
+            correo: correoNormalizado,
             movil,
             telefono,
             extension,
@@ -491,6 +497,7 @@ export async function crearUsuario(req: Request, res: Response): Promise<void> {
             id_empresa: empresa._id,
             id_piso,
             accesos,
+            id_empleado_vinculado: empleadoVinculado?._id || null,
             esRoot: true,
             creado_por: null,
             fecha_creacion: Date.now(),
@@ -515,7 +522,7 @@ export async function crearUsuario(req: Request, res: Response): Promise<void> {
                 const nombreCompleto = [reg_saved.nombre, reg_saved.apellido_pat, reg_saved.apellido_mat]
                     .filter(Boolean)
                     .join(" ");
-                const resultEnvioUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, nombreCompleto);
+                const resultEnvioUsuario = await enviarCorreoUsuario(correoNormalizado, contrasena, rolesString, nombreCompleto);
                 res.status(200).json({ estado: true, datos: { correoUsuario: resultEnvioUsuario } });
             })
             .catch(async (error) => {

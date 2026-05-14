@@ -1298,18 +1298,29 @@ export async function cargarProgramacionUsuarios(req: Request, res: Response): P
         for await (const registro of registros) {
             let resultCorreoUsuario = false;
             const { id_empresa, contrasena_hashed } = registro;
+            const correoNormalizado = normalizarCorreo(registro?.correo);
             const { esRoot } = await Empresas.findById(id_empresa, 'esRoot') as IEmpresa;
+            const empleadoVinculado = correoNormalizado
+                ? await Empleados.findOne({ correo: correoNormalizado, activo: true }, "_id").lean()
+                : null;
 
-            const nuevoUsuario = new Usuarios({ ...registro, contrasena: contrasena_hashed, esRoot: !!esRoot, creado_por: id_usuario });
+            const nuevoUsuario = new Usuarios({
+                ...registro,
+                correo: correoNormalizado,
+                id_empleado_vinculado: empleadoVinculado?._id || null,
+                contrasena: contrasena_hashed,
+                esRoot: !!esRoot,
+                creado_por: id_usuario
+            });
             await nuevoUsuario.save();
             if (envioCorreos) {
-                const { correo, contrasena, rol } = registro;
+                const { contrasena, rol } = registro;
                 let roles = await Roles.find({ rol: { $in: rol }, activo: true }, 'nombre');
                 const rolesString = roles.map((item) => item.nombre).join(' - ');
                 const nombreCompleto = [registro.nombre, registro.apellido_pat, registro.apellido_mat]
                     .filter(Boolean)
                     .join(" ");
-                resultCorreoUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, nombreCompleto);
+                resultCorreoUsuario = await enviarCorreoUsuario(correoNormalizado, contrasena, rolesString, nombreCompleto);
                 if (registrosGuardados) correosEnviados++;
             }
             usuariosCreados++;
