@@ -1,98 +1,82 @@
-# GUIA - GENERAR SETUP.EXE (RE_PLAY_3)
+# GUIA - GENERAR SETUP.EXE ACTUALIZADO (RE_PLAY_3)
 
-Esta guia explica **paso a paso** como generar el instalador `.exe` usando tu carpeta `release` y `installer.iss`.
+Esta guia deja listo el instalador con la version actual del sistema.
 
----
-## 0) Requisitos previos
+## 1) Requisitos
 
-- Tener Node.js instalado (para correr `build.ps1`)
-- Tener Inno Setup instalado (para compilar `installer.iss`)
+- Node.js instalado y en `PATH`.
+- Inno Setup 6 instalado (`ISCC.exe`).
 
----
-## 1) Generar la carpeta release
+## 2) Comando recomendado (todo en uno)
 
 Desde la raiz del repo:
 
-```
-PowerShell -ExecutionPolicy Bypass -File scripts\build.ps1
-```
-
-Verifica que exista:
-
-- `release\back\dist\index.js`
-- `release\scripts\start.ps1`
-
----
-## 2) Compilar el instalador (Inno Setup)
-
-### Opcion A: GUI
-
-1. Abre **Inno Setup**.
-2. Abre el archivo `installer.iss`.
-3. Click en **Compile**.
-
-### Opcion B: Linea de comando (ISCC)
-
-```
-"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+```powershell
+PowerShell -ExecutionPolicy Bypass -File scripts\make-exe.ps1
 ```
 
-> Ajusta la ruta si Inno Setup esta en otra carpeta.
+Esto hace:
 
----
-## 3) Resultado
+1. Build de `front`, `back`, `panel_server`, `demonio_eventos`.
+2. Genera carpeta `release` limpia.
+3. Compila `installer.iss` con version automatica.
+4. Crea el instalador en `output`.
 
-El instalador queda en:
+## 3) Version manual (opcional)
 
-```
-output\RE_PLAY_3_Setup.exe
-```
+Si quieres controlar la version del instalador:
 
----
-## 4) Instalar y ejecutar
-
-1. Ejecuta `output\RE_PLAY_3_Setup.exe`
-2. Al terminar, la app se inicia automaticamente.
-
----
-## 5) Comandos extra utiles
-
-### Apagar la app
-
-```
-PowerShell -ExecutionPolicy Bypass -File "C:\Program Files\RE_PLAY_3\scripts\stop.ps1"
+```powershell
+PowerShell -ExecutionPolicy Bypass -File scripts\make-exe.ps1 -Version 2026.05.14.01
 ```
 
-### Arrancar manualmente
+El resultado sera:
 
+```text
+output\RE_PLAY_3_Setup_v2026.05.14.01.exe
 ```
+
+## 4) Opciones utiles
+
+- Compilar EXE sin reconstruir release:
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File scripts\make-exe.ps1 -SkipBuild
+```
+
+- Build release recortando dependencias dev:
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File scripts\make-exe.ps1 -ProdOnly
+```
+
+- Si `ISCC.exe` no esta en ruta estandar:
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File scripts\make-exe.ps1 -InnoCompilerPath "C:\Ruta\ISCC.exe"
+```
+
+## 5) Instalacion y uso
+
+1. Ejecuta el `.exe` generado en `output`.
+2. Define puertos en el asistente de instalacion.
+3. Al terminar, se inicia `scripts\start.ps1`.
+
+## 6) Operacion post-instalacion
+
+- Arrancar manual:
+
+```powershell
 PowerShell -ExecutionPolicy Bypass -File "C:\Program Files\RE_PLAY_3\scripts\start.ps1"
 ```
 
----
-## 6) Archivo installer.iss (referencia actual)
+- Detener manual:
 
-```
-[Setup]
-AppName=RE_PLAY_3
-AppVersion=1.0
-DefaultDirName={pf}\RE_PLAY_3
-DefaultGroupName=RE_PLAY_3
-OutputDir=output
-OutputBaseFilename=RE_PLAY_3_Setup
-Compression=lzma
-SolidCompression=yes
-SetupIconFile=assets\RE_PLAY_3.ico
-
-[Files]
-Source: "release\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs; Excludes: "*.log;*.map;*.ts;*.tsx;*.md;*.pdf;logs\*;back\logs\*;demonio_eventos\logs\*;test\*;tests\*;__tests__\*;docs\*;doc\*;.cache\*;coverage\*;.git\*;.vscode\*"
-Source: "assets\RE_PLAY_3.ico"; DestDir: "{app}\assets"
-
-[Icons]
-Name: "{group}\RE_PLAY_3"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -NoExit -File ""{app}\scripts\start.ps1"""; IconFilename: "{app}\assets\RE_PLAY_3.ico"
-Name: "{commondesktop}\RE_PLAY_3"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -NoExit -File ""{app}\scripts\start.ps1"""; IconFilename: "{app}\assets\RE_PLAY_3.ico"
-
-[Run]
-Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\scripts\start.ps1"""; Flags: nowait postinstall skipifsilent
+```powershell
+PowerShell -ExecutionPolicy Bypass -File "C:\Program Files\RE_PLAY_3\scripts\stop.ps1"
 ```
 
+## 7) Notas de versionado del instalador
+
+- `installer.iss` ahora acepta version dinamica por parametro (`MyAppVersion`).
+- Si no pasas `-Version`, se usa timestamp (`yyyy.MM.dd.HHmm`).

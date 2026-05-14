@@ -1,12 +1,19 @@
+#ifndef MyAppVersion
+  #define MyAppVersion "1.0.0"
+#endif
+#ifndef MyOutputBaseFilename
+  #define MyOutputBaseFilename "RE_PLAY_3_Setup"
+#endif
+
 [Setup]
 AppName=RE_PLAY_3
-AppVersion=1.0
+AppVersion={#MyAppVersion}
 DefaultDirName={autopf}\RE_PLAY_3
 DefaultGroupName=RE_PLAY_3
 DisableDirPage=no
 UsePreviousAppDir=no
 OutputDir=output
-OutputBaseFilename=RE_PLAY_3_Setup
+OutputBaseFilename={#MyOutputBaseFilename}
 Compression=lzma
 SolidCompression=no
 SetupIconFile=assets\RE_PLAY_3.ico
