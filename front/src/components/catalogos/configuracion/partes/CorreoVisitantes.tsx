@@ -404,8 +404,8 @@ export default function CorreoVisitantes() {
           sx={{
             alignSelf: "flex-start",
             position: { xs: "static", md: "sticky" },
-            top: { md: 76 },
-            zIndex: { md: 1 },
+            top: { md: 90 },
+            zIndex: { md: 2 },
           }}
         >
           <Card
@@ -414,9 +414,11 @@ export default function CorreoVisitantes() {
               borderStyle: "dashed",
               borderColor: "divider",
               bgcolor: "background.paper",
+              maxHeight: { md: "calc(100vh - 120px)" },
+              overflow: { md: "hidden" },
             }}
           >
-            <CardContent sx={{ p: 1.5 }}>
+            <CardContent sx={{ p: 1.5, maxHeight: { md: "calc(100vh - 120px)" }, overflow: { md: "auto" } }}>
               <Button
                 fullWidth
                 variant="text"
