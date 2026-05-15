@@ -10,9 +10,11 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  Popper,
   Stack,
   TextField,
   Tooltip,
+  type PopperProps,
 } from "@mui/material";
 import Swal from "sweetalert2";
 import { useNavigate } from "react-router-dom";
@@ -28,6 +30,47 @@ type Row = {
   total_usuarios: number;
 };
 type OptionItem = { id_externo: string; nombre: string };
+
+function BottomAutoPopper(props: PopperProps) {
+  const [maxHeight, setMaxHeight] = useState<number>(240);
+
+  useEffect(() => {
+    const update = () => {
+      const anchor = props.anchorEl as HTMLElement | null;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const bottomSpace = Math.max(140, Math.floor(window.innerHeight - rect.bottom - 18));
+      setMaxHeight(bottomSpace);
+    };
+
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [props.anchorEl]);
+
+  return (
+    <Popper
+      {...props}
+      placement="bottom-start"
+      modifiers={[
+        { name: "flip", enabled: false },
+        { name: "offset", options: { offset: [0, 6] } },
+      ]}
+      sx={{
+        ...(props.sx || {}),
+        zIndex: 1600,
+        "& .MuiAutocomplete-listbox": {
+          maxHeight,
+          overflowY: "auto",
+        },
+      }}
+    />
+  );
+}
 
 export default function BiostararPermisosAcceso() {
   const navigate = useNavigate();
@@ -221,6 +264,7 @@ export default function BiostararPermisosAcceso() {
     <Autocomplete
       multiple
       disablePortal
+      slots={{ popper: BottomAutoPopper }}
       options={options}
       getOptionLabel={(o) => (formatLabel ? formatLabel(o) : o.nombre)}
       filterSelectedOptions
@@ -228,17 +272,7 @@ export default function BiostararPermisosAcceso() {
       value={options.filter((o) => value.includes(String(o.id_externo)))}
       onChange={(_, selected) => setValue(selected.map((x) => String(x.id_externo)))}
       isOptionEqualToValue={(o, v) => String(o.id_externo) === String(v.id_externo)}
-      ListboxProps={{ style: { maxHeight: 240, overflowY: "auto" } }}
-      slotProps={{
-        popper: {
-          placement: "bottom-start",
-          style: { zIndex: 1600 },
-          modifiers: [
-            { name: "flip", enabled: false },
-            { name: "offset", options: { offset: [0, 6] } },
-          ],
-        },
-      }}
+      ListboxProps={{ style: { overflowY: "auto" } }}
       renderInput={(params) => <TextField {...params} label={label} />}
     />
   );
