@@ -125,7 +125,7 @@ export default function Usuarios() {
   const cambiarEstado = async (ID: string, activo: boolean, nombre: string) => {
     if (!activo) {
       confirm({
-        title: "¿Seguro que deseas restaurar este usuario?",
+        title: "Â¿Seguro que deseas restaurar este usuario?",
         description: nombre,
         allowClose: true,
         confirmationText: "Continuar",
@@ -147,7 +147,7 @@ export default function Usuarios() {
         });
     } else {
       confirm({
-        title: "¿Seguro que deseas desactivar este usuario?",
+        title: "Â¿Seguro que deseas desactivar este usuario?",
         description: nombre,
         allowClose: true,
         confirmationText: "Continuar",
@@ -173,7 +173,7 @@ export default function Usuarios() {
 
   const eliminarPermanente = (ID: string, nombre: string) => {
     confirm({
-      title: "¿Seguro que deseas eliminar permanentemente este usuario?",
+      title: "Â¿Seguro que deseas eliminar permanentemente este usuario?",
       description: nombre,
       allowClose: true,
       confirmationText: "Continuar",

@@ -825,7 +825,7 @@ export default function Empleados() {
   const cambiarEstado = async (ID: string, activo: boolean, nombre: string) => {
     if (!activo) {
       confirm({
-        title: "¿Seguro que deseas restaurar a este empleado?",
+        title: "Â¿Seguro que deseas restaurar a este empleado?",
         description: nombre,
         allowClose: true,
         confirmationText: "Continuar",
@@ -852,7 +852,7 @@ export default function Empleados() {
         });
     } else {
       confirm({
-        title: "¿Seguro que deseas desactivar a este empleado?",
+        title: "Â¿Seguro que deseas desactivar a este empleado?",
         description: nombre,
         allowClose: true,
         confirmationText: "Continuar",
@@ -882,7 +882,7 @@ export default function Empleados() {
 
   const eliminarPermanente = (ID: string, nombre: string) => {
     confirm({
-      title: "¿Seguro que deseas eliminar permanentemente este empleado?",
+      title: "Â¿Seguro que deseas eliminar permanentemente este empleado?",
       description: nombre,
       allowClose: true,
       confirmationText: "Continuar",

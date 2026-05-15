@@ -233,7 +233,7 @@ export default function Visitantes() {
   const cambiarEstado = async (ID: string, activo: boolean, nombre: string) => {
     if (!activo) {
       confirm({
-        title: "�Seguro que deseas restaurar a este visitante?",
+        title: "¿Seguro que deseas restaurar a este visitante?",
         description: nombre,
         allowClose: true,
         confirmationText: "Continuar",
@@ -272,7 +272,7 @@ export default function Visitantes() {
     }
 
     confirm({
-      title: "�Seguro que deseas desactivar a este visitante?",
+      title: "¿Seguro que deseas desactivar a este visitante?",
       description: "Al desactivar, se bloqueará el acceso y no se podrá editar.",
       allowClose: true,
       confirmationText: "Continuar",
@@ -341,7 +341,7 @@ export default function Visitantes() {
 
   const eliminarPermanente = (ID: string, nombre: string) => {
     confirm({
-      title: "�Seguro que deseas eliminar permanentemente este visitante?",
+      title: "¿Seguro que deseas eliminar permanentemente este visitante?",
       description: nombre,
       allowClose: true,
       confirmationText: "Continuar",
@@ -418,7 +418,7 @@ const accionDesbloquear = (ID: string) => {
     return;
   }
   confirm({
-    title: "�Seguro que desea desbloquear a este visitante?",
+    title: "¿Seguro que desea desbloquear a este visitante?",
     description: "Esta acción restaura los intentos y habilita el acceso SOLO por hoy.",
     allowClose: true,
     confirmationText: "Continuar",
@@ -466,7 +466,7 @@ const accionBloquear = (ID: string) => {
     return;
   }
   confirm({
-    title: "�Seguro que desea bloquear a este visitante?",
+    title: "¿Seguro que desea bloquear a este visitante?",
     description: "Esta acción bloquea el acceso al sistema para el visitante.",
     allowClose: true,
     confirmationText: "Continuar",
