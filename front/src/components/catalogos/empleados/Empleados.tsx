@@ -134,6 +134,7 @@ export default function Empleados() {
   const [tarjetaMensaje, setTarjetaMensaje] = useState("");
   const [biostarGroupFilter, setBiostarGroupFilter] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState<"activos" | "inactivos" | "todos">("activos");
+  const [syncBioCorreoTipo, setSyncBioCorreoTipo] = useState<"todos" | "real" | "biostar_local">("todos");
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [biostarGroupOptions, setBiostarGroupOptions] = useState<
     Array<{ id_externo: string; nombre: string; total: number }>
@@ -737,12 +738,20 @@ export default function Empleados() {
   };
   const syncBioPendientesFiltrados = useMemo(() => {
     const term = syncBioSearch.trim().toLowerCase();
-    if (!term) return syncBioPendientes;
     return syncBioPendientes.filter((u: any) => {
       const nombre = String(u?.nombre || "").toLowerCase();
       const correo = String(u?.correo || "").toLowerCase();
       const grupo = String(u?.biostar_group_name || "").toLowerCase();
       const faltantes = String((u?.motivos || []).join(" ") || "").toLowerCase();
+      const esBiostarLocal = /@biostar\.local$/i.test(correo);
+      const cumpleTipoCorreo =
+        syncBioCorreoTipo === "biostar_local"
+          ? esBiostarLocal
+          : syncBioCorreoTipo === "real"
+            ? !!correo && !esBiostarLocal
+            : true;
+      if (!cumpleTipoCorreo) return false;
+      if (!term) return true;
       return (
         nombre.includes(term) ||
         correo.includes(term) ||
@@ -750,7 +759,7 @@ export default function Empleados() {
         faltantes.includes(term)
       );
     });
-  }, [syncBioPendientes, syncBioSearch]);
+  }, [syncBioPendientes, syncBioSearch, syncBioCorreoTipo]);
 
   const darAltaPendiente = () => {
     const selected = syncBioPendientes.find((p: any) => String(p.biostar_user_id) === syncBioSelected);
@@ -1443,6 +1452,23 @@ export default function Empleados() {
             onChange={(e) => setSyncBioSearch(String(e.target.value || ""))}
             sx={{ mb: 2 }}
           />
+          <FormControl size="small" sx={{ minWidth: 240, mb: 2 }}>
+            <InputLabel id="tipo-correo-pendientes-biostar-label">Tipo de correo</InputLabel>
+            <Select
+              labelId="tipo-correo-pendientes-biostar-label"
+              value={syncBioCorreoTipo}
+              label="Tipo de correo"
+              onChange={(e) =>
+                setSyncBioCorreoTipo(
+                  e.target.value as "todos" | "real" | "biostar_local"
+                )
+              }
+            >
+              <MenuItem value="todos">Todos</MenuItem>
+              <MenuItem value="real">Correo real</MenuItem>
+              <MenuItem value="biostar_local">Correo biostar.local</MenuItem>
+            </Select>
+          </FormControl>
           <Typography variant="subtitle2" sx={{ mb: 2 }}>
             Selecciona un registro para completar alta en RE ({syncBioPendientesFiltrados.length})
           </Typography>

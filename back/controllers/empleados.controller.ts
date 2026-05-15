@@ -56,6 +56,13 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
         const biostarGroupId = String((req.query as any)?.biostar_group_id || "").trim();
         const biostarLive = String((req.query as any)?.biostar_live || "").trim() === "1";
         const estadoFiltro = String((req.query as any)?.estado || "activos").trim().toLowerCase();
+        const correoTipo = String((req.query as any)?.correo_tipo || "todos").trim().toLowerCase();
+        const correoMatch =
+            correoTipo === "biostar_local"
+                ? { correo: /@biostar\.local$/i }
+                : correoTipo === "real"
+                    ? { correo: { $nin: ["", null], $not: /@biostar\.local$/i } }
+                    : {};
 
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
@@ -80,6 +87,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                         estadoFiltro === "inactivos" ? { activo: false } : estadoFiltro === "todos" ? {} : { activo: true },
                         { eliminado_permanente: { $ne: true } },
                         biostarGroupId ? { biostar_group_id: biostarGroupId, biostar_user_id: { $nin: ["", null] } } : {},
+                        correoMatch,
                     ]
                 }
             },
