@@ -245,7 +245,7 @@ export default function CorreoVisitantes() {
     if (item.tipo === "pdf") {
       return (
         <Box key={item.id} sx={{ mb: 1.5 }}>
-          <Typography>Adjunto: {item.fileName || "documento.pdf"}</Typography>
+          <Typography>{item.fileName || ""}</Typography>
         </Box>
       );
     }
@@ -317,7 +317,7 @@ export default function CorreoVisitantes() {
   const toggleSection = (id: string) => {
     setExpandedSections((prev) => ({
       ...prev,
-      [id]: !(prev[id] ?? true),
+      [id]: !(prev[id] ?? false),
     }));
   };
 
@@ -531,7 +531,7 @@ export default function CorreoVisitantes() {
                   </IconButton>
                 </Stack>
 
-                <Collapse in={expandedSections[item.id] ?? true} timeout={220}>
+                <Collapse in={expandedSections[item.id] ?? false} timeout={220}>
                 {item.tipo === "texto" && (
                   <Stack spacing={1}>
                     <Stack spacing={0.5}>
