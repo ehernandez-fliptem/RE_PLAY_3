@@ -424,7 +424,7 @@ export default function Kiosco() {
     setSelectedReg(null);
   };
 
-  const onQrValidate = async (qr: string): Promise<{ ok: boolean; message: string; img_ine?: string; nombre?: string }> => {
+  const onQrValidate = async (qr: string): Promise<{ ok: boolean; message: string; img_ine?: string; nombre?: string; tipo_check?: number; biostar_modo_manual?: boolean }> => {
     const regexEmpleado = /^[0-9]+$/;
     const regexCardCode = /^VST[A-Z0-9]{16}$/;
     if (!regexCardCode.test(qr) && !regexEmpleado.test(qr)) {
@@ -463,10 +463,23 @@ export default function Kiosco() {
         message,
         img_ine: esVisitanteQr ? ineRaw || "" : undefined,
         nombre,
+        tipo_check: tipoCheck,
+        biostar_modo_manual: !!res.data?.datos?.biostar_modo_manual,
       };
     } catch (error) {
       handlingError(error);
       return { ok: false, message: "Error al validar el QR. Intenta de nuevo." };
+    }
+  };
+
+  const onManualClose = async (): Promise<{ ok: boolean; message: string }> => {
+    try {
+      const res = await clienteAxios.post("/api/eventos/biostar/cerrar-manual");
+      const ok = !!res.data?.estado;
+      return { ok, message: res.data?.mensaje || (ok ? "Acceso cerrado." : "No se pudo cerrar.") };
+    } catch (error) {
+      handlingError(error);
+      return { ok: false, message: "Error al cerrar acceso en BioStar." };
     }
   };
 
@@ -1110,6 +1123,7 @@ export default function Kiosco() {
             name="qr"
             setShow={setShowQRScanner}
             onQrValidate={onQrValidate}
+            onManualClose={onManualClose}
           />
         </FormProvider>
       )}

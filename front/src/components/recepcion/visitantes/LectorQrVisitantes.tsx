@@ -21,6 +21,8 @@ type ResultState = {
   message: string;
   img_ine?: string;
   nombre?: string;
+  tipo_check?: number;
+  biostar_modo_manual?: boolean;
 };
 
 type Props = {
@@ -32,6 +34,7 @@ type Props = {
   hideActions?: boolean;
   allowBackdropClose?: boolean;
   allowEscapeClose?: boolean;
+  onManualClose?: () => Promise<{ ok: boolean; message: string }>;
 };
 
 export default function LectorQrVisitantes({
@@ -43,10 +46,13 @@ export default function LectorQrVisitantes({
   hideActions = false,
   allowBackdropClose = false,
   allowEscapeClose = true,
+  onManualClose,
 }: Props) {
   const formContext = useFormContext();
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<ResultState | null>(null);
+  const [isClosingManual, setIsClosingManual] = useState(false);
+  const [manualCloseMessage, setManualCloseMessage] = useState<string>("");
 
   const handleScan: OnResultFunction = async (scan) => {
     if (!scan?.getText()) return;
@@ -63,7 +69,20 @@ export default function LectorQrVisitantes({
 
   const handleRetry = () => {
     setResult(null);
+    setManualCloseMessage("");
     formContext.setValue(name, "");
+  };
+
+  const handleManualClose = async () => {
+    if (!onManualClose || isClosingManual) return;
+    setIsClosingManual(true);
+    setManualCloseMessage("");
+    try {
+      const response = await onManualClose();
+      setManualCloseMessage(response.message || (response.ok ? "Acceso cerrado." : "No se pudo cerrar."));
+    } finally {
+      setIsClosingManual(false);
+    }
   };
 
   useEffect(() => {
@@ -197,6 +216,35 @@ export default function LectorQrVisitantes({
               <Typography variant="body2" textAlign="center">
                 {result.message}
               </Typography>
+            )}
+            {result.ok && result.biostar_modo_manual && result.tipo_check === 5 && onManualClose && (
+              <Stack spacing={1.2} alignItems="center" sx={{ width: "100%", maxWidth: 420 }}>
+                <Button
+                  variant="contained"
+                  color="warning"
+                  onClick={handleManualClose}
+                  disabled={isClosingManual}
+                  sx={{
+                    px: 3,
+                    py: 1.1,
+                    borderRadius: 2,
+                    fontWeight: 700,
+                    textTransform: "none",
+                    boxShadow: "0 10px 24px rgba(255,152,0,0.3)",
+                  }}
+                >
+                  {isClosingManual ? "Cerrando..." : "Cerrar pluma"}
+                </Button>
+                {!!manualCloseMessage && (
+                  <Typography
+                    variant="body2"
+                    textAlign="center"
+                    color={manualCloseMessage.toLowerCase().includes("no se pudo") ? "error.main" : "success.main"}
+                  >
+                    {manualCloseMessage}
+                  </Typography>
+                )}
+              </Stack>
             )}
             {hideActions && (
               <Button

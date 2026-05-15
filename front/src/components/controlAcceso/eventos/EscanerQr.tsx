@@ -5,7 +5,14 @@ import { FormProvider, useForm } from "react-hook-form";
 import LectorQrVisitantes from "../../recepcion/visitantes/LectorQrVisitantes";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 
-type ResultState = { ok: boolean; message: string; img_ine?: string; nombre?: string };
+type ResultState = {
+  ok: boolean;
+  message: string;
+  img_ine?: string;
+  nombre?: string;
+  tipo_check?: number;
+  biostar_modo_manual?: boolean;
+};
 
 export default function EscanerQr() {
   const formContext = useForm({ defaultValues: { qr: "" } });
@@ -51,10 +58,26 @@ export default function EscanerQr() {
           message,
           img_ine: esVisitanteQr ? ineRaw || "" : undefined,
           nombre,
+          tipo_check: tipoCheck,
+          biostar_modo_manual: !!res.data?.datos?.biostar_modo_manual,
         };
       } catch (error) {
         handlingError(error);
         return { ok: false, message: "Error al validar el QR. Intenta de nuevo." };
+      }
+    },
+    []
+  );
+
+  const onManualClose = useMemo(
+    () => async (): Promise<{ ok: boolean; message: string }> => {
+      try {
+        const res = await clienteAxios.post("/api/eventos/biostar/cerrar-manual");
+        const ok = !!res.data?.estado;
+        return { ok, message: res.data?.mensaje || (ok ? "Acceso cerrado." : "No se pudo cerrar.") };
+      } catch (error) {
+        handlingError(error);
+        return { ok: false, message: "Error al cerrar acceso en BioStar." };
       }
     },
     []
@@ -77,6 +100,7 @@ export default function EscanerQr() {
             name="qr"
             setShow={setShowQRScanner}
             onQrValidate={onQrValidate}
+            onManualClose={onManualClose}
             hideBackdrop
             hideActions
             allowEscapeClose={false}

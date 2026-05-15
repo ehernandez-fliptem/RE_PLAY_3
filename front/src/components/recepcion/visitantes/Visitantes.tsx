@@ -80,7 +80,7 @@ export default function Visitantes() {
 
   const onQrValidate = async (
     qr: string
-  ): Promise<{ ok: boolean; message: string; img_ine?: string; nombre?: string }> => {
+  ): Promise<{ ok: boolean; message: string; img_ine?: string; nombre?: string; tipo_check?: number; biostar_modo_manual?: boolean }> => {
     const regexCardCode = /^VST[A-Z0-9]{16}$/;
     const isValid = regexCardCode.test(qr);
     if (!isValid) {
@@ -118,6 +118,8 @@ export default function Visitantes() {
           message,
           img_ine: ineRaw || "",
           nombre,
+          tipo_check: tipoCheck,
+          biostar_modo_manual: !!res.data?.datos?.biostar_modo_manual,
         };
       }
       const message = res.data.mensaje || "No se pudo validar el QR.";
@@ -129,6 +131,17 @@ export default function Visitantes() {
         ok: false,
         message: "Error al validar el QR. Intenta de nuevo.",
       };
+    }
+  };
+
+  const onManualClose = async (): Promise<{ ok: boolean; message: string }> => {
+    try {
+      const res = await clienteAxios.post("/api/eventos/biostar/cerrar-manual");
+      const ok = !!res.data?.estado;
+      return { ok, message: res.data?.mensaje || (ok ? "Acceso cerrado." : "No se pudo cerrar.") };
+    } catch (error) {
+      handlingError(error);
+      return { ok: false, message: "Error al cerrar acceso en BioStar." };
     }
   };
 
@@ -882,6 +895,7 @@ const accionBloquear = (ID: string) => {
             name="qr"
             setShow={setShowQRScanner}
             onQrValidate={onQrValidate}
+            onManualClose={onManualClose}
             // testQr="VST0000016B86B273FF"
           />
         </FormProvider>

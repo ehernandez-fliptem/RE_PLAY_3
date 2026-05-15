@@ -13,6 +13,7 @@ import Registros, { IRegistro } from "../models/Registros";
 import Empresas from "../models/Empresas";
 import Visitantes from "../models/Visitantes";
 import RegistrosCampo from "../models/RegistrosCampo";
+import Accesos from "../models/Accesos";
 import { fecha, log } from "../middlewares/log";
 import {
     validacionRegistroActivo,
@@ -35,7 +36,7 @@ import { socket } from '../utils/socketClient';
 import FaceDetector from "../classes/FaceDetector";
 import FaceDescriptors from "../models/FaceDescriptors";
 import { biostarRequest } from "../classes/Biostar";
-import { abrirPuertaPorAccesoBiostar } from "../utils/biostarApertura";
+import { abrirPuertaPorAccesoBiostar, cerrarPuertaPorAccesoBiostar } from "../utils/biostarApertura";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -1319,6 +1320,10 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
         const id_acceso = (req as UserRequest).accessId;
         const esTabletQr = Array.isArray((req as UserRequest).role) && (req as UserRequest).role.includes(13);
         const modoTabletQr = ((req as UserRequest).tabletQrMode || "ambos") as "entrada" | "salida" | "ambos";
+        const accesoConfig = id_acceso
+            ? await Accesos.findById(id_acceso, "modo_apertura_biostar").lean<{ modo_apertura_biostar?: "pulso" | "manual" } | null>()
+            : null;
+        const biostarModoManual = accesoConfig?.modo_apertura_biostar === "manual";
         const resolverTipoEvento = (ultimo?: number | null) => {
             if (!esTabletQr || modoTabletQr === "ambos") return ultimo === 5 ? 6 : 5;
             return modoTabletQr === "entrada" ? 5 : 6;
@@ -1516,6 +1521,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                         nombre: nombreCompleto,
                         tipo_check: tipo_evento,
                         img_ine: String((visitante as any)?.img_ine || ""),
+                        biostar_modo_manual: biostarModoManual,
                     }
                 });
                 return;
@@ -1641,6 +1647,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                         nombre,
                         tipo_check: tipo_evento,
                         img_ine: String((visitanteQrInfo as any)?.img_ine || ""),
+                        biostar_modo_manual: biostarModoManual,
                     }
                 });
                 return;
@@ -1722,6 +1729,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                         nombre,
                         tipo_check: tipo_evento,
                         advertencia_apertura: aperturaError || undefined,
+                        biostar_modo_manual: biostarModoManual,
                     },
                 });
                 return;
@@ -1735,6 +1743,33 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
             const datos = await validacionHorario(id_horario, tipo_evento);
             res.status(200).json({ estado: true, datos: { ...datos, autorizacionCheck } })
         }
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function cerrarManualBiostar(req: Request, res: Response): Promise<void> {
+    try {
+        const id_acceso = (req as UserRequest).accessId;
+        if (!id_acceso) {
+            res.status(200).json({ estado: false, mensaje: "Tu usuario no tiene acceso asociado para cerrar." });
+            return;
+        }
+
+        const accesoConfig = await Accesos.findById(id_acceso, "modo_apertura_biostar").lean<{ modo_apertura_biostar?: "pulso" | "manual" } | null>();
+        if (!accesoConfig || accesoConfig.modo_apertura_biostar !== "manual") {
+            res.status(200).json({ estado: false, mensaje: "Este acceso no esta configurado en modo manual." });
+            return;
+        }
+
+        const closeRes = await cerrarPuertaPorAccesoBiostar({ idAcceso: id_acceso });
+        if (!closeRes.ok) {
+            res.status(200).json({ estado: false, mensaje: closeRes.message || "No se pudo cerrar en BioStar." });
+            return;
+        }
+
+        res.status(200).json({ estado: true, mensaje: "Acceso cerrado correctamente." });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });

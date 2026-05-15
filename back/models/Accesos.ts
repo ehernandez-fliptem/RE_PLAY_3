@@ -13,6 +13,8 @@ export interface IAcceso extends Document {
     fecha_modificacion?: Date;
     modificado_por?: mongoose.Types.ObjectId;
     activo: boolean;
+    modo_apertura_biostar?: "pulso" | "manual";
+    segundos_apertura_biostar?: number;
 }
 
 const accesoSchema = new Schema<IAcceso>({
@@ -50,6 +52,17 @@ const accesoSchema = new Schema<IAcceso>({
     fecha_modificacion: { type: Date },
     modificado_por: { type: Schema.Types.ObjectId, default: null, ref: "usuarios", },
     activo: { type: Boolean, default: true },
+    modo_apertura_biostar: {
+        type: String,
+        enum: ["pulso", "manual"],
+        default: "pulso",
+    },
+    segundos_apertura_biostar: {
+        type: Number,
+        min: 1,
+        max: 30,
+        default: 3,
+    },
 });
 
 accesoSchema.pre<IAcceso>('save', function (next) {

@@ -12,6 +12,7 @@ import {
   Typography,
 } from "@mui/material";
 import { FormContainer, TextFieldElement } from "react-hook-form-mui";
+import { SelectElement } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import Spinner from "../../utils/Spinner";
@@ -23,16 +24,36 @@ import type { GridDataSourceApiBase } from "@mui/x-data-grid";
 type FormValues = {
   identificador: string;
   nombre: string;
+  modo_apertura_biostar: "pulso" | "manual";
+  segundos_apertura_biostar: number;
 };
 
 const resolver = yup.object().shape({
   identificador: yup.string().required("El identificador es obligatorio."),
   nombre: yup.string().required("El nombre es obligatorio."),
+  modo_apertura_biostar: yup
+    .mixed<"pulso" | "manual">()
+    .oneOf(["pulso", "manual"])
+    .required("Este campo es obligatorio."),
+  segundos_apertura_biostar: yup
+    .number()
+    .transform((value) => (Number.isNaN(value) ? undefined : value))
+    .when("modo_apertura_biostar", {
+      is: "pulso",
+      then: (schema) =>
+        schema
+          .required("Este campo es obligatorio.")
+          .min(1, "Mínimo 1 segundo.")
+          .max(30, "Máximo 30 segundos."),
+      otherwise: (schema) => schema.default(0),
+    }),
 }) as yup.ObjectSchema<FormValues>;
 
 const initialValue: FormValues = {
   identificador: "",
   nombre: "",
+  modo_apertura_biostar: "pulso",
+  segundos_apertura_biostar: 3,
 };
 
 export default function NuevoAcceso() {
@@ -95,6 +116,28 @@ export default function NuevoAcceso() {
                   fullWidth
                   margin="normal"
                 />
+                <SelectElement
+                  name="modo_apertura_biostar"
+                  label="Modo de apertura BioStar"
+                  required
+                  fullWidth
+                  margin="normal"
+                  options={[
+                    { id: "pulso", label: "Pulso" },
+                    { id: "manual", label: "Manual (abrir/cerrar)" },
+                  ]}
+                />
+                {formContext.watch("modo_apertura_biostar") === "pulso" && (
+                  <TextFieldElement
+                    name="segundos_apertura_biostar"
+                    label="Segundos de apertura"
+                    type="number"
+                    required
+                    fullWidth
+                    margin="normal"
+                    inputProps={{ min: 1, max: 30 }}
+                  />
+                )}
                 <Divider sx={{ my: 2 }} />
                 <Box
                   component="footer"

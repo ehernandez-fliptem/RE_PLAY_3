@@ -203,14 +203,18 @@ export async function obtenerUno(req: Request, res: Response): Promise<void> {
 
 export async function crear(req: Request, res: Response): Promise<void> {
     try {
-        const { img_acceso, nombre, identificador, id_empresa } = req.body;
+        const { img_acceso, nombre, identificador, id_empresa, modo_apertura_biostar, segundos_apertura_biostar } = req.body;
         const id_usuario = (req as UserRequest).userId;
+        const modoApertura = String(modo_apertura_biostar || "pulso") === "manual" ? "manual" : "pulso";
+        const segundosApertura = Math.min(30, Math.max(1, Number(segundos_apertura_biostar || 3)));
         const registro = new Accesos({
             img_acceso: img_acceso ? await resizeImage(img_acceso) : "",
             nombre,
             identificador,
             id_empresa: id_empresa,
-            creado_por: id_usuario
+            creado_por: id_usuario,
+            modo_apertura_biostar: modoApertura,
+            segundos_apertura_biostar: modoApertura === "pulso" ? segundosApertura : 0,
         });
         const mensajes = await validarModelo(registro);
         if (!isEmptyObject(mensajes)) {
@@ -227,8 +231,10 @@ export async function crear(req: Request, res: Response): Promise<void> {
 
 export async function modificar(req: Request, res: Response): Promise<void> {
     try {
-        const { img_acceso, nombre, identificador, id_empresa } = req.body;
+        const { img_acceso, nombre, identificador, id_empresa, modo_apertura_biostar, segundos_apertura_biostar } = req.body;
         const id_usuario = (req as UserRequest).userId;
+        const modoApertura = String(modo_apertura_biostar || "pulso") === "manual" ? "manual" : "pulso";
+        const segundosApertura = Math.min(30, Math.max(1, Number(segundos_apertura_biostar || 3)));
         const registro = await Accesos.findByIdAndUpdate(
             req.params.id,
             {
@@ -237,6 +243,8 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                     nombre,
                     identificador,
                     id_empresa: id_empresa,
+                    modo_apertura_biostar: modoApertura,
+                    segundos_apertura_biostar: modoApertura === "pulso" ? segundosApertura : 0,
                     modificado_por: id_usuario,
                     fecha_modificacion: Date.now()
                 }
