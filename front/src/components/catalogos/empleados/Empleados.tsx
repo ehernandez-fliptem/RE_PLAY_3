@@ -6,6 +6,7 @@ import {
   type GridDataSource,
   GridGetRowsError,
   type GridValidRowModel,
+  type GridRowSelectionModel,
   GridActionsCellItem,
 } from "@mui/x-data-grid";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
@@ -923,6 +924,10 @@ export default function Empleados() {
           : "Completar datos en RE",
     },
   ];
+  const syncBioRowSelectionModel: GridRowSelectionModel = {
+    type: "include",
+    ids: new Set(syncBioSelection),
+  };
 
   const editarRegistro = (ID: string) => {
     navigate(`editar-empleado/${ID}`);
@@ -1596,9 +1601,13 @@ export default function Empleados() {
                 getRowId={(row) => row.id}
                 checkboxSelection
                 disableRowSelectionOnClick={false}
-                rowSelectionModel={syncBioSelection}
+                rowSelectionModel={syncBioRowSelectionModel}
                 onRowSelectionModelChange={(newSelection) => {
-                  const ids = (newSelection as any[]).map((v) => String(v));
+                  const idsRaw =
+                    "ids" in (newSelection as any)
+                      ? Array.from((newSelection as any).ids || [])
+                      : (newSelection as any[]);
+                  const ids = (idsRaw || []).map((v) => String(v));
                   setSyncBioSelection(ids);
                   setSyncBioSelected(ids[0] || "");
                 }}
