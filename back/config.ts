@@ -59,6 +59,18 @@ const envSchema = z.object({
 
     MAIL_USER: z.string().email(),
     MAIL_PASS: z.string(),
+    MAIL_VISITANTES_ID: z.string().optional().default(""),
+    MAIL_VISITANTES_NOMBRE: z.string().optional().default(""),
+    MAIL_VISITANTES_PROVIDER: z.enum(["outlook", "gmail", "smtp"]).optional().default("gmail"),
+    MAIL_VISITANTES_HOST: z.string().optional().default(""),
+    MAIL_VISITANTES_PORT: z.coerce.number().optional().default(587),
+    MAIL_VISITANTES_SECURE: z.coerce.boolean().optional().default(false),
+    MAIL_VISITANTES_REQUIRE_TLS: z.coerce.boolean().optional().default(true),
+    MAIL_VISITANTES_USER: z.string().optional().default(""),
+    MAIL_VISITANTES_PASS: z.string().optional().default(""),
+    MAIL_VISITANTES_FROM_NAME: z.string().optional().default(""),
+    MAIL_VISITANTES_FROM_EMAIL: z.string().optional().default(""),
+    MAIL_VISITANTES_DEFAULT_FOR_TEMPLATE: z.coerce.boolean().optional().default(false),
     
 });
 let CONFIG: z.infer<typeof envSchema>;

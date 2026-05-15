@@ -11,6 +11,7 @@ import {
   DialogTitle,
   Grid,
   IconButton,
+  MenuItem,
   Stack,
   TextField,
   ToggleButton,
@@ -56,6 +57,21 @@ type Seccion = {
   contentFontSize?: number;
 };
 
+type CorreoCuenta = {
+  id: string;
+  nombre: string;
+  proveedor: "outlook" | "gmail" | "smtp";
+  host: string;
+  port: number;
+  secure: boolean;
+  requireTLS: boolean;
+  user: string;
+  pass?: string;
+  fromName?: string;
+  fromEmail?: string;
+  activo: boolean;
+};
+
 const toDataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -81,6 +97,8 @@ export default function CorreoVisitantes() {
   const fullScreen = useMediaQuery(theme.breakpoints.down("md"));
   const { watch, setValue, formState } = useFormContext();
   const logoCorreo = String(watch("imgCorreo") || "");
+  const cuentasCorreo = (watch("correo_cuentas") || []) as CorreoCuenta[];
+  const cuentaVisitantesId = String(watch("correo_visitantes_cuenta_id") || "");
   const asunto = String(watch("correo_visitantes_template.asunto") || DEFAULT_VISITORS_SUBJECT);
   const secciones = (watch("correo_visitantes_template.secciones") || []) as Seccion[];
   const templateDefault = (formState.defaultValues as any)?.correo_visitantes_template || {
@@ -89,10 +107,12 @@ export default function CorreoVisitantes() {
   };
   const cambiosPendientes =
     JSON.stringify({
+      cuentaVisitantesId,
       asunto,
       secciones,
     }) !==
     JSON.stringify({
+      cuentaVisitantesId: String((formState.defaultValues as any)?.correo_visitantes_cuenta_id || ""),
       asunto: String(templateDefault?.asunto || DEFAULT_VISITORS_SUBJECT),
       secciones: Array.isArray(templateDefault?.secciones)
         ? templateDefault.secciones
@@ -362,6 +382,10 @@ export default function CorreoVisitantes() {
   };
 
   const reiniciarTodo = () => {
+    setValue("correo_visitantes_cuenta_id", "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
     setValue("correo_visitantes_template.asunto", DEFAULT_VISITORS_SUBJECT, {
       shouldDirty: true,
       shouldValidate: true,
@@ -403,6 +427,31 @@ export default function CorreoVisitantes() {
           Tienes cambios sin guardar en la plantilla de correo.
         </Alert>
       ) : null}
+
+      <TextField
+        label="Cuenta de envío para visitantes"
+        fullWidth
+        margin="normal"
+        select
+        InputLabelProps={{ shrink: true }}
+        value={cuentaVisitantesId}
+        onChange={(e) =>
+          setValue("correo_visitantes_cuenta_id", e.target.value, {
+            shouldDirty: true,
+            shouldValidate: true,
+          })
+        }
+        SelectProps={{ displayEmpty: true }}
+      >
+        <MenuItem value="">Predeterminado (Recepción Electrónica)</MenuItem>
+        {cuentasCorreo
+          .filter((c) => c?.activo !== false && !!c?.id)
+          .map((cuenta) => (
+            <MenuItem key={cuenta.id} value={cuenta.id}>
+              {cuenta.nombre} ({cuenta.proveedor})
+            </MenuItem>
+          ))}
+      </TextField>
 
       <TextFieldElement
         name="correo_visitantes_template.asunto"

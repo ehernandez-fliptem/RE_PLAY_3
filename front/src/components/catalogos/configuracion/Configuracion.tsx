@@ -77,6 +77,21 @@ type FormValues = {
   imgCorreo: string;
   saludaCorreo: string;
   despedidaCorreo: string;
+  correo_cuentas?: Array<{
+    id: string;
+    nombre: string;
+    proveedor: "outlook" | "gmail" | "smtp";
+    host: string;
+    port: number;
+    secure: boolean;
+    requireTLS: boolean;
+    user: string;
+    pass: string;
+    fromName?: string;
+    fromEmail?: string;
+    activo: boolean;
+  }>;
+  correo_visitantes_cuenta_id?: string;
   correo_visitantes_template: {
     asunto: string;
     secciones: Array<{
@@ -179,6 +194,29 @@ const resolver = yup.object().shape({
       ),
     })
     .required(),
+  correo_cuentas: yup
+    .array()
+    .of(
+      yup.object().shape({
+        id: yup.string().required(),
+        nombre: yup.string().required(),
+        proveedor: yup
+          .mixed<"outlook" | "gmail" | "smtp">()
+          .oneOf(["outlook", "gmail", "smtp"])
+          .required(),
+        host: yup.string().required(),
+        port: yup.number().required(),
+        secure: yup.boolean().required(),
+        requireTLS: yup.boolean().required(),
+        user: yup.string().required(),
+        pass: yup.string().optional(),
+        fromName: yup.string().optional(),
+        fromEmail: yup.string().optional(),
+        activo: yup.boolean().required(),
+      })
+    )
+    .optional(),
+  correo_visitantes_cuenta_id: yup.string().optional(),
   delayProximaFoto: yup.number().required("Este campo es obligatorio."),
   tiempoFotoVisita: yup.number().required("Este campo es obligatorio."),
   tiempoCancelacionRegistros: yup
@@ -297,6 +335,8 @@ const initialValue: FormValues = {
   imgCorreo: "",
   saludaCorreo: "",
   despedidaCorreo: "",
+  correo_cuentas: [],
+  correo_visitantes_cuenta_id: "",
   correo_visitantes_template: {
     asunto: "Registro del visitante",
     secciones: [
@@ -601,7 +641,6 @@ export default function Configuracion() {
                   <Tab value="general" label="General" />
                   <Tab value="correos" label="Correos" />
                   <Tab value="integraciones" label="Integraciones" />
-                  <Tab value="sistema" label="Sistema" />
                   <Tab value="apariencia" label="Apariencia" />
                   <Tab value="colecciones" label="Colecciones" />
                 </Tabs>

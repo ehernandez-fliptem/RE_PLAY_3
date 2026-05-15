@@ -193,6 +193,35 @@ export async function obtener(_req: Request, res: Response): Promise<void> {
             { activo: true },
             { activo: 0, creado_por: 0, fecha_creacion: 0, modificado_por: 0, fecha_modificacion: 0 }
         ).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
+        const configJson: any = configuracion ? (configuracion as any).toObject?.() ?? configuracion : {};
+        const envCuentaActiva = !!(
+            CONFIG.MAIL_VISITANTES_ID &&
+            CONFIG.MAIL_VISITANTES_USER &&
+            CONFIG.MAIL_VISITANTES_PASS &&
+            CONFIG.MAIL_VISITANTES_HOST
+        );
+        if (envCuentaActiva) {
+            const envCuenta = {
+                id: CONFIG.MAIL_VISITANTES_ID,
+                nombre: CONFIG.MAIL_VISITANTES_NOMBRE || CONFIG.MAIL_VISITANTES_ID,
+                proveedor: CONFIG.MAIL_VISITANTES_PROVIDER || "gmail",
+                host: CONFIG.MAIL_VISITANTES_HOST,
+                port: Number(CONFIG.MAIL_VISITANTES_PORT || 587),
+                secure: !!CONFIG.MAIL_VISITANTES_SECURE,
+                requireTLS: CONFIG.MAIL_VISITANTES_REQUIRE_TLS !== false,
+                user: CONFIG.MAIL_VISITANTES_USER,
+                pass: CONFIG.MAIL_VISITANTES_PASS,
+                fromName: CONFIG.MAIL_VISITANTES_FROM_NAME || "Flipbot",
+                fromEmail: CONFIG.MAIL_VISITANTES_FROM_EMAIL || CONFIG.MAIL_VISITANTES_USER,
+                activo: true,
+            };
+            const actuales = Array.isArray(configJson?.correo_cuentas) ? configJson.correo_cuentas : [];
+            const sinDuplicado = actuales.filter((c: any) => c?.id !== envCuenta.id);
+            configJson.correo_cuentas = [...sinDuplicado, envCuenta];
+            if (CONFIG.MAIL_VISITANTES_DEFAULT_FOR_TEMPLATE && !configJson?.correo_visitantes_cuenta_id) {
+                configJson.correo_visitantes_cuenta_id = envCuenta.id;
+            }
+        }
         const tipos_eventos = await TiposEventos.find(
             { activo: true },
             { activo: 0, creado_por: 0, fecha_creacion: 0, modificado_por: 0, fecha_modificacion: 0 }
@@ -215,7 +244,7 @@ export async function obtener(_req: Request, res: Response): Promise<void> {
         );
         res.status(200).send({
             estado: true, datos: {
-                configuracion,
+                configuracion: configJson,
                 tipos_eventos,
                 tipos_registros,
                 tipos_dispositivos,

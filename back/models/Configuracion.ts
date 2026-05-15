@@ -23,6 +23,21 @@ export interface IConfiguracion extends Document {
     imgCorreo: string;
     saludaCorreo: string;
     despedidaCorreo: string;
+    correo_cuentas?: Array<{
+        id: string;
+        nombre: string;
+        proveedor: "outlook" | "gmail" | "smtp";
+        host: string;
+        port: number;
+        secure: boolean;
+        requireTLS: boolean;
+        user: string;
+        pass: string;
+        fromName?: string;
+        fromEmail?: string;
+        activo: boolean;
+    }>;
+    correo_visitantes_cuenta_id?: string;
     correo_visitantes_template?: {
         asunto: string;
         secciones: Array<{
@@ -127,6 +142,22 @@ const configuracionSchema = new Schema<IConfiguracion>({
             message: () => `El mensaje de despedida contiene etiquetas HTML inválidas.`,
         },
     },
+    correo_cuentas: [{
+        _id: false,
+        id: { type: String, required: true },
+        nombre: { type: String, required: true },
+        proveedor: { type: String, enum: ["outlook", "gmail", "smtp"], default: "smtp" },
+        host: { type: String, default: "" },
+        port: { type: Number, default: 587 },
+        secure: { type: Boolean, default: false },
+        requireTLS: { type: Boolean, default: true },
+        user: { type: String, default: "" },
+        pass: { type: String, default: "" },
+        fromName: { type: String, default: "" },
+        fromEmail: { type: String, default: "" },
+        activo: { type: Boolean, default: true },
+    }],
+    correo_visitantes_cuenta_id: { type: String, default: "" },
     correo_visitantes_template: {
         asunto: { type: String, default: "Registro del visitante" },
         secciones: [

@@ -149,8 +149,9 @@ export async function enviarCorreoNuevoVisitanteHV(
     qrDataUrl: string
 ): Promise<boolean> {
     try {
-        const config = await Configuracion.findOne({}, "correo_visitantes_template").lean<any>();
+        const config = await Configuracion.findOne({}, "correo_visitantes_template correo_visitantes_cuenta_id").lean<any>();
         const plantilla = config?.correo_visitantes_template || {};
+        const cuentaIdVisitantes = String(config?.correo_visitantes_cuenta_id || "").trim();
         const asunto = String(plantilla?.asunto || "Registro del visitante");
         const seccionesRaw = Array.isArray(plantilla?.secciones) ? plantilla.secciones : [];
 
@@ -263,6 +264,7 @@ export async function enviarCorreoNuevoVisitanteHV(
             asunto,
             contenido,
             plusAttachments,
+            cuentaId: cuentaIdVisitantes || undefined,
         });
     } catch (error) {
         throw error;
