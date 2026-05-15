@@ -344,7 +344,7 @@ export default function LectorQrVisitantes({
           position: "absolute",
           width: hideBackdrop
             ? { xs: "calc(100vw - 16px)", sm: "min(680px, calc(100vw - 32px))" }
-            : { xs: "92%", md: "50%", lg: "40%", xl: "30%" },
+            : { xs: "96%", sm: "92%", md: "min(78vw, 980px)", lg: "min(68vw, 1100px)" },
           ...(hideBackdrop
             ? {
                 left: "50%",
@@ -358,6 +358,8 @@ export default function LectorQrVisitantes({
                 top: "50%",
                 left: "50%",
                 transform: "translate(-50%, -50%)",
+                maxHeight: "90dvh",
+                overflow: "hidden",
               }),
         }}
       >

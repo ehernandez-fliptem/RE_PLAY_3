@@ -135,6 +135,7 @@ export default function Camera({
   const [detectionMode, setDetectionMode] = useState<1 | 2>(defaultMode);
   const [showModal, setShowModal] = useState(false);
   const isIneCapture = String(name || "").toLowerCase().includes("ine");
+  const isFluidHeight = typeof containerHeight === "string" && containerHeight === "100%";
 
   const chooseRearCamera = (videoDevices: MediaDeviceInfo[]) => {
     if (videoDevices.length <= 1) return videoDevices[0]?.deviceId || "";
@@ -378,7 +379,15 @@ export default function Camera({
       };
 
   return (
-    <Box component="section">
+    <Box
+      component="section"
+      sx={{
+        height: isFluidHeight ? "100%" : "auto",
+        display: isFluidHeight ? "flex" : "block",
+        flexDirection: isFluidHeight ? "column" : "unset",
+        minHeight: 0,
+      }}
+    >
       {!webcamReady && (
         <Box
           sx={{
@@ -429,6 +438,8 @@ export default function Camera({
           alignItems: "center",
           justifyContent: "center",
           width: "100%",
+          flex: isFluidHeight ? 1 : "unset",
+          minHeight: isFluidHeight ? 0 : 220,
           height: containerHeight,
           maxHeight: typeof containerHeight === "number" ? containerHeight : "none",
           padding: 0,
