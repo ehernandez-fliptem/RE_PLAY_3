@@ -440,6 +440,7 @@ export default function Configuracion() {
         enqueueSnackbar("La configuración se modificó correctamente.", {
           variant: "success",
         });
+        formContext.reset(formContext.getValues());
         dispatch(
           updateConfig({
             ...configuracion,
@@ -681,4 +682,7 @@ export default function Configuracion() {
     </Fragment>
   );
 }
+
+
+
 

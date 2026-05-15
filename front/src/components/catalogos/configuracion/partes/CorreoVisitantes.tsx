@@ -83,7 +83,21 @@ export default function CorreoVisitantes() {
   const logoCorreo = String(watch("imgCorreo") || "");
   const asunto = String(watch("correo_visitantes_template.asunto") || DEFAULT_VISITORS_SUBJECT);
   const secciones = (watch("correo_visitantes_template.secciones") || []) as Seccion[];
-  const cambiosPendientes = !!(formState.dirtyFields as any)?.correo_visitantes_template;
+  const templateDefault = (formState.defaultValues as any)?.correo_visitantes_template || {
+    asunto: DEFAULT_VISITORS_SUBJECT,
+    secciones: DEFAULT_VISITORS_SECTIONS,
+  };
+  const cambiosPendientes =
+    JSON.stringify({
+      asunto,
+      secciones,
+    }) !==
+    JSON.stringify({
+      asunto: String(templateDefault?.asunto || DEFAULT_VISITORS_SUBJECT),
+      secciones: Array.isArray(templateDefault?.secciones)
+        ? templateDefault.secciones
+        : DEFAULT_VISITORS_SECTIONS,
+    });
   const [previewOpen, setPreviewOpen] = useState(false);
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState("");
