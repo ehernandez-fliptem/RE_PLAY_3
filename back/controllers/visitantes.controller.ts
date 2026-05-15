@@ -1288,6 +1288,68 @@ export async function obtenerQR(req: Request, res: Response): Promise<void> {
     }
     }
 
+export async function reenviarCorreoAcceso(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const visitante = await Visitantes.findById(
+            req.params.id,
+            "_id id_visitante card_code verificado correo nombre apellido_pat apellido_mat"
+        ).lean<any>();
+
+        if (!visitante) {
+            res.status(200).json({ estado: false, mensaje: "Visitante no encontrado." });
+            return;
+        }
+
+        if (!visitante.verificado) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "El visitante no está verificado. Verifícalo antes de reenviar el correo.",
+            });
+            return;
+        }
+
+        let cardCode = String(visitante.card_code || "").trim();
+        if (!cardCode) {
+            cardCode = generarCardCodeDesdeId(visitante.id_visitante);
+            await Visitantes.updateOne({ _id: visitante._id }, { $set: { card_code: cardCode } });
+        }
+
+        const qrDataUrl = await QRCode.toDataURL(cardCode, {
+            errorCorrectionLevel: "H",
+            type: "image/png",
+            width: 400,
+            margin: 2,
+        });
+
+        const nombreCompleto = [visitante.nombre, visitante.apellido_pat, visitante.apellido_mat]
+            .filter(Boolean)
+            .join(" ");
+
+        const correoEnviado = await enviarCorreoNuevoVisitanteHV(
+            String(visitante.correo || ""),
+            nombreCompleto,
+            qrDataUrl
+        );
+
+        log(
+            `${fecha()} INFO: Reenviar correo visitante. solicitante=${id_usuario} visitante=${String(
+                visitante._id
+            )} correo=${String(visitante.correo || "")} enviado=${correoEnviado}\n`
+        );
+
+        if (!correoEnviado) {
+            res.status(200).json({ estado: false, mensaje: "No se pudo reenviar el correo del visitante." });
+            return;
+        }
+
+        res.status(200).json({ estado: true, mensaje: "Correo reenviado correctamente." });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
 export async function modificar(req: Request, res: Response): Promise<void> {
     try {
         const {

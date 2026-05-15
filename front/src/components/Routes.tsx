@@ -129,7 +129,7 @@ export default function Routes() {
   const puedeAdmin = esSuper || esAdmin;
   const puedeBiostar = (esSuper || esAdmin) && habilitarIntegracionBiostar;
   const puedeKiosco = esSuper || esAdmin || esRecep || esTablet;
-  const puedeVisitantes = esSuper || esAdmin || esAnfitrion || esRecep;
+  const puedeVisitantes = esSuper || esAdmin || esAnfitrion || esRecep || esTablet;
   const usuarioSistema = esSuper || esAdmin || esAnfitrion || esRecep || esContratista || esCampo || esTablet;
 
   return useRoutes([

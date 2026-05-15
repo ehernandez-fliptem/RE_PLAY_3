@@ -47,6 +47,7 @@ export default function DetalleVisitante() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
+  const [isResending, setIsResending] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewSrc, setPreviewSrc] = useState("");
   const [previewTitle, setPreviewTitle] = useState("");
@@ -115,6 +116,28 @@ export default function DetalleVisitante() {
     setPreviewSrc(src);
     setPreviewTitle(title);
     setPreviewOpen(true);
+  };
+
+  const reenviarCorreo = async () => {
+    if (!id || isResending) return;
+    try {
+      setIsResending(true);
+      const res = await clienteAxios.patch(`/api/visitantes/reenviar/${id}`);
+      if (res.data?.estado) {
+        enqueueSnackbar(res.data?.mensaje || "Correo reenviado correctamente.", {
+          variant: "success",
+        });
+      } else {
+        enqueueSnackbar(res.data?.mensaje || "No se pudo reenviar el correo.", {
+          variant: "warning",
+        });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setIsResending(false);
+    }
   };
 
   return (
@@ -387,9 +410,21 @@ export default function DetalleVisitante() {
             <Stack
               spacing={2}
               direction={{ xs: "column-reverse", sm: "row" }}
-              justifyContent="end"
+              justifyContent="space-between"
+              alignItems="center"
               sx={{ width: "100%" }}
             >
+              <Button
+                sx={{ width: { xs: "100%", sm: "auto" } }}
+                type="button"
+                size="medium"
+                variant="contained"
+                color="primary"
+                onClick={reenviarCorreo}
+                disabled={isResending || isLoading}
+              >
+                {isResending ? "Reenviando..." : "Reenviar correo"}
+              </Button>
               <Button
                 sx={{ width: { xs: "100%", sm: "auto" } }}
                 type="button"

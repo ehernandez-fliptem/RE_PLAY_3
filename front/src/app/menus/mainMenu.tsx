@@ -108,7 +108,7 @@ const mainMenu = [
   {
     id: 0.7,
     title: "Visitantes",
-    rol: [1, 2, 4, 5],
+    rol: [1, 2, 4, 5, 13],
     icon: <Group fontSize="small" />,
     path: "/visitantes",
   },
