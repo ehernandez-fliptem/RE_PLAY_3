@@ -79,13 +79,11 @@ const DEFAULT_VISITORS_SECTIONS: Seccion[] = [
 export default function CorreoVisitantes() {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("md"));
-  const { watch, setValue } = useFormContext();
+  const { watch, setValue, formState } = useFormContext();
   const logoCorreo = String(watch("imgCorreo") || "");
   const asunto = String(watch("correo_visitantes_template.asunto") || DEFAULT_VISITORS_SUBJECT);
   const secciones = (watch("correo_visitantes_template.secciones") || []) as Seccion[];
-  const cambiosPendientes =
-    asunto !== DEFAULT_VISITORS_SUBJECT ||
-    JSON.stringify(secciones) !== JSON.stringify(DEFAULT_VISITORS_SECTIONS);
+  const cambiosPendientes = !!(formState.dirtyFields as any)?.correo_visitantes_template;
   const [previewOpen, setPreviewOpen] = useState(false);
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState("");
