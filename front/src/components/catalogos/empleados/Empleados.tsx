@@ -47,6 +47,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import { enqueueSnackbar } from "notistack";
 import { useConfirm } from "material-ui-confirm";
 import { AxiosError } from "axios";
+import Swal from "sweetalert2";
 import { base64ToFile } from "../../helpers/generalHelpers";
 import ErrorOverlay from "../../error/DataGridError";
 import Spinner from "../../utils/Spinner";
@@ -143,6 +144,7 @@ export default function Empleados() {
   const [syncBioLoading, setSyncBioLoading] = useState(false);
   const [syncBioPendientes, setSyncBioPendientes] = useState<any[]>([]);
   const [syncBioSelected, setSyncBioSelected] = useState<string>("");
+  const [syncBioSelection, setSyncBioSelection] = useState<string[]>([]);
   const [syncBioSearch, setSyncBioSearch] = useState("");
   const [huellasPorProveedor, setHuellasPorProveedor] = useState<{
     hiki: number[];
@@ -724,6 +726,7 @@ export default function Empleados() {
       }
       setSyncBioPendientes(Array.isArray(res.data?.datos?.pendientes) ? res.data.datos.pendientes : []);
       setSyncBioSelected("");
+      setSyncBioSelection([]);
     } catch (error) {
       const { restartSession } = handlingError(error);
       if (restartSession) navigate("/logout", { replace: true });
@@ -761,28 +764,131 @@ export default function Empleados() {
     });
   }, [syncBioPendientes, syncBioSearch, syncBioCorreoTipo]);
 
-  const darAltaPendiente = () => {
-    const selected = syncBioPendientes.find((p: any) => String(p.biostar_user_id) === syncBioSelected);
-    if (!selected) {
-      enqueueSnackbar("Selecciona un usuario pendiente.", { variant: "warning" });
+  const darAltaPendiente = async () => {
+    const idsSeleccionados =
+      syncBioSelection.length > 0
+        ? syncBioSelection
+        : syncBioSelected
+          ? [syncBioSelected]
+          : [];
+    if (idsSeleccionados.length === 0) {
+      enqueueSnackbar("Selecciona al menos un usuario pendiente.", { variant: "warning" });
       return;
     }
-    setSyncBioOpen(false);
-    navigate("nuevo-empleado", {
-      state: {
-        biostarPrefill: {
-          nombre: selected.nombre || "",
-          apellido_pat: selected.apellido_pat || "",
-          apellido_mat: selected.apellido_mat || "",
-          correo: selected.correo || "",
-          telefono: selected.telefono || "",
-          movil: selected.movil || "",
-          extension: selected.extension || "",
-          biostar_group_id: selected.biostar_group_id || "",
-          biostar_user_id: selected.biostar_user_id || "",
+
+    const seleccionados = syncBioPendientes.filter((p: any) =>
+      idsSeleccionados.includes(String(p.biostar_user_id))
+    );
+    if (seleccionados.length === 0) {
+      enqueueSnackbar("No se encontraron registros seleccionados.", { variant: "warning" });
+      return;
+    }
+
+    if (seleccionados.length === 1) {
+      const selected = seleccionados[0];
+      setSyncBioOpen(false);
+      navigate("nuevo-empleado", {
+        state: {
+          biostarPrefill: {
+            nombre: selected.nombre || "",
+            apellido_pat: selected.apellido_pat || "",
+            apellido_mat: selected.apellido_mat || "",
+            correo: selected.correo || "",
+            telefono: selected.telefono || "",
+            movil: selected.movil || "",
+            extension: selected.extension || "",
+            biostar_group_id: selected.biostar_group_id || "",
+            biostar_user_id: selected.biostar_user_id || "",
+          },
         },
-      },
+      });
+      return;
+    }
+
+    const confirmRes = await Swal.fire({
+      icon: "question",
+      title: "Dar de alta seleccionados",
+      text: `Se crearán ${seleccionados.length} empleados usando correo default (@biostar.local).`,
+      showCancelButton: true,
+      confirmButtonText: "Continuar",
+      cancelButtonText: "Cancelar",
     });
+    if (!confirmRes.isConfirmed) return;
+
+    try {
+      setSyncBioLoading(true);
+      await Swal.fire({
+        title: "Cargando seleccionados...",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      let creados = 0;
+      let fallidos = 0;
+      const errores: string[] = [];
+
+      for (const item of seleccionados) {
+        const bioUserId = String(item?.biostar_user_id || "").trim();
+        const correoDefault = bioUserId
+          ? `${bioUserId.toLowerCase()}@biostar.local`
+          : "";
+        try {
+          const payload = {
+            img_usuario: "",
+            nombre: item?.nombre || "",
+            apellido_pat: item?.apellido_pat || "Empleado",
+            apellido_mat: item?.apellido_mat || "",
+            id_empresa: item?.id_empresa || "",
+            id_piso: item?.id_piso || "",
+            accesos: Array.isArray(item?.accesos) ? item.accesos : [],
+            id_puesto: "",
+            id_departamento: "",
+            id_cubiculo: "",
+            movil: item?.movil || "",
+            telefono: item?.telefono || "",
+            extension: item?.extension || "",
+            correo: correoDefault,
+            acceso_campo: false,
+            biostar_group_id: item?.biostar_group_id || "",
+            biostar_group_name: item?.biostar_group_name || "",
+            biostar_user_id: bioUserId,
+            desde_pendiente_biostar: true,
+          };
+          const res = await clienteAxios.post("/api/empleados", payload);
+          if (res.data?.estado) {
+            creados += 1;
+          } else {
+            fallidos += 1;
+            errores.push(`${item?.nombre || bioUserId}: ${res.data?.mensaje || "No se pudo crear."}`);
+          }
+        } catch (error: any) {
+          fallidos += 1;
+          const msg = error?.response?.data?.mensaje || error?.message || "Error al crear.";
+          errores.push(`${item?.nombre || bioUserId}: ${msg}`);
+        }
+      }
+
+      if (Swal.isVisible()) Swal.close();
+
+      if (creados > 0) {
+        enqueueSnackbar(`Alta masiva completada. Creados: ${creados}. Fallidos: ${fallidos}.`, {
+          variant: fallidos > 0 ? "warning" : "success",
+        });
+      } else {
+        enqueueSnackbar("No se creó ningún empleado.", { variant: "error" });
+      }
+      if (errores.length > 0) {
+        console.warn("[BIOSTAR-ALTA-MASIVA] Errores:", errores);
+      }
+
+      await cargarSyncBiostarPreview();
+      apiRef.current?.dataSource?.fetchRows?.();
+    } finally {
+      if (Swal.isVisible()) Swal.close();
+      setSyncBioLoading(false);
+    }
   };
   const columnasPendientesBiostar = [
     {
@@ -1470,7 +1576,7 @@ export default function Empleados() {
             </Select>
           </FormControl>
           <Typography variant="subtitle2" sx={{ mb: 2 }}>
-            Selecciona un registro para completar alta en RE ({syncBioPendientesFiltrados.length})
+            Selecciona uno o varios registros para completar alta en RE ({syncBioPendientesFiltrados.length})
           </Typography>
           <Box sx={{ width: "100%", height: 320 }}>
             {syncBioLoading && <Spinner />}
@@ -1488,15 +1594,24 @@ export default function Empleados() {
                 }))}
                 columns={columnasPendientesBiostar as any}
                 getRowId={(row) => row.id}
+                checkboxSelection
+                disableRowSelectionOnClick={false}
+                rowSelectionModel={syncBioSelection}
+                onRowSelectionModelChange={(newSelection) => {
+                  const ids = (newSelection as any[]).map((v) => String(v));
+                  setSyncBioSelection(ids);
+                  setSyncBioSelected(ids[0] || "");
+                }}
                 onRowClick={(params) => setSyncBioSelected(String(params.row?.id || ""))}
                 getRowClassName={(params) =>
-                  String(params.row?.id || "") === syncBioSelected ? "fila-pendiente-seleccionada" : ""
+                  syncBioSelection.includes(String(params.row?.id || ""))
+                    ? "fila-pendiente-seleccionada"
+                    : ""
                 }
                 pageSizeOptions={[5, 10, 25]}
                 initialState={{
                   pagination: { paginationModel: { pageSize: 5, page: 0 } },
                 }}
-                disableRowSelectionOnClick={false}
                 sx={{
                   "& .MuiDataGrid-cell, & .MuiDataGrid-columnHeaderTitle": {
                     whiteSpace: "nowrap",
@@ -1521,8 +1636,12 @@ export default function Empleados() {
         <DialogActions>
           <Button onClick={cargarSyncBiostarPreview} disabled={syncBioLoading}>Recargar</Button>
           <Button onClick={() => setSyncBioOpen(false)}>Cerrar</Button>
-          <Button variant="contained" onClick={darAltaPendiente} disabled={!syncBioSelected || syncBioLoading}>
-            Dar de alta
+          <Button
+            variant="contained"
+            onClick={darAltaPendiente}
+            disabled={syncBioSelection.length === 0 || syncBioLoading}
+          >
+            {syncBioSelection.length > 1 ? "Dar de alta seleccionados" : "Dar de alta"}
           </Button>
         </DialogActions>
       </Dialog>
