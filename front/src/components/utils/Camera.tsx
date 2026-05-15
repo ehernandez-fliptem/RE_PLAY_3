@@ -361,6 +361,24 @@ export default function Camera({
     setShowModal(false);
   };
 
+  const scanConstraints = deviceId
+    ? {
+        deviceId: { ideal: deviceId },
+        ...(isMobile ? { facingMode: { ideal: "environment" as const } } : {}),
+      }
+    : {
+        facingMode: isMobile ? ({ ideal: "environment" } as const) : ({ ideal: "user" } as const),
+      };
+
+  const webcamConstraints = deviceId
+    ? {
+        deviceId: { ideal: deviceId },
+        ...(isMobile ? { facingMode: { ideal: "environment" as const } } : {}),
+      }
+    : {
+        facingMode: isMobile ? ({ ideal: "environment" } as const) : ({ ideal: "user" } as const),
+      };
+
   return (
     <Box component="section">
       {!webcamReady && (
@@ -434,14 +452,14 @@ export default function Camera({
         )}
         {detectionMode === 1 && (
           <Fragment>
-            {isScan && deviceId ? (
+            {isScan ? (
               <Fragment>
                 {isScan && handleScan ? (
                   <QrReader
                     key={deviceId}
                     scanDelay={200}
                     videoId={deviceId}
-                    constraints={{ deviceId: { exact: deviceId } }}
+                    constraints={scanConstraints}
                     onResult={handleScan}
                     containerStyle={{
                       width: "100%",
@@ -476,7 +494,7 @@ export default function Camera({
                   })
                 }
                 screenshotFormat="image/jpeg"
-                videoConstraints={{ deviceId: { exact: deviceId } }}
+                videoConstraints={webcamConstraints}
                 style={{ width: "100%", height: "100%", objectFit: "fill" }}
               />
             )}
@@ -497,7 +515,7 @@ export default function Camera({
                 })
               }
               screenshotFormat="image/jpeg"
-              videoConstraints={{ deviceId: { exact: deviceId } }}
+              videoConstraints={webcamConstraints}
               style={{ width: "100%", height: "100%", objectFit: "fill" }}
             />
             <canvas
