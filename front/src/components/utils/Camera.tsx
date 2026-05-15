@@ -363,8 +363,7 @@ export default function Camera({
 
   const scanConstraints = deviceId
     ? {
-        deviceId: { ideal: deviceId },
-        ...(isMobile ? { facingMode: { ideal: "environment" as const } } : {}),
+        deviceId: { exact: deviceId },
       }
     : {
         facingMode: isMobile ? ({ ideal: "environment" } as const) : ({ ideal: "user" } as const),
@@ -372,8 +371,7 @@ export default function Camera({
 
   const webcamConstraints = deviceId
     ? {
-        deviceId: { ideal: deviceId },
-        ...(isMobile ? { facingMode: { ideal: "environment" as const } } : {}),
+        deviceId: { exact: deviceId },
       }
     : {
         facingMode: isMobile ? ({ ideal: "environment" } as const) : ({ ideal: "user" } as const),
