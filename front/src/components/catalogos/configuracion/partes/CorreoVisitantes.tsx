@@ -94,6 +94,7 @@ export default function CorreoVisitantes() {
   const [sizeDrafts, setSizeDrafts] = useState<Record<string, string>>({});
   const imgInputRef = useRef<HTMLInputElement | null>(null);
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
+  const previewContainerRef = useRef<HTMLDivElement | null>(null);
   const qrDemo =
     "data:image/svg+xml;utf8," +
     encodeURIComponent(`
@@ -169,7 +170,7 @@ export default function CorreoVisitantes() {
   const renderPreviewSection = (item: Seccion) => {
     if (item.tipo === "nombre") {
       return (
-        <Box key={item.id} sx={{ mb: 1.5 }}>
+        <Box key={item.id} data-preview-section-id={item.id} sx={{ mb: 1.5 }}>
           <Typography>
             <strong>Estimado, {nombreDemo}</strong>
           </Typography>
@@ -178,7 +179,7 @@ export default function CorreoVisitantes() {
     }
     if (item.tipo === "qr") {
       return (
-        <Box key={item.id} sx={{ mb: 2 }}>
+        <Box key={item.id} data-preview-section-id={item.id} sx={{ mb: 2 }}>
           <Typography sx={{ textAlign: "center", mb: 1 }}>
             Presenta este código para poder ingresar a nuestras instalaciones
           </Typography>
@@ -199,7 +200,7 @@ export default function CorreoVisitantes() {
       const titleFontSize = item.titleFontSize || DEFAULT_TITLE_FONT_SIZE;
       const contentFontSize = item.contentFontSize || item.fontSize || DEFAULT_CONTENT_FONT_SIZE;
       return (
-        <Box key={item.id} sx={{ mb: 1.5 }}>
+        <Box key={item.id} data-preview-section-id={item.id} sx={{ mb: 1.5 }}>
           {item.titulo ? (
             <Typography
               variant="subtitle1"
@@ -228,7 +229,7 @@ export default function CorreoVisitantes() {
           : "center";
       const maxHeight = item.imageSizePx || DEFAULT_IMAGE_SIZE_PX;
       return (
-        <Box key={item.id} sx={{ mb: 1.5 }}>
+        <Box key={item.id} data-preview-section-id={item.id} sx={{ mb: 1.5 }}>
           {item.titulo ? (
             <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
               {item.titulo}
@@ -315,6 +316,16 @@ export default function CorreoVisitantes() {
     const next = [...secciones];
     next[index] = { ...next[index], ...patch };
     actualizar(next);
+    if (!previewExpanded) return;
+    const sectionId = next[index]?.id;
+    if (!sectionId) return;
+    setTimeout(() => {
+      const container = previewContainerRef.current;
+      const section = container?.querySelector(
+        `[data-preview-section-id="${sectionId}"]`
+      ) as HTMLElement | null;
+      section?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 0);
   };
 
   const toggleSection = (id: string) => {
@@ -388,7 +399,15 @@ export default function CorreoVisitantes() {
       />
 
       <Grid container spacing={2} sx={{ mt: 1 }}>
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Grid
+          size={{ xs: 12, md: 6 }}
+          sx={{
+            alignSelf: "flex-start",
+            position: { xs: "static", md: "sticky" },
+            top: { md: 76 },
+            zIndex: { md: 1 },
+          }}
+        >
           <Card
             variant="outlined"
             sx={{
@@ -418,6 +437,7 @@ export default function CorreoVisitantes() {
               </Button>
               <Collapse in={previewExpanded} timeout={260} unmountOnExit>
                 <Box
+                  ref={previewContainerRef}
                   sx={{
                     maxHeight: { xs: 360, md: 700 },
                     overflow: "auto",
