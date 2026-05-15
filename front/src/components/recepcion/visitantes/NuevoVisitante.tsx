@@ -231,8 +231,20 @@ export default function NuevoVisitante() {
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
   try {
     setIsSaving(true);
+    const payloadVehiculo = data.viene_en_coche
+      ? {
+          archivo_licencia: data.archivo_licencia,
+          archivo_poliza_seguro: data.archivo_poliza_seguro,
+          archivo_tarjeta_circulacion: data.archivo_tarjeta_circulacion,
+        }
+      : {
+          archivo_licencia: "",
+          archivo_poliza_seguro: "",
+          archivo_tarjeta_circulacion: "",
+        };
     const payload = {
       ...data,
+      ...payloadVehiculo,
       contrasena: data.contrasena?.trim() ? data.contrasena : generarContrasena(),
     };
     const res = await clienteAxios.post("api/visitantes", payload);

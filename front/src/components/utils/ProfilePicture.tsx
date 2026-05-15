@@ -29,7 +29,7 @@ import {
 import { Controller, useFormContext } from "react-hook-form";
 import { useConfirm } from "material-ui-confirm";
 import Camera from "./Camera";
-import { resizeImage } from "./functions/extras";
+import { readFileData, resizeImage } from "./functions/extras";
 
 type AllowedFiles = "png" | "jpg" | "jpeg" | "pdf";
 type ProfilePictureProps = {
@@ -81,17 +81,29 @@ export default function ProfilePicture({
         return;
       }
 
-      const resized = await resizeImage(file, maxWidth).catch((error) => {
-        setTimeout(() => {
+      try {
+        const processedFile =
+          fileType === "pdf"
+            ? await readFileData(file)
+            : await resizeImage(file, maxWidth);
+
+        if (!processedFile) {
           setError(name, {
             type: "manual",
-            message: error.message,
+            message: "No se pudo leer el archivo.",
           });
-        }, 5000);
-      });
-      e.target.value = "";
-      setValue(name, resized);
-      trigger(name);
+          return;
+        }
+
+        e.target.value = "";
+        setValue(name, processedFile);
+        trigger(name);
+      } catch (error: any) {
+        setError(name, {
+          type: "manual",
+          message: error?.message || "No se pudo procesar el archivo.",
+        });
+      }
     }
   };
 
@@ -148,16 +160,16 @@ export default function ProfilePicture({
                 <Typography variant="body2" color={field.value ? "success.main" : "text.secondary"} sx={{ mb: 1 }}>
                   {field.value ? "Archivo cargado" : "Sin archivo seleccionado"}
                 </Typography>
-                <Stack direction="row" spacing={1} flexWrap="nowrap">
+                <Stack direction="row" spacing={1} flexWrap="wrap">
                   {!disableEdit && (
                     <Button
                       component="label"
                       variant="outlined"
                       startIcon={<Upload />}
                       sx={{
-                        flex: 1,
+                        flex: "1 1 170px",
                         minHeight: 40,
-                        minWidth: 0,
+                        minWidth: 170,
                         whiteSpace: "nowrap",
                       }}
                     >
@@ -176,9 +188,9 @@ export default function ProfilePicture({
                       startIcon={<CameraAlt />}
                       onClick={() => setShowCamera(true)}
                       sx={{
-                        flex: 1,
+                        flex: "1 1 170px",
                         minHeight: 40,
-                        minWidth: 0,
+                        minWidth: 170,
                         whiteSpace: "nowrap",
                       }}
                     >
@@ -186,13 +198,38 @@ export default function ProfilePicture({
                     </Button>
                   )}
                   {showViewButton && !!field.value && (
-                    <Button variant="outlined" startIcon={<Visibility />} onClick={handleClickOpen}>
-                      Ver
+                    <Button
+                      variant="outlined"
+                      onClick={handleClickOpen}
+                      sx={{
+                        minHeight: 40,
+                        minWidth: 40,
+                        width: 40,
+                        p: 0,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Visibility fontSize="small" />
                     </Button>
                   )}
                   {!disableEdit && !!field.value && (
-                    <Button variant="outlined" color="error" startIcon={<Delete />} onClick={handleDelete}>
-                      Quitar
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={handleDelete}
+                      sx={{
+                        minHeight: 40,
+                        minWidth: 40,
+                        width: 40,
+                        p: 0,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Delete fontSize="small" />
                     </Button>
                   )}
                 </Stack>
@@ -331,10 +368,11 @@ export default function ProfilePicture({
               </Modal>
             )}
             <Dialog
-              fullScreen
               open={openDialog}
               onClose={handleClose}
               aria-labelledby="responsive-dialog-title"
+              fullWidth
+              maxWidth="lg"
             >
               <DialogContent
                 sx={{
@@ -342,26 +380,26 @@ export default function ProfilePicture({
                   flexDirection: "column",
                   justifyContent: "center",
                   alignItems: "center",
-                  my: 2,
+                  p: 1.5,
                   minHeight: 320,
                 }}
               >
                 {String(currDoc || "").startsWith("data:application/pdf") ? (
-                  <Box component="iframe" src={currDoc} sx={{ width: "100%", height: "70dvh", border: 0 }} />
-                ) : (
-                  <Avatar
-                    variant="square"
+                  <Box
+                    component="iframe"
                     src={currDoc}
+                    sx={{ width: "100%", height: "78vh", border: 0 }}
+                  />
+                ) : (
+                  <Box
+                    component="img"
+                    src={currDoc}
+                    alt="Vista previa"
                     sx={{
-                      width: "60%",
-                      height: "60%",
-                    }}
-                    slotProps={{
-                      img: {
-                        style: {
-                          objectFit: "contain",
-                        },
-                      },
+                      width: "100%",
+                      maxWidth: "min(100%, 980px)",
+                      maxHeight: "78vh",
+                      objectFit: "contain",
                     }}
                   />
                 )}

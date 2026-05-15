@@ -290,7 +290,22 @@ export default function EditarVisitante() {
       }
 
       setIsSaving(true);
-      const res = await clienteAxios.put(`/api/visitantes/${ID}`, data);
+      const payloadVehiculo = data.viene_en_coche
+        ? {
+            archivo_licencia: data.archivo_licencia,
+            archivo_poliza_seguro: data.archivo_poliza_seguro,
+            archivo_tarjeta_circulacion: data.archivo_tarjeta_circulacion,
+          }
+        : {
+            archivo_licencia: "",
+            archivo_poliza_seguro: "",
+            archivo_tarjeta_circulacion: "",
+          };
+      const payload = {
+        ...data,
+        ...payloadVehiculo,
+      };
+      const res = await clienteAxios.put(`/api/visitantes/${ID}`, payload);
       if (res.data.estado) {
         if (res.data.datos?.verificado) {
           let faceInvalid = false;
@@ -652,6 +667,10 @@ export default function EditarVisitante() {
     </ModalContainer>
   );
 }
+
+
+
+
 
 
 
