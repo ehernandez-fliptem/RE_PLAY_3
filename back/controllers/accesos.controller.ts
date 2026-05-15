@@ -214,7 +214,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
             id_empresa: id_empresa,
             creado_por: id_usuario,
             modo_apertura_biostar: modoApertura,
-            segundos_apertura_biostar: modoApertura === "pulso" ? segundosApertura : 0,
+            segundos_apertura_biostar: modoApertura === "pulso" ? segundosApertura : 3,
         });
         const mensajes = await validarModelo(registro);
         if (!isEmptyObject(mensajes)) {
@@ -244,7 +244,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                     identificador,
                     id_empresa: id_empresa,
                     modo_apertura_biostar: modoApertura,
-                    segundos_apertura_biostar: modoApertura === "pulso" ? segundosApertura : 0,
+                    segundos_apertura_biostar: modoApertura === "pulso" ? segundosApertura : 3,
                     modificado_por: id_usuario,
                     fecha_modificacion: Date.now()
                 }
