@@ -1647,13 +1647,6 @@ export default function Empleados() {
                 initialState={{
                   pagination: { paginationModel: { pageSize: 5, page: 0 } },
                 }}
-                slotProps={{
-                  baseCheckbox: {
-                    inputProps: {
-                      title: "Seleccionar todos los registros filtrados",
-                    },
-                  },
-                }}
                 sx={{
                   "& .MuiDataGrid-cell, & .MuiDataGrid-columnHeaderTitle": {
                     whiteSpace: "nowrap",
