@@ -531,7 +531,7 @@ export default function EditarVisitante() {
                   }}
                 >
                   <Typography variant="body2">
-                    Ingreso en vehículo
+                    Ingreso en vehÃ­culo
                   </Typography>
                   <Controller
                     name="viene_en_coche"

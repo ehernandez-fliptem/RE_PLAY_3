@@ -40,3 +40,4 @@ UserSettings/
 *.user
 .vscode/
 .idea/
+.cursor/

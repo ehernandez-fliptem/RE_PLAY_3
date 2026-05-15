@@ -216,7 +216,7 @@ export default function Empleados() {
   ) => {
     try {
       if (step === "tarjeta" && !tarjetaHikiEnabled) {
-        enqueueSnackbar("Tarjeta solo estÃ¡ disponible con Hikvision activo.", {
+        enqueueSnackbar("Tarjeta solo está disponible con Hikvision activo.", {
           variant: "warning",
         });
         return;
@@ -386,7 +386,7 @@ export default function Empleados() {
         if (haySiguienteProveedorHuella) {
           setHuellaProviderIndex((prev) => prev + 1);
           setBiometriaStep("huella");
-          enqueueSnackbar(`Huella guardada en ${proveedorHuellaLabel}. ContinÃºa con el siguiente sistema.`, {
+          enqueueSnackbar(`Huella guardada en ${proveedorHuellaLabel}. Continúa con el siguiente sistema.`, {
             variant: "success",
           });
         } else {
@@ -830,7 +830,7 @@ export default function Empleados() {
     const confirmRes = await Swal.fire({
       icon: "question",
       title: "Dar de alta seleccionados",
-      text: `Se crearÃ¡n ${seleccionados.length} empleados usando correo default (@biostar.local).`,
+      text: `Se crearán ${seleccionados.length} empleados usando correo default (@biostar.local).`,
       showCancelButton: true,
       confirmButtonText: "Continuar",
       cancelButtonText: "Cancelar",
@@ -904,7 +904,7 @@ export default function Empleados() {
           variant: fallidos > 0 ? "warning" : "success",
         });
       } else {
-        enqueueSnackbar("No se creÃ³ ningÃºn empleado.", { variant: "error" });
+        enqueueSnackbar("No se creó ningún empleado.", { variant: "error" });
       }
       if (errores.length > 0) {
         console.warn("[BIOSTAR-ALTA-MASIVA] Errores:", errores);
@@ -912,10 +912,10 @@ export default function Empleados() {
 
       await cargarSyncBiostarPreview();
       apiRef.current?.dataSource?.fetchRows?.();
+      setSyncBioOpen(false);
     } finally {
       if (Swal.isVisible()) Swal.close();
       setSyncBioLoading(false);
-      setSyncBioOpen(true);
     }
   };
   const columnasPendientesBiostar = [
@@ -961,7 +961,7 @@ export default function Empleados() {
     navigate(`detalle-empleado/${ID}`);
   };
 
-  // [En proceso] FunciÃ³n de carga masiva deshabilitada temporalmente
+  // [En proceso] Función de carga masiva deshabilitada temporalmente
   // const cargaMasiva = () => {
   //   navigate("carga-masiva");
   // };
@@ -969,7 +969,7 @@ export default function Empleados() {
   const cambiarEstado = async (ID: string, activo: boolean, nombre: string) => {
     if (!activo) {
       confirm({
-        title: "Â¿Seguro que deseas restaurar a este empleado?",
+        title: "¿Seguro que deseas restaurar a este empleado?",
         description: nombre,
         allowClose: true,
         confirmationText: "Continuar",
@@ -996,7 +996,7 @@ export default function Empleados() {
         });
     } else {
       confirm({
-        title: "Â¿Seguro que deseas desactivar a este empleado?",
+        title: "¿Seguro que deseas desactivar a este empleado?",
         description: nombre,
         allowClose: true,
         confirmationText: "Continuar",
@@ -1026,7 +1026,7 @@ export default function Empleados() {
 
   const eliminarPermanente = (ID: string, nombre: string) => {
     confirm({
-      title: "Â¿Seguro que deseas eliminar permanentemente este empleado?",
+      title: "¿Seguro que deseas eliminar permanentemente este empleado?",
       description: nombre,
       allowClose: true,
       confirmationText: "Continuar",
@@ -1075,16 +1075,16 @@ export default function Empleados() {
           ? res.data.sync.pendiente
           : [];
         if (pendientes.length === 0) {
-          enqueueSnackbar("SincronizaciÃ³n completada.", { variant: "success" });
+          enqueueSnackbar("Sincronización completada.", { variant: "success" });
         } else {
           enqueueSnackbar(
-            `SincronizaciÃ³n pendiente en: ${pendientes.join(", ")}.`,
+            `Sincronización pendiente en: ${pendientes.join(", ")}.`,
             { variant: "warning" }
           );
         }
         apiRef.current?.dataSource?.fetchRows?.();
       } else {
-        enqueueSnackbar(res.data?.mensaje || "No se pudo reintentar la sincronizaciÃ³n.", {
+        enqueueSnackbar(res.data?.mensaje || "No se pudo reintentar la sincronización.", {
           variant: "warning",
         });
       }
@@ -1107,7 +1107,7 @@ export default function Empleados() {
     flex: 1,
     display: "flex",
     minWidth: 80,
-    // Ocultado porque no se necesita mostrar el ID en la gestiÃ³n de empleados por ahora.
+    // Ocultado porque no se necesita mostrar el ID en la gestión de empleados por ahora.
   },
   {
     headerName: "Rol",
@@ -1115,7 +1115,7 @@ export default function Empleados() {
     flex: 1,
     display: "flex",
     minWidth: 120,
-    // Ocultado porque el rol no es relevante para la gestiÃ³n directa de empleados en esta vista.
+    // Ocultado porque el rol no es relevante para la gestión directa de empleados en esta vista.
   },
   {
     headerName: "Tipo",
@@ -1123,7 +1123,7 @@ export default function Empleados() {
     flex: 1,
     display: "flex",
     minWidth: 100,
-    // Ocultado porque el tipo no se requiere en la gestiÃ³n de empleados actualmente.
+    // Ocultado porque el tipo no se requiere en la gestión de empleados actualmente.
   },
   {
     headerName: "Arco",
@@ -1143,7 +1143,7 @@ export default function Empleados() {
     flex: 1,
     display: "flex",
     minWidth:100,
-    // Ocultado porque la gestiÃ³n de acceso no se requiere por ahora.
+    // Ocultado porque la gestión de acceso no se requiere por ahora.
   },
   */
   // --- FIN COLUMNAS OCULTAS ---
@@ -1152,7 +1152,7 @@ export default function Empleados() {
     <div style={{ minHeight: 400, position: "relative" }}>
       {pendingSyncCount > 0 && (
         <Alert severity="warning" sx={{ mb: 1 }}>
-          Hay {pendingSyncCount} empleado(s) con sincronizaciÃ³n pendiente con integraciones.
+          Hay {pendingSyncCount} empleado(s) con sincronización pendiente con integraciones.
         </Alert>
       )}
       <DataGrid
@@ -1504,7 +1504,7 @@ export default function Empleados() {
         slots={{
           toolbar: () => (
             <DataGridToolbar
-              tableTitle="GestiÃ³n de Empleados"
+              tableTitle="Gestión de Empleados"
               customActionButtons={
                 <Fragment>
                   {habilitarIntegracionBiostar && (
@@ -1557,7 +1557,7 @@ export default function Empleados() {
                       <Autorenew fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  {/* [En proceso] BotÃ³n de carga masiva oculto porque la funcionalidad aÃºn no estÃ¡ disponible
+                  {/* [En proceso] Botón de carga masiva oculto porque la funcionalidad aún no está disponible
                   <Tooltip title="Carga masiva">
                     <IconButton onClick={cargaMasiva}>
                       <Upload fontSize="small" />
@@ -1937,7 +1937,7 @@ export default function Empleados() {
                           title={
                             puedeAgregarTarjeta
                               ? "Registrar nueva tarjeta"
-                              : "No puedes agregar mÃ¡s de 10 tarjetas. Borra una para continuar."
+                              : "No puedes agregar más de 10 tarjetas. Borra una para continuar."
                           }
                         >
                           <span>
@@ -1962,7 +1962,7 @@ export default function Empleados() {
                       >
                         {tarjetasWeb.length === 0 && (
                           <Box sx={{ p: 2, color: "text.secondary", fontSize: "0.92rem" }}>
-                            AÃºn no hay tarjetas registradas en este mÃ³dulo.
+                            Aún no hay tarjetas registradas en este módulo.
                           </Box>
                         )}
                         {tarjetasWeb.map((tarjeta: any) => (
@@ -1982,7 +1982,7 @@ export default function Empleados() {
                                 {tarjeta.nombre}
                               </Box>
                               <Box sx={{ fontSize: "0.86rem", color: "text.secondary" }}>
-                                {tarjeta.descripcion || "Sin descripciÃ³n"}
+                                {tarjeta.descripcion || "Sin descripción"}
                               </Box>
                               <Box sx={{ fontSize: "0.8rem", color: "text.disabled", mt: 0.3 }}>
                                 ID: {String(tarjeta.card_no || "").slice(-8)}
@@ -2016,7 +2016,7 @@ export default function Empleados() {
                         inputProps={{ maxLength: 60 }}
                       />
                       <TextField
-                        label="DescripciÃ³n (opcional)"
+                        label="Descripción (opcional)"
                         value={tarjetaDescripcion}
                         onChange={(e) => setTarjetaDescripcion(e.target.value)}
                         size="small"
