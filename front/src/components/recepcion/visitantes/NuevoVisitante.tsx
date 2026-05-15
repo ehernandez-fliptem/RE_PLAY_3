@@ -393,22 +393,29 @@ export default function NuevoVisitante() {
                   margin="normal"
                   type="email"
                 />
-                <FormControlLabel
-                  sx={{ mt: 1 }}
-                  control={
-                    <Controller
-                      name="viene_en_coche"
-                      control={formContext.control}
-                      render={({ field }) => (
-                        <Switch
-                          checked={Boolean(field.value)}
-                          onChange={(e) => field.onChange(e.target.checked)}
-                        />
-                      )}
-                    />
-                  }
-                  label="¿Viene en coche?"
-                />
+                <Box
+                  sx={{
+                    mt: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-start",
+                    gap: 2,
+                  }}
+                >
+                  <Typography variant="body2">
+                    Ingreso en vehículo
+                  </Typography>
+                  <Controller
+                    name="viene_en_coche"
+                    control={formContext.control}
+                    render={({ field }) => (
+                      <Switch
+                        checked={Boolean(field.value)}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                      />
+                    )}
+                  />
+                </Box>
                 {vieneEnCoche && (
                   <Stack spacing={2} sx={{ mt: 1 }}>
                     <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
@@ -532,6 +539,8 @@ export default function NuevoVisitante() {
     </ModalContainer>
   );
 }
+
+
 
 
 
