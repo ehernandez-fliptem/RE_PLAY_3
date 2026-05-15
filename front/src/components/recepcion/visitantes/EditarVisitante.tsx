@@ -12,6 +12,7 @@ import {
   Divider,
   FormControlLabel,
   Stack,
+  Switch,
   Typography,
 } from "@mui/material";
 import { FormContainer, TextFieldElement } from "react-hook-form-mui";
@@ -49,6 +50,10 @@ type FormValues = {
   empresa?: string;
   telefono?: string;
   correo: string;
+  viene_en_coche?: boolean;
+  archivo_licencia?: string;
+  archivo_poliza_seguro?: string;
+  archivo_tarjeta_circulacion?: string;
   documentos_checks: DocumentosChecks;
 };
 
@@ -112,6 +117,36 @@ const resolver = yup.object().shape({
     .string()
     .required("Este campo es obligatorio.")
     .email("Formato de correo invÃ¡lido."),
+  viene_en_coche: yup.boolean().default(false),
+  archivo_licencia: yup
+    .string()
+    .test("isValidLic", "El archivo de licencia es inválido.", (value) => {
+      if (value) return REGEX_BASE64.test(value);
+      return true;
+    })
+    .when("viene_en_coche", {
+      is: true,
+      then: (schema) => schema.required("Este campo es obligatorio."),
+      otherwise: (schema) => schema.notRequired(),
+    }),
+  archivo_poliza_seguro: yup
+    .string()
+    .test("isValidPoliza", "El archivo de póliza es inválido.", (value) => {
+      if (value) return REGEX_BASE64.test(value);
+      return true;
+    })
+    .when("viene_en_coche", {
+      is: true,
+      then: (schema) => schema.required("Este campo es obligatorio."),
+      otherwise: (schema) => schema.notRequired(),
+    }),
+  archivo_tarjeta_circulacion: yup
+    .string()
+    .test("isValidTarjeta", "El archivo de tarjeta es inválido.", (value) => {
+      if (value) return REGEX_BASE64.test(value);
+      return true;
+    })
+    .notRequired(),
   documentos_checks: yup.object({
     identificacion_oficial: yup.boolean(),
     sua: yup.boolean(),
@@ -129,6 +164,10 @@ const initialValue: FormValues = {
   empresa: "",
   telefono: "",
   correo: "",
+  viene_en_coche: false,
+  archivo_licencia: "",
+  archivo_poliza_seguro: "",
+  archivo_tarjeta_circulacion: "",
   documentos_checks: { ...EMPTY_DOCUMENTOS_CHECKS },
 };
 
@@ -145,6 +184,7 @@ export default function EditarVisitante() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
+  const vieneEnCoche = formContext.watch("viene_en_coche");
   const [isLoading, setIsLoading] = useState(true);
   const [isVerificado, setIsVerificado] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -177,6 +217,11 @@ export default function EditarVisitante() {
             empresa: visitante.empresa || "",
             telefono: visitante.telefono || "",
             correo: visitante.correo || "",
+            viene_en_coche: Boolean(visitante.viene_en_coche),
+            archivo_licencia: visitante.archivo_licencia || "",
+            archivo_poliza_seguro: visitante.archivo_poliza_seguro || "",
+            archivo_tarjeta_circulacion:
+              visitante.archivo_tarjeta_circulacion || "",
             documentos_checks: normalizedChecks,
           };
           originalDocChecksRef.current = normalizedChecks;
@@ -430,6 +475,62 @@ export default function EditarVisitante() {
                   margin="normal"
                   type="email"
                 />
+                <FormControlLabel
+                  sx={{ mt: 1 }}
+                  control={
+                    <Controller
+                      name="viene_en_coche"
+                      control={formContext.control}
+                      render={({ field }) => (
+                        <Switch
+                          checked={Boolean(field.value)}
+                          onChange={(e) => field.onChange(e.target.checked)}
+                        />
+                      )}
+                    />
+                  }
+                  label="Â¿Viene en coche?"
+                />
+                {vieneEnCoche && (
+                  <Stack spacing={2} sx={{ mt: 1 }}>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                      <Suspense fallback={<ProfilePicturePreview />}>
+                        <ProfilePicture
+                          name="archivo_licencia"
+                          label="Foto de Licencia"
+                          variant="rounded"
+                          showViewButton
+                          adjustImageToBox
+                          required
+                          allowFiles={["png", "jpeg", "jpg", "pdf"]}
+                        />
+                      </Suspense>
+                      <Suspense fallback={<ProfilePicturePreview />}>
+                        <ProfilePicture
+                          name="archivo_poliza_seguro"
+                          label="Foto de PÃ³liza de seguro"
+                          variant="rounded"
+                          showViewButton
+                          adjustImageToBox
+                          required
+                          allowFiles={["png", "jpeg", "jpg", "pdf"]}
+                        />
+                      </Suspense>
+                    </Stack>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                      <Suspense fallback={<ProfilePicturePreview />}>
+                        <ProfilePicture
+                          name="archivo_tarjeta_circulacion"
+                          label="Tarjeta de circulaciÃ³n (opcional)"
+                          variant="rounded"
+                          showViewButton
+                          adjustImageToBox
+                          allowFiles={["png", "jpeg", "jpg", "pdf"]}
+                        />
+                      </Suspense>
+                    </Stack>
+                  </Stack>
+                )}
                 <Typography variant="overline" component="h6" sx={{ mt: 2 }}>
                   Documentos
                 </Typography>
@@ -502,5 +603,6 @@ export default function EditarVisitante() {
     </ModalContainer>
   );
 }
+
 
 

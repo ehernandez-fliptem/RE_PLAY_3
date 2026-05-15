@@ -30,7 +30,7 @@ import { useConfirm } from "material-ui-confirm";
 import Camera from "./Camera";
 import { resizeImage } from "./functions/extras";
 
-type AllowedFiles = "png" | "jpg" | "jpeg";
+type AllowedFiles = "png" | "jpg" | "jpeg" | "pdf";
 type ProfilePictureProps = {
   name: string;
   maxWidth?: number;

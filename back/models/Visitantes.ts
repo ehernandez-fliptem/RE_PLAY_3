@@ -19,6 +19,10 @@ export interface IVisitante extends Document {
     card_code?: string;
     img_usuario?: string;
     img_ine?: string;
+    viene_en_coche?: boolean;
+    archivo_licencia?: string;
+    archivo_poliza_seguro?: string;
+    archivo_tarjeta_circulacion?: string;
     correo: string;
     contrasena: string;
     nombre: string;
@@ -135,6 +139,40 @@ const visitanteSchema = new Schema<IVisitante>({
                 return REGEX_BASE64.test(v);
             },
             message: () => `La imagen de INE es inválida.`,
+        },
+    },
+    viene_en_coche: { type: Boolean, default: false },
+    archivo_licencia: {
+        type: String,
+        default: '',
+        validate: {
+            validator: (v: string | undefined) => {
+                if (!v) return true;
+                return REGEX_BASE64.test(v);
+            },
+            message: () => `El archivo de licencia es inválido.`,
+        },
+    },
+    archivo_poliza_seguro: {
+        type: String,
+        default: '',
+        validate: {
+            validator: (v: string | undefined) => {
+                if (!v) return true;
+                return REGEX_BASE64.test(v);
+            },
+            message: () => `El archivo de póliza es inválido.`,
+        },
+    },
+    archivo_tarjeta_circulacion: {
+        type: String,
+        default: '',
+        validate: {
+            validator: (v: string | undefined) => {
+                if (!v) return true;
+                return REGEX_BASE64.test(v);
+            },
+            message: () => `El archivo de tarjeta de circulación es inválido.`,
         },
     },
     rol: {

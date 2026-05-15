@@ -12,6 +12,7 @@ import {
   Divider,
   FormControlLabel,
   Stack,
+  Switch,
   Typography,
 } from "@mui/material";
 import { FormContainer, TextFieldElement } from "react-hook-form-mui";
@@ -43,6 +44,10 @@ type FormValues = {
   telefono?: string;
   correo: string;
   contrasena?: string;
+  viene_en_coche?: boolean;
+  archivo_licencia?: string;
+  archivo_poliza_seguro?: string;
+  archivo_tarjeta_circulacion?: string;
   documentos_checks: DocumentosChecks;
 };
 
@@ -107,6 +112,36 @@ const resolver = yup.object().shape({
     .required("Este campo es obligatorio.")
     .email("Formato de correo inválido."),
   contrasena: yup.string().notRequired(),
+  viene_en_coche: yup.boolean().default(false),
+  archivo_licencia: yup
+    .string()
+    .test("isValidLic", "El archivo de licencia es inválido.", (value) => {
+      if (value) return REGEX_BASE64.test(value);
+      return true;
+    })
+    .when("viene_en_coche", {
+      is: true,
+      then: (schema) => schema.required("Este campo es obligatorio."),
+      otherwise: (schema) => schema.notRequired(),
+    }),
+  archivo_poliza_seguro: yup
+    .string()
+    .test("isValidPoliza", "El archivo de póliza es inválido.", (value) => {
+      if (value) return REGEX_BASE64.test(value);
+      return true;
+    })
+    .when("viene_en_coche", {
+      is: true,
+      then: (schema) => schema.required("Este campo es obligatorio."),
+      otherwise: (schema) => schema.notRequired(),
+    }),
+  archivo_tarjeta_circulacion: yup
+    .string()
+    .test("isValidTarjeta", "El archivo de tarjeta es inválido.", (value) => {
+      if (value) return REGEX_BASE64.test(value);
+      return true;
+    })
+    .notRequired(),
   documentos_checks: yup.object({
     identificacion_oficial: yup
       .boolean()
@@ -131,6 +166,10 @@ const initialValue: FormValues = {
   telefono: "",
   correo: "",
   contrasena: "",
+  viene_en_coche: false,
+  archivo_licencia: "",
+  archivo_poliza_seguro: "",
+  archivo_tarjeta_circulacion: "",
   documentos_checks: { ...EMPTY_DOCUMENTOS_CHECKS },
 };
 
@@ -146,6 +185,7 @@ export default function NuevoVisitante() {
   });
   const navigate = useNavigate();
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
+  const vieneEnCoche = formContext.watch("viene_en_coche");
 
   const generarContrasena = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
@@ -321,6 +361,62 @@ export default function NuevoVisitante() {
                   margin="normal"
                   type="email"
                 />
+                <FormControlLabel
+                  sx={{ mt: 1 }}
+                  control={
+                    <Controller
+                      name="viene_en_coche"
+                      control={formContext.control}
+                      render={({ field }) => (
+                        <Switch
+                          checked={Boolean(field.value)}
+                          onChange={(e) => field.onChange(e.target.checked)}
+                        />
+                      )}
+                    />
+                  }
+                  label="¿Viene en coche?"
+                />
+                {vieneEnCoche && (
+                  <Stack spacing={2} sx={{ mt: 1 }}>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                      <Suspense fallback={<ProfilePicturePreview />}>
+                        <ProfilePicture
+                          name="archivo_licencia"
+                          label="Foto de Licencia"
+                          variant="rounded"
+                          showViewButton
+                          adjustImageToBox
+                          required
+                          allowFiles={["png", "jpeg", "jpg", "pdf"]}
+                        />
+                      </Suspense>
+                      <Suspense fallback={<ProfilePicturePreview />}>
+                        <ProfilePicture
+                          name="archivo_poliza_seguro"
+                          label="Foto de Póliza de seguro"
+                          variant="rounded"
+                          showViewButton
+                          adjustImageToBox
+                          required
+                          allowFiles={["png", "jpeg", "jpg", "pdf"]}
+                        />
+                      </Suspense>
+                    </Stack>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                      <Suspense fallback={<ProfilePicturePreview />}>
+                        <ProfilePicture
+                          name="archivo_tarjeta_circulacion"
+                          label="Tarjeta de circulación (opcional)"
+                          variant="rounded"
+                          showViewButton
+                          adjustImageToBox
+                          allowFiles={["png", "jpeg", "jpg", "pdf"]}
+                        />
+                      </Suspense>
+                    </Stack>
+                  </Stack>
+                )}
                 <Typography variant="overline" component="h6" sx={{ mt: 2 }}>
                   Documentos
                 </Typography>
@@ -393,5 +489,6 @@ export default function NuevoVisitante() {
     </ModalContainer>
   );
 }
+
 
 

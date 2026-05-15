@@ -882,6 +882,10 @@ export async function crear(req: Request, res: Response): Promise<void> {
         correo,
         contrasena,
         documentos_checks,
+        viene_en_coche,
+        archivo_licencia,
+        archivo_poliza_seguro,
+        archivo_tarjeta_circulacion,
         } = req.body;
 
         const id_usuario = (req as UserRequest).userId;
@@ -911,6 +915,17 @@ export async function crear(req: Request, res: Response): Promise<void> {
         });
         return;
         }
+        const vieneEnCoche = Boolean(viene_en_coche);
+        if (vieneEnCoche) {
+        if (!String(archivo_licencia || "").trim()) {
+            res.status(400).json({ estado: false, mensaje: "La licencia es obligatoria cuando viene en coche." });
+            return;
+        }
+        if (!String(archivo_poliza_seguro || "").trim()) {
+            res.status(400).json({ estado: false, mensaje: "La póliza de seguro es obligatoria cuando viene en coche." });
+            return;
+        }
+        }
 
         // 4) Preparar imagen UNA sola vez
         lap("resizeImage start");
@@ -930,6 +945,10 @@ export async function crear(req: Request, res: Response): Promise<void> {
         telefono,
         correo,
         documentos_checks: normalizedDocChecks,
+        viene_en_coche: vieneEnCoche,
+        archivo_licencia: vieneEnCoche ? String(archivo_licencia || "") : "",
+        archivo_poliza_seguro: vieneEnCoche ? String(archivo_poliza_seguro || "") : "",
+        archivo_tarjeta_circulacion: vieneEnCoche ? String(archivo_tarjeta_circulacion || "") : "",
         creado_por: id_usuario,
         });
 
@@ -1271,7 +1290,10 @@ export async function obtenerQR(req: Request, res: Response): Promise<void> {
 
 export async function modificar(req: Request, res: Response): Promise<void> {
     try {
-        const { img_usuario, img_ine, nombre, apellido_pat, apellido_mat, empresa, telefono, correo, contrasena, documentos_checks } = req.body;
+        const {
+            img_usuario, img_ine, nombre, apellido_pat, apellido_mat, empresa, telefono, correo, contrasena, documentos_checks,
+            viene_en_coche, archivo_licencia, archivo_poliza_seguro, archivo_tarjeta_circulacion
+        } = req.body;
         const id_usuario = (req as UserRequest).userId;
 
         const existe_usuario = await Usuarios.findOne({ correo }, '_id');
@@ -1307,6 +1329,18 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             await hvSetValidForEmployee(employeeNo, { enable: true, beginTime, endTime });
         }
 
+        const vieneEnCoche = Boolean(viene_en_coche);
+        if (vieneEnCoche) {
+            if (!String(archivo_licencia || "").trim()) {
+                res.status(400).json({ estado: false, mensaje: "La licencia es obligatoria cuando viene en coche." });
+                return;
+            }
+            if (!String(archivo_poliza_seguro || "").trim()) {
+                res.status(400).json({ estado: false, mensaje: "La póliza de seguro es obligatoria cuando viene en coche." });
+                return;
+            }
+        }
+
         let updateData = {
             img_usuario: await resizeImage(img_usuario),
             img_ine: await resizeImage(img_ine),
@@ -1319,6 +1353,10 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             contrasena,
             fecha_modificacion: Date.now(),
             modificado_por: id_usuario,
+            viene_en_coche: vieneEnCoche,
+            archivo_licencia: vieneEnCoche ? String(archivo_licencia || "") : "",
+            archivo_poliza_seguro: vieneEnCoche ? String(archivo_poliza_seguro || "") : "",
+            archivo_tarjeta_circulacion: vieneEnCoche ? String(archivo_tarjeta_circulacion || "") : "",
             ...(docChecksProvided ? { documentos_checks: normalizedDocChecks } : {}),
             ...(requiereReverificacion ? { verificado: false } : {}),
             ...bloqueadoUpdate,
