@@ -458,7 +458,7 @@ export default function Camera({
                   <QrReader
                     key={deviceId}
                     scanDelay={200}
-                    videoId={deviceId}
+                    videoId="qr-scanner-video"
                     constraints={scanConstraints}
                     onResult={handleScan}
                     containerStyle={{
