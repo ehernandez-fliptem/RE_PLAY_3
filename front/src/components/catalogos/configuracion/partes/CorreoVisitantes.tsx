@@ -245,11 +245,6 @@ export default function CorreoVisitantes() {
     if (item.tipo === "pdf") {
       return (
         <Box key={item.id} sx={{ mb: 1.5 }}>
-          {item.titulo ? (
-            <Typography variant="subtitle1" fontWeight={700}>
-              {item.titulo}
-            </Typography>
-          ) : null}
           <Typography>Adjunto: {item.fileName || "documento.pdf"}</Typography>
         </Box>
       );
@@ -293,7 +288,6 @@ export default function CorreoVisitantes() {
       {
         id: makeId(),
         tipo: "pdf",
-        titulo: file.name,
         dataUrl,
         fileName: file.name,
       },
@@ -815,7 +809,6 @@ export default function CorreoVisitantes() {
                           editar(idx, {
                             dataUrl,
                             fileName: file.name,
-                            titulo: file.name,
                           });
                           e.currentTarget.value = "";
                         }}
