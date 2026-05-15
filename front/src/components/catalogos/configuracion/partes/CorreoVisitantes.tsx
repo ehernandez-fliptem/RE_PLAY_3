@@ -16,6 +16,7 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Typography,
+  Alert,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -69,14 +70,22 @@ const makeId = () =>
 const DEFAULT_TITLE_FONT_SIZE = 16;
 const DEFAULT_CONTENT_FONT_SIZE = 16;
 const DEFAULT_IMAGE_SIZE_PX = 260;
+const DEFAULT_VISITORS_SUBJECT = "Registro del visitante";
+const DEFAULT_VISITORS_SECTIONS: Seccion[] = [
+  { id: "fixed_nombre", tipo: "nombre", fijo: true },
+  { id: "fixed_qr", tipo: "qr", fijo: true },
+];
 
 export default function CorreoVisitantes() {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("md"));
   const { watch, setValue } = useFormContext();
   const logoCorreo = String(watch("imgCorreo") || "");
-  const asunto = String(watch("correo_visitantes_template.asunto") || "Registro del visitante");
+  const asunto = String(watch("correo_visitantes_template.asunto") || DEFAULT_VISITORS_SUBJECT);
   const secciones = (watch("correo_visitantes_template.secciones") || []) as Seccion[];
+  const cambiosPendientes =
+    asunto !== DEFAULT_VISITORS_SUBJECT ||
+    JSON.stringify(secciones) !== JSON.stringify(DEFAULT_VISITORS_SECTIONS);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState("");
@@ -243,11 +252,7 @@ export default function CorreoVisitantes() {
       );
     }
     if (item.tipo === "pdf") {
-      return (
-        <Box key={item.id} sx={{ mb: 1.5 }}>
-          <Typography>{item.fileName || ""}</Typography>
-        </Box>
-      );
+      return null;
     }
     return null;
   };
@@ -333,6 +338,19 @@ export default function CorreoVisitantes() {
     });
   };
 
+  const reiniciarTodo = () => {
+    setValue("correo_visitantes_template.asunto", DEFAULT_VISITORS_SUBJECT, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("correo_visitantes_template.secciones", DEFAULT_VISITORS_SECTIONS, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setExpandedSections({});
+    setSizeDrafts({});
+  };
+
   return (
     <Box>
       <Typography
@@ -344,6 +362,24 @@ export default function CorreoVisitantes() {
       >
         <Email color="primary" sx={{ mr: 1 }} /> <strong>Correo Visitantes</strong>
       </Typography>
+
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
+        <Button
+          size="small"
+          variant="outlined"
+          color="error"
+          startIcon={<RestartAlt />}
+          onClick={reiniciarTodo}
+        >
+          Reiniciar todo
+        </Button>
+      </Box>
+
+      {cambiosPendientes ? (
+        <Alert severity="warning" sx={{ mb: 1.5 }}>
+          Tienes cambios sin guardar en la plantilla de correo.
+        </Alert>
+      ) : null}
 
       <TextFieldElement
         name="correo_visitantes_template.asunto"

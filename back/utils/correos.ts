@@ -237,16 +237,7 @@ export async function enviarCorreoNuevoVisitanteHV(
                     cid,
                     filename,
                 });
-                const titulo = String(item?.titulo || "").trim();
-                bloquesHtml.push(`
-                    <tr>
-                        <td>
-                            <p style="margin: 8px 0;">
-                                ${titulo ? `${escapeHtml(titulo)}: ` : ""}Adjunto: <strong>${escapeHtml(filename)}</strong>
-                            </p>
-                        </td>
-                    </tr>
-                `);
+                // El PDF se adjunta al correo, pero no se muestra texto en el cuerpo.
             }
         }
 
