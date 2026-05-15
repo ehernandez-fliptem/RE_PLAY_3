@@ -263,7 +263,6 @@ export default function BiostararPermisosAcceso() {
   ) => (
     <Autocomplete
       multiple
-      disablePortal
       slots={{ popper: BottomAutoPopper }}
       options={options}
       getOptionLabel={(o) => (formatLabel ? formatLabel(o) : o.nombre)}
