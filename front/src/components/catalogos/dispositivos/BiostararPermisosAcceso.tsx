@@ -220,6 +220,7 @@ export default function BiostararPermisosAcceso() {
   ) => (
     <Autocomplete
       multiple
+      disablePortal
       options={options}
       getOptionLabel={(o) => (formatLabel ? formatLabel(o) : o.nombre)}
       filterSelectedOptions
@@ -231,10 +232,11 @@ export default function BiostararPermisosAcceso() {
       slotProps={{
         popper: {
           placement: "bottom-start",
+          style: { zIndex: 1600 },
           modifiers: [
             { name: "flip", enabled: false },
             { name: "offset", options: { offset: [0, 6] } },
-            { name: "preventOverflow", options: { padding: 8, altAxis: true, tether: true } },
+            { name: "preventOverflow", options: { padding: 8, altAxis: false, tether: true } },
           ],
         },
       }}
