@@ -12,6 +12,8 @@ import {
   Card,
   CardContent,
   Divider,
+  Tab,
+  Tabs,
   lighten,
   Stack,
   Typography,
@@ -31,6 +33,7 @@ import ColorPalette from "./partes/ColorPalette";
 import type { ColorPalette as TColorPalette } from "../../../types/theme";
 import { defaultColorPalette } from "../../../themes/defaultTheme";
 import ColorCollections from "./partes/ColorCollections";
+import CorreoVisitantes from "./partes/CorreoVisitantes";
 
 type Colleciones = {
   tipo?: number;
@@ -74,6 +77,18 @@ type FormValues = {
   imgCorreo: string;
   saludaCorreo: string;
   despedidaCorreo: string;
+  correo_visitantes_template: {
+    asunto: string;
+    secciones: Array<{
+      id: string;
+      tipo: "nombre" | "qr" | "texto" | "imagen" | "pdf";
+      titulo?: string;
+      contenido?: string;
+      dataUrl?: string;
+      fileName?: string;
+      fijo?: boolean;
+    }>;
+  };
   delayProximaFoto: number;
   tiempoFotoVisita: number;
   tiempoCancelacionRegistros: string;
@@ -144,6 +159,26 @@ const resolver = yup.object().shape({
     .string()
     .max(100, "La despedida debe ser de máximo 100 caracteres")
     .required("Este campo es obligatorio."),
+  correo_visitantes_template: yup
+    .object()
+    .shape({
+      asunto: yup.string().required("Este campo es obligatorio."),
+      secciones: yup.array().of(
+        yup.object().shape({
+          id: yup.string().required(),
+          tipo: yup
+            .mixed<"nombre" | "qr" | "texto" | "imagen" | "pdf">()
+            .oneOf(["nombre", "qr", "texto", "imagen", "pdf"])
+            .required(),
+          titulo: yup.string().optional(),
+          contenido: yup.string().optional(),
+          dataUrl: yup.string().optional(),
+          fileName: yup.string().optional(),
+          fijo: yup.boolean().optional(),
+        })
+      ),
+    })
+    .required(),
   delayProximaFoto: yup.number().required("Este campo es obligatorio."),
   tiempoFotoVisita: yup.number().required("Este campo es obligatorio."),
   tiempoCancelacionRegistros: yup
@@ -262,6 +297,13 @@ const initialValue: FormValues = {
   imgCorreo: "",
   saludaCorreo: "",
   despedidaCorreo: "",
+  correo_visitantes_template: {
+    asunto: "Registro del visitante",
+    secciones: [
+      { id: "fixed_nombre", tipo: "nombre", fijo: true },
+      { id: "fixed_qr", tipo: "qr", fijo: true },
+    ],
+  },
   delayProximaFoto: 5,
   tiempoFotoVisita: 5,
   tiempoCancelacionRegistros: "30/m",
@@ -326,6 +368,9 @@ export default function Configuracion() {
     mode: "all",
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [tabValue, setTabValue] = useState<
+    "general" | "correos" | "integraciones" | "sistema" | "apariencia" | "colecciones"
+  >("general");
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -544,41 +589,62 @@ export default function Configuracion() {
                 <Typography variant="h4" component="h2" textAlign="center">
                   Configuración
                 </Typography>
-                <General />
-                <Divider sx={{ my: 2 }} />
-                <Bitacora />
-                <Divider sx={{ my: 2 }} />
-                <Bot />
-                <Divider sx={{ my: 2 }} />
-                <Integraciones />
-                <Divider sx={{ my: 2 }} />
-                <ColorPalette />
-                <Divider sx={{ my: 2 }} />
-                <ColorCollections
-                  name="tipos_registros"
-                  label="Tipo de registros"
-                />
-                <Divider sx={{ my: 2 }} />
-
-                <ColorCollections
-                  name="tipos_documentos"
-                  label="Tipo de documentos"
-                />
+                <Tabs
+                  value={tabValue}
+                  onChange={(_e, v) => setTabValue(v)}
+                  variant="scrollable"
+                  scrollButtons="auto"
+                  sx={{ mt: 2 }}
+                >
+                  <Tab value="general" label="General" />
+                  <Tab value="correos" label="Correos" />
+                  <Tab value="integraciones" label="Integraciones" />
+                  <Tab value="sistema" label="Sistema" />
+                  <Tab value="apariencia" label="Apariencia" />
+                  <Tab value="colecciones" label="Colecciones" />
+                </Tabs>
                 <Divider sx={{ my: 2 }} />
 
-                <ColorCollections
-                  name="tipos_eventos"
-                  label="Tipo de eventos"
-                />
-                <Divider sx={{ my: 2 }} />
+                {tabValue === "general" && <General />}
+                {tabValue === "correos" && <CorreoVisitantes />}
+                {tabValue === "integraciones" && <Integraciones />}
+                {tabValue === "sistema" && (
+                  <Box>
+                    <Bitacora />
+                    <Divider sx={{ my: 2 }} />
+                    <Bot />
+                  </Box>
+                )}
+                {tabValue === "apariencia" && <ColorPalette />}
+                {tabValue === "colecciones" && (
+                  <Box>
+                    <ColorCollections
+                      name="tipos_registros"
+                      label="Tipo de registros"
+                    />
+                    <Divider sx={{ my: 2 }} />
 
-                <ColorCollections name="roles" label="Tipo de roles" />
-                <Divider sx={{ my: 2 }} />
+                    <ColorCollections
+                      name="tipos_documentos"
+                      label="Tipo de documentos"
+                    />
+                    <Divider sx={{ my: 2 }} />
 
-                <ColorCollections
-                  name="tipos_dispositivos"
-                  label="Tipo de dispositivos"
-                />
+                    <ColorCollections
+                      name="tipos_eventos"
+                      label="Tipo de eventos"
+                    />
+                    <Divider sx={{ my: 2 }} />
+
+                    <ColorCollections name="roles" label="Tipo de roles" />
+                    <Divider sx={{ my: 2 }} />
+
+                    <ColorCollections
+                      name="tipos_dispositivos"
+                      label="Tipo de dispositivos"
+                    />
+                  </Box>
+                )}
                 <Divider sx={{ my: 2 }} />
                 <Box
                   component="footer"
@@ -614,3 +680,4 @@ export default function Configuracion() {
     </Fragment>
   );
 }
+

@@ -23,7 +23,18 @@ export interface IConfiguracion extends Document {
     imgCorreo: string;
     saludaCorreo: string;
     despedidaCorreo: string;
-
+    correo_visitantes_template?: {
+        asunto: string;
+        secciones: Array<{
+            id: string;
+            tipo: "nombre" | "qr" | "texto" | "imagen" | "pdf";
+            titulo?: string;
+            contenido?: string;
+            dataUrl?: string;
+            fileName?: string;
+            fijo?: boolean;
+        }>;
+    };
     tiempoFotoVisita: number;
     delayProximaFoto: number;
     tiempoCancelacionRegistros: string;
@@ -115,6 +126,21 @@ const configuracionSchema = new Schema<IConfiguracion>({
             validator: (v: string) => !REGEX_HTMLTAG.test(v),
             message: () => `El mensaje de despedida contiene etiquetas HTML inválidas.`,
         },
+    },
+    correo_visitantes_template: {
+        asunto: { type: String, default: "Registro del visitante" },
+        secciones: [
+            {
+                _id: false,
+                id: { type: String, required: true },
+                tipo: { type: String, enum: ["nombre", "qr", "texto", "imagen", "pdf"], required: true },
+                titulo: { type: String, default: "" },
+                contenido: { type: String, default: "" },
+                dataUrl: { type: String, default: "" },
+                fileName: { type: String, default: "" },
+                fijo: { type: Boolean, default: false },
+            }
+        ],
     },
     // 1.2. Usuarios
     validarHorario: { type: Boolean, default: false },
@@ -245,3 +271,4 @@ configuracionSchema.pre<IConfiguracion>('save', async function (next) {
 const Configuracion: Model<IConfiguracion> = mongoose.model<IConfiguracion>('configuraciones', configuracionSchema);
 
 export default Configuracion;
+
