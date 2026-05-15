@@ -454,69 +454,27 @@ export default function Camera({
             {isScan ? (
               <Fragment>
                 {isScan && handleScan ? (
-                  <Box
-                    sx={{
+                  <QrReader
+                    key={deviceId}
+                    scanDelay={200}
+                    videoId={deviceId}
+                    constraints={scanConstraints}
+                    onResult={handleScan}
+                    containerStyle={{
                       width: "100%",
                       height: "100%",
-                      minHeight: 220,
-                      position: "relative",
-                      overflow: "hidden",
-                      "& video": {
-                        position: "absolute !important",
-                        inset: "0 !important",
-                        width: "100% !important",
-                        height: "100% !important",
-                        objectFit: "cover !important",
-                        display: "block !important",
-                        opacity: "1 !important",
-                        visibility: "visible !important",
-                        zIndex: 1,
-                        backgroundColor: "#000",
-                      },
-                      "& canvas": {
-                        position: "absolute !important",
-                        inset: "0 !important",
-                        width: "100% !important",
-                        height: "100% !important",
-                        objectFit: "cover !important",
-                        display: "block !important",
-                        opacity: "1 !important",
-                        visibility: "visible !important",
-                        zIndex: 2,
-                        backgroundColor: "transparent",
-                      },
+                      margin: 0,
+                      padding: 0,
                     }}
-                  >
-                    <QrReader
-                      key={deviceId}
-                      scanDelay={200}
-                      videoId="qr-scanner-video"
-                      constraints={scanConstraints}
-                      onResult={handleScan}
-                      containerStyle={{
-                        width: "100%",
-                        height: "100%",
-                        margin: 0,
-                        padding: 0,
-                        position: "relative",
-                        overflow: "hidden",
-                      }}
-                      videoContainerStyle={{
-                        width: "100%",
-                        height: "100%",
-                        margin: 0,
-                        padding: 0,
-                        position: "relative",
-                        overflow: "hidden",
-                      }}
-                      videoStyle={{
-                        width: "100%",
-                        height: "100%",
-                        display: "block",
-                        objectFit: "cover",
-                      }}
-                    />
-                  </Box>
+                    videoContainerStyle={{
+                      width: "100%",
+                      height: "100%",
+                      padding: 0,
+                    }}
+                    videoStyle={{
+                      objectFit: "fill",
+                    }}
+                  />
                 ) : (
                   <>No se estableció la función para el escáner</>
                 )}
