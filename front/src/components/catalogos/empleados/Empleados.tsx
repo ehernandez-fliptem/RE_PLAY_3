@@ -844,8 +844,8 @@ export default function Empleados() {
 
     try {
       setSyncBioLoading(true);
-      await Swal.fire({
-        title: "Cargando seleccionados...",
+      void Swal.fire({
+        title: "Guardando seleccionados...",
         allowOutsideClick: false,
         allowEscapeKey: false,
         showConfirmButton: false,
@@ -1572,7 +1572,10 @@ export default function Empleados() {
       />
       <Dialog
         open={syncBioOpen}
-        onClose={() => setSyncBioOpen(false)}
+        onClose={(_, reason) => {
+          if (reason === "backdropClick") return;
+          setSyncBioOpen(false);
+        }}
         fullWidth
         maxWidth="md"
         PaperProps={{ sx: { minHeight: 560 } }}
@@ -1643,6 +1646,13 @@ export default function Empleados() {
                 pageSizeOptions={[5, 10, 25]}
                 initialState={{
                   pagination: { paginationModel: { pageSize: 5, page: 0 } },
+                }}
+                slotProps={{
+                  baseCheckbox: {
+                    inputProps: {
+                      title: "Seleccionar todos los registros filtrados",
+                    },
+                  },
                 }}
                 sx={{
                   "& .MuiDataGrid-cell, & .MuiDataGrid-columnHeaderTitle": {
