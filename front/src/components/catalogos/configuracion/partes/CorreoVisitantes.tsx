@@ -398,7 +398,7 @@ export default function CorreoVisitantes() {
         margin="normal"
       />
 
-      <Grid container spacing={2} sx={{ mt: 1 }}>
+      <Grid container spacing={2} sx={{ mt: 1, alignItems: "flex-start" }}>
         <Grid
           size={{ xs: 12, md: 6 }}
           sx={{

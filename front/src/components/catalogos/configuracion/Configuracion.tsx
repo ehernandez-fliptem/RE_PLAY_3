@@ -579,6 +579,7 @@ export default function Configuracion() {
               alpha(theme.palette.divider, 0.3),
               0.88
             )}`,
+            overflow: "visible",
           })}
         >
           <CardContent>
