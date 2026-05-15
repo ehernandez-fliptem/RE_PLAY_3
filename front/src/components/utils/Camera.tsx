@@ -432,6 +432,7 @@ export default function Camera({
           height: containerHeight,
           maxHeight: typeof containerHeight === "number" ? containerHeight : "none",
           padding: 0,
+          overflow: "hidden",
           border: `1px solid ${theme.palette.divider}`,
           borderRadius: 1,
         }}
@@ -453,27 +454,37 @@ export default function Camera({
             {isScan ? (
               <Fragment>
                 {isScan && handleScan ? (
-                  <QrReader
-                    key={deviceId}
-                    scanDelay={200}
-                    videoId="qr-scanner-video"
-                    constraints={scanConstraints}
-                    onResult={handleScan}
-                    containerStyle={{
-                      width: "100%",
-                      height: "100%",
-                      margin: 0,
-                      padding: 0,
-                    }}
-                    videoContainerStyle={{
-                      width: "100%",
-                      height: "100%",
-                      padding: 0,
-                    }}
-                    videoStyle={{
-                      objectFit: "fill",
-                    }}
-                  />
+                  <Box sx={{ width: "100%", height: "100%", minHeight: 220 }}>
+                    <QrReader
+                      key={deviceId}
+                      scanDelay={200}
+                      videoId="qr-scanner-video"
+                      constraints={scanConstraints}
+                      onResult={handleScan}
+                      containerStyle={{
+                        width: "100%",
+                        height: "100%",
+                        margin: 0,
+                        padding: 0,
+                        position: "relative",
+                        overflow: "hidden",
+                      }}
+                      videoContainerStyle={{
+                        width: "100%",
+                        height: "100%",
+                        margin: 0,
+                        padding: 0,
+                        position: "relative",
+                        overflow: "hidden",
+                      }}
+                      videoStyle={{
+                        width: "100%",
+                        height: "100%",
+                        display: "block",
+                        objectFit: "cover",
+                      }}
+                    />
+                  </Box>
                 ) : (
                   <>No se estableció la función para el escáner</>
                 )}
