@@ -15,6 +15,7 @@ import {
   Divider,
   DialogActions,
   Button,
+  Stack,
 } from "@mui/material";
 import {
   CameraAlt,
@@ -36,6 +37,7 @@ type ProfilePictureProps = {
   maxWidth?: number;
   allowFiles?: Array<AllowedFiles>;
   variant?: "circular" | "rounded" | "square";
+  compact?: boolean;
   disableEdit?: boolean;
   showViewButton?: boolean;
   label?: string;
@@ -49,6 +51,7 @@ export default function ProfilePicture({
   maxWidth,
   allowFiles = ["png", "jpg", "jpeg"],
   variant = "circular",
+  compact = false,
   disableEdit = false,
   showViewButton,
   label,
@@ -140,6 +143,61 @@ export default function ProfilePicture({
                 {label} {required ? "*" : ""}
               </Typography>
             )}
+            {compact ? (
+              <Box sx={{ width: "100%", maxWidth: 460 }}>
+                <Typography variant="body2" color={field.value ? "success.main" : "text.secondary"} sx={{ mb: 1 }}>
+                  {field.value ? "Archivo cargado" : "Sin archivo seleccionado"}
+                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="nowrap">
+                  {!disableEdit && (
+                    <Button
+                      component="label"
+                      variant="outlined"
+                      startIcon={<Upload />}
+                      sx={{
+                        flex: 1,
+                        minHeight: 40,
+                        minWidth: 0,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Subir archivo
+                      <input
+                        type="file"
+                        hidden
+                        onChange={handleFileChange}
+                        accept={allowFiles.map((ext) => `.${ext}`).join(",")}
+                      />
+                    </Button>
+                  )}
+                  {!disableEdit && (
+                    <Button
+                      variant="outlined"
+                      startIcon={<CameraAlt />}
+                      onClick={() => setShowCamera(true)}
+                      sx={{
+                        flex: 1,
+                        minHeight: 40,
+                        minWidth: 0,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Camara
+                    </Button>
+                  )}
+                  {showViewButton && !!field.value && (
+                    <Button variant="outlined" startIcon={<Visibility />} onClick={handleClickOpen}>
+                      Ver
+                    </Button>
+                  )}
+                  {!disableEdit && !!field.value && (
+                    <Button variant="outlined" color="error" startIcon={<Delete />} onClick={handleDelete}>
+                      Quitar
+                    </Button>
+                  )}
+                </Stack>
+              </Box>
+            ) : (
             <Box
               sx={{
                 position: "relative",
@@ -250,6 +308,7 @@ export default function ProfilePicture({
                 )}
               </Box>
             </Box>
+            )}
             {fieldState.error && (
               <FormHelperText error>{fieldState.error.message}</FormHelperText>
             )}
@@ -284,23 +343,28 @@ export default function ProfilePicture({
                   justifyContent: "center",
                   alignItems: "center",
                   my: 2,
+                  minHeight: 320,
                 }}
               >
-                <Avatar
-                  variant="square"
-                  src={currDoc}
-                  sx={{
-                    width: "60%",
-                    height: "60%",
-                  }}
-                  slotProps={{
-                    img: {
-                      style: {
-                        objectFit: "contain",
+                {String(currDoc || "").startsWith("data:application/pdf") ? (
+                  <Box component="iframe" src={currDoc} sx={{ width: "100%", height: "70dvh", border: 0 }} />
+                ) : (
+                  <Avatar
+                    variant="square"
+                    src={currDoc}
+                    sx={{
+                      width: "60%",
+                      height: "60%",
+                    }}
+                    slotProps={{
+                      img: {
+                        style: {
+                          objectFit: "contain",
+                        },
                       },
-                    },
-                  }}
-                />
+                    }}
+                  />
+                )}
               </DialogContent>
               <Divider sx={{ my: 1 }} />
               <DialogActions>

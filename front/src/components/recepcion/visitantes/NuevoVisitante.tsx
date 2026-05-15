@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+﻿import { lazy, Suspense, useState } from "react";
 import { Close, Save } from "@mui/icons-material";
 import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -186,6 +186,38 @@ export default function NuevoVisitante() {
   const navigate = useNavigate();
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const vieneEnCoche = formContext.watch("viene_en_coche");
+
+  const getErrorMessages = (obj: unknown): string[] => {
+    if (!obj || typeof obj !== "object") return [];
+    const current = obj as Record<string, unknown>;
+    const out: string[] = [];
+    if (typeof current.message === "string" && current.message.trim()) {
+      out.push(current.message);
+    }
+    Object.values(current).forEach((value) => {
+      if (value && typeof value === "object") {
+        out.push(...getErrorMessages(value));
+      }
+    });
+    return out;
+  };
+
+  const handleGuardarClick = async () => {
+    const isValid = await formContext.trigger();
+    if (!isValid) {
+      const messages = Array.from(
+        new Set(getErrorMessages(formContext.formState.errors))
+      );
+      enqueueSnackbar(
+        messages.length > 0
+          ? `Faltan campos por completar: ${messages.join(" | ")}`
+          : "Faltan campos obligatorios por completar.",
+        { variant: "warning" }
+      );
+      return;
+    }
+    await formContext.handleSubmit(onSubmit)();
+  };
 
   const generarContrasena = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
@@ -380,40 +412,50 @@ export default function NuevoVisitante() {
                 {vieneEnCoche && (
                   <Stack spacing={2} sx={{ mt: 1 }}>
                     <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                      <Suspense fallback={<ProfilePicturePreview />}>
-                        <ProfilePicture
-                          name="archivo_licencia"
-                          label="Foto de Licencia"
-                          variant="rounded"
-                          showViewButton
-                          adjustImageToBox
-                          required
-                          allowFiles={["png", "jpeg", "jpg", "pdf"]}
-                        />
-                      </Suspense>
-                      <Suspense fallback={<ProfilePicturePreview />}>
-                        <ProfilePicture
-                          name="archivo_poliza_seguro"
-                          label="Foto de Póliza de seguro"
-                          variant="rounded"
-                          showViewButton
-                          adjustImageToBox
-                          required
-                          allowFiles={["png", "jpeg", "jpg", "pdf"]}
-                        />
-                      </Suspense>
+                      <Box sx={{ flex: 1, width: "100%" }}>
+                        <Suspense fallback={<ProfilePicturePreview />}>
+                          <ProfilePicture
+                            name="archivo_licencia"
+                            label="Foto de Licencia"
+                            compact
+                            variant="rounded"
+                            showViewButton
+                            adjustImageToBox
+                            required
+                            allowFiles={["png", "jpeg", "jpg", "pdf"]}
+                          />
+                        </Suspense>
+                      </Box>
+                      <Box sx={{ flex: 1, width: "100%" }}>
+                        <Suspense fallback={<ProfilePicturePreview />}>
+                          <ProfilePicture
+                            name="archivo_poliza_seguro"
+                            label="Foto de Póliza de seguro"
+                            compact
+                            variant="rounded"
+                            showViewButton
+                            adjustImageToBox
+                            required
+                            allowFiles={["png", "jpeg", "jpg", "pdf"]}
+                          />
+                        </Suspense>
+                      </Box>
                     </Stack>
                     <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                      <Suspense fallback={<ProfilePicturePreview />}>
-                        <ProfilePicture
-                          name="archivo_tarjeta_circulacion"
-                          label="Tarjeta de circulación (opcional)"
-                          variant="rounded"
-                          showViewButton
-                          adjustImageToBox
-                          allowFiles={["png", "jpeg", "jpg", "pdf"]}
-                        />
-                      </Suspense>
+                      <Box sx={{ flex: 1, width: "100%" }}>
+                        <Suspense fallback={<ProfilePicturePreview />}>
+                          <ProfilePicture
+                            name="archivo_tarjeta_circulacion"
+                            label="Tarjeta de circulación (opcional)"
+                            compact
+                            variant="rounded"
+                            showViewButton
+                            adjustImageToBox
+                            allowFiles={["png", "jpeg", "jpg", "pdf"]}
+                          />
+                        </Suspense>
+                      </Box>
+                      <Box sx={{ flex: 1, display: { xs: "none", md: "block" } }} />
                     </Stack>
                   </Stack>
                 )}
@@ -471,11 +513,12 @@ export default function NuevoVisitante() {
                       Cancelar
                     </Button>
                     <Button
-                      disabled={!formContext.formState.isValid}
-                      type="submit"
+                      disabled={isSaving}
+                      type="button"
                       size="medium"
                       variant="contained"
                       startIcon={<Save />}
+                      onClick={handleGuardarClick}
                     >
                       Guardar
                     </Button>
@@ -489,6 +532,7 @@ export default function NuevoVisitante() {
     </ModalContainer>
   );
 }
+
 
 
 

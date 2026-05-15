@@ -120,7 +120,7 @@ const resolver = yup.object().shape({
   viene_en_coche: yup.boolean().default(false),
   archivo_licencia: yup
     .string()
-    .test("isValidLic", "El archivo de licencia es inv醠ido.", (value) => {
+    .test("isValidLic", "El archivo de licencia es inv谩lido.", (value) => {
       if (value) return REGEX_BASE64.test(value);
       return true;
     })
@@ -131,7 +131,7 @@ const resolver = yup.object().shape({
     }),
   archivo_poliza_seguro: yup
     .string()
-    .test("isValidPoliza", "El archivo de p髄iza es inv醠ido.", (value) => {
+    .test("isValidPoliza", "El archivo de p贸liza es inv谩lido.", (value) => {
       if (value) return REGEX_BASE64.test(value);
       return true;
     })
@@ -142,7 +142,7 @@ const resolver = yup.object().shape({
     }),
   archivo_tarjeta_circulacion: yup
     .string()
-    .test("isValidTarjeta", "El archivo de tarjeta es inv醠ido.", (value) => {
+    .test("isValidTarjeta", "El archivo de tarjeta es inv谩lido.", (value) => {
       if (value) return REGEX_BASE64.test(value);
       return true;
     })
@@ -193,6 +193,37 @@ export default function EditarVisitante() {
     ...EMPTY_DOCUMENTOS_CHECKS,
   });
   const originalFormRef = useRef<FormValues | null>(null);
+  const getErrorMessages = (obj: unknown): string[] => {
+    if (!obj || typeof obj !== "object") return [];
+    const current = obj as Record<string, unknown>;
+    const out: string[] = [];
+    if (typeof current.message === "string" && current.message.trim()) {
+      out.push(current.message);
+    }
+    Object.values(current).forEach((value) => {
+      if (value && typeof value === "object") {
+        out.push(...getErrorMessages(value));
+      }
+    });
+    return out;
+  };
+
+  const handleGuardarClick = async () => {
+    const isValid = await formContext.trigger();
+    if (!isValid) {
+      const messages = Array.from(
+        new Set(getErrorMessages(formContext.formState.errors))
+      );
+      enqueueSnackbar(
+        messages.length > 0
+          ? `Faltan campos por completar: ${messages.join(" | ")}`
+          : "Faltan campos obligatorios por completar.",
+        { variant: "warning" }
+      );
+      return;
+    }
+    await formContext.handleSubmit(onSubmit)();
+  };
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -494,10 +525,12 @@ export default function EditarVisitante() {
                 {vieneEnCoche && (
                   <Stack spacing={2} sx={{ mt: 1 }}>
                     <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                      <Box sx={{ flex: 1, width: "100%" }}>
                       <Suspense fallback={<ProfilePicturePreview />}>
                         <ProfilePicture
                           name="archivo_licencia"
                           label="Foto de Licencia"
+                          compact
                           variant="rounded"
                           showViewButton
                           adjustImageToBox
@@ -505,10 +538,13 @@ export default function EditarVisitante() {
                           allowFiles={["png", "jpeg", "jpg", "pdf"]}
                         />
                       </Suspense>
+                    </Box>
+                      <Box sx={{ flex: 1, width: "100%" }}>
                       <Suspense fallback={<ProfilePicturePreview />}>
                         <ProfilePicture
                           name="archivo_poliza_seguro"
                           label="Foto de P贸liza de seguro"
+                          compact
                           variant="rounded"
                           showViewButton
                           adjustImageToBox
@@ -516,18 +552,23 @@ export default function EditarVisitante() {
                           allowFiles={["png", "jpeg", "jpg", "pdf"]}
                         />
                       </Suspense>
+                    </Box>
                     </Stack>
                     <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                      <Suspense fallback={<ProfilePicturePreview />}>
-                        <ProfilePicture
-                          name="archivo_tarjeta_circulacion"
-                          label="Tarjeta de circulaci贸n (opcional)"
-                          variant="rounded"
-                          showViewButton
-                          adjustImageToBox
-                          allowFiles={["png", "jpeg", "jpg", "pdf"]}
-                        />
-                      </Suspense>
+                      <Box sx={{ flex: 1, width: "100%" }}>
+                        <Suspense fallback={<ProfilePicturePreview />}>
+                          <ProfilePicture
+                            name="archivo_tarjeta_circulacion"
+                            label="Tarjeta de circulaci贸n (opcional)"
+                            compact
+                            variant="rounded"
+                            showViewButton
+                            adjustImageToBox
+                            allowFiles={["png", "jpeg", "jpg", "pdf"]}
+                          />
+                        </Suspense>
+                      </Box>
+                      <Box sx={{ flex: 1, display: { xs: "none", md: "block" } }} />
                     </Stack>
                   </Stack>
                 )}
@@ -585,11 +626,12 @@ export default function EditarVisitante() {
                       Cancelar
                     </Button>
                     <Button
-                      disabled={!formContext.formState.isValid || isSaving}
-                      type="submit"
+                      disabled={isSaving}
+                      type="button"
                       size="medium"
                       variant="contained"
                       startIcon={<Save />}
+                      onClick={handleGuardarClick}
                     >
                       Guardar
                     </Button>
@@ -603,6 +645,13 @@ export default function EditarVisitante() {
     </ModalContainer>
   );
 }
+
+
+
+
+
+
+
 
 
 
