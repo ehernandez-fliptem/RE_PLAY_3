@@ -236,7 +236,6 @@ export default function BiostararPermisosAcceso() {
           modifiers: [
             { name: "flip", enabled: false },
             { name: "offset", options: { offset: [0, 6] } },
-            { name: "preventOverflow", options: { padding: 8, altAxis: false, tether: true } },
           ],
         },
       }}
@@ -291,7 +290,7 @@ export default function BiostararPermisosAcceso() {
         fullWidth
       >
         <DialogTitle>Nuevo Permiso de Acceso</DialogTitle>
-        <DialogContent>{form}</DialogContent>
+        <DialogContent sx={{ overflow: "visible" }}>{form}</DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenNuevo(false)}>Cancelar</Button>
           <Button variant="contained" onClick={() => { void guardarNuevo(); }}>Guardar</Button>
@@ -308,7 +307,7 @@ export default function BiostararPermisosAcceso() {
         fullWidth
       >
         <DialogTitle>Editar Permiso de Acceso</DialogTitle>
-        <DialogContent>{form}</DialogContent>
+        <DialogContent sx={{ overflow: "visible" }}>{form}</DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenEditar(false)}>Cancelar</Button>
           <Button variant="contained" onClick={() => { void guardarEditar(); }}>Guardar</Button>
