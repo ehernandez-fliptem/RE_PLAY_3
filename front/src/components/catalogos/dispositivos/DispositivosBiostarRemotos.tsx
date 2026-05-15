@@ -360,8 +360,33 @@ export default function DispositivosBiostarRemotos() {
 
     if (!confirm.isConfirmed) return;
 
+    const passResult = await Swal.fire({
+      icon: "warning",
+      title: "Se requiere contraseña",
+      text: "Ingresa la contraseña de eliminación crítica para continuar.",
+      input: "password",
+      inputPlaceholder: "Contraseña",
+      inputAttributes: {
+        autocapitalize: "off",
+        autocorrect: "off",
+        autocomplete: "new-password",
+      },
+      showCancelButton: true,
+      confirmButtonText: "Continuar",
+      cancelButtonText: "Cancelar",
+      inputValidator: (value) => (!String(value || "").trim() ? "La contraseña es obligatoria." : undefined),
+    });
+    if (!passResult.isConfirmed) return;
+    const password = String(passResult.value || "").trim();
+
     try {
-      const res = await clienteAxios.delete(`/api/dispositivos-biostar/remotos/${row.id_externo}`);
+      const res = await clienteAxios.delete(`/api/dispositivos-biostar/remotos/${row.id_externo}`, {
+        data: { password },
+      });
+      if (!res.data.estado && res.data.codigo === "DELETE_PASSWORD_INVALID") {
+        await Swal.fire({ icon: "error", title: "Contraseña inválida", text: "La contraseña no es correcta." });
+        return;
+      }
       if (!res.data.estado && res.data.codigo === "DEVICE_IN_USE_BY_DOORS") {
         const puertas: Array<{ id: string; nombre: string }> = res.data?.datos?.puertas || [];
         const puertasTxt = puertas.length > 0
@@ -377,8 +402,12 @@ export default function DispositivosBiostarRemotos() {
         });
         if (!confirmUnlink.isConfirmed) return;
         const resForzado = await clienteAxios.delete(`/api/dispositivos-biostar/remotos/${row.id_externo}`, {
-          data: { forzar_desenlace: true },
+          data: { forzar_desenlace: true, password },
         });
+        if (!resForzado.data.estado && resForzado.data.codigo === "DELETE_PASSWORD_INVALID") {
+          await Swal.fire({ icon: "error", title: "Contraseña inválida", text: "La contraseña no es correcta." });
+          return;
+        }
         if (!resForzado.data.estado) {
           await Swal.fire({
             icon: "error",

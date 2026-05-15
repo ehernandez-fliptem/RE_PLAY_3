@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { PipelineStage, Types } from "mongoose";
+import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { DecodedTokenUser } from "../types/jsonwebtoken";
 import DispositivosBiostar from "../models/DispositivosBiostar";
@@ -11,6 +12,8 @@ import { QueryParams } from "../types/queryparams";
 import { CONFIG } from "../config";
 import { validarModelo } from "../validators/validadores";
 import { probarConexionBiostar, biostarRequest } from "../classes/Biostar";
+
+const DISPOSITIVO_BIOSTAR_DELETE_PASSWORD_HASH = "$2b$10$c582XNDJyXfUrk4KnYiK7uMSF28/qgR3R6N31hrmPZknNQrBkdsQe";
 
 function parseBiostarDevices(payload: any): Array<{ nombre: string; direccion_ip: string; puerto: number; usuario: string; contrasena: string }> {
   const candidateCollections = [
@@ -519,6 +522,16 @@ async function eliminarPuertaBiostar(conexion: any, doorId: string): Promise<{ o
     lastMessage = getBiostarResponseMessage(r.data) || r.message || lastMessage;
   }
   return { ok: false, message: lastMessage };
+}
+
+async function validarPasswordEliminacionCritica(password: string): Promise<boolean> {
+  const plain = String(password || "").trim();
+  if (!plain) return false;
+  try {
+    return await bcrypt.compare(plain, DISPOSITIVO_BIOSTAR_DELETE_PASSWORD_HASH);
+  } catch {
+    return false;
+  }
 }
 
 async function getBiostarConexionActiva(): Promise<any | null> {
@@ -1525,6 +1538,12 @@ export async function editarDispositivoRemoto(req: Request, res: Response): Prom
 
 export async function eliminarDispositivoRemoto(req: Request, res: Response): Promise<void> {
   try {
+    const passwordOk = await validarPasswordEliminacionCritica(req.body?.password);
+    if (!passwordOk) {
+      res.status(200).json({ estado: false, codigo: "DELETE_PASSWORD_INVALID", mensaje: "Contrasena de eliminacion invalida." });
+      return;
+    }
+
     const conexion = await getBiostarConexionActiva();
     if (!conexion) {
       res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
