@@ -145,7 +145,11 @@ export default function Empleados() {
   const [syncBioLoading, setSyncBioLoading] = useState(false);
   const [syncBioPendientes, setSyncBioPendientes] = useState<any[]>([]);
   const [syncBioSelected, setSyncBioSelected] = useState<string>("");
-  const [syncBioSelection, setSyncBioSelection] = useState<string[]>([]);
+  const [syncBioSelectionModel, setSyncBioSelectionModel] =
+    useState<GridRowSelectionModel>({
+      type: "include",
+      ids: new Set(),
+    });
   const [syncBioSearch, setSyncBioSearch] = useState("");
   const [huellasPorProveedor, setHuellasPorProveedor] = useState<{
     hiki: number[];
@@ -727,7 +731,7 @@ export default function Empleados() {
       }
       setSyncBioPendientes(Array.isArray(res.data?.datos?.pendientes) ? res.data.datos.pendientes : []);
       setSyncBioSelected("");
-      setSyncBioSelection([]);
+      setSyncBioSelectionModel({ type: "include", ids: new Set() });
     } catch (error) {
       const { restartSession } = handlingError(error);
       if (restartSession) navigate("/logout", { replace: true });
@@ -764,11 +768,25 @@ export default function Empleados() {
       );
     });
   }, [syncBioPendientes, syncBioSearch, syncBioCorreoTipo]);
+  const syncBioSelectedIds = useMemo(() => {
+    const allFilteredIds = syncBioPendientesFiltrados.map((p: any) =>
+      String(p.biostar_user_id)
+    );
+    const modelType = (syncBioSelectionModel as any)?.type || "include";
+    const modelIds = Array.from((syncBioSelectionModel as any)?.ids || []).map(
+      (v) => String(v)
+    );
+    if (modelType === "exclude") {
+      const excluded = new Set(modelIds);
+      return allFilteredIds.filter((id) => !excluded.has(id));
+    }
+    return modelIds;
+  }, [syncBioSelectionModel, syncBioPendientesFiltrados]);
 
   const darAltaPendiente = async () => {
     const idsSeleccionados =
-      syncBioSelection.length > 0
-        ? syncBioSelection
+      syncBioSelectedIds.length > 0
+        ? syncBioSelectedIds
         : syncBioSelected
           ? [syncBioSelected]
           : [];
@@ -924,10 +942,7 @@ export default function Empleados() {
           : "Completar datos en RE",
     },
   ];
-  const syncBioRowSelectionModel: GridRowSelectionModel = {
-    type: "include",
-    ids: new Set(syncBioSelection),
-  };
+  const syncBioRowSelectionModel: GridRowSelectionModel = syncBioSelectionModel;
 
   const editarRegistro = (ID: string) => {
     navigate(`editar-empleado/${ID}`);
@@ -1603,17 +1618,16 @@ export default function Empleados() {
                 disableRowSelectionOnClick={false}
                 rowSelectionModel={syncBioRowSelectionModel}
                 onRowSelectionModelChange={(newSelection) => {
-                  const idsRaw =
-                    "ids" in (newSelection as any)
-                      ? Array.from((newSelection as any).ids || [])
-                      : (newSelection as any[]);
-                  const ids = (idsRaw || []).map((v) => String(v));
-                  setSyncBioSelection(ids);
-                  setSyncBioSelected(ids[0] || "");
+                  const next = newSelection as GridRowSelectionModel;
+                  setSyncBioSelectionModel(next);
+                  const nextIds = Array.from((next as any)?.ids || []).map((v) =>
+                    String(v)
+                  );
+                  setSyncBioSelected(nextIds[0] || "");
                 }}
                 onRowClick={(params) => setSyncBioSelected(String(params.row?.id || ""))}
                 getRowClassName={(params) =>
-                  syncBioSelection.includes(String(params.row?.id || ""))
+                  syncBioSelectedIds.includes(String(params.row?.id || ""))
                     ? "fila-pendiente-seleccionada"
                     : ""
                 }
@@ -1648,9 +1662,9 @@ export default function Empleados() {
           <Button
             variant="contained"
             onClick={darAltaPendiente}
-            disabled={syncBioSelection.length === 0 || syncBioLoading}
+            disabled={syncBioSelectedIds.length === 0 || syncBioLoading}
           >
-            {syncBioSelection.length > 1 ? "Dar de alta seleccionados" : "Dar de alta"}
+            {syncBioSelectedIds.length > 1 ? "Dar de alta seleccionados" : "Dar de alta"}
           </Button>
         </DialogActions>
       </Dialog>
