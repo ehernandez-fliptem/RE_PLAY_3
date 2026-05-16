@@ -37,12 +37,13 @@ import {
   TextFields,
   Close,
   Visibility,
+  Link as LinkIcon,
 } from "@mui/icons-material";
 import { TextFieldElement, useFormContext } from "react-hook-form-mui";
 
 type Seccion = {
   id: string;
-  tipo: "nombre" | "qr" | "texto" | "imagen" | "pdf";
+  tipo: "nombre" | "qr" | "texto" | "imagen" | "pdf" | "enlace";
   titulo?: string;
   contenido?: string;
   dataUrl?: string;
@@ -55,6 +56,11 @@ type Seccion = {
   contentAlign?: "left" | "center" | "right";
   titleFontSize?: number;
   contentFontSize?: number;
+  enlaceUrl?: string;
+  enlaceTexto?: string;
+  enlaceColor?: string;
+  enlaceAlign?: "left" | "center" | "right";
+  enlaceFontSize?: number;
 };
 
 type CorreoCuenta = {
@@ -287,6 +293,32 @@ export default function CorreoVisitantes() {
     if (item.tipo === "pdf") {
       return null;
     }
+    if (item.tipo === "enlace") {
+      const align = item.enlaceAlign || "left";
+      const fontSize = item.enlaceFontSize || DEFAULT_CONTENT_FONT_SIZE;
+      const color = item.enlaceColor || "#1a73e8";
+      const url = String(item.enlaceUrl || "").trim();
+      const texto = String(item.enlaceTexto || "Ver ubicación").trim();
+      const isUrl = /^https?:\/\//i.test(url);
+      return (
+        <Box key={item.id} data-preview-section-id={item.id} sx={{ mb: 1.5 }}>
+          <Typography sx={{ textAlign: align, fontSize: `${fontSize}px` }}>
+            {isUrl ? (
+              <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color, textDecoration: "underline" }}
+              >
+                {texto}
+              </a>
+            ) : (
+              <span style={{ color: "#888" }}>{texto}</span>
+            )}
+          </Typography>
+        </Box>
+      );
+    }
     return null;
   };
 
@@ -360,6 +392,21 @@ export default function CorreoVisitantes() {
       ) as HTMLElement | null;
       section?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }, 0);
+  };
+
+  const agregarEnlace = () => {
+    actualizar([
+      ...secciones,
+      {
+        id: makeId(),
+        tipo: "enlace",
+        enlaceTexto: "Ver ubicación en Google Maps",
+        enlaceUrl: "",
+        enlaceColor: "#1a73e8",
+        enlaceAlign: "left",
+        enlaceFontSize: DEFAULT_CONTENT_FONT_SIZE,
+      },
+    ]);
   };
 
   const toggleSection = (id: string) => {
@@ -565,6 +612,9 @@ export default function CorreoVisitantes() {
             <Button size="small" variant="outlined" startIcon={<PictureAsPdf />} onClick={() => pdfInputRef.current?.click()}>
               PDF
             </Button>
+            <Button size="small" variant="outlined" startIcon={<LinkIcon />} onClick={agregarEnlace}>
+              Enlace
+            </Button>
             <Button size="small" variant="contained" onClick={() => setPreviewOpen(true)}>
               Vista previa
             </Button>
@@ -614,6 +664,8 @@ export default function CorreoVisitantes() {
                       ? "Bloque de texto"
                       : item.tipo === "imagen"
                       ? "Imagen"
+                      : item.tipo === "enlace"
+                      ? "Enlace"
                       : "PDF adjunto"}
                   </Typography>
                   {item.fijo && <Chip size="small" color="primary" label="Obligatorio" />}
@@ -933,6 +985,92 @@ export default function CorreoVisitantes() {
                         }}
                       />
                     </Button>
+                  </Stack>
+                )}
+
+                {item.tipo === "enlace" && (
+                  <Stack spacing={1}>
+                    <TextField
+                      size="small"
+                      label="Texto del enlace"
+                      value={item.enlaceTexto || ""}
+                      onChange={(e) => editar(idx, { enlaceTexto: e.target.value })}
+                    />
+                    <TextField
+                      size="small"
+                      label="URL"
+                      placeholder="https://maps.app.goo.gl/..."
+                      value={item.enlaceUrl || ""}
+                      onChange={(e) => editar(idx, { enlaceUrl: e.target.value })}
+                    />
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                      <ToggleButtonGroup
+                        size="small"
+                        exclusive
+                        value={item.enlaceAlign || "left"}
+                        onChange={(_, value) => {
+                          if (!value) return;
+                          editar(idx, { enlaceAlign: value });
+                        }}
+                      >
+                        <ToggleButton value="left" aria-label="Alinear enlace a la izquierda">
+                          <FormatAlignLeft fontSize="small" />
+                        </ToggleButton>
+                        <ToggleButton value="center" aria-label="Alinear enlace al centro">
+                          <FormatAlignCenter fontSize="small" />
+                        </ToggleButton>
+                        <ToggleButton value="right" aria-label="Alinear enlace a la derecha">
+                          <FormatAlignRight fontSize="small" />
+                        </ToggleButton>
+                      </ToggleButtonGroup>
+                      <TextField
+                        size="small"
+                        label="Tamano (px)"
+                        type="number"
+                        inputProps={{ min: 0, max: 40, step: 1 }}
+                        value={
+                          sizeDrafts[`link:${item.id}`] ??
+                          String(item.enlaceFontSize ?? DEFAULT_CONTENT_FONT_SIZE)
+                        }
+                        onChange={(e) => {
+                          const key = `link:${item.id}`;
+                          const raw = e.target.value;
+                          setDraft(key, raw);
+                          const parsed = Number(raw);
+                          if (raw.trim() === "" || Number.isNaN(parsed) || parsed <= 0) {
+                            editar(idx, { enlaceFontSize: DEFAULT_CONTENT_FONT_SIZE });
+                            return;
+                          }
+                          editar(idx, { enlaceFontSize: Math.max(10, Math.min(40, parsed)) });
+                        }}
+                        onBlur={() => clearDraft(`link:${item.id}`)}
+                        sx={{ width: 140 }}
+                      />
+                      <TextField
+                        size="small"
+                        type="color"
+                        label="Color"
+                        value={item.enlaceColor || "#1a73e8"}
+                        onChange={(e) => editar(idx, { enlaceColor: e.target.value })}
+                        sx={{ width: 100 }}
+                        InputLabelProps={{ shrink: true }}
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          clearDraft(`link:${item.id}`);
+                          editar(idx, {
+                            enlaceFontSize: DEFAULT_CONTENT_FONT_SIZE,
+                            enlaceAlign: "left",
+                            enlaceColor: "#1a73e8",
+                          });
+                        }}
+                        title="Restaurar predeterminado"
+                        aria-label="Restaurar estilo de enlace"
+                      >
+                        <RestartAlt fontSize="small" />
+                      </IconButton>
+                    </Stack>
                   </Stack>
                 )}
                 </Collapse>

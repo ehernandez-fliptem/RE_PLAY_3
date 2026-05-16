@@ -5,11 +5,21 @@ import path from "path";
 
 const envRootPath = path.resolve(__dirname, "..", "..", ".env");
 const envLocalPath = path.resolve(__dirname, "..", ".env");
+const envMailPath = path.resolve(__dirname, "..", ".env.correos");
+const envMailExamplePath = path.resolve(__dirname, "..", ".env.correos.example");
 if (fs.existsSync(envRootPath)) {
     dotenv.config({ path: envRootPath });
 }
 if (fs.existsSync(envLocalPath)) {
     dotenv.config({ path: envLocalPath });
+}
+// Archivo opcional exclusivo para credenciales/config de correos.
+// Tiene prioridad sobre back/.env para evitar copiar variables manualmente.
+if (fs.existsSync(envMailPath)) {
+    dotenv.config({ path: envMailPath, override: true });
+} else if (fs.existsSync(envMailExamplePath)) {
+    // Fallback para facilitar pruebas cuando solo existe el .example.
+    dotenv.config({ path: envMailExamplePath, override: true });
 }
 dotenv.config();
 
@@ -36,6 +46,16 @@ function loadLocalConfig(): LocalConfig {
 }
 
 const localConfig = loadLocalConfig();
+
+const envBoolean = z.preprocess((value) => {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+    if (typeof value !== "string") return value;
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "y", "on"].includes(normalized)) return true;
+    if (["false", "0", "no", "n", "off", ""].includes(normalized)) return false;
+    return value;
+}, z.boolean());
 
 const envSchema = z.object({
     NODE_ENV: z.string(),
@@ -64,13 +84,13 @@ const envSchema = z.object({
     MAIL_VISITANTES_PROVIDER: z.enum(["outlook", "gmail", "smtp"]).optional().default("gmail"),
     MAIL_VISITANTES_HOST: z.string().optional().default(""),
     MAIL_VISITANTES_PORT: z.coerce.number().optional().default(587),
-    MAIL_VISITANTES_SECURE: z.coerce.boolean().optional().default(false),
-    MAIL_VISITANTES_REQUIRE_TLS: z.coerce.boolean().optional().default(true),
+    MAIL_VISITANTES_SECURE: envBoolean.optional().default(false),
+    MAIL_VISITANTES_REQUIRE_TLS: envBoolean.optional().default(true),
     MAIL_VISITANTES_USER: z.string().optional().default(""),
     MAIL_VISITANTES_PASS: z.string().optional().default(""),
     MAIL_VISITANTES_FROM_NAME: z.string().optional().default(""),
     MAIL_VISITANTES_FROM_EMAIL: z.string().optional().default(""),
-    MAIL_VISITANTES_DEFAULT_FOR_TEMPLATE: z.coerce.boolean().optional().default(false),
+    MAIL_VISITANTES_DEFAULT_FOR_TEMPLATE: envBoolean.optional().default(false),
     
 });
 let CONFIG: z.infer<typeof envSchema>;

@@ -42,12 +42,17 @@ export interface IConfiguracion extends Document {
         asunto: string;
         secciones: Array<{
             id: string;
-            tipo: "nombre" | "qr" | "texto" | "imagen" | "pdf";
+            tipo: "nombre" | "qr" | "texto" | "imagen" | "pdf" | "enlace";
             titulo?: string;
             contenido?: string;
             dataUrl?: string;
             fileName?: string;
             fijo?: boolean;
+            enlaceUrl?: string;
+            enlaceTexto?: string;
+            enlaceColor?: string;
+            enlaceAlign?: "left" | "center" | "right";
+            enlaceFontSize?: number;
         }>;
     };
     tiempoFotoVisita: number;
@@ -164,12 +169,17 @@ const configuracionSchema = new Schema<IConfiguracion>({
             {
                 _id: false,
                 id: { type: String, required: true },
-                tipo: { type: String, enum: ["nombre", "qr", "texto", "imagen", "pdf"], required: true },
+                tipo: { type: String, enum: ["nombre", "qr", "texto", "imagen", "pdf", "enlace"], required: true },
                 titulo: { type: String, default: "" },
                 contenido: { type: String, default: "" },
                 dataUrl: { type: String, default: "" },
                 fileName: { type: String, default: "" },
                 fijo: { type: Boolean, default: false },
+                enlaceUrl: { type: String, default: "" },
+                enlaceTexto: { type: String, default: "" },
+                enlaceColor: { type: String, default: "" },
+                enlaceAlign: { type: String, enum: ["left", "center", "right"], default: "left" },
+                enlaceFontSize: { type: Number, default: 16 },
             }
         ],
     },

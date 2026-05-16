@@ -96,12 +96,17 @@ type FormValues = {
     asunto: string;
     secciones: Array<{
       id: string;
-      tipo: "nombre" | "qr" | "texto" | "imagen" | "pdf";
+      tipo: "nombre" | "qr" | "texto" | "imagen" | "pdf" | "enlace";
       titulo?: string;
       contenido?: string;
       dataUrl?: string;
       fileName?: string;
       fijo?: boolean;
+      enlaceUrl?: string;
+      enlaceTexto?: string;
+      enlaceColor?: string;
+      enlaceAlign?: "left" | "center" | "right";
+      enlaceFontSize?: number;
     }>;
   };
   delayProximaFoto: number;
@@ -182,14 +187,19 @@ const resolver = yup.object().shape({
         yup.object().shape({
           id: yup.string().required(),
           tipo: yup
-            .mixed<"nombre" | "qr" | "texto" | "imagen" | "pdf">()
-            .oneOf(["nombre", "qr", "texto", "imagen", "pdf"])
+            .mixed<"nombre" | "qr" | "texto" | "imagen" | "pdf" | "enlace">()
+            .oneOf(["nombre", "qr", "texto", "imagen", "pdf", "enlace"])
             .required(),
           titulo: yup.string().optional(),
           contenido: yup.string().optional(),
           dataUrl: yup.string().optional(),
           fileName: yup.string().optional(),
           fijo: yup.boolean().optional(),
+          enlaceUrl: yup.string().optional(),
+          enlaceTexto: yup.string().optional(),
+          enlaceColor: yup.string().optional(),
+          enlaceAlign: yup.mixed<"left" | "center" | "right">().oneOf(["left", "center", "right"]).optional(),
+          enlaceFontSize: yup.number().optional(),
         })
       ),
     })

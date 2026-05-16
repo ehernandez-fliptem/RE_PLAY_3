@@ -113,10 +113,12 @@ export async function sendEmail({
         }
       : null;
 
-    const cuentasDisponibles = [
-      ...(Array.isArray(config?.correo_cuentas) ? config.correo_cuentas : []),
-      ...(cuentaEnvActiva ? [cuentaEnvActiva] : []),
-    ];
+        // Priorizar cuenta definida en .env sobre la almacenada en BD cuando comparten id.
+        // Esto evita fallos por credenciales desactualizadas guardadas en configuracion.
+        const cuentasDisponibles = [
+            ...(cuentaEnvActiva ? [cuentaEnvActiva] : []),
+            ...(Array.isArray(config?.correo_cuentas) ? config.correo_cuentas : []),
+        ];
 
     const cuentaSeleccionada = Array.isArray(cuentasDisponibles)
       ? cuentasDisponibles.find(

@@ -218,7 +218,11 @@ export async function obtener(_req: Request, res: Response): Promise<void> {
             const actuales = Array.isArray(configJson?.correo_cuentas) ? configJson.correo_cuentas : [];
             const sinDuplicado = actuales.filter((c: any) => c?.id !== envCuenta.id);
             configJson.correo_cuentas = [...sinDuplicado, envCuenta];
-            if (CONFIG.MAIL_VISITANTES_DEFAULT_FOR_TEMPLATE && !configJson?.correo_visitantes_cuenta_id) {
+            const cuentaVisitantesActual = configJson?.correo_visitantes_cuenta_id;
+            if (
+                CONFIG.MAIL_VISITANTES_DEFAULT_FOR_TEMPLATE &&
+                (cuentaVisitantesActual === undefined || cuentaVisitantesActual === null)
+            ) {
                 configJson.correo_visitantes_cuenta_id = envCuenta.id;
             }
         }
