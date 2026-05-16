@@ -9,11 +9,14 @@ import {
   Card,
   CardContent,
   Chip,
+  Dialog,
+  DialogContent,
+  IconButton,
   Grid,
   Stack,
   Typography,
 } from "@mui/material";
-import { ChevronLeft } from "@mui/icons-material";
+import { ChevronLeft, Close } from "@mui/icons-material";
 import ModalContainer from "../../utils/ModalContainer";
 import Spinner from "../../utils/Spinner";
 import { enqueueSnackbar } from "notistack";
@@ -26,6 +29,7 @@ import {
 
 type TUsuario = {
   img_usuario: string;
+  img_ine?: string;
   nombre: string;
   empresa: string;
   telefono?: string;
@@ -43,8 +47,13 @@ export default function DetalleVisitante() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
+  const [isResending, setIsResending] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewSrc, setPreviewSrc] = useState("");
+  const [previewTitle, setPreviewTitle] = useState("");
   const [datos, setDatos] = useState<TUsuario>({
     img_usuario: "",
+    img_ine: "",
     nombre: "",
     empresa: "",
     telefono: "",
@@ -64,6 +73,7 @@ export default function DetalleVisitante() {
   });
   const {
     img_usuario,
+    img_ine,
     nombre,
     empresa,
     telefono,
@@ -101,6 +111,35 @@ export default function DetalleVisitante() {
     navigate(`/visitantes`);
   };
 
+  const abrirPreview = (src?: string, title = "Vista previa") => {
+    if (!src) return;
+    setPreviewSrc(src);
+    setPreviewTitle(title);
+    setPreviewOpen(true);
+  };
+
+  const reenviarCorreo = async () => {
+    if (!id || isResending) return;
+    try {
+      setIsResending(true);
+      const res = await clienteAxios.patch(`/api/visitantes/reenviar/${id}`);
+      if (res.data?.estado) {
+        enqueueSnackbar(res.data?.mensaje || "Correo reenviado correctamente.", {
+          variant: "success",
+        });
+      } else {
+        enqueueSnackbar(res.data?.mensaje || "No se pudo reenviar el correo.", {
+          variant: "warning",
+        });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setIsResending(false);
+    }
+  };
+
   return (
     <ModalContainer containerProps={{ maxWidth: "lg" }}>
       <Card elevation={5}>
@@ -126,20 +165,54 @@ export default function DetalleVisitante() {
             <Spinner />
           ) : (
             <Grid container spacing={2}>
-              <Grid
-                size={12}
-                display="flex"
-                justifyContent="center"
-                alignItems="center"
-              >
-                <Avatar
-                  src={img_usuario}
-                  sx={{
-                    width: 150,
-                    height: 150,
-                    my: 2,
-                  }}
-                />
+              <Grid size={12}>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={3}
+                  justifyContent="center"
+                  alignItems="center"
+                  sx={{ my: 2 }}
+                >
+                  <Box textAlign="center">
+                    <Typography variant="overline" display="block">
+                      Foto
+                    </Typography>
+                    <Avatar
+                      src={img_usuario}
+                      sx={{
+                        width: 150,
+                        height: 150,
+                        cursor: img_usuario ? "zoom-in" : "default",
+                      }}
+                      onClick={() => abrirPreview(img_usuario, "Foto del visitante")}
+                    />
+                  </Box>
+                  <Box textAlign="center">
+                    <Typography variant="overline" display="block">
+                      INE
+                    </Typography>
+                    {img_ine ? (
+                      <Box
+                        component="img"
+                        src={img_ine}
+                        alt="INE visitante"
+                        onClick={() => abrirPreview(img_ine, "INE del visitante")}
+                        sx={{
+                          width: 220,
+                          height: 140,
+                          objectFit: "contain",
+                          borderRadius: 1,
+                          border: "1px solid",
+                          borderColor: "divider",
+                          bgcolor: "grey.100",
+                          cursor: "zoom-in",
+                        }}
+                      />
+                    ) : (
+                      <Chip label="Sin INE registrada" color="default" size="small" />
+                    )}
+                  </Box>
+                </Stack>
               </Grid>
               {activo && !verificado && (
                 <Grid size={12}>
@@ -337,9 +410,21 @@ export default function DetalleVisitante() {
             <Stack
               spacing={2}
               direction={{ xs: "column-reverse", sm: "row" }}
-              justifyContent="end"
+              justifyContent="space-between"
+              alignItems="center"
               sx={{ width: "100%" }}
             >
+              <Button
+                sx={{ width: { xs: "100%", sm: "auto" } }}
+                type="button"
+                size="medium"
+                variant="contained"
+                color="primary"
+                onClick={reenviarCorreo}
+                disabled={isResending || isLoading}
+              >
+                {isResending ? "Reenviando..." : "Reenviar correo"}
+              </Button>
               <Button
                 sx={{ width: { xs: "100%", sm: "auto" } }}
                 type="button"
@@ -355,6 +440,39 @@ export default function DetalleVisitante() {
           </Box>
         </CardContent>
       </Card>
+      <Dialog
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        fullWidth
+        maxWidth="lg"
+      >
+        <DialogContent sx={{ p: 2 }}>
+          <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 0.5 }}>
+            <IconButton
+              size="small"
+              onClick={() => setPreviewOpen(false)}
+              aria-label="Cerrar vista previa"
+            >
+              <Close fontSize="small" />
+            </IconButton>
+          </Box>
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>
+            {previewTitle}
+          </Typography>
+          <Box
+            component="img"
+            src={previewSrc}
+            alt={previewTitle}
+            sx={{
+              width: "100%",
+              maxHeight: "80vh",
+              objectFit: "contain",
+              bgcolor: "grey.100",
+              borderRadius: 1,
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </ModalContainer>
   );
 }

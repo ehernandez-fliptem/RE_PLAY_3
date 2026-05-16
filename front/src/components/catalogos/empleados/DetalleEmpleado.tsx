@@ -13,7 +13,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { ChevronLeft } from "@mui/icons-material";
+import { ChevronLeft, Sync } from "@mui/icons-material";
 import ModalContainer from "../../utils/ModalContainer";
 import Spinner from "../../utils/Spinner";
 import { enqueueSnackbar } from "notistack";
@@ -49,6 +49,7 @@ export default function DetalleEmpleado() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncingHuellas, setIsSyncingHuellas] = useState(false);
   const [datos, setDatos] = useState<TUsuario>({
     img_usuario: "",
     nombre: "",
@@ -109,6 +110,30 @@ export default function DetalleEmpleado() {
 
   const regresar = () => {
     navigate(`/empleados`);
+  };
+
+  const resubirHuellas = async () => {
+    if (!id) return;
+    setIsSyncingHuellas(true);
+    try {
+      const res = await clienteAxios.put(`/api/empleados/biometria/huella/reenviar/${id}`, {
+        todos: true,
+      });
+      if (res.data?.estado) {
+        enqueueSnackbar(res.data?.mensaje || "Huellas re-subidas correctamente.", {
+          variant: "success",
+        });
+      } else {
+        enqueueSnackbar(res.data?.mensaje || "No se pudieron re-subir las huellas.", {
+          variant: "warning",
+        });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setIsSyncingHuellas(false);
+    }
   };
 
   return (
@@ -388,6 +413,18 @@ export default function DetalleEmpleado() {
               justifyContent="end"
               sx={{ width: "100%" }}
             >
+              <Button
+                sx={{ width: { xs: "100%", sm: "auto" } }}
+                type="button"
+                size="medium"
+                variant="outlined"
+                color="primary"
+                onClick={resubirHuellas}
+                startIcon={<Sync />}
+                disabled={isSyncingHuellas}
+              >
+                {isSyncingHuellas ? "Re-subiendo..." : "Re-subir huellas"}
+              </Button>
               <Button
                 sx={{ width: { xs: "100%", sm: "auto" } }}
                 type="button"

@@ -211,14 +211,34 @@ export async function crear(req: Request, res: Response): Promise<void> {
             throw error;
         }
 
-        const resultEnvioUsuario = await enviarCorreoContratistaAcceso(
-            correoNormalizado,
-            contrasena,
-            empresa,
-            `${nombre} ${apellido_pat} ${apellido_mat}`.replace(/\s+/g, " ").trim()
+        const destinatarios = Array.from(
+            new Set(
+                [
+                    correoNormalizado,
+                    ...(Array.isArray(correos)
+                        ? correos.map((item: any) => String(item || "").trim().toLowerCase())
+                        : []),
+                ].filter(Boolean)
+            )
         );
 
-        res.status(200).json({ estado: true, datos: { contratista: true, correoUsuario: resultEnvioUsuario } });
+        const nombreCompleto = `${nombre} ${apellido_pat} ${apellido_mat}`.replace(/\s+/g, " ").trim();
+        const resultados: { correo: string; enviado: boolean }[] = [];
+        for (const destino of destinatarios) {
+            const enviado = await enviarCorreoContratistaAcceso(
+                destino,
+                contrasena,
+                empresa,
+                nombreCompleto
+            );
+            resultados.push({ correo: destino, enviado });
+        }
+        const resultEnvioUsuario = resultados.every((item) => item.enviado);
+
+        res.status(200).json({
+            estado: true,
+            datos: { contratista: true, correoUsuario: resultEnvioUsuario, resultados },
+        });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });

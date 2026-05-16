@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment, useEffect } from "react";
+﻿import { useState, useMemo, Fragment, useEffect, useCallback, useRef } from "react";
 import {
   DataGrid,
   useGridApiRef,
@@ -6,6 +6,7 @@ import {
   type GridDataSource,
   GridGetRowsError,
   type GridValidRowModel,
+  type GridRowSelectionModel,
   GridActionsCellItem,
 } from "@mui/x-data-grid";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
@@ -14,6 +15,7 @@ import { esES } from "@mui/x-data-grid/locales";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import {
   Add,
+  Autorenew,
   CheckCircleOutline,
   Close,
   Delete,
@@ -33,14 +35,20 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControl,
   IconButton,
+  InputLabel,
+  MenuItem,
+  Select,
   TextField,
   Tooltip,
+  Typography,
 } from "@mui/material";
 import CircularProgress from "@mui/material/CircularProgress";
 import { enqueueSnackbar } from "notistack";
 import { useConfirm } from "material-ui-confirm";
 import { AxiosError } from "axios";
+import Swal from "sweetalert2";
 import { base64ToFile } from "../../helpers/generalHelpers";
 import ErrorOverlay from "../../error/DataGridError";
 import Spinner from "../../utils/Spinner";
@@ -92,7 +100,8 @@ const LEFT_TO_RIGHT_ID_MAP: Record<number, number> = {
 };
 
 export default function Empleados() {
-  const { habilitarIntegracionHvBiometria } = useSelector(
+  const { rol } = useSelector((state: IRootState) => state.auth.data);
+  const { habilitarIntegracionHvBiometria, habilitarIntegracionBiostar } = useSelector(
     (state: IRootState) => state.config.data
   );
   const apiRef = useGridApiRef();
@@ -113,14 +122,52 @@ export default function Empleados() {
   >("huella");
   const [selectedFinger, setSelectedFinger] = useState<number>(2);
   const [biometriaMensaje, setBiometriaMensaje] = useState("");
+  const [huellaProviderQueue, setHuellaProviderQueue] = useState<Array<"hiki" | "biostar">>([]);
+  const [huellaProviderIndex, setHuellaProviderIndex] = useState(0);
+  const [hikiPaneles, setHikiPaneles] = useState<Array<{ id: string; nombre: string; direccion_ip: string; es_panel_maestro?: boolean }>>([]);
+  const [biostarDispositivos, setBiostarDispositivos] = useState<Array<{ id: string; nombre: string; direccion_ip: string; puerto?: number }>>([]);
+  const [hikiPanelSeleccionado, setHikiPanelSeleccionado] = useState("");
+  const [biostarDispositivoSeleccionado, setBiostarDispositivoSeleccionado] = useState("");
   const [tarjetaStep, setTarjetaStep] = useState<
     "lista" | "form" | "espera" | "ok" | "error"
   >("lista");
   const [tarjetaNombre, setTarjetaNombre] = useState("");
   const [tarjetaDescripcion, setTarjetaDescripcion] = useState("");
   const [tarjetaMensaje, setTarjetaMensaje] = useState("");
+  const [biostarGroupFilter, setBiostarGroupFilter] = useState("");
+  const [estadoFiltro, setEstadoFiltro] = useState<"activos" | "inactivos" | "todos">("activos");
+  const [syncBioCorreoTipo, setSyncBioCorreoTipo] = useState<"todos" | "real" | "biostar_local">("todos");
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [biostarGroupOptions, setBiostarGroupOptions] = useState<
+    Array<{ id_externo: string; nombre: string; total: number }>
+  >([]);
+  const [syncBioOpen, setSyncBioOpen] = useState(false);
+  const [syncBioLoading, setSyncBioLoading] = useState(false);
+  const [syncBioPendientes, setSyncBioPendientes] = useState<any[]>([]);
+  const [syncBioSelected, setSyncBioSelected] = useState<string>("");
+  const [syncBioSelectionModel, setSyncBioSelectionModel] =
+    useState<GridRowSelectionModel>({
+      type: "include",
+      ids: new Set(),
+    });
+  const [syncBioSearch, setSyncBioSearch] = useState("");
+  const [huellasPorProveedor, setHuellasPorProveedor] = useState<{
+    hiki: number[];
+    biostar: number[];
+  }>({ hiki: [], biostar: [] });
+  const huellaCaptureRunRef = useRef(0);
+  const huellaCaptureCanceledRef = useRef(false);
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
+  const esAdminOSuper = rol.includes(1) || rol.includes(2);
+  const huellaHikiEnabled = !!habilitarIntegracionHvBiometria;
+  const huellaBiostarEnabled = !!habilitarIntegracionBiostar && esAdminOSuper;
+  const tarjetaHikiEnabled = !!habilitarIntegracionHvBiometria;
+  const proveedorHuellaActual =
+    huellaProviderQueue[huellaProviderIndex] ||
+    (huellaHikiEnabled ? "hiki" : "biostar");
+  const proveedorHuellaLabel = proveedorHuellaActual === "hiki" ? "Hikvision" : "BioStar";
+  const haySiguienteProveedorHuella = huellaProviderIndex < huellaProviderQueue.length - 1;
 
   const fingers = [
     { id: 1, label: "Pulgar Izq" },
@@ -168,6 +215,12 @@ export default function Empleados() {
     step: "huella" | "tarjeta" = "huella"
   ) => {
     try {
+      if (step === "tarjeta" && !tarjetaHikiEnabled) {
+        enqueueSnackbar("Tarjeta solo está disponible con Hikvision activo.", {
+          variant: "warning",
+        });
+        return;
+      }
       setBiometriaLoading(true);
       const res = await clienteAxios.get(`/api/empleados/biometria/${id}`);
       if (!res.data.estado) {
@@ -176,17 +229,55 @@ export default function Empleados() {
       }
       const datos = res.data.datos;
       setBiometriaEmpleado(datos);
+      const panelesHikiData = Array.isArray(datos?.paneles_hiki) ? datos.paneles_hiki : [];
+      const dispositivosBiostarData = Array.isArray(datos?.dispositivos_biostar) ? datos.dispositivos_biostar : [];
+      setHikiPaneles(panelesHikiData);
+      setBiostarDispositivos(dispositivosBiostarData);
+      const panelMain =
+        panelesHikiData.find((p: any) => !!p?.es_panel_maestro)?.id ||
+        panelesHikiData[0]?.id ||
+        "";
+      setHikiPanelSeleccionado(String(panelMain || ""));
+      const defaultBio =
+        dispositivosBiostarData.length === 1 ? String(dispositivosBiostarData[0]?.id || "") : "";
+      setBiostarDispositivoSeleccionado(defaultBio);
       const huellas = Array.isArray(datos?.huellas_registradas)
         ? datos.huellas_registradas
         : [];
-      const defaultFinger = getNextDefaultFinger(huellas);
-      setSelectedFinger(defaultFinger);
+      const huellasPorProveedorResp = {
+        hiki: Array.isArray(datos?.huellas_por_proveedor?.hiki)
+          ? datos.huellas_por_proveedor.hiki.map((v: any) => Number(v)).filter((v: number) => Number.isInteger(v) && v >= 1 && v <= 10)
+          : [],
+        biostar: Array.isArray(datos?.huellas_por_proveedor?.biostar)
+          ? datos.huellas_por_proveedor.biostar.map((v: any) => Number(v)).filter((v: number) => Number.isInteger(v) && v >= 1 && v <= 10)
+          : [],
+      };
+      if (step === "huella") {
+        const queue: Array<"hiki" | "biostar"> = [];
+        if (huellaHikiEnabled) queue.push("hiki");
+        if (huellaBiostarEnabled) queue.push("biostar");
+        setHuellaProviderQueue(queue);
+        setHuellaProviderIndex(0);
+        setHuellasPorProveedor({
+          hiki: [...huellasPorProveedorResp.hiki],
+          biostar: [...huellasPorProveedorResp.biostar],
+        });
+        const proveedorInicial = queue[0] === "biostar" ? "biostar" : "hiki";
+        const baseProveedorInicial =
+          proveedorInicial === "biostar"
+            ? huellasPorProveedorResp.biostar
+            : huellasPorProveedorResp.hiki;
+        setSelectedFinger(
+          getNextDefaultFinger(baseProveedorInicial.length ? baseProveedorInicial : huellas)
+        );
+      }
       setBiometriaStep(step);
       setTarjetaStep("lista");
       setTarjetaNombre("");
       setTarjetaDescripcion("");
       setTarjetaMensaje("");
       setBiometriaMensaje("");
+      huellaCaptureCanceledRef.current = false;
       setBiometriaOpen(true);
     } catch (error) {
       const { restartSession } = handlingError(error);
@@ -197,6 +288,10 @@ export default function Empleados() {
   };
 
   const cerrarBiometria = () => {
+    if (biometriaStep === "espera") {
+      huellaCaptureCanceledRef.current = true;
+      huellaCaptureRunRef.current += 1;
+    }
     setBiometriaOpen(false);
     setBiometriaStep("huella");
     setBiometriaEmpleado(null);
@@ -205,53 +300,120 @@ export default function Empleados() {
     setTarjetaNombre("");
     setTarjetaDescripcion("");
     setTarjetaMensaje("");
+    setHuellaProviderQueue([]);
+    setHuellaProviderIndex(0);
+    setHikiPaneles([]);
+    setBiostarDispositivos([]);
+    setHikiPanelSeleccionado("");
+    setBiostarDispositivoSeleccionado("");
+    setHuellasPorProveedor({ hiki: [], biostar: [] });
   };
 
   const iniciarCapturaHuella = async () => {
     if (!biometriaEmpleado?._id) return;
+    if (
+      proveedorHuellaActual === "biostar" &&
+      !biostarDispositivoSeleccionado
+    ) {
+      enqueueSnackbar("Selecciona un dispositivo BioStar para capturar.", {
+        variant: "warning",
+      });
+      return;
+    }
+    if (proveedorHuellaActual === "hiki" && !hikiPanelSeleccionado) {
+      enqueueSnackbar("Selecciona un panel Hikvision para capturar.", {
+        variant: "warning",
+      });
+      return;
+    }
     const MIN_WAIT_MS = 2000;
     const waitMin = new Promise((resolve) =>
       setTimeout(resolve, MIN_WAIT_MS)
     );
     try {
+      const currentRunId = huellaCaptureRunRef.current + 1;
+      huellaCaptureRunRef.current = currentRunId;
+      huellaCaptureCanceledRef.current = false;
       setBiometriaStep("espera");
       const resPromise = clienteAxios.put(
         `/api/empleados/biometria/huella/${biometriaEmpleado._id}`,
-        { dedo: selectedFinger }
+        {
+          dedo: selectedFinger,
+          proveedor: proveedorHuellaActual,
+          panel_hiki_id: hikiPanelSeleccionado || undefined,
+          panel_biostar_id: biostarDispositivoSeleccionado || undefined,
+        }
       );
       const [res] = await Promise.all([resPromise, waitMin]);
+      if (
+        huellaCaptureCanceledRef.current ||
+        currentRunId !== huellaCaptureRunRef.current
+      ) {
+        return;
+      }
       if (res.data.estado) {
         const huellas = res.data.datos?.huellas_registradas || [];
         const total = res.data.datos?.huellas_total ?? huellas.length;
-        const nextFinger = getNextDefaultFinger(huellas);
+        const proveedorKey = proveedorHuellaActual === "biostar" ? "biostar" : "hiki";
+        const huellasProveedorActual = Array.from(
+          new Set([
+            ...((huellasPorProveedor[proveedorKey] || []).map((v: any) => Number(v))),
+            Number(selectedFinger),
+          ])
+        ).sort((a, b) => a - b);
+        const nextFinger = getNextDefaultFinger(huellasProveedorActual);
+        setHuellasPorProveedor((prev) => {
+          const key = proveedorKey;
+          const actuales = Array.isArray(prev[key]) ? prev[key] : [];
+          return {
+            ...prev,
+            [key]: Array.from(new Set([...actuales, Number(selectedFinger)])).sort((a, b) => a - b),
+          };
+        });
         setBiometriaEmpleado((prev: any) => ({
           ...prev,
           huellas_registradas: huellas,
           huellas_total: total,
         }));
         setSelectedFinger(nextFinger);
-        setBiometriaMensaje(
-          res.data.mensaje || "Huella registrada correctamente."
-        );
+        setBiometriaMensaje(res.data.mensaje || `Huella registrada en ${proveedorHuellaLabel}.`);
         apiRef.current?.updateRows([
           {
             _id: biometriaEmpleado._id,
             huellas_total: total,
           },
         ]);
-        setBiometriaStep("ok");
+        if (haySiguienteProveedorHuella) {
+          setHuellaProviderIndex((prev) => prev + 1);
+          setBiometriaStep("huella");
+          enqueueSnackbar(`Huella guardada en ${proveedorHuellaLabel}. Continúa con el siguiente sistema.`, {
+            variant: "success",
+          });
+        } else {
+          setBiometriaStep("ok");
+        }
       } else {
         setBiometriaMensaje(res.data.mensaje || "No se pudo registrar la huella.");
         setBiometriaStep("error");
       }
     } catch (error) {
       await waitMin;
+      if (huellaCaptureCanceledRef.current) return;
       const { restartSession } = handlingError(error);
       if (restartSession) navigate("/logout", { replace: true });
       setBiometriaMensaje("No se pudo registrar la huella.");
       setBiometriaStep("error");
     }
   };
+
+  useEffect(() => {
+    if (biometriaStep !== "huella") return;
+    const proveedorKey = proveedorHuellaActual === "biostar" ? "biostar" : "hiki";
+    const base = Array.isArray(huellasPorProveedor[proveedorKey])
+      ? huellasPorProveedor[proveedorKey]
+      : [];
+    setSelectedFinger(getNextDefaultFinger(base));
+  }, [proveedorHuellaActual, biometriaStep, huellasPorProveedor]);
 
   const reenviarHuellaGuardada = async () => {
     if (!biometriaEmpleado?._id) return;
@@ -279,6 +441,7 @@ export default function Empleados() {
       setBiometriaStep("error");
     }
   };
+
 
   const tarjetasWeb = Array.isArray(biometriaEmpleado?.tarjetas_web)
     ? biometriaEmpleado.tarjetas_web
@@ -406,19 +569,40 @@ export default function Empleados() {
 
   useEffect(() => {
     const state = location.state as any;
+    if (state?.reopenSyncBiostar && location.pathname === "/empleados") {
+      setSyncBioOpen(true);
+      cargarSyncBiostarPreview();
+      navigate(location.pathname, { replace: true, state: {} });
+      return;
+    }
     if (
       state?.openBiometriaFor &&
       typeof state.openBiometriaFor === "string" &&
-      habilitarIntegracionHvBiometria
+      (huellaHikiEnabled || huellaBiostarEnabled)
     ) {
       abrirBiometria(
         state.openBiometriaFor,
-        state.biometriaStep === "tarjeta" ? "tarjeta" : "huella"
+        state.biometriaStep === "tarjeta" && tarjetaHikiEnabled ? "tarjeta" : "huella"
       );
       navigate(location.pathname, { replace: true, state: {} });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state, habilitarIntegracionHvBiometria]);
+  }, [location.state, huellaHikiEnabled, huellaBiostarEnabled, tarjetaHikiEnabled]);
+
+  const cargarResumenGrupos = useCallback(async () => {
+    try {
+      const res = await clienteAxios.get("/api/empleados/biostar-grupos-resumen");
+      if (res.data?.estado) {
+        setBiostarGroupOptions(Array.isArray(res.data.datos) ? res.data.datos : []);
+      }
+    } catch {
+      setBiostarGroupOptions([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarResumenGrupos();
+  }, [cargarResumenGrupos]);
 
   const devReplayEnabled = false;
   const biometriaBadgeWidth = 126;
@@ -469,6 +653,11 @@ export default function Empleados() {
             pagination: JSON.stringify(params.paginationModel),
             sort: JSON.stringify(params.sortModel),
           });
+          urlParams.set("estado", estadoFiltro);
+          urlParams.set("biostar_live", "1");
+          if (biostarGroupFilter) {
+            urlParams.set("biostar_group_id", biostarGroupFilter);
+          }
           const res = await clienteAxios.get(
             "/api/empleados?" + urlParams.toString()
           );
@@ -479,8 +668,12 @@ export default function Empleados() {
               ...r,
               id_empleado: Number(r.id_empleado),
             }));
-            console.log("Filas", rows);
-            
+            setPendingSyncCount(
+              rows.filter(
+                (r: any) =>
+                  !!r.sync_hikvision_pendiente || !!r.sync_biostar_pendiente
+              ).length
+            );
             rowCount = res.data.datos.totalCount[0]?.count || 0;
           }
         } catch (error) {
@@ -495,8 +688,21 @@ export default function Empleados() {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [biostarGroupFilter, estadoFiltro]
   );
+
+  useEffect(() => {
+    apiRef.current?.dataSource?.fetchRows?.();
+    cargarResumenGrupos();
+  }, [biostarGroupFilter, estadoFiltro, apiRef, cargarResumenGrupos]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      apiRef.current?.dataSource?.fetchRows?.();
+      cargarResumenGrupos();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [apiRef, cargarResumenGrupos]);
 
   const initialState: GridInitialState = useMemo(
     () => ({
@@ -514,6 +720,239 @@ export default function Empleados() {
     navigate("nuevo-empleado");
   };
 
+  const cargarSyncBiostarPreview = useCallback(async () => {
+    try {
+      setSyncBioLoading(true);
+      const res = await clienteAxios.get("/api/empleados/biostar-sync/preview");
+      if (!res.data?.estado) {
+        enqueueSnackbar(res.data?.mensaje || "No se pudo consultar BioStar.", { variant: "warning" });
+        setSyncBioPendientes([]);
+        return;
+      }
+      setSyncBioPendientes(Array.isArray(res.data?.datos?.pendientes) ? res.data.datos.pendientes : []);
+      setSyncBioSelected("");
+      setSyncBioSelectionModel({ type: "include", ids: new Set() });
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setSyncBioLoading(false);
+    }
+  }, [navigate]);
+
+  const abrirSyncBiostar = async () => {
+    setSyncBioOpen(true);
+    await cargarSyncBiostarPreview();
+  };
+  const syncBioPendientesFiltrados = useMemo(() => {
+    const term = syncBioSearch.trim().toLowerCase();
+    return syncBioPendientes.filter((u: any) => {
+      const nombre = String(u?.nombre || "").toLowerCase();
+      const correo = String(u?.correo || "").toLowerCase();
+      const grupo = String(u?.biostar_group_name || "").toLowerCase();
+      const faltantes = String((u?.motivos || []).join(" ") || "").toLowerCase();
+      const esBiostarLocal = /@biostar\.local$/i.test(correo);
+      const cumpleTipoCorreo =
+        syncBioCorreoTipo === "biostar_local"
+          ? esBiostarLocal
+          : syncBioCorreoTipo === "real"
+            ? !!correo && !esBiostarLocal
+            : true;
+      if (!cumpleTipoCorreo) return false;
+      if (!term) return true;
+      return (
+        nombre.includes(term) ||
+        correo.includes(term) ||
+        grupo.includes(term) ||
+        faltantes.includes(term)
+      );
+    });
+  }, [syncBioPendientes, syncBioSearch, syncBioCorreoTipo]);
+  const syncBioSelectedIds = useMemo(() => {
+    const allFilteredIds = syncBioPendientesFiltrados.map((p: any) =>
+      String(p.biostar_user_id)
+    );
+    const modelType = (syncBioSelectionModel as any)?.type || "include";
+    const modelIds = Array.from((syncBioSelectionModel as any)?.ids || []).map(
+      (v) => String(v)
+    );
+    if (modelType === "exclude") {
+      const excluded = new Set(modelIds);
+      return allFilteredIds.filter((id) => !excluded.has(id));
+    }
+    return modelIds;
+  }, [syncBioSelectionModel, syncBioPendientesFiltrados]);
+
+  const darAltaPendiente = async () => {
+    const idsSeleccionados =
+      syncBioSelectedIds.length > 0
+        ? syncBioSelectedIds
+        : syncBioSelected
+          ? [syncBioSelected]
+          : [];
+    if (idsSeleccionados.length === 0) {
+      enqueueSnackbar("Selecciona al menos un usuario pendiente.", { variant: "warning" });
+      return;
+    }
+
+    const seleccionados = syncBioPendientes.filter((p: any) =>
+      idsSeleccionados.includes(String(p.biostar_user_id))
+    );
+    if (seleccionados.length === 0) {
+      enqueueSnackbar("No se encontraron registros seleccionados.", { variant: "warning" });
+      return;
+    }
+
+    if (seleccionados.length === 1) {
+      const selected = seleccionados[0];
+      setSyncBioOpen(false);
+      navigate("nuevo-empleado", {
+        state: {
+          biostarPrefill: {
+            nombre: selected.nombre || "",
+            apellido_pat: selected.apellido_pat || "",
+            apellido_mat: selected.apellido_mat || "",
+            correo: selected.correo || "",
+            telefono: selected.telefono || "",
+            movil: selected.movil || "",
+            extension: selected.extension || "",
+            biostar_group_id: selected.biostar_group_id || "",
+            biostar_user_id: selected.biostar_user_id || "",
+          },
+        },
+      });
+      return;
+    }
+
+    const snapshotSelectionModel = syncBioSelectionModel;
+    const snapshotSelected = syncBioSelected;
+    setSyncBioOpen(false);
+    const confirmRes = await Swal.fire({
+      icon: "question",
+      title: "Dar de alta seleccionados",
+      text: `Se crearán ${seleccionados.length} empleados usando correo default (@biostar.local).`,
+      showCancelButton: true,
+      confirmButtonText: "Continuar",
+      cancelButtonText: "Cancelar",
+    });
+    if (!confirmRes.isConfirmed) {
+      setSyncBioOpen(true);
+      setSyncBioSelectionModel(snapshotSelectionModel);
+      setSyncBioSelected(snapshotSelected);
+      return;
+    }
+
+    try {
+      setSyncBioLoading(true);
+      void Swal.fire({
+        title: "Guardando seleccionados...",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      let creados = 0;
+      let fallidos = 0;
+      const errores: string[] = [];
+
+      for (const item of seleccionados) {
+        const bioUserId = String(item?.biostar_user_id || "").trim();
+        const correoDefault = bioUserId
+          ? `${bioUserId.toLowerCase()}@biostar.local`
+          : "";
+        try {
+          const payload = {
+            img_usuario: "",
+            nombre: item?.nombre || "",
+            apellido_pat: item?.apellido_pat || "Empleado",
+            apellido_mat: item?.apellido_mat || "",
+            id_empresa: item?.id_empresa || "",
+            id_piso: item?.id_piso || "",
+            accesos: Array.isArray(item?.accesos) ? item.accesos : [],
+            id_puesto: "",
+            id_departamento: "",
+            id_cubiculo: "",
+            movil: item?.movil || "",
+            telefono: item?.telefono || "",
+            extension: item?.extension || "",
+            correo: correoDefault,
+            acceso_campo: false,
+            biostar_group_id: item?.biostar_group_id || "",
+            biostar_group_name: item?.biostar_group_name || "",
+            biostar_user_id: bioUserId,
+            desde_pendiente_biostar: true,
+          };
+          const res = await clienteAxios.post("/api/empleados", payload);
+          if (res.data?.estado) {
+            creados += 1;
+          } else {
+            fallidos += 1;
+            errores.push(`${item?.nombre || bioUserId}: ${res.data?.mensaje || "No se pudo crear."}`);
+          }
+        } catch (error: any) {
+          fallidos += 1;
+          const msg = error?.response?.data?.mensaje || error?.message || "Error al crear.";
+          errores.push(`${item?.nombre || bioUserId}: ${msg}`);
+        }
+      }
+
+      if (Swal.isVisible()) Swal.close();
+
+      if (creados > 0) {
+        enqueueSnackbar(`Alta masiva completada. Creados: ${creados}. Fallidos: ${fallidos}.`, {
+          variant: fallidos > 0 ? "warning" : "success",
+        });
+      } else {
+        enqueueSnackbar("No se creó ningún empleado.", { variant: "error" });
+      }
+      if (errores.length > 0) {
+        console.warn("[BIOSTAR-ALTA-MASIVA] Errores:", errores);
+      }
+
+      await cargarSyncBiostarPreview();
+      apiRef.current?.dataSource?.fetchRows?.();
+      setSyncBioOpen(false);
+    } finally {
+      if (Swal.isVisible()) Swal.close();
+      setSyncBioLoading(false);
+    }
+  };
+  const columnasPendientesBiostar = [
+    {
+      field: "nombre",
+      headerName: "Nombre",
+      flex: 1,
+      minWidth: 170,
+      renderCell: ({ value }: any) => value || "(Sin nombre)",
+    },
+    {
+      field: "correo",
+      headerName: "Correo",
+      flex: 1,
+      minWidth: 200,
+      renderCell: ({ value }: any) => value || "(Sin correo)",
+    },
+    {
+      field: "biostar_group_name",
+      headerName: "Grupo BioStar",
+      flex: 1,
+      minWidth: 170,
+      renderCell: ({ value }: any) => value || "(Sin grupo)",
+    },
+    {
+      field: "motivos_texto",
+      headerName: "Faltantes",
+      flex: 1.4,
+      minWidth: 240,
+      renderCell: ({ row }: any) =>
+        (row.motivos || []).length
+          ? (row.motivos || []).join(", ")
+          : "Completar datos en RE",
+    },
+  ];
+  const syncBioRowSelectionModel: GridRowSelectionModel = syncBioSelectionModel;
+
   const editarRegistro = (ID: string) => {
     navigate(`editar-empleado/${ID}`);
   };
@@ -527,28 +966,38 @@ export default function Empleados() {
   //   navigate("carga-masiva");
   // };
 
-  const cambiarEstado = async (ID: string, activo: boolean) => {
+  const cambiarEstado = async (ID: string, activo: boolean, nombre: string) => {
     if (!activo) {
-      try {
-        setRowLoading(ID, true);
-        const res = await clienteAxios.patch(`/api/empleados/${ID}`, {
-          activo,
+      confirm({
+        title: "¿Seguro que deseas restaurar a este empleado?",
+        description: nombre,
+        allowClose: true,
+        confirmationText: "Continuar",
+      })
+        .then(async (result) => {
+          if (!result.confirmed) return;
+          setRowLoading(ID, true);
+          const res = await clienteAxios.patch(`/api/empleados/${ID}`, {
+            activo,
+          });
+          if (res.data.estado) {
+            apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
+            apiRef.current?.dataSource?.fetchRows?.();
+          } else {
+            enqueueSnackbar(res.data.mensaje, { variant: "error" });
+          }
+        })
+        .catch((error) => {
+          const { restartSession } = handlingError(error);
+          if (restartSession) navigate("/logout", { replace: true });
+        })
+        .finally(() => {
+          setRowLoading(ID, false);
         });
-        if (res.data.estado) {
-          apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
-        } else {
-          enqueueSnackbar(res.data.mensaje, { variant: "error" });
-        }
-      } catch (error) {
-        const { restartSession } = handlingError(error);
-        if (restartSession) navigate("/logout", { replace: true });
-      } finally {
-        setRowLoading(ID, false);
-      }
     } else {
       confirm({
         title: "¿Seguro que deseas desactivar a este empleado?",
-        description: "",
+        description: nombre,
         allowClose: true,
         confirmationText: "Continuar",
       })
@@ -560,6 +1009,7 @@ export default function Empleados() {
             });
             if (res.data.estado) {
               apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
+              apiRef.current?.dataSource?.fetchRows?.();
             } else {
               enqueueSnackbar(res.data.mensaje, { variant: "warning" });
             }
@@ -572,6 +1022,31 @@ export default function Empleados() {
           if (restartSession) navigate("/logout", { replace: true });
         });
     }
+  };
+
+  const eliminarPermanente = (ID: string, nombre: string) => {
+    confirm({
+      title: "¿Seguro que deseas eliminar permanentemente este empleado?",
+      description: nombre,
+      allowClose: true,
+      confirmationText: "Continuar",
+    })
+      .then(async (result) => {
+        if (!result.confirmed) return;
+        setRowLoading(ID, true);
+        const res = await clienteAxios.patch(`/api/empleados/eliminar-permanente/${ID}`);
+        if (res.data.estado) {
+          apiRef.current?.dataSource?.fetchRows?.();
+          enqueueSnackbar("Empleado eliminado permanentemente.", { variant: "success" });
+        } else {
+          enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+        }
+      })
+      .catch((error) => {
+        const { restartSession } = handlingError(error);
+        if (restartSession) navigate("/logout", { replace: true });
+      })
+      .finally(() => setRowLoading(ID, false));
   };
 
   const descargarQr = async (ID: string, nombre: string) => {
@@ -588,6 +1063,36 @@ export default function Empleados() {
       if (restartSession) navigate("/logout", { replace: true });
     } finally {
       setIsDownloadingQr({ id_usuario: ID, descargando: false });
+    }
+  };
+
+  const reintentarSyncFila = async (ID: string) => {
+    try {
+      setRowLoading(ID, true);
+      const res = await clienteAxios.post(`/api/empleados/${ID}/reintentar-sync`);
+      if (res.data?.estado) {
+        const pendientes: string[] = Array.isArray(res.data?.sync?.pendiente)
+          ? res.data.sync.pendiente
+          : [];
+        if (pendientes.length === 0) {
+          enqueueSnackbar("Sincronización completada.", { variant: "success" });
+        } else {
+          enqueueSnackbar(
+            `Sincronización pendiente en: ${pendientes.join(", ")}.`,
+            { variant: "warning" }
+          );
+        }
+        apiRef.current?.dataSource?.fetchRows?.();
+      } else {
+        enqueueSnackbar(res.data?.mensaje || "No se pudo reintentar la sincronización.", {
+          variant: "warning",
+        });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setRowLoading(ID, false);
     }
   };
 
@@ -645,6 +1150,11 @@ export default function Empleados() {
 
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
+      {pendingSyncCount > 0 && (
+        <Alert severity="warning" sx={{ mb: 1 }}>
+          Hay {pendingSyncCount} empleado(s) con sincronización pendiente con integraciones.
+        </Alert>
+      )}
       <DataGrid
         apiRef={apiRef}
         initialState={initialState}
@@ -691,11 +1201,13 @@ export default function Empleados() {
             display: "flex",
             minWidth: 180,
           },
-          ...(habilitarIntegracionHvBiometria
+          ...(huellaHikiEnabled || huellaBiostarEnabled
             ? [
                 {
                   headerName: "Huella",
                   field: "huellas_total",
+                  headerAlign: "center" as const,
+                  align: "center" as const,
                   flex: 1,
                   minWidth: 150,
                   display: "flex" as const,
@@ -722,13 +1234,54 @@ export default function Empleados() {
                             },
                           }}
                         >
-                          {total > 0 ? `${total} huella(s)` : "Sin huellas"}
+                          {total > 0 ? "Huellas" : "Sin huellas"}
                         </Button>
                       </Box>
                     );
                   },
                 },
-                {
+                ...(huellaHikiEnabled
+                  ? [{
+                  headerName: "Huellas Hikvision",
+                  field: "huellas_hiki_total",
+                  headerAlign: "center" as const,
+                  align: "center" as const,
+                  flex: 1,
+                  minWidth: 130,
+                  display: "flex" as const,
+                  sortable: false,
+                  renderCell: ({ value }: any) => {
+                    const total = Number(value || 0);
+                    return (
+                      <Box sx={{ width: "100%", display: "flex", justifyContent: "center", fontWeight: 700 }}>
+                        {total}
+                      </Box>
+                    );
+                  },
+                }]
+                  : []),
+                ...(huellaBiostarEnabled
+                  ? [{
+                  headerName: "Huellas BioStar",
+                  field: "huellas_biostar_total",
+                  headerAlign: "center" as const,
+                  align: "center" as const,
+                  flex: 1,
+                  minWidth: 140,
+                  display: "flex" as const,
+                  sortable: false,
+                  renderCell: ({ value }: any) => {
+                    const total = Number(value || 0);
+                    return (
+                      <Box sx={{ width: "100%", display: "flex", justifyContent: "center", fontWeight: 700 }}>
+                        {total}
+                      </Box>
+                    );
+                  },
+                }]
+                  : []),
+                ...(tarjetaHikiEnabled
+                  ? [{
                   headerName: "Tarjeta",
                   field: "tarjetas_total",
                   flex: 1,
@@ -762,7 +1315,8 @@ export default function Empleados() {
                       </Box>
                     );
                   },
-                },
+                }]
+                  : []),
               ]
             : []),
           // Tipo: oculto por ahora porque no se ocupa en esta vista y se busca mantenerla simple.
@@ -797,8 +1351,8 @@ export default function Empleados() {
           {
             headerName: "QR",
             field: "id_usuario",
-            headerAlign: "center",
-            align: "center",
+            headerAlign: "center" as const,
+            align: "center" as const,
             flex: 0,
             width: 70,
             minWidth: 70,
@@ -824,7 +1378,7 @@ export default function Empleados() {
             headerName: "Acciones",
             field: "activo",
             type: "actions",
-            align: "center",
+            align: "center" as const,
             flex: 1,
             display: "flex",
             minWidth: 120,
@@ -864,18 +1418,43 @@ export default function Empleados() {
                   row.activo ? (
                     <GridActionsCellItem
                       icon={<Delete color="success" />}
-                      onClick={() => cambiarEstado(row._id, row.activo)}
+                      onClick={() => cambiarEstado(row._id, row.activo, row.nombre)}
                       label="Desactivar"
                       title="Desactivar"
                     />
                   ) : (
                     <GridActionsCellItem
                       icon={<RestoreFromTrash color="error" />}
-                      onClick={() => cambiarEstado(row._id, row.activo)}
+                      onClick={() => cambiarEstado(row._id, row.activo, row.nombre)}
                       label="Restaurar"
                       title="Restaurar"
                     />
+                    
                   )
+                );
+                if (!row.activo) {
+                  gridActions.push(
+                    <GridActionsCellItem
+                      icon={<Delete color="error" />}
+                      onClick={() => eliminarPermanente(row._id, row.nombre)}
+                      label="Eliminar permanentemente"
+                      title="Eliminar permanentemente"
+                    />
+                  );
+                }
+              }
+              if (row.sync_hikvision_pendiente || row.sync_biostar_pendiente) {
+                const sistemas = [
+                  ...(row.sync_hikvision_pendiente ? ["Hikvision"] : []),
+                  ...(row.sync_biostar_pendiente ? ["BioStar"] : []),
+                ].join(", ");
+                gridActions.push(
+                  <GridActionsCellItem
+                    icon={<Autorenew color="warning" />}
+                    onClick={() => reintentarSyncFila(row._id)}
+                    label={`Reintentar sync (${sistemas})`}
+                    title={`Reintentar sync (${sistemas})`}
+                  />
                 );
               }
               return gridActions;
@@ -928,9 +1507,54 @@ export default function Empleados() {
               tableTitle="Gestión de Empleados"
               customActionButtons={
                 <Fragment>
+                  {habilitarIntegracionBiostar && (
+                    <FormControl
+                      size="small"
+                      sx={{ minWidth: 260, mr: 1 }}
+                    >
+                      <InputLabel id="grupo-biostar-filter-label">
+                        Grupo BioStar
+                      </InputLabel>
+                      <Select
+                        labelId="grupo-biostar-filter-label"
+                        value={biostarGroupFilter}
+                        label="Grupo BioStar"
+                        onChange={(e) =>
+                          setBiostarGroupFilter(String(e.target.value || ""))
+                        }
+                      >
+                        <MenuItem value="">
+                          Todos
+                        </MenuItem>
+                        {biostarGroupOptions.map((item) => (
+                          <MenuItem key={item.id_externo} value={item.id_externo}>
+                            {item.nombre} ({item.total})
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  )}
+                  <FormControl size="small" sx={{ minWidth: 180, mr: 1 }}>
+                    <InputLabel id="estado-empleados-label">Estado</InputLabel>
+                    <Select
+                      labelId="estado-empleados-label"
+                      value={estadoFiltro}
+                      label="Estado"
+                      onChange={(e) => setEstadoFiltro(e.target.value as typeof estadoFiltro)}
+                    >
+                      <MenuItem value="todos">Todos</MenuItem>
+                      <MenuItem value="activos">Activos</MenuItem>
+                      <MenuItem value="inactivos">Inactivos</MenuItem>
+                    </Select>
+                  </FormControl>
                   <Tooltip title="Agregar">
                     <IconButton onClick={nuevoRegistro}>
                       <Add fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Sincronizar BioStar">
+                    <IconButton onClick={abrirSyncBiostar}>
+                      <Autorenew fontSize="small" />
                     </IconButton>
                   </Tooltip>
                   {/* [En proceso] Botón de carga masiva oculto porque la funcionalidad aún no está disponible
@@ -947,8 +1571,125 @@ export default function Empleados() {
         }}
       />
       <Dialog
+        open={syncBioOpen}
+        onClose={(_, reason) => {
+          if (reason === "backdropClick") return;
+          setSyncBioOpen(false);
+        }}
+        fullWidth
+        maxWidth="md"
+        PaperProps={{ sx: { minHeight: 560 } }}
+      >
+        <DialogTitle>Pendientes de BioStar</DialogTitle>
+        <DialogContent dividers sx={{ minHeight: 460 }}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Buscar por nombre, correo, grupo o faltantes"
+            value={syncBioSearch}
+            onChange={(e) => setSyncBioSearch(String(e.target.value || ""))}
+            sx={{ mb: 2 }}
+          />
+          <FormControl size="small" sx={{ minWidth: 240, mb: 2 }}>
+            <InputLabel id="tipo-correo-pendientes-biostar-label">Tipo de correo</InputLabel>
+            <Select
+              labelId="tipo-correo-pendientes-biostar-label"
+              value={syncBioCorreoTipo}
+              label="Tipo de correo"
+              onChange={(e) =>
+                setSyncBioCorreoTipo(
+                  e.target.value as "todos" | "real" | "biostar_local"
+                )
+              }
+            >
+              <MenuItem value="todos">Todos</MenuItem>
+              <MenuItem value="real">Correo real</MenuItem>
+              <MenuItem value="biostar_local">Correo biostar.local</MenuItem>
+            </Select>
+          </FormControl>
+          <Typography variant="subtitle2" sx={{ mb: 2 }}>
+            Selecciona uno o varios registros para completar alta en RE ({syncBioPendientesFiltrados.length})
+          </Typography>
+          <Box sx={{ width: "100%", height: 320 }}>
+            {syncBioLoading && <Spinner />}
+            {!syncBioLoading && syncBioPendientesFiltrados.length === 0 && (
+              <Typography variant="body2" sx={{ p: 2 }}>
+                No hay registros para el filtro actual.
+              </Typography>
+            )}
+            {!syncBioLoading && syncBioPendientesFiltrados.length > 0 && (
+              <DataGrid
+                rows={syncBioPendientesFiltrados.map((u: any) => ({
+                  ...u,
+                  id: String(u.biostar_user_id),
+                  motivos_texto: (u.motivos || []).join(", "),
+                }))}
+                columns={columnasPendientesBiostar as any}
+                getRowId={(row) => row.id}
+                checkboxSelection
+                disableRowSelectionOnClick={false}
+                rowSelectionModel={syncBioRowSelectionModel}
+                onRowSelectionModelChange={(newSelection) => {
+                  const next = newSelection as GridRowSelectionModel;
+                  setSyncBioSelectionModel(next);
+                  const nextIds = Array.from((next as any)?.ids || []).map((v) =>
+                    String(v)
+                  );
+                  setSyncBioSelected(nextIds[0] || "");
+                }}
+                onRowClick={(params) => setSyncBioSelected(String(params.row?.id || ""))}
+                getRowClassName={(params) =>
+                  syncBioSelectedIds.includes(String(params.row?.id || ""))
+                    ? "fila-pendiente-seleccionada"
+                    : ""
+                }
+                pageSizeOptions={[5, 10, 25]}
+                initialState={{
+                  pagination: { paginationModel: { pageSize: 5, page: 0 } },
+                }}
+                sx={{
+                  "& .MuiDataGrid-cell, & .MuiDataGrid-columnHeaderTitle": {
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  },
+                  "& .MuiDataGrid-virtualScroller": {
+                    overflowX: "hidden !important",
+                  },
+                  "& .MuiDataGrid-main": {
+                    overflowX: "hidden",
+                  },
+                  "& .fila-pendiente-seleccionada": {
+                    backgroundColor: "rgba(122,60,255,0.10)",
+                  },
+                }}
+                localeText={{
+                  ...esES.components.MuiDataGrid.defaultProps.localeText,
+                  checkboxSelectionHeaderName:
+                    "Seleccionar todos los registros",
+                }}
+              />
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={cargarSyncBiostarPreview} disabled={syncBioLoading}>Recargar</Button>
+          <Button onClick={() => setSyncBioOpen(false)}>Cerrar</Button>
+          <Button
+            variant="contained"
+            onClick={darAltaPendiente}
+            disabled={syncBioSelectedIds.length === 0 || syncBioLoading}
+          >
+            {syncBioSelectedIds.length > 1 ? "Dar de alta seleccionados" : "Dar de alta"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
         open={biometriaOpen}
-        onClose={cerrarBiometria}
+        onClose={(_, reason) => {
+          if (reason === "backdropClick") return;
+          cerrarBiometria();
+        }}
         maxWidth="sm"
         fullWidth
         PaperProps={{
@@ -960,15 +1701,19 @@ export default function Empleados() {
         }}
       >
         <DialogTitle sx={{ fontWeight: 700, fontSize: "1.1rem", color: "text.primary" }}>
-          {biometriaStep === "tarjeta" ? "Configurar tarjeta" : "Configurar huella"}
-          <IconButton
-            onClick={cerrarBiometria}
-            sx={{ position: "absolute", right: 8, top: 8 }}
-            size="small"
-            color="error"
-          >
-            <Close />
-          </IconButton>
+          {biometriaStep === "tarjeta"
+            ? "Configurar tarjeta Hikvision"
+            : `Configurar huella ${proveedorHuellaActual === "biostar" ? "BioStar" : "Hikvision"}`}
+          <Tooltip title={biometriaStep === "espera" ? "Cancelar captura" : "Cerrar"}>
+            <IconButton
+              onClick={cerrarBiometria}
+              sx={{ position: "absolute", right: 8, top: 8 }}
+              size="small"
+              color="error"
+            >
+              <Close />
+            </IconButton>
+          </Tooltip>
         </DialogTitle>
         <DialogContent dividers sx={{ bgcolor: "#ffffff" }}>
           {biometriaLoading && <Spinner />}
@@ -983,119 +1728,168 @@ export default function Empleados() {
                 biometriaStep === "ok" ||
                 biometriaStep === "error") && (
                 <Box>
+                  <Box sx={{ mb: 1, fontSize: "0.9rem", color: "text.secondary" }}>
+                    Sistema actual: <strong>{proveedorHuellaLabel}</strong>
+                  </Box>
                   {biometriaStep === "huella" && (
                     <>
-                      <Box sx={{ mb: 1, fontWeight: 700, fontSize: "0.95rem" }}>
-                        Selecciona el dedo para capturar
+                      <Box sx={{ mb: 1.5 }}>
+                        {proveedorHuellaActual === "hiki" ? (
+                          <FormControl size="small" fullWidth>
+                            <InputLabel id="hiki-panel-select-label">Panel Hikvision para captura</InputLabel>
+                            <Select
+                              labelId="hiki-panel-select-label"
+                              value={hikiPanelSeleccionado}
+                              label="Panel Hikvision para captura"
+                              onChange={(e) => setHikiPanelSeleccionado(String(e.target.value || ""))}
+                            >
+                              {hikiPaneles.map((panel) => (
+                                <MenuItem key={panel.id} value={panel.id}>
+                                  {panel.nombre || panel.direccion_ip}
+                                  {panel.es_panel_maestro ? " (Main)" : ""}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        ) : (
+                          <FormControl size="small" fullWidth>
+                            <InputLabel id="biostar-device-select-label">Dispositivo BioStar para captura</InputLabel>
+                            <Select
+                              labelId="biostar-device-select-label"
+                              value={biostarDispositivoSeleccionado}
+                              label="Dispositivo BioStar para captura"
+                              onChange={(e) => setBiostarDispositivoSeleccionado(String(e.target.value || ""))}
+                            >
+                              {biostarDispositivos.length > 1 && (
+                                <MenuItem value="">Selecciona un dispositivo</MenuItem>
+                              )}
+                              {biostarDispositivos.map((device) => (
+                                <MenuItem key={device.id} value={device.id}>
+                                  {device.nombre || "Sin nombre"}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        )}
                       </Box>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "center",
-                          gap: 4,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        {(["L", "R"] as const).map((side) => (
+                        <>
+                          <Box sx={{ mb: 1, fontWeight: 700, fontSize: "0.95rem" }}>
+                            Selecciona el dedo para capturar
+                          </Box>
                           <Box
-                            key={side}
                             sx={{
-                              position: "relative",
-                              width: HAND_WIDTH,
-                              height: HAND_HEIGHT,
-                              bgcolor: "transparent",
+                              display: "flex",
+                              justifyContent: "center",
+                              gap: 4,
+                              flexWrap: "wrap",
                             }}
                           >
-                            <Box
-                              sx={{
-                                position: "absolute",
-                                inset: 0,
-                                transform: getHandTransform(side),
-                                transformOrigin: "50% 55%",
-                              }}
-                            >
+                            {(["L", "R"] as const).map((side) => (
                               <Box
+                                key={side}
                                 sx={{
-                                  position: "absolute",
-                                  left: 38,
-                                  top: 78,
-                                  width: 104,
-                                  height: getPalmHeight(side),
-                                  borderRadius: "34px",
-                                  bgcolor: "#f3c998",
-                                  border: "2px solid #d89f6b",
-                                  boxShadow: "inset 0 0 0 2px #f9d8b4",
+                                  position: "relative",
+                                  width: HAND_WIDTH,
+                                  height: HAND_HEIGHT,
+                                  bgcolor: "transparent",
                                 }}
-                              />
-                              {getFingerShapesForRender(side).map((fingerShape) => {
-                                const adjust = getFingerAdjustForRender(
-                                  fingerShape.id,
-                                  side
-                                );
-                                const registrado = (
-                                  (biometriaEmpleado.huellas_registradas || []).map((v: any) =>
-                                    Number(v)
-                                  )
-                                ).includes(fingerShape.id);
-                                const selectedForCapture = selectedFinger === fingerShape.id;
-                                const highlight = selectedForCapture;
-                                const finger = fingers.find((f) => f.id === fingerShape.id);
-                                return (
-                                  <Tooltip
-                                    key={fingerShape.id}
-                                    title={`${finger?.label || "Dedo"} ${
-                                      registrado ? "(registrado)" : "(sin registrar)"
-                                    }`}
-                                  >
-                                    <Box
-                                      onClick={() => {
-                                        setSelectedFinger(fingerShape.id);
-                                      }}
-                                      sx={{
-                                        position: "absolute",
-                                        left: fingerShape.left,
-                                        top: fingerShape.top,
-                                        width: fingerShape.width,
-                                        height: clamp(fingerShape.height + adjust.h, 30, 140),
-                                        borderRadius: "14px",
-                                      transform: `translate(${adjust.dx}px, ${adjust.dy}px) rotate(${
-                                        fingerShape.rot + adjust.rot
-                                      }deg)`,
-                                      transformOrigin: "center",
+                              >
+                                <Box
+                                  sx={{
+                                    position: "absolute",
+                                    inset: 0,
+                                    transform: getHandTransform(side),
+                                    transformOrigin: "50% 55%",
+                                  }}
+                                >
+                                  <Box
+                                    sx={{
+                                      position: "absolute",
+                                      left: 38,
+                                      top: 78,
+                                      width: 104,
+                                      height: getPalmHeight(side),
+                                      borderRadius: "34px",
                                       bgcolor: "#f3c998",
-                                      border: highlight
-                                        ? "2px solid #7a3cff"
-                                        : registrado
-                                        ? "2px solid #66bb6a"
-                                        : "2px solid #d89f6b",
-                                      boxShadow: selectedForCapture
-                                        ? "0 0 0 3px rgba(122,60,255,.22)"
-                                        : registrado
-                                        ? "0 0 0 1px rgba(102,187,106,.22)"
-                                        : "none",
-                                      cursor: "pointer",
+                                      border: "2px solid #d89f6b",
+                                      boxShadow: "inset 0 0 0 2px #f9d8b4",
                                     }}
                                   />
-                                  </Tooltip>
-                                );
-                              })}
-                            </Box>
-                            <Box
-                              sx={{
-                                position: "absolute",
-                                left: "50%",
-                                bottom: 10,
-                                transform: "translateX(-50%)",
-                                fontSize: 12,
-                                color: "#6a4a2e",
-                                fontWeight: 600,
-                              }}
-                            >
-                              {side === "L" ? "Mano izquierda" : "Mano derecha"}
-                            </Box>
+                                  {getFingerShapesForRender(side).map((fingerShape) => {
+                                    const adjust = getFingerAdjustForRender(
+                                      fingerShape.id,
+                                      side
+                                    );
+                                    const proveedorKey =
+                                      proveedorHuellaActual === "biostar"
+                                        ? "biostar"
+                                        : "hiki";
+                                    const registradasProveedor = huellasPorProveedor[proveedorKey];
+                                    const registrado = (
+                                      (registradasProveedor || []).map((v: any) =>
+                                        Number(v)
+                                      )
+                                    ).includes(fingerShape.id);
+                                    const selectedForCapture = selectedFinger === fingerShape.id;
+                                    const highlight = selectedForCapture;
+                                    const finger = fingers.find((f) => f.id === fingerShape.id);
+                                    return (
+                                      <Tooltip
+                                        key={fingerShape.id}
+                                        title={`${finger?.label || "Dedo"} ${
+                                          registrado ? "(registrado)" : "(sin registrar)"
+                                        }`}
+                                      >
+                                        <Box
+                                          onClick={() => {
+                                            setSelectedFinger(fingerShape.id);
+                                          }}
+                                          sx={{
+                                            position: "absolute",
+                                            left: fingerShape.left,
+                                            top: fingerShape.top,
+                                            width: fingerShape.width,
+                                            height: clamp(fingerShape.height + adjust.h, 30, 140),
+                                            borderRadius: "14px",
+                                          transform: `translate(${adjust.dx}px, ${adjust.dy}px) rotate(${
+                                            fingerShape.rot + adjust.rot
+                                          }deg)`,
+                                          transformOrigin: "center",
+                                          bgcolor: "#f3c998",
+                                          border: highlight
+                                            ? "2px solid #7a3cff"
+                                            : registrado
+                                            ? "2px solid #66bb6a"
+                                            : "2px solid #d89f6b",
+                                          boxShadow: selectedForCapture
+                                            ? "0 0 0 3px rgba(122,60,255,.22)"
+                                            : registrado
+                                            ? "0 0 0 1px rgba(102,187,106,.22)"
+                                            : "none",
+                                          cursor: "pointer",
+                                        }}
+                                      />
+                                      </Tooltip>
+                                    );
+                                  })}
+                                </Box>
+                                <Box
+                                  sx={{
+                                    position: "absolute",
+                                    left: "50%",
+                                    bottom: 10,
+                                    transform: "translateX(-50%)",
+                                    fontSize: 12,
+                                    color: "#6a4a2e",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  {side === "L" ? "Mano izquierda" : "Mano derecha"}
+                                </Box>
+                              </Box>
+                            ))}
                           </Box>
-                        ))}
-                      </Box>
+                        </>
                     </>
                   )}
 
@@ -1264,7 +2058,23 @@ export default function Empleados() {
         </DialogContent>
         <DialogActions>
           {biometriaStep === "huella" && (
-            <>
+            <Box sx={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              {huellaProviderQueue.length > 1 && (
+                <Button
+                  variant="outlined"
+                  color="warning"
+                  onClick={() => {
+                    setHuellaProviderIndex((prev) =>
+                      haySiguienteProveedorHuella ? prev + 1 : Math.max(0, prev - 1)
+                    );
+                    setBiometriaMensaje("");
+                  }}
+                  sx={{ fontWeight: 700 }}
+                >
+                  {haySiguienteProveedorHuella ? "Omitir a BioStar" : "Regresar a Hikvision"}
+                </Button>
+              )}
+              <Box>
               {devReplayEnabled && (
                 <Button
                   variant="outlined"
@@ -1280,9 +2090,10 @@ export default function Empleados() {
                 onClick={iniciarCapturaHuella}
                 sx={{ fontWeight: 700, color: "common.white" }}
               >
-                Siguiente
+                Capturar
               </Button>
-            </>
+              </Box>
+            </Box>
           )}
           {biometriaStep === "ok" && (
             <Button
@@ -1396,4 +2207,10 @@ export default function Empleados() {
     </div>
   );
 }
+
+
+
+
+
+
 

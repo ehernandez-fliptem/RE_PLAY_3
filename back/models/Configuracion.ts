@@ -23,13 +23,45 @@ export interface IConfiguracion extends Document {
     imgCorreo: string;
     saludaCorreo: string;
     despedidaCorreo: string;
-
+    correo_cuentas?: Array<{
+        id: string;
+        nombre: string;
+        proveedor: "outlook" | "gmail" | "smtp";
+        host: string;
+        port: number;
+        secure: boolean;
+        requireTLS: boolean;
+        user: string;
+        pass: string;
+        fromName?: string;
+        fromEmail?: string;
+        activo: boolean;
+    }>;
+    correo_visitantes_cuenta_id?: string;
+    correo_visitantes_template?: {
+        asunto: string;
+        secciones: Array<{
+            id: string;
+            tipo: "nombre" | "qr" | "texto" | "imagen" | "pdf" | "enlace";
+            titulo?: string;
+            contenido?: string;
+            dataUrl?: string;
+            fileName?: string;
+            fijo?: boolean;
+            enlaceUrl?: string;
+            enlaceTexto?: string;
+            enlaceColor?: string;
+            enlaceAlign?: "left" | "center" | "right";
+            enlaceFontSize?: number;
+        }>;
+    };
     tiempoFotoVisita: number;
     delayProximaFoto: number;
     tiempoCancelacionRegistros: string;
     tiempoToleranciaEntrada: string;
     tiempoToleranciaSalida: string;
     habilitarIntegracionHv: boolean;
+    habilitarIntegracionBiostar: boolean;
     habilitarIntegracionHvBiometria: boolean;
     habilitarIntegracionCdvi: boolean;
     habilitarCamaras: boolean;
@@ -115,6 +147,42 @@ const configuracionSchema = new Schema<IConfiguracion>({
             message: () => `El mensaje de despedida contiene etiquetas HTML inválidas.`,
         },
     },
+    correo_cuentas: [{
+        _id: false,
+        id: { type: String, required: true },
+        nombre: { type: String, required: true },
+        proveedor: { type: String, enum: ["outlook", "gmail", "smtp"], default: "smtp" },
+        host: { type: String, default: "" },
+        port: { type: Number, default: 587 },
+        secure: { type: Boolean, default: false },
+        requireTLS: { type: Boolean, default: true },
+        user: { type: String, default: "" },
+        pass: { type: String, default: "" },
+        fromName: { type: String, default: "" },
+        fromEmail: { type: String, default: "" },
+        activo: { type: Boolean, default: true },
+    }],
+    correo_visitantes_cuenta_id: { type: String, default: "" },
+    correo_visitantes_template: {
+        asunto: { type: String, default: "Registro del visitante" },
+        secciones: [
+            {
+                _id: false,
+                id: { type: String, required: true },
+                tipo: { type: String, enum: ["nombre", "qr", "texto", "imagen", "pdf", "enlace"], required: true },
+                titulo: { type: String, default: "" },
+                contenido: { type: String, default: "" },
+                dataUrl: { type: String, default: "" },
+                fileName: { type: String, default: "" },
+                fijo: { type: Boolean, default: false },
+                enlaceUrl: { type: String, default: "" },
+                enlaceTexto: { type: String, default: "" },
+                enlaceColor: { type: String, default: "" },
+                enlaceAlign: { type: String, enum: ["left", "center", "right"], default: "left" },
+                enlaceFontSize: { type: Number, default: 16 },
+            }
+        ],
+    },
     // 1.2. Usuarios
     validarHorario: { type: Boolean, default: false },
     notificarCheck: { type: Boolean, default: false },
@@ -128,6 +196,7 @@ const configuracionSchema = new Schema<IConfiguracion>({
     tiempoToleranciaEntrada: { type: String, default: '1/m' },
     tiempoToleranciaSalida: { type: String, default: '1/m' },
     habilitarIntegracionHv: { type: Boolean, default: false },
+    habilitarIntegracionBiostar: { type: Boolean, default: false },
     habilitarIntegracionHvBiometria: { type: Boolean, default: false },
     habilitarIntegracionCdvi: { type: Boolean, default: false },
     habilitarCamaras: { type: Boolean, default: false },
@@ -243,3 +312,4 @@ configuracionSchema.pre<IConfiguracion>('save', async function (next) {
 const Configuracion: Model<IConfiguracion> = mongoose.model<IConfiguracion>('configuraciones', configuracionSchema);
 
 export default Configuracion;
+

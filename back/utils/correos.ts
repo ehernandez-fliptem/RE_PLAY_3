@@ -1,12 +1,27 @@
-import { Types } from "mongoose";
+﻿import { Types } from "mongoose";
 import { sendEmail, type AttachmentInput } from "../middlewares/mail";
-import Configuracion from "../models/Configuracion";
 import Usuarios, { IUsuario } from "../models/Usuarios";
 import QRCode from "qrcode";
 import dayjs from "dayjs";
 import Registros from "../models/Registros";
+import Configuracion from "../models/Configuracion";
 import { agruparDataParaAnfitrion, agruparDataParaVisitante } from "./utils";
 import { CONFIG } from "../config";
+
+const SALUDO_GENERAL = "Hola,";
+const DESPEDIDA_GENERAL = "Saludos cordiales,<br>Equipo de Recepcion Electronica";
+const SALUDO_CONTRATISTAS = "Hola,";
+const DESPEDIDA_CONTRATISTAS = "Atentamente,<br>Equipo de Recepcion Electronica";
+const SALUDO_SOPORTE = "Equipo de soporte,";
+const DESPEDIDA_SOPORTE = "Atentamente,<br>Monitoreo de Recepcion Electronica";
+
+const escapeHtml = (value: string) =>
+    String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 
 /**
  * @function
@@ -25,9 +40,7 @@ export async function enviarCorreoUsuario(
 ): Promise<boolean> {
     try {
         const asunto = "Tu cuenta de recepcion electronica a sido creada";
-        const config = await Configuracion.findOne({}, "despedidaCorreo");
-        if (!config) throw new Error("No hay una configuración establecida.");
-        const { despedidaCorreo } = config;
+        const despedidaCorreo = DESPEDIDA_GENERAL;
 
         const response = await sendEmail({
             destinatario: correo,
@@ -86,9 +99,8 @@ export async function enviarCorreoUsuarioNuevaContrasena(
 ): Promise<boolean> {
     try {
         const asunto = "Restablecimiento de contraseña";
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay un configuración establecida.")
-        const { saludaCorreo, despedidaCorreo } = config
+        const saludaCorreo = SALUDO_CONTRATISTAS;
+        const despedidaCorreo = DESPEDIDA_CONTRATISTAS;
 
         const response = await sendEmail({
             destinatario: correo,
@@ -130,83 +142,164 @@ export async function enviarCorreoUsuarioNuevaContrasena(
     }
 }
 
-/** Correo de nuevo visitante en la seccion de Recepcion Visitantes
-     * @function
-     * @name enviarCorreoNuevoVisitanteHV
-     * @description Envía correo al visitante con su QR de acceso.
-     * @param correo - Correo de destino.
-     * @param nombreCompleto - Nombre completo del visitante.
-     * @param qrDataUrl - QR en formato DataURL (data:image/png;base64,...)
-     */
-    export async function enviarCorreoNuevoVisitanteHV(
+/** Correo de nuevo visitante en la seccion de Recepcion Visitantes */
+export async function enviarCorreoNuevoVisitanteHV(
     correo: string,
     nombreCompleto: string,
     qrDataUrl: string
-    ): Promise<boolean> {
+): Promise<boolean> {
     try {
-        const asunto = "Registro del visitante";
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay una configuración establecida.");
+        const config = await Configuracion.findOne({}, "correo_visitantes_template correo_visitantes_cuenta_id").lean<any>();
+        const plantilla = config?.correo_visitantes_template || {};
+        const cuentaIdVisitantesConfigurada = String(config?.correo_visitantes_cuenta_id || "").trim();
+        const cuentaIdVisitantes =
+            cuentaIdVisitantesConfigurada ||
+            (CONFIG.MAIL_VISITANTES_DEFAULT_FOR_TEMPLATE ? String(CONFIG.MAIL_VISITANTES_ID || "").trim() : "");
+        const asunto = String(plantilla?.asunto || "Registro del visitante");
+        const seccionesRaw = Array.isArray(plantilla?.secciones) ? plantilla.secciones : [];
 
-        const response = await sendEmail({
-        destinatario: correo,
-        asunto,
-        contenido: `
+        const secciones = seccionesRaw.length > 0
+            ? seccionesRaw
+            : [
+                { id: "fixed_nombre", tipo: "nombre", fijo: true },
+                { id: "fixed_qr", tipo: "qr", fijo: true },
+            ];
+
+        const plusAttachments: AttachmentInput[] = [
+            { dataUrl: qrDataUrl, cid: "qr", filename: "qr.png" },
+        ];
+        const bloquesHtml: string[] = [];
+        let imgIndex = 0;
+        let pdfIndex = 0;
+
+        for (const item of secciones) {
+            const tipo = String(item?.tipo || "").toLowerCase();
+            if (tipo === "nombre") {
+                bloquesHtml.push(`
+                    <tr><td><p><strong>Estimado, ${escapeHtml(nombreCompleto)}</strong></p></td></tr>
+                `);
+                continue;
+            }
+            if (tipo === "qr") {
+                bloquesHtml.push(`
+                    <tr>
+                        <td>
+                            <p style="font-size:16px; text-align:center;">
+                                Presenta este código para poder ingresar a nuestras instalaciones
+                            </p>
+                            <div align="center" style="margin: 20px 0;">
+                                <img src="cid:qr" style="width:320px; height:320px;" />
+                            </div>
+                        </td>
+                    </tr>
+                `);
+                continue;
+            }
+            if (tipo === "texto") {
+                const titulo = String(item?.titulo || "").trim();
+                const contenido = String(item?.contenido || "").trim();
+                if (!titulo && !contenido) continue;
+                bloquesHtml.push(`
+                    <tr>
+                        <td>
+                            ${titulo ? `<h3 style="margin: 0 0 6px 0;">${escapeHtml(titulo)}</h3>` : ""}
+                            ${contenido ? `<p style="margin: 0; white-space: pre-wrap;">${escapeHtml(contenido)}</p>` : ""}
+                        </td>
+                    </tr>
+                `);
+                continue;
+            }
+            if (tipo === "imagen") {
+                const dataUrl = String(item?.dataUrl || "");
+                if (!dataUrl.startsWith("data:image/")) continue;
+                const cid = `tpl_img_${imgIndex++}`;
+                plusAttachments.push({
+                    dataUrl,
+                    cid,
+                    filename: String(item?.fileName || `${cid}.png`),
+                });
+                const titulo = String(item?.titulo || "").trim();
+                bloquesHtml.push(`
+                    <tr>
+                        <td>
+                            ${titulo ? `<h3 style="margin: 0 0 8px 0;">${escapeHtml(titulo)}</h3>` : ""}
+                            <div align="center" style="margin: 10px 0;">
+                                <img src="cid:${cid}" style="max-width: 100%; height: auto; border-radius: 6px;" />
+                            </div>
+                        </td>
+                    </tr>
+                `);
+                continue;
+            }
+            if (tipo === "pdf") {
+                const dataUrl = String(item?.dataUrl || "");
+                if (!dataUrl.startsWith("data:application/pdf;base64,")) continue;
+                const cid = `tpl_pdf_${pdfIndex++}`;
+                const filename = String(item?.fileName || `documento_${pdfIndex}.pdf`);
+                plusAttachments.push({
+                    dataUrl,
+                    cid,
+                    filename,
+                });
+                // El PDF se adjunta al correo, pero no se muestra texto en el cuerpo.
+            }
+            if (tipo === "enlace") {
+                const enlaceUrl = String(item?.enlaceUrl || "").trim();
+                if (!/^https?:\/\//i.test(enlaceUrl)) continue;
+                const enlaceTexto = String(item?.enlaceTexto || "Ver enlace").trim();
+                const enlaceAlignRaw = String(item?.enlaceAlign || "left").toLowerCase();
+                const enlaceAlign = ["left", "center", "right"].includes(enlaceAlignRaw)
+                    ? enlaceAlignRaw
+                    : "left";
+                const enlaceColor = String(item?.enlaceColor || "#1a73e8").trim() || "#1a73e8";
+                const fontSizeRaw = Number(item?.enlaceFontSize || 16);
+                const enlaceFontSize = Number.isFinite(fontSizeRaw)
+                    ? Math.max(10, Math.min(40, fontSizeRaw))
+                    : 16;
+
+                bloquesHtml.push(`
+                    <tr>
+                        <td>
+                            <p style="margin: 8px 0; text-align:${enlaceAlign}; font-size:${enlaceFontSize}px;">
+                                <a href="${escapeHtml(enlaceUrl)}" target="_blank" rel="noreferrer"
+                                   style="color:${escapeHtml(enlaceColor)}; text-decoration:underline;">
+                                    ${escapeHtml(enlaceTexto)}
+                                </a>
+                            </p>
+                        </td>
+                    </tr>
+                `);
+            }
+        }
+
+        const contenido = `
             <table border="0" cellpadding="0" cellspacing="0" width="100%">
-            <tr>
-                <td>
-                <table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
-                    
-                    <tr>
-                    <td bgcolor="#ffffff">
-                        <h1 align="center">Registro del visitante</h1>
-                    </td>
-                    </tr>
-
-                    <tr>
+                <tr>
                     <td>
-                        <p><strong>Estimado, ${nombreCompleto}</strong></p>
+                        <table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
+                            <tr>
+                                <td bgcolor="#ffffff">
+                                    <h1 align="center">${escapeHtml(asunto)}</h1>
+                                </td>
+                            </tr>
+                            ${bloquesHtml.join("\n")}
+                        </table>
                     </td>
-                    </tr>
-
-                    <tr>
-                    <td>
-                        <p style="font-size:16px; text-align:center;">
-                        Presenta este código para poder ingresar a nuestras instalaciones
-                        </p>
-                    </td>
-                    </tr>
-
-                    <tr>
-                    <td>
-                        <div align="center" style="margin: 20px 0;">
-                        <img 
-                            src="cid:qr"
-                            style="width:320px; height:320px;"
-                        />
-                        </div>
-                    </td>
-                    </tr>
-
-                </table>
-                </td>
-            </tr>
+                </tr>
             </table>
-        `,
-        plusAttachments: [
-            {
-            dataUrl: qrDataUrl,
-            cid: "qr",
-            filename: "qr.png",
-            },
-        ],
-        });
+        `;
 
-        return response;
+        return await sendEmail({
+            destinatario: correo,
+            asunto,
+            contenido,
+            plusAttachments,
+            cuentaId: cuentaIdVisitantes || undefined,
+        });
     } catch (error) {
         throw error;
     }
-    }
+}
 
 
 
@@ -228,9 +321,8 @@ export async function enviarCorreoCitaVisitante(
     try {
         let correosEnviados = 0;
         const asunto = "Cita Registrada";
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay un configuración establecida.")
-        const { saludaCorreo, despedidaCorreo } = config
+        const saludaCorreo = SALUDO_SOPORTE;
+        const despedidaCorreo = DESPEDIDA_SOPORTE;
         const registros_por_enviar = await Registros.aggregate([
             {
                 $match: {
@@ -501,9 +593,8 @@ export async function enviarCorreoCitaAnfitrion(
     try {
         let correosEnviados = 0;
         const asunto = "Cita Registrada";
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay un configuración establecida.")
-        const { saludaCorreo, despedidaCorreo } = config
+        const saludaCorreo = SALUDO_CONTRATISTAS;
+        const despedidaCorreo = DESPEDIDA_CONTRATISTAS;
         const registros_por_enviar = await Registros.aggregate([
             {
                 $match: {
@@ -738,9 +829,8 @@ export async function enviarCorreoModificacionCitaVisitante(
 
     try {
         const asunto = "Cita Modificada"
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay un configuración establecida.")
-        const { saludaCorreo, despedidaCorreo } = config
+        const saludaCorreo = SALUDO_GENERAL;
+        const despedidaCorreo = DESPEDIDA_GENERAL;
         const { nombre: anfitrion, correo: correo_anfi } = await Usuarios.findById(id_anfitrion, { nombre: { $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"] }, correo: 1 }) as IUsuario;
         const registro = await Registros.aggregate([
             {
@@ -946,9 +1036,8 @@ export async function enviarCorreoModificacionCitaAnfitrion(
 ): Promise<boolean> {
     try {
         const asunto = "Cita Modificada";
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay un configuración establecida.")
-        const { saludaCorreo, despedidaCorreo } = config
+        const saludaCorreo = SALUDO_GENERAL;
+        const despedidaCorreo = DESPEDIDA_GENERAL;
         const { correo } = await Usuarios.findById(id_anfitrion, "correo") as IUsuario;
         const registro = await Registros.aggregate([
             {
@@ -1138,9 +1227,8 @@ export async function enviarCorreoCancelacionCitaVisitante(
 ): Promise<boolean> {
     try {
         const asunto = "Visita cancelada";
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay un configuración establecida.")
-        const { saludaCorreo, despedidaCorreo } = config
+        const saludaCorreo = SALUDO_GENERAL;
+        const despedidaCorreo = DESPEDIDA_GENERAL;
         const { nombre: anfitrion } = await Usuarios.findById(id_anfitrion, { nombre: { $concat: ["$nombre", " ", "$apellido_pat", " ", "$apellido_mat"] } }) as IUsuario;
 
         const response = await sendEmail({
@@ -1211,9 +1299,8 @@ export async function enviarCorreoCancelacionCitaAnfitrion(
 ): Promise<boolean> {
     try {
         const asunto = "Visita cancelada";
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay un configuración establecida.")
-        const { saludaCorreo, despedidaCorreo } = config
+        const saludaCorreo = SALUDO_GENERAL;
+        const despedidaCorreo = DESPEDIDA_GENERAL;
         const { correo } = await Usuarios.findById(id_anfitrion, 'correo') as IUsuario;
 
         const response = await sendEmail({
@@ -1361,9 +1448,8 @@ export async function enviarCorreoNotificarCheck(
     }): Promise<boolean> {
     try {
         const { tipo, id_general, nombre, fecha_creacion, fecha_actual, comentario, entrada_horario, salida_horario } = datos;
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay un configuración establecida.")
-        const { saludaCorreo, despedidaCorreo } = config;
+        const saludaCorreo = SALUDO_GENERAL;
+        const despedidaCorreo = DESPEDIDA_GENERAL;
 
         const response = await sendEmail({
             destinatario: correo,
@@ -1458,9 +1544,8 @@ export async function enviarCorreoDocumentoRechazada(datos: {
 }): Promise<boolean> {
     try {
         const { correo, tipo_documento, fecha_carga, motivo } = datos;
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay un configuración establecida.")
-        const { saludaCorreo, despedidaCorreo } = config;
+        const saludaCorreo = SALUDO_GENERAL;
+        const despedidaCorreo = DESPEDIDA_GENERAL;
         const response = await sendEmail({
             destinatario: correo,
             asunto: "Documentación rechazada",
@@ -1539,9 +1624,8 @@ export async function enviarCorreoDocumentoExpirado(datos: {
 }): Promise<boolean> {
     try {
         const { correo, tipo, tiempo_restante } = datos;
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay un configuración establecida.")
-        const { saludaCorreo, despedidaCorreo } = config;
+        const saludaCorreo = SALUDO_GENERAL;
+        const despedidaCorreo = DESPEDIDA_GENERAL;
         const response = await sendEmail({
             destinatario: correo,
             asunto: "Documentación a punto de expirar",
@@ -1603,9 +1687,8 @@ export async function enviarCorreoErrorSoporte(
 ): Promise<boolean> {
     try {
         const { mensaje, componente, stack, fecha } = datos;
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay un configuración establecida.")
-        const { saludaCorreo, despedidaCorreo } = config;
+        const saludaCorreo = SALUDO_GENERAL;
+        const despedidaCorreo = DESPEDIDA_GENERAL;
 
         const response = await sendEmail({
             destinatario: correo,
@@ -1671,9 +1754,8 @@ export async function enviarCorreoNuevaLigaCita(
     token: string
 ): Promise<boolean> {
     try {
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay un configuración establecida.")
-        const { saludaCorreo, despedidaCorreo } = config;
+        const saludaCorreo = SALUDO_GENERAL;
+        const despedidaCorreo = DESPEDIDA_GENERAL;
 
         const response = await sendEmail({
             destinatario: correo,
@@ -1841,9 +1923,8 @@ const enviarCorreoPlantillaContratistas = async (params: {
     plusAttachments?: AttachmentInput[];
 }): Promise<boolean> => {
     try {
-        const config = await Configuracion.findOne({}, "saludaCorreo despedidaCorreo");
-        if (!config) throw new Error("No hay una configuracion establecida.");
-        const { saludaCorreo, despedidaCorreo } = config;
+        const saludaCorreo = SALUDO_GENERAL;
+        const despedidaCorreo = DESPEDIDA_GENERAL;
         const response = await sendEmail({
             destinatario: params.destinatario,
             asunto: params.asunto,
@@ -1964,4 +2045,7 @@ export async function enviarCorreoAnfitrionSolicitudAprobada(datos: {
         return false;
     }
 }
+
+
+
 

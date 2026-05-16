@@ -14,7 +14,7 @@ import { esES } from "@mui/x-data-grid/locales";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import ErrorOverlay from "../../error/DataGridError";
 import { AxiosError } from "axios";
-import { Controller, useForm, type SubmitHandler } from "react-hook-form";
+import { Controller, FormProvider, useForm, type SubmitHandler } from "react-hook-form";
 import type { Dayjs } from "dayjs";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -47,6 +47,7 @@ import {
   ClearAll,
   Close,
   LocationOn,
+  QrCodeScanner,
   Search,
   Visibility,
 } from "@mui/icons-material";
@@ -55,6 +56,7 @@ import { DateTimePicker } from "@mui/x-date-pickers";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
 import InfiniteAutocomplete from "../../utils/InfiniteAutocomplete";
+import LectorQrVisitantes from "../../recepcion/visitantes/LectorQrVisitantes";
 
 const pageSizeOptions = [10, 25, 50];
 
@@ -145,6 +147,7 @@ export default function Eventos() {
     reValidateMode: "onChange",
     mode: "all",
   });
+  const qrFormContext = useForm({ defaultValues: { qr: "" } });
 
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();
@@ -156,6 +159,7 @@ export default function Eventos() {
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [openDetalleCampo, setOpenDetalleCampo] = useState(false);
   const [openMapa, setOpenMapa] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
   const [eventoSeleccionado, setEventoSeleccionado] =
     useState<GridValidRowModel | null>(null);
   const [eventoMapa, setEventoMapa] = useState<GridValidRowModel | null>(null);
@@ -335,6 +339,65 @@ export default function Eventos() {
     const bottom = coords.lat - delta;
     return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${coords.lat}%2C${coords.lng}`;
   })();
+
+  const onQrValidate = async (qr: string): Promise<{ ok: boolean; message: string; img_ine?: string; nombre?: string; tipo_check?: number; biostar_modo_manual?: boolean }> => {
+    const regexEmpleado = /^[0-9]+$/;
+    const regexCardCode = /^VST[A-Z0-9]{16}$/;
+    if (!regexCardCode.test(qr) && !regexEmpleado.test(qr)) {
+      const message = "QR invalido o no corresponde a un empleado/visitante.";
+      enqueueSnackbar(message, { variant: "error" });
+      return { ok: false, message };
+    }
+    try {
+      const res = await clienteAxios.post("/api/eventos/validar-qr", { qr, lector: 0 });
+      if (!res.data.estado) {
+        const message = res.data.mensaje || "No se pudo validar el QR.";
+        enqueueSnackbar(message, { variant: "error" });
+        return { ok: false, message };
+      }
+      const puedeAcceder = res.data.datos?.puedeAcceder;
+      const nombre = res.data.datos?.nombre;
+      const tipoCheck = res.data.datos?.tipo_check;
+      if (puedeAcceder === false) {
+        const message = nombre
+          ? `Acceso pendiente para ${nombre}. Requiere validacion.`
+          : "Acceso pendiente de autorizacion. Requiere validacion.";
+        enqueueSnackbar(message, { variant: "warning" });
+        return { ok: false, message };
+      }
+      const esEntrada = tipoCheck === 6 ? false : true;
+      const esVisitanteQr = regexCardCode.test(qr);
+      const ineRaw = String(res.data?.datos?.img_ine || "").trim();
+      const message = nombre
+        ? `Acceso a ${nombre}. ${esEntrada ? "Bienvenido." : "Hasta luego."}`
+        : esEntrada
+          ? "Acceso permitido. Bienvenido."
+          : "Salida registrada. Hasta luego.";
+      enqueueSnackbar(message, { variant: "success" });
+      return {
+        ok: true,
+        message,
+        img_ine: esVisitanteQr ? ineRaw || "" : undefined,
+        nombre,
+        tipo_check: tipoCheck,
+        biostar_modo_manual: !!res.data?.datos?.biostar_modo_manual,
+      };
+    } catch (error) {
+      handlingError(error);
+      return { ok: false, message: "Error al validar el QR. Intenta de nuevo." };
+    }
+  };
+
+  const onManualClose = async (): Promise<{ ok: boolean; message: string }> => {
+    try {
+      const res = await clienteAxios.post("/api/eventos/biostar/cerrar-manual");
+      const ok = !!res.data?.estado;
+      return { ok, message: res.data?.mensaje || (ok ? "Acceso cerrado." : "No se pudo cerrar.") };
+    } catch (error) {
+      handlingError(error);
+      return { ok: false, message: "Error al cerrar acceso en BioStar." };
+    }
+  };
 
   return (
     <Fragment>
@@ -725,7 +788,21 @@ export default function Eventos() {
           }}
           slots={{
             toolbar: () => (
-              <DataGridToolbar showSearchButton={false} tableTitle="Resúmen" />
+              <DataGridToolbar
+                showSearchButton={false}
+                tableTitle="Resúmen"
+                customActionButtons={(
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => setShowQRScanner(true)}
+                    startIcon={<QrCodeScanner fontSize="small" />}
+                    sx={{ textTransform: "none" }}
+                  >
+                    Escanear QR
+                  </Button>
+                )}
+              />
             ),
           }}
         />
@@ -736,6 +813,16 @@ export default function Eventos() {
           />
         )}
         <Outlet />
+      {showQRScanner && (
+        <FormProvider {...qrFormContext}>
+          <LectorQrVisitantes
+            name="qr"
+            setShow={setShowQRScanner}
+            onQrValidate={onQrValidate}
+            onManualClose={onManualClose}
+          />
+        </FormProvider>
+      )}
       </div>
 
       <Dialog

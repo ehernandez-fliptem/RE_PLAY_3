@@ -22,6 +22,7 @@ import {
   LockOpen,
   QrCodeScanner,
   RestoreFromTrash,
+  Upload,
   Verified,
   // Upload, // Carga masiva oculta temporalmente
   Visibility,
@@ -41,6 +42,7 @@ import LectorQrVisitantes from "./LectorQrVisitantes";
 import { isBlockedNow } from "../../../utils/bloqueo";
 
 import CircularProgress from "@mui/material/CircularProgress";
+import { FormControl, InputLabel, MenuItem, Select } from "@mui/material";
 import { areDocumentosChecksComplete } from "./documentosChecks";
 // sin helpers de documentos en tabla
 
@@ -67,6 +69,7 @@ export default function Visitantes() {
   });
 
   const [loadingRows, setLoadingRows] = useState<Record<string, boolean>>({});
+  const [estadoFiltro, setEstadoFiltro] = useState<"activos" | "inactivos" | "todos">("activos");
   const autoBlockedByTrashRef = useRef<Record<string, boolean>>({});
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
@@ -77,7 +80,7 @@ export default function Visitantes() {
 
   const onQrValidate = async (
     qr: string
-  ): Promise<{ ok: boolean; message: string }> => {
+  ): Promise<{ ok: boolean; message: string; img_ine?: string; nombre?: string; tipo_check?: number; biostar_modo_manual?: boolean }> => {
     const regexCardCode = /^VST[A-Z0-9]{16}$/;
     const isValid = regexCardCode.test(qr);
     if (!isValid) {
@@ -100,16 +103,24 @@ export default function Visitantes() {
             ? `Acceso pendiente para ${nombre}. Requiere validación.`
             : "Acceso pendiente de autorización. Requiere validación.";
           enqueueSnackbar(message, { variant: "warning" });
-          return { ok: false, message };
+          return { ok: false, message, nombre };
         }
         const esEntrada = tipoCheck === 6 ? false : true;
+        const ineRaw = String(res.data?.datos?.img_ine || "").trim();
         const message = nombre
           ? `Acceso a ${nombre}. ${esEntrada ? "Bienvenido." : "Hasta luego."}`
           : esEntrada
             ? "Acceso permitido. Bienvenido."
             : "Salida registrada. Hasta luego.";
         enqueueSnackbar(message, { variant: "success" });
-        return { ok: true, message };
+        return {
+          ok: true,
+          message,
+          img_ine: ineRaw || "",
+          nombre,
+          tipo_check: tipoCheck,
+          biostar_modo_manual: !!res.data?.datos?.biostar_modo_manual,
+        };
       }
       const message = res.data.mensaje || "No se pudo validar el QR.";
       enqueueSnackbar(message, { variant: "error" });
@@ -120,6 +131,17 @@ export default function Visitantes() {
         ok: false,
         message: "Error al validar el QR. Intenta de nuevo.",
       };
+    }
+  };
+
+  const onManualClose = async (): Promise<{ ok: boolean; message: string }> => {
+    try {
+      const res = await clienteAxios.post("/api/eventos/biostar/cerrar-manual");
+      const ok = !!res.data?.estado;
+      return { ok, message: res.data?.mensaje || (ok ? "Acceso cerrado." : "No se pudo cerrar.") };
+    } catch (error) {
+      handlingError(error);
+      return { ok: false, message: "Error al cerrar acceso en BioStar." };
     }
   };
 
@@ -134,6 +156,7 @@ export default function Visitantes() {
             filter: JSON.stringify(params.filterModel.quickFilterValues),
             pagination: JSON.stringify(params.paginationModel),
             sort: JSON.stringify(params.sortModel),
+            estado: estadoFiltro,
           });
           const res = await clienteAxios.get(
             "/api/visitantes?" + urlParams.toString()
@@ -155,7 +178,7 @@ export default function Visitantes() {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [estadoFiltro]
   );
 
   const initialState: GridInitialState = useMemo(
@@ -220,36 +243,44 @@ export default function Visitantes() {
     verificarRegistro(row._id);
   };
 
-  const cambiarEstado = async (ID: string, activo: boolean) => {
+  const cambiarEstado = async (ID: string, activo: boolean, nombre: string) => {
     if (!activo) {
-      try {
-        const res = await clienteAxios.patch(`/api/visitantes/${ID}`, {
-          activo,
-        });
-        if (res.data.estado) {
-          apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
-          if (autoBlockedByTrashRef.current[ID]) {
-            setRowLoading(ID, true);
-            try {
-              const unlockRes = await clienteAxios.patch(`/api/visitantes/desbloquear/${ID}`);
-              if (unlockRes.data.estado) {
-                const v = unlockRes.data.data;
-                apiRef.current?.updateRows([
-                  { _id: ID, bloqueado: v.bloqueado, desbloqueado_hasta: v.desbloqueado_hasta ?? null },
-                ]);
+      confirm({
+        title: "¿Seguro que deseas restaurar a este visitante?",
+        description: nombre,
+        allowClose: true,
+        confirmationText: "Continuar",
+      })
+        .then(async (result) => {
+          if (!result.confirmed) return;
+          const res = await clienteAxios.patch(`/api/visitantes/${ID}`, {
+            activo,
+          });
+          if (res.data.estado) {
+            apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
+            if (autoBlockedByTrashRef.current[ID]) {
+              setRowLoading(ID, true);
+              try {
+                const unlockRes = await clienteAxios.patch(`/api/visitantes/desbloquear/${ID}`);
+                if (unlockRes.data.estado) {
+                  const v = unlockRes.data.data;
+                  apiRef.current?.updateRows([
+                    { _id: ID, bloqueado: v.bloqueado, desbloqueado_hasta: v.desbloqueado_hasta ?? null },
+                  ]);
+                }
+              } finally {
+                setRowLoading(ID, false);
+                delete autoBlockedByTrashRef.current[ID];
               }
-            } finally {
-              setRowLoading(ID, false);
-              delete autoBlockedByTrashRef.current[ID];
             }
+          } else {
+            enqueueSnackbar(res.data.mensaje, { variant: "error" });
           }
-        } else {
-          enqueueSnackbar(res.data.mensaje, { variant: "error" });
-        }
-      } catch (error) {
-        const { restartSession } = handlingError(error);
-        if (restartSession) navigate("/logout", { replace: true });
-      }
+        })
+        .catch((error) => {
+          const { restartSession } = handlingError(error);
+          if (restartSession) navigate("/logout", { replace: true });
+        });
       return;
     }
 
@@ -318,6 +349,63 @@ export default function Visitantes() {
       if (restartSession) navigate("/logout", { replace: true });
     } finally {
       setIsDownloadingQr({ id_usuario: ID, descargando: false });
+    }
+  };
+
+  const eliminarPermanente = (ID: string, nombre: string) => {
+    confirm({
+      title: "¿Seguro que deseas eliminar permanentemente este visitante?",
+      description: nombre,
+      allowClose: true,
+      confirmationText: "Continuar",
+    })
+      .then(async (result) => {
+        if (!result.confirmed) return;
+        setRowLoading(ID, true);
+        const res = await clienteAxios.patch(`/api/visitantes/eliminar-permanente/${ID}`);
+        if (res.data.estado) {
+          apiRef.current?.dataSource?.fetchRows?.();
+          enqueueSnackbar("Visitante eliminado permanentemente.", { variant: "success" });
+        } else {
+          enqueueSnackbar(res.data.mensaje, { variant: "warning" });
+        }
+      })
+      .catch((error) => {
+        const { restartSession } = handlingError(error);
+        if (restartSession) navigate("/logout", { replace: true });
+      })
+      .finally(() => setRowLoading(ID, false));
+  };
+
+  const resincronizarPaneles = async (ID: string) => {
+    setRowLoading(ID, true);
+    try {
+      const res = await clienteAxios.patch(`/api/visitantes/resync/${ID}`);
+      if (!res.data?.estado) {
+        enqueueSnackbar(res.data?.mensaje || "No se pudo sincronizar.", { variant: "warning" });
+        return;
+      }
+      const sync = res.data?.datos?.sync || {};
+      const subidos = Array.isArray(sync.subidos) ? sync.subidos : [];
+      const fallidos = Array.isArray(sync.fallidos) ? sync.fallidos : [];
+      if (fallidos.length > 0) {
+        const okTxt = subidos.length > 0 ? `Subido en: ${subidos.join(", ")}.` : "No se subio en paneles.";
+        const failTxt = `Pendiente en: ${fallidos.map((f: any) => f?.ip).filter(Boolean).join(", ")}.`;
+        enqueueSnackbar(`${okTxt} ${failTxt}`, { variant: "warning" });
+      } else {
+        enqueueSnackbar(
+          subidos.length > 0
+            ? `Sincronizado en panel(es): ${subidos.join(", ")}`
+            : "Sincronizacion completada.",
+          { variant: "success" }
+        );
+      }
+      (apiRef.current as any)?.dataSource?.fetchRows?.();
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setRowLoading(ID, false);
     }
   };
 
@@ -582,18 +670,36 @@ const accionBloquear = (ID: string) => {
                     row.activo ? (
                       <GridActionsCellItem
                         icon={<Delete color="success" />}
-                        onClick={() => cambiarEstado(row._id, row.activo)}
+                        onClick={() => cambiarEstado(row._id, row.activo, row.nombre)}
                         label="Desactivar"
                         title="Desactivar"
                       />
                     ) : (
-                      <GridActionsCellItem
-                        icon={<RestoreFromTrash color="error" />}
-                        onClick={() => cambiarEstado(row._id, row.activo)}
-                        label="Restaurar"
-                        title="Restaurar"
-                      />
+                      <Fragment>
+                        <GridActionsCellItem
+                          icon={<RestoreFromTrash color="error" />}
+                          onClick={() => cambiarEstado(row._id, row.activo, row.nombre)}
+                          label="Restaurar"
+                          title="Restaurar"
+                        />
+                        <GridActionsCellItem
+                          icon={<Delete color="error" />}
+                          onClick={() => eliminarPermanente(row._id, row.nombre)}
+                          label="Eliminar permanentemente"
+                          title="Eliminar permanentemente"
+                        />
+                      </Fragment>
                     )
+                  );
+                }
+                if (row.sync_hikvision_pendiente) {
+                  gridActions.push(
+                    <GridActionsCellItem
+                      icon={<Upload sx={{ color: "#ed6c02" }} />}
+                      onClick={() => resincronizarPaneles(row._id)}
+                      label="Re-subir paneles"
+                      title="Re-subir paneles"
+                    />
                   );
                 }
               }
@@ -741,6 +847,19 @@ const accionBloquear = (ID: string) => {
                       Escanear QR
                     </Button>
                   </Tooltip>
+                  <FormControl size="small" sx={{ minWidth: 180, mx: 1 }}>
+                    <InputLabel id="estado-visitantes-label">Estado</InputLabel>
+                    <Select
+                      labelId="estado-visitantes-label"
+                      value={estadoFiltro}
+                      label="Estado"
+                      onChange={(e) => setEstadoFiltro(e.target.value as typeof estadoFiltro)}
+                    >
+                      <MenuItem value="todos">Todos</MenuItem>
+                      <MenuItem value="activos">Activos</MenuItem>
+                      <MenuItem value="inactivos">Inactivos</MenuItem>
+                    </Select>
+                  </FormControl>
                   {!esRecep && (
                     <Fragment>
                       <Tooltip title="Agregar">
@@ -776,6 +895,7 @@ const accionBloquear = (ID: string) => {
             name="qr"
             setShow={setShowQRScanner}
             onQrValidate={onQrValidate}
+            onManualClose={onManualClose}
             // testQr="VST0000016B86B273FF"
           />
         </FormProvider>
@@ -784,5 +904,8 @@ const accionBloquear = (ID: string) => {
     </div>
   );
 }
+
+
+
 
 

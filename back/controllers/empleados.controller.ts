@@ -10,22 +10,42 @@ import { QueryParams } from '../types/queryparams';
 import Empleados, { IEmpleado } from '../models/Empleados';
 import Usuarios, { IUsuario } from '../models/Usuarios';
 import Empresas, { IEmpresa } from '../models/Empresas';
+import Departamentos from '../models/Departamentos';
+import Puestos from '../models/Puestos';
 import { IPiso } from '../models/Pisos';
 import { IAcceso } from '../models/Accesos';
 import DispositivosHv from '../models/DispositivosHv';
+import DispositivosSuprema from '../models/DispositivosSuprema';
+import DispositivosBiostar from '../models/DispositivosBiostar';
+import BiostarConexion from "../models/BiostarConexion";
 import Configuracion, { IConfiguracion } from '../models/Configuracion';
 import Roles from '../models/Roles';
 import Hikvision from '../classes/Hikvision';
+import { biostarRequest } from "../classes/Biostar";
 import { generarCodigoUnico, isEmptyObject, decryptPassword, encryptPassword, resizeImage, customAggregationForDataGrids, marcarDuplicados } from '../utils/utils';
 import { validarModelo } from '../validators/validadores';
 import { enviarCorreoUsuario } from '../utils/correos';
 import { fecha, log } from "../middlewares/log";
+import puppeteer, { Browser, Page } from "puppeteer";
 
 import { CONFIG } from "../config";
 
 import FaceDetector from '../classes/FaceDetector';
 import FaceDescriptors from '../models/FaceDescriptors';
 const faceDetector = new FaceDetector();
+let biostarUiBrowser: Browser | null = null;
+let biostarUiPage: Page | null = null;
+
+const hikvisionHuellaSyncJob = {
+    running: false,
+    startedAt: "",
+    finishedAt: "",
+    total: 0,
+    processed: 0,
+    success: 0,
+    failed: 0,
+    mensaje: "",
+};
 
 
 export async function obtenerTodos(req: Request, res: Response): Promise<void> {
@@ -33,6 +53,16 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
         const id_usuario = (req as UserRequest).userId;
         const isMaster = (req as UserRequest).isMaster;
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
+        const biostarGroupId = String((req.query as any)?.biostar_group_id || "").trim();
+        const biostarLive = String((req.query as any)?.biostar_live || "").trim() === "1";
+        const estadoFiltro = String((req.query as any)?.estado || "activos").trim().toLowerCase();
+        const correoTipo = String((req.query as any)?.correo_tipo || "todos").trim().toLowerCase();
+        const correoMatch =
+            correoTipo === "biostar_local"
+                ? { correo: /@biostar\.local$/i }
+                : correoTipo === "real"
+                    ? { correo: { $nin: ["", null], $not: /@biostar\.local$/i } }
+                    : {};
 
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
@@ -53,7 +83,11 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
             {
                 $match: {
                     $and: [
-                        isMaster ? {} : { id_empresa: new Types.ObjectId(id_empresa) }
+                        isMaster ? {} : { id_empresa: new Types.ObjectId(id_empresa) },
+                        estadoFiltro === "inactivos" ? { activo: false } : estadoFiltro === "todos" ? {} : { activo: true },
+                        { eliminado_permanente: { $ne: true } },
+                        biostarGroupId ? { biostar_group_id: biostarGroupId, biostar_user_id: { $nin: ["", null] } } : {},
+                        correoMatch,
                     ]
                 }
             },
@@ -99,6 +133,8 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                         }
                     },
                     huellas_total: { $size: { $ifNull: ["$huellas_registradas", []] } },
+                    huellas_hiki_total: { $size: { $ifNull: ["$huellas_hiki_registradas", []] } },
+                    huellas_biostar_total: { $size: { $ifNull: ["$huellas_biostar_registradas", []] } },
                     tarjetas_total: { $size: { $ifNull: ["$tarjetas_registradas", []] } },
                 }
             },
@@ -127,6 +163,8 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                     fecha_modificacion: 0,
                     modificado_por: 0,
                     huellas_registradas: 0,
+                    huellas_hiki_registradas: 0,
+                    huellas_biostar_registradas: 0,
                     tarjetas_registradas: 0,
                 }
             },
@@ -155,7 +193,110 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
             }
         );
         const registros = await Empleados.aggregate(aggregation);
-        res.status(200).json({ estado: true, datos: registros[0] });
+        const result = registros?.[0] || { paginatedResults: [], totalCount: [{ count: 0 }] };
+
+        if (biostarLive && Array.isArray(result.paginatedResults) && result.paginatedResults.length > 0) {
+            const conexion = await getBiostarConexionActiva();
+            if (conexion) {
+                const pageRows = (result.paginatedResults || []) as any[];
+                const bioUserIds = Array.from(
+                    new Set(
+                        pageRows
+                            .map((r: any) => String(r?.biostar_user_id || "").trim())
+                            .filter(Boolean)
+                    )
+                );
+
+                let liveRows: any[] = [];
+                if (bioUserIds.length > 0) {
+                    const liveByIds = await biostarRequest(conexion, {
+                        method: "POST",
+                        url: "/api/v2/users/search?noblockui",
+                        data: { limit: 1000, offset: 0, user_id_list: bioUserIds },
+                    });
+                    if (liveByIds.ok) {
+                        liveRows = (liveByIds.data?.UserCollection?.rows || []) as any[];
+                    } else {
+                        const groupIds = Array.from(
+                            new Set(
+                                pageRows
+                                    .map((r: any) => String(r?.biostar_group_id || "").trim())
+                                    .filter(Boolean)
+                            )
+                        );
+                        if (groupIds.length > 0) {
+                            const liveByGroups = await biostarRequest(conexion, {
+                                method: "POST",
+                                url: "/api/v2/users/search?noblockui",
+                                data: { limit: 1000, offset: 0, user_group_id_list: groupIds },
+                            });
+                            if (liveByGroups.ok) {
+                                liveRows = (liveByGroups.data?.UserCollection?.rows || []) as any[];
+                            }
+                        }
+                    }
+                }
+
+                if (liveRows.length > 0) {
+                    const liveIds = new Set(liveRows.map((u: any) => String(u?.user_id || "").trim()).filter(Boolean));
+                    const liveById = new Map<string, any>();
+                    for (const u of liveRows) {
+                        const uid = String(u?.user_id || "").trim();
+                        if (uid) liveById.set(uid, u);
+                    }
+
+                    const rowsFiltered = pageRows.filter((r: any) => {
+                        const bioUserId = String(r?.biostar_user_id || "").trim();
+                        if (!bioUserId) return true;
+                        if (!liveIds.has(bioUserId)) return false;
+                        const liveUser = liveById.get(bioUserId);
+                        return !isBiostarAdminUser(liveUser);
+                    });
+
+                    // Refleja grupo real desde BioStar para evitar desalineación en filtros.
+                    const bulkOps: any[] = [];
+                    result.paginatedResults = rowsFiltered.map((r: any) => {
+                        const bioUserId = String(r?.biostar_user_id || "").trim();
+                        if (!bioUserId) return r;
+                        const liveUser = liveById.get(bioUserId);
+                        if (!liveUser) return r;
+                        const liveGroupId = String(liveUser?.user_group_id?.id || "").trim();
+                        const liveGroupName = String(liveUser?.user_group_id?.name || "").trim();
+                        if (
+                            liveGroupId &&
+                            (liveGroupId !== String(r?.biostar_group_id || "").trim() ||
+                                liveGroupName !== String(r?.biostar_group_name || "").trim())
+                        ) {
+                            bulkOps.push({
+                                updateOne: {
+                                    filter: { _id: new Types.ObjectId(String(r._id)) },
+                                    update: {
+                                        $set: {
+                                            biostar_group_id: liveGroupId,
+                                            biostar_group_name: liveGroupName,
+                                        },
+                                    },
+                                },
+                            });
+                        }
+                        return {
+                            ...r,
+                            biostar_group_id: liveGroupId || r.biostar_group_id,
+                            biostar_group_name: liveGroupName || r.biostar_group_name,
+                        };
+                    });
+
+                    if (bulkOps.length > 0) {
+                        await Empleados.bulkWrite(bulkOps);
+                    }
+                } else {
+                    // Si BioStar no devolvió usuarios para los IDs de la página, ocultamos los que ya no existen.
+                    result.paginatedResults = pageRows.filter((r: any) => !String(r?.biostar_user_id || "").trim());
+                }
+            }
+        }
+
+        res.status(200).json({ estado: true, datos: result });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
@@ -747,7 +888,19 @@ export async function obtenerFormNuevoEmpleado(req: Request, res: Response): Pro
                 }
             }
         ]);
-        res.status(200).json({ estado: true, datos: { empresas } });
+        const { habilitarIntegracionBiostar } = await Configuracion.findOne({}, "habilitarIntegracionBiostar") as IConfiguracion;
+        let biostarGrupos: Array<{ id_externo: string; nombre: string }> = [];
+        if (habilitarIntegracionBiostar) {
+            const conexion = await getBiostarConexionActiva();
+            if (conexion) {
+                const r = await biostarRequest(conexion, { method: "GET", url: "/api/user_groups?limit=1000" });
+                const rows = (r.data?.UserGroupCollection?.rows || []) as any[];
+                biostarGrupos = rows
+                    .map((row) => ({ id_externo: String(row?.id || ""), nombre: String(row?.name || "").trim() }))
+                    .filter((g) => g.id_externo && g.nombre);
+            }
+        }
+        res.status(200).json({ estado: true, datos: { empresas, biostarGrupos, habilitarIntegracionBiostar: !!habilitarIntegracionBiostar } });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
@@ -932,9 +1085,21 @@ export async function obtenerFormEditarEmpleado(req: Request, res: Response): Pr
                 }
             }
         ]);
+        const { habilitarIntegracionBiostar } = await Configuracion.findOne({}, "habilitarIntegracionBiostar") as IConfiguracion;
+        let biostarGrupos: Array<{ id_externo: string; nombre: string }> = [];
+        if (habilitarIntegracionBiostar) {
+            const conexion = await getBiostarConexionActiva();
+            if (conexion) {
+                const r = await biostarRequest(conexion, { method: "GET", url: "/api/user_groups?limit=1000" });
+                const rows = (r.data?.UserGroupCollection?.rows || []) as any[];
+                biostarGrupos = rows
+                    .map((row) => ({ id_externo: String(row?.id || ""), nombre: String(row?.name || "").trim() }))
+                    .filter((g) => g.id_externo && g.nombre);
+            }
+        }
         res.status(200).json({
             estado: true, datos: {
-                usuario: usuario[0], empresas
+                usuario: usuario[0], empresas, biostarGrupos, habilitarIntegracionBiostar: !!habilitarIntegracionBiostar
             }
         });
     } catch (error: any) {
@@ -1043,7 +1208,63 @@ const findFirstStringByKeys = (value: any, keys: string[]): string => {
     return "";
 };
 
+const tryParseJsonString = (value: any): any => {
+    if (typeof value !== "string") return value;
+    const txt = value.trim();
+    if (!txt) return value;
+    if (!(txt.startsWith("{") || txt.startsWith("["))) return value;
+    try {
+        return JSON.parse(txt);
+    } catch {
+        return value;
+    }
+};
+
+const extractFingerprintTemplate = (payload: any): { template0: string; template1: string; finger_mask: string; } => {
+    const normalized = tryParseJsonString(payload);
+    const t0 = String(
+        findFirstStringByKeys(normalized, ["template0", "Template0", "template", "Template"]) || ""
+    ).trim();
+    const t1Raw = String(
+        findFirstStringByKeys(normalized, ["template1", "Template1", "template_1", "Template_1"]) || ""
+    ).trim();
+    const t1 = t1Raw || t0;
+    const mask = String(findFirstStringByKeys(normalized, ["finger_mask", "fingerMask"]) || "false").trim() || "false";
+    return { template0: t0, template1: t1, finger_mask: mask };
+};
+
+const extractFingerprintTemplateSamples = (payload: any): Array<{ template0: string; template1: string; finger_mask: string; }> => {
+    const out: Array<{ template0: string; template1: string; finger_mask: string; }> = [];
+    const seen = new Set<string>();
+    const walk = (value: any) => {
+        const normalized = tryParseJsonString(value);
+        if (!normalized) return;
+        if (Array.isArray(normalized)) {
+            for (const item of normalized) walk(item);
+            return;
+        }
+        if (typeof normalized !== "object") return;
+
+        const sample = extractFingerprintTemplate(normalized);
+        if (sample.template0) {
+            const key = `${sample.template0}|${sample.template1}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                out.push(sample);
+            }
+        }
+        for (const key of Object.keys(normalized)) {
+            walk((normalized as any)[key]);
+        }
+    };
+    walk(payload);
+    return out;
+};
+
 const captureFingerprintFromPanel = async (ip: string, user: string, pass: string, fingerNo: number) => {
+    const hikiDebug = (...args: any[]) => {
+        console.log("[HIKI_DEBUG]", ...args);
+    };
     const xmlPayload =
         `<?xml version="1.0" encoding="UTF-8"?>` +
         `<CaptureFingerPrintCond version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">` +
@@ -1051,8 +1272,11 @@ const captureFingerprintFromPanel = async (ip: string, user: string, pass: strin
         `</CaptureFingerPrintCond>`;
     let response: { statusCode: number; body: string; } | null = null;
     let lastError: any = null;
+    let protocolUsado = "";
+    const startedAt = Date.now();
     for (const protocol of ["https", "http"]) {
         try {
+            const startedProtocol = Date.now();
             response = await runCurlText([
                 "-k",
                 "--digest",
@@ -1066,9 +1290,25 @@ const captureFingerprintFromPanel = async (ip: string, user: string, pass: strin
                 "-d",
                 xmlPayload,
             ]);
+            protocolUsado = protocol;
+            hikiDebug("capture_fingerprint_transport_ok", {
+                ip,
+                fingerNo,
+                protocol,
+                elapsedMs: Date.now() - startedProtocol,
+                statusCode: response.statusCode,
+                bodyLength: String(response.body || "").length,
+            });
             break;
         } catch (error: any) {
             lastError = error;
+            hikiDebug("capture_fingerprint_transport_error", {
+                ip,
+                fingerNo,
+                protocol,
+                elapsedMs: Date.now() - startedAt,
+                error: error?.message || String(error),
+            });
         }
     }
     if (!response) {
@@ -1077,8 +1317,21 @@ const captureFingerprintFromPanel = async (ip: string, user: string, pass: strin
     const { statusCode, body } = response;
     const fingerData = xmlTagValue(body, "fingerData");
     const fingerPrintQuality = Number(xmlTagValue(body, "fingerPrintQuality")) || 0;
+    const parsed = parseXmlStatus(body);
+    hikiDebug("capture_fingerprint_response", {
+        ip,
+        fingerNo,
+        protocol: protocolUsado || "unknown",
+        statusCode,
+        totalElapsedMs: Date.now() - startedAt,
+        hasFingerData: Boolean(fingerData),
+        fingerDataLength: String(fingerData || "").length,
+        fingerPrintQuality,
+        statusString: parsed.statusString || "",
+        subStatusCode: parsed.subStatusCode || "",
+        errorMsg: parsed.errorMsg || "",
+    });
     if (statusCode >= 400 || !fingerData) {
-        const parsed = parseXmlStatus(body);
         const timeout = parsed.subStatusCode === "captureTimeout" || parsed.errorMsg === "captureTimeout";
         throw new Error(
             timeout
@@ -1140,6 +1393,114 @@ const setupFingerprintOnPanel = async (ip: string, user: string, pass: string, e
     const okReaders = statusList.filter((item: any) => Number(item?.cardReaderRecvStatus) === 1).length;
     const applied = statusList.length === 0 ? true : okReaders > 0;
     return { applied, statusList };
+};
+
+const applyFingerprintToPanels = async (params: {
+    paneles: any[];
+    employeeNo: string;
+    dedo: number;
+    fingerData: string;
+}) => {
+    const paneles_aplicados: string[] = [];
+    const paneles_fallidos: Array<{ panel: string; mensaje: string; }> = [];
+    for (const panel of params.paneles) {
+        const panelNombre = String(panel.nombre || panel.direccion_ip || panel._id);
+        try {
+            const panelUser = String(panel.usuario || "").trim();
+            const panelPass = decryptPassword(String(panel.contrasena || ""), CONFIG.SECRET_CRYPTO);
+            const setupRes = await setupFingerprintOnPanel(
+                String(panel.direccion_ip),
+                panelUser,
+                panelPass,
+                params.employeeNo,
+                params.dedo,
+                params.fingerData
+            );
+            if (setupRes.applied) {
+                paneles_aplicados.push(panelNombre);
+            } else {
+                paneles_fallidos.push({
+                    panel: panelNombre,
+                    mensaje: "El panel no confirmó la aplicación de la huella.",
+                });
+            }
+        } catch (error: any) {
+            paneles_fallidos.push({
+                panel: panelNombre,
+                mensaje: error?.message || "Error al aplicar huella en panel.",
+            });
+        }
+    }
+    return { paneles_aplicados, paneles_fallidos };
+};
+
+const getHikvisionPanelsByEmpleado = async (registro: any) => {
+    return DispositivosHv.find({
+        activo: true,
+        tipo_evento: { $in: [5, 6, 7] },
+        id_acceso: { $in: Array.isArray(registro?.accesos) ? registro.accesos : [] },
+    }).lean();
+};
+
+const syncAllEmpleadoFingerprintsToPanels = async (registro: any) => {
+    const templates = normalizeHuellaTemplateMap((registro as any)?.huellas_template_dev);
+    const dedos = Object.keys(templates)
+        .map((k) => Number(k))
+        .filter((n) => Number.isInteger(n) && n >= 1 && n <= 10)
+        .sort((a, b) => a - b);
+    if (dedos.length === 0) {
+        return {
+            estado: false,
+            mensaje: "No hay huellas guardadas para re-subir.",
+            datos: { dedos: [], resumen: { total_dedos: 0, dedos_ok: 0, dedos_error: 0 } },
+        };
+    }
+
+    const paneles = await getHikvisionPanelsByEmpleado(registro);
+    if (!paneles.length) {
+        return {
+            estado: false,
+            mensaje: "No hay paneles destino disponibles para re-subir huellas.",
+            datos: { dedos, resumen: { total_dedos: dedos.length, dedos_ok: 0, dedos_error: dedos.length } },
+        };
+    }
+
+    const employeeNo = String(registro.id_empleado);
+    const detalle: Array<any> = [];
+    let dedosOk = 0;
+
+    for (const dedo of dedos) {
+        const templateEncrypted = templates[String(dedo)];
+        const fingerData = decryptPassword(String(templateEncrypted || ""), CONFIG.SECRET_CRYPTO);
+        if (!fingerData) {
+            detalle.push({ dedo, estado: false, paneles_aplicados: [], paneles_fallidos: [{ panel: "-", mensaje: "No se pudo leer la plantilla guardada." }] });
+            continue;
+        }
+        const resultado = await applyFingerprintToPanels({
+            paneles,
+            employeeNo,
+            dedo,
+            fingerData,
+        });
+        if (resultado.paneles_aplicados.length > 0) dedosOk += 1;
+        detalle.push({ dedo, estado: resultado.paneles_aplicados.length > 0, ...resultado });
+    }
+
+    return {
+        estado: dedosOk > 0,
+        mensaje: dedosOk === dedos.length
+            ? "Huellas re-subidas correctamente."
+            : `Re-subida parcial de huellas (${dedosOk}/${dedos.length}).`,
+        datos: {
+            dedos,
+            detalle,
+            resumen: {
+                total_dedos: dedos.length,
+                dedos_ok: dedosOk,
+                dedos_error: dedos.length - dedosOk,
+            },
+        },
+    };
 };
 
 const captureCardFromPanel = async (ip: string, user: string, pass: string) => {
@@ -1267,7 +1628,7 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
 
         const registro = await Empleados.findOne(
             filtro,
-            "nombre apellido_pat apellido_mat huellas_registradas huellas_template_dev tarjetas_registradas tarjetas_web"
+            "nombre apellido_pat apellido_mat huellas_registradas huellas_hiki_registradas huellas_biostar_registradas huellas_template_dev tarjetas_registradas tarjetas_web"
         ).lean();
 
         if (!registro) {
@@ -1284,6 +1645,49 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
             .map((key) => Number(key))
             .filter((key) => Number.isInteger(key) && key >= 1 && key <= 10)
             .sort((a, b) => a - b);
+        const huellasHikiRegistradas = Array.isArray((registro as any)?.huellas_hiki_registradas)
+            ? ((registro as any).huellas_hiki_registradas as number[]).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 10).sort((a, b) => a - b)
+            : huellasTemplateDevKeys;
+        const huellasBiostarRegistradas = Array.isArray((registro as any)?.huellas_biostar_registradas)
+            ? ((registro as any).huellas_biostar_registradas as number[]).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 10).sort((a, b) => a - b)
+            : [];
+        const panelesHiki = await DispositivosHv.find(
+            { activo: true, tipo_evento: { $in: [5, 6, 7] } },
+            "nombre direccion_ip es_panel_maestro"
+        ).lean();
+        let dispositivosBiostar: Array<{ id: string; nombre: string; direccion_ip: string; puerto: number }> = [];
+        const conexionBio = await getBiostarConexionActiva();
+        if (conexionBio) {
+            const responses = await Promise.all([
+                biostarRequest(conexionBio as any, { method: "POST", url: "/api/devices", data: {} }),
+                biostarRequest(conexionBio as any, { method: "POST", url: "/api/devices", data: { Device: {} } }),
+                biostarRequest(conexionBio as any, { method: "GET", url: "/api/devices?limit=1000" }),
+            ]);
+            const success = responses.find((r) => r.ok);
+            const rows = (success?.data?.DeviceCollection?.rows || success?.data?.devices || success?.data?.rows || []) as any[];
+            if (Array.isArray(rows) && rows.length) {
+                dispositivosBiostar = rows
+                    .map((item: any) => ({
+                        id: String(item?.id || item?.device_id || item?.deviceID || "").trim(),
+                        nombre: String(item?.name || item?.device_name || "").trim(),
+                        direccion_ip: String(item?.ip_address || item?.ip || item?.lan?.ip || "").trim(),
+                        puerto: Number(item?.port || item?.server_port || item?.lan?.device_port || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
+                    }))
+                    .filter((d) => !!d.id);
+            }
+        }
+        if (!dispositivosBiostar.length) {
+            const local = await DispositivosSuprema.find(
+                { activo: true },
+                "nombre direccion_ip puerto"
+            ).lean();
+            dispositivosBiostar = (local || []).map((d: any) => ({
+                id: String(d?._id || "").trim(),
+                nombre: String(d?.nombre || "").trim(),
+                direccion_ip: String(d?.direccion_ip || "").trim(),
+                puerto: Number(d?.puerto || CONFIG.BIOSTAR_PORT) || CONFIG.BIOSTAR_PORT,
+            }));
+        }
 
         res.status(200).json({
             estado: true,
@@ -1297,6 +1701,17 @@ export async function obtenerBiometriaEmpleado(req: Request, res: Response): Pro
                 tarjetas_total: tarjetas.length,
                 dev_huella_replay_enabled: true,
                 huellas_template_dev: huellasTemplateDevKeys,
+                huellas_por_proveedor: {
+                    hiki: huellasHikiRegistradas,
+                    biostar: huellasBiostarRegistradas,
+                },
+                paneles_hiki: (panelesHiki || []).map((p: any) => ({
+                    id: String(p?._id || ""),
+                    nombre: String(p?.nombre || "").trim(),
+                    direccion_ip: String(p?.direccion_ip || "").trim(),
+                    es_panel_maestro: !!p?.es_panel_maestro,
+                })),
+                dispositivos_biostar: dispositivosBiostar,
             },
         });
     } catch (error: any) {
@@ -1361,22 +1776,12 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
         const isMaster = (req as UserRequest).isMaster;
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
         const dedo = Number(req.body?.dedo);
+        const proveedor = String(req.body?.proveedor || "hiki").trim().toLowerCase();
 
         if (!Number.isInteger(dedo) || dedo < 1 || dedo > 10) {
             res.status(400).json({ estado: false, mensaje: "El dedo es inválido. Usa un valor entre 1 y 10." });
             return;
-        }
-
-        const config = await Configuracion.findOne({}, "habilitarIntegracionHv habilitarIntegracionHvBiometria");
-        if (!config?.habilitarIntegracionHv || !config?.habilitarIntegracionHvBiometria) {
-            res.status(200).json({
-                estado: false,
-                mensaje: "La integración biométrica de Hikvision está desactivada.",
-            });
-            return;
-        }
-
-        const filtro: any = { _id: req.params.id };
+        }        const filtro: any = { _id: req.params.id };
         if (!isMaster) filtro.id_empresa = id_empresa;
 
         const registro = await Empleados.findOne(filtro);
@@ -1385,8 +1790,276 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
             return;
         }
 
+        if (proveedor === "biostar") {
+            const configBio = await Configuracion.findOne({}, "habilitarIntegracionBiostar");
+            if (!configBio?.habilitarIntegracionBiostar) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: "La integracion de BioStar esta desactivada.",
+                });
+                return;
+            }
+
+            const conexion = await getBiostarConexionActiva();
+            if (!conexion) {
+                res.status(200).json({ estado: false, mensaje: "No hay conexion activa de BioStar." });
+                return;
+            }
+
+            const deviceId = String(req.body?.panel_biostar_id || "").trim();
+            if (!deviceId) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: "Selecciona un dispositivo BioStar para capturar.",
+                });
+                return;
+            }
+
+            let bioUserId = String((registro as any)?.biostar_user_id || "").trim();
+            if (!bioUserId) {
+                const syncRes = await syncEmpleadoBiostar({
+                    empleado: registro as any,
+                    biostar_group_id: String((registro as any)?.biostar_group_id || "1"),
+                });
+                if (!syncRes.ok || !String(syncRes.userId || "").trim()) {
+                    res.status(200).json({
+                        estado: false,
+                        mensaje: syncRes.mensaje || "No se pudo preparar el usuario en BioStar para capturar huella.",
+                    });
+                    return;
+                }
+                bioUserId = String(syncRes.userId || "").trim();
+                await Empleados.findByIdAndUpdate(
+                    req.params.id,
+                    {
+                        $set: {
+                            biostar_user_id: bioUserId,
+                            biostar_group_id: syncRes.groupId || String((registro as any)?.biostar_group_id || "1"),
+                            biostar_group_name: syncRes.groupName || String((registro as any)?.biostar_group_name || ""),
+                            modificado_por: id_usuario,
+                            fecha_modificacion: Date.now(),
+                        },
+                    },
+                    { runValidators: true }
+                );
+            }
+
+            // Prepara modo de enrollment como en BioStar antes de escanear.
+            await biostarRequest(conexion, {
+                method: "GET",
+                url: "/api/devices/enrollment?type=1&nonBlock=true",
+                timeout: 10000,
+            });
+
+            const capturedSamples: Array<{ template0: string; template1: string; finger_mask: string; }> = [];
+            const requiredSamples = 2;
+            const maxAttemptsPerSample = 4;
+            const sampleKeySet = new Set<string>();
+
+            for (let sampleIdx = 0; sampleIdx < requiredSamples; sampleIdx++) {
+                let sampleCaptured = false;
+                let lastScanMsg = "";
+
+                for (let attempt = 1; attempt <= maxAttemptsPerSample; attempt++) {
+                    const scanRes = await biostarRequest(conexion, {
+                        method: "POST",
+                        url: `/api/devices/${encodeURIComponent(deviceId)}/scan_fingerprint`,
+                        data: {
+                            ScanFingerprintOption: {
+                                enroll_quality: "80",
+                                raw_image: false,
+                            },
+                            noblockui: true,
+                        },
+                        timeout: 25000,
+                    });
+
+                    const scanCode = bioCode(scanRes.data);
+                    const extractedSamples = extractFingerprintTemplateSamples(scanRes.data);
+                    lastScanMsg = bioMessage(scanRes.data, scanRes.message || "").trim();
+                    bioDebugLog("scan_fingerprint", {
+                        sample: sampleIdx + 1,
+                        attempt,
+                        ok: scanRes.ok,
+                        code: scanCode,
+                        message: lastScanMsg,
+                        templatesFound: extractedSamples.length,
+                    });
+                    if (!extractedSamples.length) {
+                        bioDebugLog("scan_fingerprint_raw", {
+                            sample: sampleIdx + 1,
+                            attempt,
+                            data: scanRes.data,
+                        });
+                    }
+
+                    if (extractedSamples.length > 0) {
+                        const uniqueSample = extractedSamples.find((candidate) => {
+                            const key = `${candidate.template0}|${candidate.template1}`;
+                            return !sampleKeySet.has(key);
+                        }) || extractedSamples[0];
+
+                        const sampleKey = `${uniqueSample.template0}|${uniqueSample.template1}`;
+                        sampleKeySet.add(sampleKey);
+                        capturedSamples.push(uniqueSample);
+                        sampleCaptured = true;
+                        break;
+                    }
+
+                    if (!(scanRes.ok && (!scanCode || scanCode === "0"))) {
+                        if (attempt >= maxAttemptsPerSample) {
+                            res.status(200).json({
+                                estado: false,
+                                mensaje: lastScanMsg || "No se pudo capturar la huella en BioStar.",
+                            });
+                            return;
+                        }
+                    }
+                }
+
+                if (!sampleCaptured) {
+                    res.status(200).json({
+                        estado: false,
+                        mensaje: `No se obtuvo plantilla en la captura ${sampleIdx + 1} de 2 tras varios intentos. Vuelve a escanear el mismo dedo.`,
+                    });
+                    return;
+                }
+            }
+            if (capturedSamples.length < 2) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje:
+                        "No se completaron las dos capturas de huella en BioStar. Vuelve a escanear el mismo dedo dos veces.",
+                });
+                return;
+            }
+
+            const sampleForVerify = capturedSamples[0];
+
+            const verifyRes = await biostarRequest(conexion, {
+                method: "POST",
+                url: `/api/devices/${encodeURIComponent(deviceId)}/verify_fingerprint`,
+                data: {
+                    FingerprintTemplate: {
+                        template0: sampleForVerify.template0,
+                        template1: sampleForVerify.template1,
+                    },
+                    VerifyFingerprintOption: { security_level: "0" },
+                },
+            });
+            const verifyCode = bioCode(verifyRes.data);
+            if (!(verifyRes.ok && (!verifyCode || verifyCode === "0"))) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: bioMessage(verifyRes.data, verifyRes.message || "No se pudo verificar la huella en el dispositivo."),
+                });
+                return;
+            }
+
+            const detailRes = await biostarRequest(conexion, {
+                method: "GET",
+                url: `/api/users/${encodeURIComponent(bioUserId)}`,
+            });
+            const detailCode = bioCode(detailRes.data);
+            if (!(detailRes.ok && (!detailCode || detailCode === "0"))) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: bioMessage(detailRes.data, detailRes.message || "No se pudo consultar el usuario en BioStar."),
+                });
+                return;
+            }
+
+            const currentTemplatesRaw = Array.isArray(detailRes.data?.User?.fingerprint_templates)
+                ? detailRes.data.User.fingerprint_templates
+                : [];
+            const fingerIndex = String(Math.max(0, dedo - 1));
+            const nextTemplates = currentTemplatesRaw
+                .filter((item: any) => String(item?.finger_index ?? item?.fingerIndex ?? "") !== fingerIndex)
+                .map((item: any) => ({
+                    finger_index: String(item?.finger_index ?? item?.fingerIndex ?? ""),
+                    finger_mask: String(item?.finger_mask ?? item?.fingerMask ?? "false"),
+                    template0: String(item?.template0 || ""),
+                    template1: String(item?.template1 || ""),
+                }))
+                .filter((item: any) => item.finger_index !== "" && item.template0 && item.template1);
+            const samplesForEnroll = capturedSamples.slice(0, 2);
+            for (const sample of samplesForEnroll) {
+                nextTemplates.push({
+                    finger_index: fingerIndex,
+                    finger_mask: String(sample.finger_mask || "false"),
+                    template0: sample.template0,
+                    template1: sample.template1,
+                });
+            }
+
+            const putRes = await biostarRequest(conexion, {
+                method: "PUT",
+                url: `/api/users/${encodeURIComponent(bioUserId)}`,
+                data: {
+                    User: {
+                        fingerprint_templates: nextTemplates,
+                    },
+                },
+            });
+            const putCode = bioCode(putRes.data);
+            if (!(putRes.ok && (!putCode || putCode === "0"))) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: bioMessage(putRes.data, putRes.message || "No se pudo guardar la huella en BioStar."),
+                });
+                return;
+            }
+
+            const huellasActuales = Array.isArray(registro.huellas_registradas) ? registro.huellas_registradas : [];
+            const huellas = Array.from(new Set([...huellasActuales, dedo])).sort((a, b) => a - b);
+            const huellasBiostarActuales = Array.isArray((registro as any)?.huellas_biostar_registradas)
+                ? (registro as any).huellas_biostar_registradas
+                : [];
+            const huellasBiostar = Array.from(new Set([...huellasBiostarActuales, dedo])).sort((a, b) => a - b);
+            await Empleados.findByIdAndUpdate(
+                req.params.id,
+                {
+                    $set: {
+                        huellas_registradas: huellas,
+                        huellas_biostar_registradas: huellasBiostar,
+                        modificado_por: id_usuario,
+                        fecha_modificacion: Date.now(),
+                    },
+                },
+                { runValidators: true }
+            );
+
+            res.status(200).json({
+                estado: true,
+                mensaje: "Huella registrada correctamente en BioStar.",
+                datos: {
+                    huellas_registradas: huellas,
+                    huellas_total: huellas.length,
+                    proveedor: "biostar",
+                    huellas_por_proveedor: {
+                        biostar: huellasBiostar,
+                    },
+                },
+            });
+            return;
+        }
+
+        const config = await Configuracion.findOne({}, "habilitarIntegracionHv habilitarIntegracionHvBiometria");
+        if (!config?.habilitarIntegracionHv || !config?.habilitarIntegracionHvBiometria) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "La integracion biometrica de Hikvision esta desactivada.",
+            });
+            return;
+        }
+
+        const panelSolicitadoId = String(req.body?.panel_hiki_id || "").trim();
         const panelMaestro = await DispositivosHv.findOne({ activo: true, es_panel_maestro: true }).lean();
-        if (!panelMaestro) {
+        const panelSolicitado = panelSolicitadoId
+            ? await DispositivosHv.findOne({ _id: panelSolicitadoId, activo: true }).lean()
+            : null;
+        const panelCaptura = panelSolicitado || panelMaestro;
+        if (!panelCaptura) {
             res.status(200).json({
                 estado: false,
                 mensaje: "No hay panel maestro configurado para captura de huella.",
@@ -1400,73 +2073,61 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
             id_acceso: { $in: Array.isArray(registro.accesos) ? registro.accesos : [] },
         }).lean();
 
+        const employeeNo = String(registro.id_empleado);
+        const tryCaptureFromPanel = async (panel: any) => {
+            const panelUser = String(panel?.usuario || "").trim();
+            const panelPass = decryptPassword(String(panel?.contrasena || ""), CONFIG.SECRET_CRYPTO);
+            return captureFingerprintFromPanel(
+                String(panel?.direccion_ip || ""),
+                panelUser,
+                panelPass,
+                dedo
+            );
+        };
+
+        let captureSourcePanel: any = panelCaptura;
+        let captureData: { fingerData: string; fingerPrintQuality: number; } | null = null;
+        let captureError: any = null;
+        try {
+            captureData = await tryCaptureFromPanel(panelCaptura);
+        } catch (error: any) {
+            captureError = error;
+            const msg = String(error?.message || "").toLowerCase();
+            const canFallbackToMaster =
+                !!panelMaestro &&
+                String((panelCaptura as any)?._id || "") !== String((panelMaestro as any)?._id || "");
+            const isCaptureTimeout = msg.includes("no se detectó la huella a tiempo") || msg.includes("capturetimeout");
+            if (canFallbackToMaster && isCaptureTimeout) {
+                console.log("[HIKI_DEBUG]", "capture_retry_master_after_timeout", {
+                    requestedPanelId: String((panelCaptura as any)?._id || ""),
+                    masterPanelId: String((panelMaestro as any)?._id || ""),
+                });
+                try {
+                    captureData = await tryCaptureFromPanel(panelMaestro);
+                    captureSourcePanel = panelMaestro;
+                    captureError = null;
+                } catch (errorMaster: any) {
+                    captureError = errorMaster;
+                }
+            }
+        }
+        if (!captureData) {
+            throw captureError || new Error("No se pudo capturar la huella en el panel.");
+        }
+        const { fingerData, fingerPrintQuality } = captureData;
+
         const panelesDestinoMap = new Map<string, any>();
-        panelesDestinoMap.set(String(panelMaestro._id), panelMaestro);
+        panelesDestinoMap.set(String(captureSourcePanel._id), captureSourcePanel);
         for (const panel of panelesAcceso) {
             panelesDestinoMap.set(String(panel._id), panel);
         }
         const panelesDestino = Array.from(panelesDestinoMap.values());
-        if (panelesDestino.length === 0) {
-            res.status(200).json({
-                estado: false,
-                mensaje: "No hay paneles destino disponibles para aplicar la huella.",
-            });
-            return;
-        }
-
-        const employeeNo = String(registro.id_empleado);
-        const masterUser = String(panelMaestro.usuario || "").trim();
-        const masterPass = decryptPassword(String(panelMaestro.contrasena || ""), CONFIG.SECRET_CRYPTO);
-        const { fingerData, fingerPrintQuality } = await captureFingerprintFromPanel(
-            String(panelMaestro.direccion_ip),
-            masterUser,
-            masterPass,
-            dedo
-        );
-
-        const paneles_aplicados: string[] = [];
-        const paneles_fallidos: Array<{ panel: string; mensaje: string; }> = [];
-
-        for (const panel of panelesDestino) {
-            const panelNombre = String(panel.nombre || panel.direccion_ip || panel._id);
-            try {
-                const panelUser = String(panel.usuario || "").trim();
-                const panelPass = decryptPassword(String(panel.contrasena || ""), CONFIG.SECRET_CRYPTO);
-                const setupRes = await setupFingerprintOnPanel(
-                    String(panel.direccion_ip),
-                    panelUser,
-                    panelPass,
-                    employeeNo,
-                    dedo,
-                    fingerData
-                );
-                if (setupRes.applied) {
-                    paneles_aplicados.push(panelNombre);
-                } else {
-                    paneles_fallidos.push({
-                        panel: panelNombre,
-                        mensaje: "El panel no confirmó la aplicación de la huella.",
-                    });
-                }
-            } catch (error: any) {
-                paneles_fallidos.push({
-                    panel: panelNombre,
-                    mensaje: error?.message || "Error al aplicar huella en panel.",
-                });
-            }
-        }
-
-        if (paneles_aplicados.length === 0) {
-            res.status(200).json({
-                estado: false,
-                mensaje: "No se pudo aplicar la huella en ningún panel.",
-                datos: { paneles_fallidos },
-            });
-            return;
-        }
-
         const huellasActuales = Array.isArray(registro.huellas_registradas) ? registro.huellas_registradas : [];
         const huellas = Array.from(new Set([...huellasActuales, dedo])).sort((a, b) => a - b);
+        const huellasHikiActuales = Array.isArray((registro as any)?.huellas_hiki_registradas)
+            ? (registro as any).huellas_hiki_registradas
+            : [];
+        const huellasHiki = Array.from(new Set([...huellasHikiActuales, dedo])).sort((a, b) => a - b);
         const huellasTemplateDevActual = normalizeHuellaTemplateMap((registro as any)?.huellas_template_dev);
         const huellasTemplateDev = {
             ...huellasTemplateDevActual,
@@ -1478,6 +2139,7 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
             {
                 $set: {
                     huellas_registradas: huellas,
+                    huellas_hiki_registradas: huellasHiki,
                     huellas_template_dev: huellasTemplateDev,
                     modificado_por: id_usuario,
                     fecha_modificacion: Date.now(),
@@ -1488,19 +2150,54 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
 
         res.status(200).json({
             estado: true,
-            mensaje: paneles_fallidos.length > 0
-                ? `Huella registrada. Aplicada en ${paneles_aplicados.length} panel(es) y con fallas en ${paneles_fallidos.length}.`
-                : "Huella registrada correctamente.",
+            mensaje: "Huella registrada. Se esta sincronizando en segundo plano.",
             datos: {
                 huellas_registradas: huellas,
                 huellas_total: huellas.length,
                 finger_quality: fingerPrintQuality,
-                paneles_aplicados,
-                paneles_fallidos,
+                paneles_objetivo: panelesDestino.map((p: any) => String(p?.nombre || p?.direccion_ip || p?._id)),
                 dev_huella_replay_enabled: true,
                 huellas_template_dev: Object.keys(huellasTemplateDev).map(Number).sort((a, b) => a - b),
+                huellas_por_proveedor: {
+                    hiki: huellasHiki,
+                },
             },
         });
+        setTimeout(async () => {
+            try {
+                if (!panelesDestino.length) {
+                    await Empleados.findByIdAndUpdate(req.params.id, {
+                        $set: {
+                            sync_hikvision_pendiente: true,
+                            sync_hikvision_error: "No hay paneles destino disponibles para aplicar la huella.",
+                        },
+                    });
+                    return;
+                }
+                const resultado = await applyFingerprintToPanels({
+                    paneles: panelesDestino,
+                    employeeNo,
+                    dedo,
+                    fingerData,
+                });
+                const pendiente = resultado.paneles_fallidos.length > 0;
+                await Empleados.findByIdAndUpdate(req.params.id, {
+                    $set: {
+                        sync_hikvision_pendiente: pendiente,
+                        sync_hikvision_error: pendiente
+                            ? `Huella pendiente en: ${resultado.paneles_fallidos.map((f) => f.panel).join(", ")}`
+                            : "",
+                    },
+                });
+            } catch (error: any) {
+                await Empleados.findByIdAndUpdate(req.params.id, {
+                    $set: {
+                        sync_hikvision_pendiente: true,
+                        sync_hikvision_error: error?.message || "Error al sincronizar huella en segundo plano.",
+                    },
+                });
+            }
+        }, 0);
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
@@ -1512,9 +2209,9 @@ export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): 
         const id_usuario = (req as UserRequest).userId;
         const isMaster = (req as UserRequest).isMaster;
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
+        const reenviarTodos = !!req.body?.todos;
         const dedo = Number(req.body?.dedo);
-
-        if (!Number.isInteger(dedo) || dedo < 1 || dedo > 10) {
+        if (!reenviarTodos && (!Number.isInteger(dedo) || dedo < 1 || dedo > 10)) {
             res.status(400).json({ estado: false, mensaje: "El dedo es inválido. Usa un valor entre 1 y 10." });
             return;
         }
@@ -1525,6 +2222,18 @@ export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): 
         const registro = await Empleados.findOne(filtro);
         if (!registro) {
             res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
+            return;
+        }
+
+        if (reenviarTodos) {
+            const resultado = await syncAllEmpleadoFingerprintsToPanels(registro);
+            await Empleados.findByIdAndUpdate(req.params.id, {
+                $set: {
+                    sync_hikvision_pendiente: !resultado.estado,
+                    sync_hikvision_error: resultado.estado ? "" : String(resultado.mensaje || ""),
+                },
+            });
+            res.status(200).json(resultado);
             return;
         }
 
@@ -1546,11 +2255,7 @@ export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): 
             return;
         }
 
-        const panelesAcceso = await DispositivosHv.find({
-            activo: true,
-            tipo_evento: { $in: [5, 6, 7] },
-            id_acceso: { $in: Array.isArray(registro.accesos) ? registro.accesos : [] },
-        }).lean();
+        const panelesAcceso = await getHikvisionPanelsByEmpleado(registro);
         if (panelesAcceso.length === 0) {
             res.status(200).json({
                 estado: false,
@@ -1560,37 +2265,12 @@ export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): 
         }
 
         const employeeNo = String(registro.id_empleado);
-        const paneles_aplicados: string[] = [];
-        const paneles_fallidos: Array<{ panel: string; mensaje: string; }> = [];
-
-        for (const panel of panelesAcceso) {
-            const panelNombre = String(panel.nombre || panel.direccion_ip || panel._id);
-            try {
-                const panelUser = String(panel.usuario || "").trim();
-                const panelPass = decryptPassword(String(panel.contrasena || ""), CONFIG.SECRET_CRYPTO);
-                const setupRes = await setupFingerprintOnPanel(
-                    String(panel.direccion_ip),
-                    panelUser,
-                    panelPass,
-                    employeeNo,
-                    dedo,
-                    fingerData
-                );
-                if (setupRes.applied) {
-                    paneles_aplicados.push(panelNombre);
-                } else {
-                    paneles_fallidos.push({
-                        panel: panelNombre,
-                        mensaje: "El panel no confirmó la aplicación de la huella.",
-                    });
-                }
-            } catch (error: any) {
-                paneles_fallidos.push({
-                    panel: panelNombre,
-                    mensaje: error?.message || "Error al aplicar huella en panel.",
-                });
-            }
-        }
+        const { paneles_aplicados, paneles_fallidos } = await applyFingerprintToPanels({
+            paneles: panelesAcceso,
+            employeeNo,
+            dedo,
+            fingerData,
+        });
 
         if (paneles_aplicados.length === 0) {
             res.status(200).json({
@@ -1600,6 +2280,15 @@ export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): 
             });
             return;
         }
+
+        await Empleados.findByIdAndUpdate(req.params.id, {
+            $set: {
+                sync_hikvision_pendiente: paneles_fallidos.length > 0,
+                sync_hikvision_error: paneles_fallidos.length > 0
+                    ? `Huella pendiente en: ${paneles_fallidos.map((f) => f.panel).join(", ")}`
+                    : "",
+            },
+        });
 
         res.status(200).json({
             estado: true,
@@ -1617,6 +2306,88 @@ export async function reenviarHuellaEmpleadoPanel(req: Request, res: Response): 
     }
 }
 
+export async function iniciarSyncHuellasHikvision(req: Request, res: Response): Promise<void> {
+    try {
+        if (hikvisionHuellaSyncJob.running) {
+            res.status(200).json({
+                estado: true,
+                mensaje: "La sincronización de huellas ya está en progreso.",
+                datos: hikvisionHuellaSyncJob,
+            });
+            return;
+        }
+
+        const registros = await Empleados.find(
+            { activo: true, huellas_template_dev: { $exists: true } },
+            "_id id_empleado nombre apellido_pat apellido_mat huellas_template_dev accesos"
+        ).lean();
+
+        const candidatos = (registros as any[]).filter((r: any) => {
+            const templates = normalizeHuellaTemplateMap(r?.huellas_template_dev);
+            return Object.keys(templates).length > 0;
+        });
+
+        hikvisionHuellaSyncJob.running = true;
+        hikvisionHuellaSyncJob.startedAt = new Date().toISOString();
+        hikvisionHuellaSyncJob.finishedAt = "";
+        hikvisionHuellaSyncJob.total = candidatos.length;
+        hikvisionHuellaSyncJob.processed = 0;
+        hikvisionHuellaSyncJob.success = 0;
+        hikvisionHuellaSyncJob.failed = 0;
+        hikvisionHuellaSyncJob.mensaje = "Sincronizando huellas en segundo plano...";
+
+        setTimeout(async () => {
+            try {
+                for (const empleado of candidatos) {
+                    try {
+                        const resultado = await syncAllEmpleadoFingerprintsToPanels(empleado);
+                        if (resultado.estado) {
+                            hikvisionHuellaSyncJob.success += 1;
+                        } else {
+                            hikvisionHuellaSyncJob.failed += 1;
+                        }
+                        await Empleados.findByIdAndUpdate(String((empleado as any)._id), {
+                            $set: {
+                                sync_hikvision_pendiente: !resultado.estado,
+                                sync_hikvision_error: resultado.estado ? "" : String(resultado.mensaje || ""),
+                            },
+                        });
+                    } catch (error: any) {
+                        hikvisionHuellaSyncJob.failed += 1;
+                        await Empleados.findByIdAndUpdate(String((empleado as any)._id), {
+                            $set: {
+                                sync_hikvision_pendiente: true,
+                                sync_hikvision_error: error?.message || "Error al sincronizar huellas.",
+                            },
+                        });
+                    } finally {
+                        hikvisionHuellaSyncJob.processed += 1;
+                    }
+                }
+                hikvisionHuellaSyncJob.mensaje = "Sincronización de huellas finalizada.";
+            } catch (error: any) {
+                hikvisionHuellaSyncJob.mensaje = error?.message || "Error al ejecutar la sincronización de huellas.";
+            } finally {
+                hikvisionHuellaSyncJob.running = false;
+                hikvisionHuellaSyncJob.finishedAt = new Date().toISOString();
+            }
+        }, 0);
+
+        res.status(200).json({
+            estado: true,
+            mensaje: "Sincronización de huellas iniciada en segundo plano.",
+            datos: hikvisionHuellaSyncJob,
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function obtenerEstadoSyncHuellasHikvision(_req: Request, res: Response): Promise<void> {
+    res.status(200).json({ estado: true, datos: hikvisionHuellaSyncJob });
+}
+
 export async function registrarTarjetaEmpleadoPanel(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;
@@ -1628,18 +2399,7 @@ export async function registrarTarjetaEmpleadoPanel(req: Request, res: Response)
         if (!nombre) {
             res.status(400).json({ estado: false, mensaje: "El nombre de la tarjeta es obligatorio." });
             return;
-        }
-
-        const config = await Configuracion.findOne({}, "habilitarIntegracionHv habilitarIntegracionHvBiometria");
-        if (!config?.habilitarIntegracionHv || !config?.habilitarIntegracionHvBiometria) {
-            res.status(200).json({
-                estado: false,
-                mensaje: "La integración biométrica de Hikvision está desactivada.",
-            });
-            return;
-        }
-
-        const filtro: any = { _id: req.params.id };
+        }        const filtro: any = { _id: req.params.id };
         if (!isMaster) filtro.id_empresa = id_empresa;
 
         const registro = await Empleados.findOne(filtro);
@@ -1836,6 +2596,1159 @@ export async function eliminarTarjetaEmpleadoPanel(req: Request, res: Response):
 
 const normalizarCorreo = (correo?: string) => String(correo || "").trim().toLowerCase();
 
+const bioMessage = (payload: any, fallback: string) =>
+    String(payload?.Response?.message || payload?.message || fallback).trim();
+
+const bioCode = (payload: any) => String(payload?.Response?.code || payload?.code || "").trim();
+const bioDebugLog = (...args: any[]) => {
+    try {
+        // eslint-disable-next-line no-console
+        console.log("[BIOSTAR_DEBUG]", ...args);
+    } catch {
+        // ignore debug logging errors
+    }
+};
+const isBiostarAdminUser = (user: any): boolean => {
+    const userId = String(user?.user_id || user?.User?.user_id || "").trim().toLowerCase();
+    const loginId = String(user?.login_id || user?.User?.login_id || "").trim().toLowerCase();
+    const name = String(user?.name || user?.User?.name || "").trim().toLowerCase();
+    return userId === "administrator" || loginId === "administrator" || name === "administrator";
+};
+
+const getBiostarConexionActiva = async (): Promise<any | null> => {
+    const main = await DispositivosBiostar.findOne({ activo: true, es_main: true }).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
+    if (main) return main;
+    const global = await BiostarConexion.findOne({ activo: true }).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
+    if (global) return global;
+    return DispositivosBiostar.findOne({ activo: true }).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
+};
+
+const ensureBiostarUiPage = async (): Promise<Page> => {
+    if (biostarUiPage && !biostarUiPage.isClosed()) return biostarUiPage;
+    if (!biostarUiBrowser) {
+        biostarUiBrowser = await puppeteer.launch({
+            headless: false,
+            defaultViewport: null,
+            args: ["--start-maximized", "--ignore-certificate-errors"],
+        });
+        biostarUiBrowser.on("disconnected", () => {
+            biostarUiBrowser = null;
+            biostarUiPage = null;
+        });
+    }
+    biostarUiPage = await biostarUiBrowser.newPage();
+    return biostarUiPage;
+};
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const waitForAnySelector = async (
+    page: Page,
+    selectors: string[],
+    timeoutMs = 5000,
+    pollMs = 120
+): Promise<string | null> => {
+    const clean = (selectors || []).filter(Boolean);
+    if (!clean.length) return null;
+    const deadline = Date.now() + Math.max(0, timeoutMs);
+    while (Date.now() <= deadline) {
+        for (const selector of clean) {
+            try {
+                const el = await page.$(selector);
+                if (el) return selector;
+            } catch {
+                // continue
+            }
+        }
+        if (Date.now() >= deadline) break;
+        await sleep(pollMs);
+    }
+    return null;
+};
+
+const bypassCertificateInterstitial = async (page: Page) => {
+    try {
+        const content = await page.content();
+        if (!content.includes("Your connection is not private") && !content.includes("Privacy error")) return;
+        const detailsButton = await page.$("#details-button");
+        if (detailsButton) await detailsButton.click();
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        const proceedLink = await page.$("#proceed-link");
+        if (proceedLink) await proceedLink.click();
+    } catch {
+        // noop
+    }
+};
+
+const intentarLoginBiostarUi = async (page: Page, loginId: string, password: string) => {
+    const usuarioSelector = await waitForAnySelector(page, [
+        "input[name='login_id']",
+        "input[ng-model*='login_id']",
+        "input[type='text']",
+    ], 1600);
+    const passSelector = await waitForAnySelector(page, [
+        "input[name='password']",
+        "input[ng-model*='password']",
+        "input[type='password']",
+    ], 1600);
+
+    if (!usuarioSelector || !passSelector) return;
+
+    await page.click(usuarioSelector, { clickCount: 3 });
+    await page.type(usuarioSelector, loginId);
+    await page.click(passSelector, { clickCount: 3 });
+    await page.type(passSelector, password);
+
+    const submitSelector = await waitForAnySelector(page, [
+        "button[type='submit']",
+        "input[type='submit']",
+        "button[ng-click*='login']",
+        "button[ng-click*='Login']",
+        "button.btn-primary",
+    ], 1200);
+
+    if (submitSelector) {
+        await page.click(submitSelector);
+    } else {
+        await page.focus(passSelector);
+        await page.keyboard.press("Enter");
+    }
+    await sleep(500);
+};
+
+const clickTextIfFound = async (page: Page, labels: string[]) => {
+    const ok = await page.evaluate((rawLabels) => {
+        const labels = (rawLabels || []).map((s) => String(s || "").toLowerCase());
+        const elements = Array.from(document.querySelectorAll("button, a, span, div"));
+        const target = elements.find((el) => {
+            const txt = String((el as HTMLElement).innerText || el.textContent || "").trim().toLowerCase();
+            return txt && labels.some((l) => txt === l || txt.includes(l));
+        }) as HTMLElement | undefined;
+        if (!target) return false;
+        target.click();
+        return true;
+    }, labels);
+    return !!ok;
+};
+
+const seleccionarDispositivoEnroll = async (page: Page, deviceIdOrName: string) => {
+    const wanted = String(deviceIdOrName || "").trim().toLowerCase();
+    if (!wanted) return false;
+    return await page.evaluate((wantedValue) => {
+        const wrappers = Array.from(document.querySelectorAll("select, input, [role='combobox'], .select2-selection, .k-input"));
+        const openDropDown = (el: Element) => {
+            (el as HTMLElement).click();
+        };
+        for (const el of wrappers) {
+            const txt = String((el as HTMLElement).innerText || (el as HTMLInputElement).value || "").toLowerCase();
+            if (txt.includes("device") || txt.includes("dispositivo") || txt.includes("biostar")) {
+                openDropDown(el);
+                break;
+            }
+        }
+        const options = Array.from(document.querySelectorAll("li, option, .k-item, .select2-results__option"));
+        const match = options.find((opt) => {
+            const txt = String((opt as HTMLElement).innerText || opt.textContent || "").trim().toLowerCase();
+            return txt && txt.includes(wantedValue);
+        }) as HTMLElement | undefined;
+        if (!match) return false;
+        match.click();
+        return true;
+    }, wanted);
+};
+
+const abrirModalFingerprintAngular = async (page: Page) => {
+    try {
+        return await page.evaluate(() => {
+            const w = window as any;
+            const ng = w.angular;
+            if (!ng) return false;
+            const injector = ng.element(document.body).injector?.();
+            if (!injector) return false;
+            const root = injector.get("$rootScope");
+            if (!root) return false;
+
+            const visited = new Set<any>();
+            const stack = [root];
+            while (stack.length) {
+                const scope = stack.pop();
+                if (!scope || visited.has(scope)) continue;
+                visited.add(scope);
+                if (typeof scope.doOpenFingerPrintScanDlg === "function") {
+                    try {
+                        scope.doOpenFingerPrintScanDlg();
+                        if (!scope.$$phase && typeof scope.$applyAsync === "function") scope.$applyAsync();
+                        return true;
+                    } catch {
+                        // continue
+                    }
+                }
+                if (scope.$$childHead) stack.push(scope.$$childHead);
+                if (scope.$$nextSibling) stack.push(scope.$$nextSibling);
+            }
+            return false;
+        });
+    } catch {
+        return false;
+    }
+};
+
+const instalarAutoApplyFingerprint = async (page: Page) => {
+    try {
+        await page.evaluate(() => {
+            const w = window as any;
+            if (w.__replayAutoApplyInstalled) return;
+            const ng = w.angular;
+            if (!ng) return;
+            const injector = ng.element(document.body).injector?.();
+            if (!injector) return;
+            const root = injector.get("$rootScope");
+            if (!root) return;
+
+            const visited = new Set<any>();
+            const stack = [root];
+            let target: any = null;
+            while (stack.length) {
+                const scope = stack.pop();
+                if (!scope || visited.has(scope)) continue;
+                visited.add(scope);
+                if (
+                    typeof scope.doScanFingerPrint === "function" &&
+                    typeof scope.doApplyFingerPrintScan === "function" &&
+                    scope.fingerPrint
+                ) {
+                    target = scope;
+                    break;
+                }
+                if (scope.$$childHead) stack.push(scope.$$childHead);
+                if (scope.$$nextSibling) stack.push(scope.$$nextSibling);
+            }
+            if (!target) return;
+
+            const clickApplyOnUserDetail = () => {
+                const labels = ["apply", "aplicar", "저장", "적용"];
+                const elements = Array.from(document.querySelectorAll("button, a, span, div"));
+                const targetBtn = elements.find((el) => {
+                    const txt = String((el as HTMLElement).innerText || el.textContent || "").trim().toLowerCase();
+                    if (!txt) return false;
+                    if (!labels.some((l) => txt === l || txt.includes(l))) return false;
+                    const style = window.getComputedStyle(el as Element);
+                    return style.display !== "none" && style.visibility !== "hidden";
+                }) as HTMLElement | undefined;
+                if (targetBtn) targetBtn.click();
+            };
+
+            const clickApplyBySelector = () => {
+                const selectorCandidates = [
+                    "button.btnCntS.btnColorPoint",
+                    "button[ng-click*='doApply']",
+                    "button[ng-click*='ApplyInfo']",
+                    "button[ng-click*='doDlgApply']",
+                ];
+                for (const sel of selectorCandidates) {
+                    const nodes = Array.from(document.querySelectorAll(sel));
+                    const btn = nodes.find((el) => {
+                        const style = window.getComputedStyle(el as Element);
+                        const txt = String((el as HTMLElement).innerText || "").trim().toLowerCase();
+                        return style.display !== "none" && style.visibility !== "hidden" &&
+                            (!txt || txt.includes("apply") || txt.includes("aplicar") || txt.includes("확인") || txt.includes("적용"));
+                    }) as HTMLElement | undefined;
+                    if (btn) {
+                        btn.click();
+                        return true;
+                    }
+                }
+                return false;
+            };
+
+            const callApplyInAngularScopes = () => {
+                try {
+                    const visited2 = new Set<any>();
+                    const stack2 = [root];
+                    while (stack2.length) {
+                        const scope = stack2.pop();
+                        if (!scope || visited2.has(scope)) continue;
+                        visited2.add(scope);
+
+                        if (typeof scope.doApply === "function") {
+                            try { scope.doApply(); return true; } catch {}
+                        }
+                        if (typeof scope.ApplyInfo === "function") {
+                            try { scope.ApplyInfo(false); return true; } catch {
+                                try { scope.ApplyInfo(); return true; } catch {}
+                            }
+                        }
+                        if (typeof scope.doDlgApply === "function") {
+                            try { scope.doDlgApply(); return true; } catch {}
+                        }
+
+                        if (scope.$$childHead) stack2.push(scope.$$childHead);
+                        if (scope.$$nextSibling) stack2.push(scope.$$nextSibling);
+                    }
+                } catch {
+                    // noop
+                }
+                return false;
+            };
+
+            const ensureOneFingerprintSlot = () => {
+                try {
+                    const items = Array.isArray(target.fingerPrint?.fingerprint_templates)
+                        ? target.fingerPrint.fingerprint_templates
+                        : [];
+                    if (items.length > 0) return;
+                    if (typeof target.doAddFingerprint === "function") {
+                        target.doAddFingerprint();
+                        return;
+                    }
+                    const addBtn = Array.from(document.querySelectorAll("button, a, span"))
+                        .find((el) => String((el as HTMLElement).innerText || "").toLowerCase().includes("add")) as HTMLElement | undefined;
+                    if (addBtn) addBtn.click();
+                } catch {
+                    // noop
+                }
+            };
+
+            const runApplyBurst = () => {
+                let tries = 0;
+                const maxTries = 10;
+                const tick = () => {
+                    tries += 1;
+                    const byScope = callApplyInAngularScopes();
+                    if (!byScope) {
+                        const bySelector = clickApplyBySelector();
+                        if (!bySelector) clickApplyOnUserDetail();
+                    }
+                    if (tries < maxTries) setTimeout(tick, 500);
+                };
+                tick();
+            };
+
+            const originalEnroll = target.doApplyFingerPrintScan?.bind(target);
+            if (typeof originalEnroll !== "function") return;
+            ensureOneFingerprintSlot();
+            let sawEnrollModal = false;
+            let autoAppliedAfterClose = false;
+
+            const detectEnrollModalOpen = () => {
+                const nodes = Array.from(document.querySelectorAll("div, section, h1, h2, h3, h4, span"));
+                return nodes.some((el) => {
+                    const txt = String((el as HTMLElement).innerText || el.textContent || "").trim().toLowerCase();
+                    return txt.includes("enroll fingerprint") || txt === "enroll";
+                });
+            };
+
+            const watchEnrollModalClose = () => {
+                const loop = () => {
+                    if (autoAppliedAfterClose) return;
+                    const isOpen = detectEnrollModalOpen();
+                    if (isOpen) {
+                        sawEnrollModal = true;
+                        (window as any).__replaySawEnrollModal = true;
+                    }
+                    if (sawEnrollModal && !isOpen) {
+                        autoAppliedAfterClose = true;
+                        runApplyBurst();
+                        return;
+                    }
+                    setTimeout(loop, 400);
+                };
+                loop();
+            };
+            watchEnrollModalClose();
+
+            target.doApplyFingerPrintScan = function (...args: any[]) {
+                const result = originalEnroll(...args);
+                (window as any).__replayEnrollTriggered = true;
+                setTimeout(() => {
+                    runApplyBurst();
+                }, 700);
+                return result;
+            };
+
+            const originalEmit = target.$emit?.bind(target);
+            if (typeof originalEmit === "function") {
+                target.$emit = function (eventName: string, ...args: any[]) {
+                    const result = originalEmit(eventName, ...args);
+                    if (eventName === "closeFingerPrintScanDlg") {
+                        (window as any).__replayEnrollTriggered = true;
+                        setTimeout(() => {
+                            runApplyBurst();
+                        }, 500);
+                    }
+                    return result;
+                };
+            }
+
+            document.addEventListener("click", (evt: Event) => {
+                const targetEl = evt.target as HTMLElement | null;
+                if (!targetEl) return;
+                const txt = String(targetEl.innerText || targetEl.textContent || "").trim().toLowerCase();
+                if (txt.includes("enroll")) {
+                    setTimeout(() => runApplyBurst(), 500);
+                }
+            }, true);
+
+            w.__replayAutoApplyInstalled = true;
+        });
+    } catch {
+        // noop
+    }
+};
+
+const instalarAyudaScrollYCierre = async (page: Page) => {
+    try {
+        await page.evaluate(() => {
+            const w = window as any;
+            if (w.__replayScrollCloseInstalled) return;
+
+            const scrollToBottom = () => {
+                try {
+                    const candidates = Array.from(
+                        document.querySelectorAll("section, .wrap, .panelAreaOpen, .popCnt, .dialog-content, .content, body, html")
+                    ) as HTMLElement[];
+                    for (const el of candidates) {
+                        if (el && typeof el.scrollTop === "number") {
+                            el.scrollTop = el.scrollHeight;
+                        }
+                    }
+                    window.scrollTo(0, document.body.scrollHeight || document.documentElement.scrollHeight || 999999);
+                } catch {
+                    // noop
+                }
+            };
+
+            const shouldClose = () => {
+                const hash = String(window.location.hash || "").toLowerCase();
+                const enrollStarted = !!(window as any).__replaySawEnrollModal || !!(window as any).__replayEnrollTriggered;
+                if (!enrollStarted) return false;
+                // Cierra cuando vuelve a la lista de usuarios (no detalle).
+                return hash.includes("/user") && !hash.includes("/user/detail/");
+            };
+
+            const closeIfList = () => {
+                if (!shouldClose()) return;
+                try {
+                    window.close();
+                } catch {
+                    // noop
+                }
+            };
+
+            setTimeout(scrollToBottom, 400);
+            setTimeout(scrollToBottom, 1100);
+            setTimeout(scrollToBottom, 2200);
+            window.addEventListener("hashchange", () => {
+                setTimeout(scrollToBottom, 250);
+                setTimeout(closeIfList, 350);
+            });
+            window.addEventListener("popstate", () => {
+                setTimeout(scrollToBottom, 250);
+                setTimeout(closeIfList, 350);
+            });
+
+            w.__replayScrollCloseInstalled = true;
+        });
+    } catch {
+        // noop
+    }
+};
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const buildBiostarDraft = (u: any) => {
+    const userId = String(u?.user_id || "").trim();
+    const fullName = String(u?.name || "").trim();
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    const nombre = String(parts[0] || "").trim();
+    const apellido_pat = String(parts.slice(1).join(" ") || "Empleado").trim();
+    const rawEmail = normalizarCorreo(u?.email || "");
+    const correo = EMAIL_RE.test(rawEmail) ? rawEmail : (userId ? `${userId.toLowerCase()}@biostar.local` : "");
+    return {
+        biostar_user_id: userId,
+        biostar_group_id: String(u?.user_group_id?.id || "").trim(),
+        biostar_group_name: String(u?.user_group_id?.name || "").trim(),
+        nombre,
+        apellido_pat,
+        apellido_mat: "",
+        correo,
+        telefono: String(u?.phone || "").trim(),
+        movil: "",
+        extension: "",
+    };
+};
+
+const getDefaultCompanyScope = async (id_usuario: string) => {
+    const usuario = await Usuarios.findById(id_usuario, "id_empresa") as IUsuario | null;
+    const id_empresa = String((usuario as any)?.id_empresa || "").trim();
+    if (!id_empresa) return null;
+    const empresa = await Empresas.findById(id_empresa, "pisos accesos esRoot") as any;
+    if (!empresa) return null;
+    const id_piso = String((empresa?.pisos?.[0] || "")).trim();
+    const id_acceso = String((empresa?.accesos?.[0] || "")).trim();
+    return { id_empresa, id_piso, id_acceso, esRoot: !!empresa?.esRoot };
+};
+
+export async function previewSyncBiostar(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const defaults = await getDefaultCompanyScope(String(id_usuario || ""));
+        if (!defaults?.id_empresa || !defaults?.id_piso || !defaults?.id_acceso) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "Falta configuración base en RE (empresa/piso/acceso) para importar automáticamente.",
+            });
+            return;
+        }
+        const conexion = await getBiostarConexionActiva();
+        if (!conexion) {
+            res.status(200).json({ estado: false, mensaje: "No hay conexión activa de BioStar." });
+            return;
+        }
+
+        const live = await biostarRequest(conexion, {
+            method: "POST",
+            url: "/api/v2/users/search?noblockui",
+            data: { limit: 5000, offset: 0 },
+        });
+        if (!live.ok) {
+            res.status(200).json({ estado: false, mensaje: bioMessage(live.data, "No se pudo consultar usuarios en BioStar.") });
+            return;
+        }
+        const rows = (live.data?.UserCollection?.rows || []) as any[];
+        const candidatos = rows.filter((u) => !isBiostarAdminUser(u));
+        const biostarIds = candidatos.map((u) => String(u?.user_id || "").trim()).filter(Boolean);
+        const existentes = await Empleados.find(
+            { biostar_user_id: { $in: biostarIds } },
+            "biostar_user_id correo"
+        ).lean();
+        const byBio = new Map<string, any>();
+        for (const e of existentes) byBio.set(String((e as any)?.biostar_user_id || "").trim(), e);
+
+        const pendientes: any[] = [];
+        for (const u of candidatos) {
+            const draft = buildBiostarDraft(u);
+            if (!draft.biostar_user_id) continue;
+            if (byBio.has(draft.biostar_user_id)) continue;
+
+            const motivos: string[] = [];
+            if (!draft.nombre) motivos.push("Sin nombre en BioStar");
+            if (!draft.correo) motivos.push("Sin correo válido");
+
+            // Evita choque de correo.
+            if (draft.correo) {
+                const dup = await Empleados.findOne({ correo: draft.correo }, "_id biostar_user_id").lean();
+                if (dup && String((dup as any)?.biostar_user_id || "").trim() !== draft.biostar_user_id) {
+                    motivos.push("Correo ya existe en RE");
+                }
+            }
+
+            const payload = {
+                ...draft,
+                id_empresa: defaults.id_empresa,
+                id_piso: defaults.id_piso,
+                accesos: [defaults.id_acceso],
+            };
+            pendientes.push({ ...payload, motivos });
+        }
+
+        res.status(200).json({
+            estado: true,
+            datos: {
+                pendientes,
+                resumen: { pendientes: pendientes.length },
+            },
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function probarSyncHuellaCruzada(req: Request, res: Response): Promise<void> {
+    try {
+        const isMaster = (req as UserRequest).isMaster;
+        const id_usuario = (req as UserRequest).userId;
+        const { id_empresa } = await Usuarios.findById(id_usuario, "id_empresa") as IUsuario;
+        const proveedorOrigen = String(req.body?.proveedor_origen || "").trim().toLowerCase();
+        const dedo = Number(req.body?.dedo);
+
+        if (!["hiki", "biostar"].includes(proveedorOrigen)) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "Proveedor de origen invalido. Usa 'hiki' o 'biostar'.",
+            });
+            return;
+        }
+        if (!Number.isInteger(dedo) || dedo < 1 || dedo > 10) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "El dedo es invalido. Usa un valor entre 1 y 10.",
+            });
+            return;
+        }
+
+        const filtro: any = { _id: req.params.id };
+        if (!isMaster) filtro.id_empresa = id_empresa;
+        const registro = await Empleados.findOne(filtro);
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
+            return;
+        }
+
+        const huellasHiki = Array.isArray((registro as any)?.huellas_hiki_registradas)
+            ? (registro as any).huellas_hiki_registradas.map(Number)
+            : [];
+        const huellasBiostar = Array.isArray((registro as any)?.huellas_biostar_registradas)
+            ? (registro as any).huellas_biostar_registradas.map(Number)
+            : [];
+
+        if (proveedorOrigen === "hiki") {
+            const templateMap = normalizeHuellaTemplateMap((registro as any)?.huellas_template_dev);
+            const hasTemplate = !!String(templateMap[String(dedo)] || "").trim();
+            if (!hasTemplate && !huellasHiki.includes(dedo)) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: "Primero captura esa huella en Hikvision para poder probar el cruce.",
+                });
+                return;
+            }
+            res.status(200).json({
+                estado: false,
+                mensaje:
+                    "Prueba Hikvision -> BioStar no disponible en automatico: BioStar requiere captura/enrollment propio del dispositivo.",
+                datos: { proveedor_origen: "hiki", dedo, destino: "biostar" },
+            });
+            return;
+        }
+
+        if (!huellasBiostar.includes(dedo)) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "Primero captura esa huella en BioStar para poder probar el cruce.",
+            });
+            return;
+        }
+        res.status(200).json({
+            estado: false,
+            mensaje:
+                "Prueba BioStar -> Hikvision no disponible en automatico: Hikvision requiere plantilla compatible del lector/panel Hikvision.",
+            datos: { proveedor_origen: "biostar", dedo, destino: "hiki" },
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function abrirUiEnrollBiostar(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const isMaster = (req as UserRequest).isMaster;
+        const { id_empresa } = await Usuarios.findById(id_usuario, "id_empresa") as IUsuario;
+        const filtro: any = { _id: req.params.id };
+        if (!isMaster) filtro.id_empresa = id_empresa;
+
+        const registro = await Empleados.findOne(filtro, "biostar_user_id biostar_group_id");
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
+            return;
+        }
+
+        const conexion = await getBiostarConexionActiva();
+        if (!conexion) {
+            res.status(200).json({ estado: false, mensaje: "No hay conexion activa de BioStar." });
+            return;
+        }
+
+        const baseUrl = `https://${conexion.direccion_ip}:${conexion.puerto}/`;
+        let bioUserId = String((registro as any)?.biostar_user_id || "").trim();
+        const bioGroupId = String((registro as any)?.biostar_group_id || "").trim();
+
+        if (!bioUserId) {
+            const syncRes = await syncEmpleadoBiostar({
+                empleado: registro as any,
+                biostar_group_id: bioGroupId || "1",
+            });
+            if (!syncRes.ok || !String(syncRes.userId || "").trim()) {
+                res.status(200).json({
+                    estado: false,
+                    mensaje: syncRes.mensaje || "No se pudo preparar el usuario en BioStar.",
+                });
+                return;
+            }
+            bioUserId = String(syncRes.userId || "").trim();
+        }
+
+        const selectedDeviceId = String(req.body?.panel_biostar_id || "").trim();
+        const selectedDeviceNameFromUI = String(req.body?.panel_biostar_nombre || "").trim();
+        const selectedDeviceNameFromDb = selectedDeviceId && Types.ObjectId.isValid(selectedDeviceId)
+            ? String(
+                (await DispositivosBiostar.findById(selectedDeviceId, "nombre").lean() as any)?.nombre || ""
+            ).trim()
+            : "";
+        const selectedDeviceName = selectedDeviceNameFromUI || selectedDeviceNameFromDb;
+
+        const timestamp = Date.now();
+        const groupParam = bioGroupId ? `&group=${encodeURIComponent(bioGroupId)}` : "";
+        const targetUrl = `${baseUrl}#/user/detail/${encodeURIComponent(bioUserId)}?timestamp=${timestamp}${groupParam}`;
+
+        const page = await ensureBiostarUiPage();
+        const currentUrl = page.url() || "";
+        if (!currentUrl || !currentUrl.startsWith(baseUrl)) {
+            await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
+            await bypassCertificateInterstitial(page);
+        }
+        try {
+            const pass = decryptPassword(String(conexion.contrasena || ""), CONFIG.SECRET_CRYPTO);
+            await intentarLoginBiostarUi(page, String(conexion.usuario || ""), pass);
+        } catch {
+            // continue even if login parsing fails; user may already be logged in
+        }
+        await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
+        await bypassCertificateInterstitial(page);
+        await sleep(600);
+        await instalarAyudaScrollYCierre(page);
+        await instalarAutoApplyFingerprint(page);
+        const openedByAngular = await abrirModalFingerprintAngular(page);
+        if (!openedByAngular) {
+            await clickTextIfFound(page, ["fingerprint", "huella"]);
+        }
+        await sleep(300);
+        if (!openedByAngular) {
+            await clickTextIfFound(page, ["enroll fingerprint", "enroll", "enrolar", "enrollar"]);
+        }
+        await sleep(350);
+        if (selectedDeviceName || selectedDeviceId) {
+            await seleccionarDispositivoEnroll(page, selectedDeviceName || selectedDeviceId);
+            await sleep(250);
+        }
+        await clickTextIfFound(page, ["add", "+ add"]);
+        await sleep(200);
+        await clickTextIfFound(page, ["scan", "escanear"]);
+        await page.bringToFront();
+
+        res.status(200).json({
+            estado: true,
+            mensaje: "BioStar abierto. Al escanear, se intentará aplicar automáticamente.",
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function importarSyncBiostar(req: Request, res: Response): Promise<void> {
+    try {
+        res.status(200).json({
+            estado: false,
+            mensaje: "La importación automática está deshabilitada. Usa 'Dar de alta' en pendientes.",
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function obtenerResumenGruposBiostarRegistrados(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const isMaster = (req as UserRequest).isMaster;
+        const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario;
+
+        const match: any = {
+            activo: true,
+            biostar_user_id: { $nin: ["", null] },
+            biostar_group_id: { $nin: ["", null] },
+        };
+        if (!isMaster) match.id_empresa = new Types.ObjectId(id_empresa);
+
+        let rows = await Empleados.aggregate([
+            { $match: match },
+            {
+                $group: {
+                    _id: "$biostar_group_id",
+                    nombre: { $first: "$biostar_group_name" },
+                    total: { $sum: 1 },
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    id_externo: "$_id",
+                    nombre: {
+                        $cond: [
+                            { $or: [{ $eq: ["$nombre", ""] }, { $eq: ["$nombre", null] }] },
+                            "Sin nombre",
+                            "$nombre"
+                        ]
+                    },
+                    total: 1,
+                }
+            },
+            { $sort: { nombre: 1 } }
+        ]);
+
+        // Filtra y normaliza contra grupos vivos en BioStar para evitar mostrar grupos ya eliminados.
+        const conexion = await getBiostarConexionActiva();
+        if (conexion) {
+            const liveRes = await biostarRequest(conexion, { method: "GET", url: "/api/user_groups?limit=1000" });
+            const liveRows = (liveRes.data?.UserGroupCollection?.rows || []) as any[];
+            const liveById = new Map<string, { id_externo: string; nombre: string }>();
+            for (const g of liveRows) {
+                const id = String(g?.id || "").trim();
+                const nombre = String(g?.name || "").trim();
+                if (!id) continue;
+                liveById.set(id, { id_externo: id, nombre: nombre || "Sin nombre" });
+            }
+
+            rows = rows
+                .filter((r: any) => liveById.has(String(r?.id_externo || "").trim()))
+                .map((r: any) => {
+                    const live = liveById.get(String(r?.id_externo || "").trim());
+                    return {
+                        ...r,
+                        nombre: live?.nombre || r?.nombre || "Sin nombre",
+                    };
+                });
+
+            const groupIds = Array.from(
+                new Set(rows.map((r: any) => String(r?.id_externo || "").trim()).filter(Boolean))
+            );
+            if (groupIds.length > 0) {
+                const usersRes = await biostarRequest(conexion, {
+                    method: "POST",
+                    url: "/api/v2/users/search?noblockui",
+                    data: { limit: 5000, offset: 0, user_group_id_list: groupIds },
+                });
+                const users = (usersRes.data?.UserCollection?.rows || []) as any[];
+                const adminsByGroup = new Map<string, number>();
+                for (const u of users) {
+                    if (!isBiostarAdminUser(u)) continue;
+                    const gid = String(u?.user_group_id?.id || "").trim();
+                    if (!gid) continue;
+                    adminsByGroup.set(gid, (adminsByGroup.get(gid) || 0) + 1);
+                }
+                rows = rows
+                    .map((r: any) => {
+                        const gid = String(r?.id_externo || "").trim();
+                        const total = Math.max(0, Number(r?.total || 0) - (adminsByGroup.get(gid) || 0));
+                        return { ...r, total };
+                    })
+                    .filter((r: any) => Number(r?.total || 0) > 0);
+            }
+        }
+
+        res.status(200).json({ estado: true, datos: rows });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+const resolveBiostarGroup = async (conexion: any, idGrupo?: string) => {
+    const allUsers = { id: "1", name: "All Users" };
+    const target = String(idGrupo || "").trim();
+    if (!target) return allUsers;
+    const r = await biostarRequest(conexion, { method: "GET", url: "/api/user_groups?limit=1000" });
+    const rows = (r.data?.UserGroupCollection?.rows || []) as any[];
+    const found = rows.find((g) => String(g?.id) === target);
+    if (!found) return null;
+    return { id: String(found.id), name: String(found.name || "All Users") };
+};
+
+const cleanBase64Image = (img?: string) => String(img || "").replace(/^data:image\/\w+;base64,/, "").trim();
+
+const syncEmpleadoBiostarPhoto = async ({
+    conexion,
+    userId,
+    imgUsuario,
+}: {
+    conexion: any;
+    userId: string;
+    imgUsuario?: string;
+}): Promise<{ ok: boolean; mensaje?: string }> => {
+    const id = String(userId || "").trim();
+    if (!id) return { ok: false, mensaje: "No se pudo sincronizar la imagen en BioStar: user_id vacio." };
+
+    const hasImage = !!String(imgUsuario || "").trim();
+    let photoBase64 = "";
+
+    if (hasImage) {
+        const jpgDataUrl = await resizeImage(String(imgUsuario), true, 300, "jpeg");
+        photoBase64 = cleanBase64Image(jpgDataUrl);
+        if (!photoBase64) {
+            return { ok: false, mensaje: "No se pudo convertir la imagen para BioStar." };
+        }
+
+        // Validacion de formato como en el flujo oficial del HAR.
+        const check = await biostarRequest(conexion, {
+            method: "PUT",
+            url: "/api/users/check/upload_picture",
+            data: { template_ex_picture: photoBase64 },
+            timeout: 20000,
+        });
+        const checkCode = bioCode(check.data);
+        if (!(check.ok && (!checkCode || checkCode === "0"))) {
+            const checkMsg = bioMessage(check.data, check.message || "BioStar rechazo la imagen.");
+            return { ok: false, mensaje: checkCode ? `${checkMsg} (code ${checkCode})` : checkMsg };
+        }
+    }
+
+    const photoPayloads = hasImage
+        ? [
+            // Perfil + credencial visual activados por defecto.
+            {
+                User: {
+                    photo: photoBase64,
+                    useProfile: "true",
+                    credentials: {
+                        visualFaces: [
+                            {
+                                flag: "1",
+                                template_ex_normalized_image: photoBase64,
+                            },
+                        ],
+                    },
+                    check_visualFace_img_validation: true,
+                },
+            },
+            {
+                User: {
+                    photo: photoBase64,
+                    useProfile: "true",
+                },
+            },
+            // Fallback de compatibilidad.
+            {
+                User: {
+                    photo: photoBase64,
+                },
+            },
+        ]
+        : [
+            // En BioStar, photo vacio elimina la foto actual del usuario.
+            { User: { photo: "" } },
+        ];
+
+    let lastPhotoMsg = "No se pudo actualizar la imagen en BioStar.";
+    for (const payload of photoPayloads) {
+        const putPhoto = await biostarRequest(conexion, {
+            method: "PUT",
+            url: `/api/users/${encodeURIComponent(id)}`,
+            data: payload,
+            timeout: 20000,
+        });
+        const photoCode = bioCode(putPhoto.data);
+        if (putPhoto.ok && (!photoCode || photoCode === "0")) {
+            return { ok: true };
+        }
+        const msg = bioMessage(putPhoto.data, putPhoto.message || lastPhotoMsg);
+        lastPhotoMsg = photoCode ? `${msg} (code ${photoCode})` : msg;
+    }
+
+    return { ok: false, mensaje: lastPhotoMsg };
+};
+
+const syncEmpleadoBiostar = async ({
+    empleado,
+    biostar_group_id,
+    disabled,
+    strictExistingUserId = false,
+}: {
+    empleado: IEmpleado;
+    biostar_group_id?: string;
+    disabled?: boolean;
+    strictExistingUserId?: boolean;
+}): Promise<{ ok: boolean; mensaje?: string; userId?: string; groupId?: string; groupName?: string }> => {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) return { ok: false, mensaje: "Primero configura la conexion global de BioStar." };
+
+    const grupo = await resolveBiostarGroup(conexion, biostar_group_id || (empleado as any)?.biostar_group_id || "1");
+    if (!grupo) return { ok: false, mensaje: "El grupo de BioStar seleccionado no existe." };
+
+    const MAX_USER_ID_NUM = 4294967295;
+    const makeUserId = () => {
+        const base = Date.now() % MAX_USER_ID_NUM;
+        return String(base < 1 ? 1 : base);
+    };
+    let userId = String((empleado as any)?.biostar_user_id || empleado.id_empleado || "").trim();
+    if (!userId || /\s/.test(userId)) userId = makeUserId();
+    const now = new Date();
+    const farFuture = new Date(now);
+    farFuture.setFullYear(farFuture.getFullYear() + 30);
+    const toBioIso = (d: Date, endOfDay = false) => {
+        const yyyy = d.getUTCFullYear();
+        const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const dd = String(d.getUTCDate()).padStart(2, "0");
+        const hh = endOfDay ? "23" : "00";
+        const min = endOfDay ? "59" : "00";
+        return `${yyyy}-${mm}-${dd}T${hh}:${min}:00.00Z`;
+    };
+
+    const exists = userId
+        ? await biostarRequest(conexion, { method: "GET", url: `/api/users/${encodeURIComponent(userId)}` })
+        : { ok: false, data: null } as any;
+    const isEdit = !!(exists.ok && exists.data?.User);
+    const hadBiostarUserId = !!String((empleado as any)?.biostar_user_id || "").trim();
+    const biostarIdNotFound = !isEdit && hadBiostarUserId;
+    if (strictExistingUserId && hadBiostarUserId && !isEdit) {
+        return { ok: false, mensaje: "No se encontro el usuario en BioStar para actualizar." };
+    }
+    // Si RE tiene biostar_user_id pero BioStar ya no lo encuentra, no reusar ese id huérfano.
+    if (!isEdit && (!hadBiostarUserId || biostarIdNotFound)) {
+        const nextIdRes = await biostarRequest(conexion, { method: "GET", url: "/api/users/next_user_id" });
+        const nextRaw =
+            nextIdRes.data?.User?.user_id ??
+            nextIdRes.data?.user_id ??
+            nextIdRes.data?.next_user_id ??
+            nextIdRes.data?.UserID ??
+            "";
+        const nextId = String(nextRaw || "").trim();
+        if (nextId && !/\s/.test(nextId)) {
+            userId = nextId;
+        }
+    }
+    const method = isEdit ? "PUT" : "POST";
+    const url = isEdit ? `/api/users/${encodeURIComponent(userId)}` : "/api/users";
+
+    let nombreDepartamento = "departamento";
+    let nombrePuesto = "empleado";
+    const idDepto = String((empleado as any)?.id_departamento || "").trim();
+    const idPuesto = String((empleado as any)?.id_puesto || "").trim();
+    if (idDepto) {
+        const dep = await Departamentos.findById(idDepto, "nombre").lean();
+        if (dep?.nombre) nombreDepartamento = String(dep.nombre).trim();
+    }
+    if (idPuesto) {
+        const pu = await Puestos.findById(idPuesto, "nombre").lean();
+        if (pu?.nombre) nombrePuesto = String(pu.nombre).trim();
+    }
+
+    const payloads = [
+        {
+            User: {
+                user_id: userId,
+                name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || userId),
+                email: normalizarCorreo(empleado.correo),
+                phone: String(empleado.telefono || empleado.movil || "").trim(),
+                user_group_id: { id: Number(grupo.id) || grupo.id, name: grupo.name },
+                disabled: disabled ? "true" : "false",
+                start_datetime: "2001-01-01T00:00:00.00Z",
+                expiry_datetime: "2037-12-31T23:59:00.00Z",
+                department: nombreDepartamento,
+                user_title: nombrePuesto,
+            },
+        },
+        {
+            User: {
+                user_id: userId,
+                name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || userId),
+                email: normalizarCorreo(empleado.correo),
+                phone: String(empleado.telefono || empleado.movil || "").trim(),
+                user_group_id: { id: Number(grupo.id) || grupo.id },
+                disabled: disabled ? "true" : "false",
+                start_datetime: "2001-01-01T00:00:00.00Z",
+                expiry_datetime: "2037-12-31T23:59:00.00Z",
+                department: nombreDepartamento,
+                user_title: nombrePuesto,
+            },
+        },
+        {
+            User: {
+                user_id: userId,
+                name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || userId),
+                email: normalizarCorreo(empleado.correo),
+                phone: String(empleado.telefono || empleado.movil || "").trim(),
+                user_group_id: Number(grupo.id) || grupo.id,
+                disabled: disabled ? "true" : "false",
+                start_datetime: "2001-01-01T00:00:00.00Z",
+                expiry_datetime: "2037-12-31T23:59:00.00Z",
+                department: nombreDepartamento,
+                user_title: nombrePuesto,
+            },
+        },
+        {
+            User: {
+                user_id: userId,
+                name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || userId),
+                email: normalizarCorreo(empleado.correo),
+                phone: String(empleado.telefono || empleado.movil || "").trim(),
+                user_group_id: { id: Number(grupo.id) || grupo.id, name: grupo.name },
+                disabled: disabled ? "true" : "false",
+                start_datetime: "2001-01-01T00:00:00.00Z",
+                expiry_datetime: "2037-12-31T23:59:00.00Z",
+                department: nombreDepartamento,
+                user_title: nombrePuesto,
+            },
+        },
+    ];
+
+    let lastMsg = "No se pudo sincronizar el empleado en BioStar.";
+    for (const body of payloads) {
+        const upsert = await biostarRequest(conexion, { method, url, data: body });
+        const code = bioCode(upsert.data);
+        if (upsert.ok && (!code || code === "0")) {
+            const photoRes = await syncEmpleadoBiostarPhoto({
+                conexion,
+                userId,
+                imgUsuario: (empleado as any)?.img_usuario || "",
+            });
+            if (!photoRes.ok) {
+                return { ok: false, mensaje: photoRes.mensaje || "No se pudo sincronizar la imagen en BioStar." };
+            }
+            return { ok: true, userId, groupId: grupo.id, groupName: grupo.name };
+        }
+        const msg = bioMessage(upsert.data, upsert.message || lastMsg);
+        lastMsg = code ? `${msg} (code ${code})` : msg;
+    }
+    if (!strictExistingUserId && !isEdit && lastMsg.toLowerCase().includes("code 800")) {
+        for (let i = 0; i < 3; i++) {
+            const altUserId = makeUserId();
+            const altPayload = {
+                User: {
+                    user_id: altUserId,
+                    name: String([empleado.nombre, empleado.apellido_pat, empleado.apellido_mat].filter(Boolean).join(" ").trim() || altUserId),
+                    email: normalizarCorreo(empleado.correo),
+                    phone: String(empleado.telefono || empleado.movil || "").trim(),
+                    user_group_id: { id: Number(grupo.id) || grupo.id, name: grupo.name },
+                    disabled: disabled ? "true" : "false",
+                    start_datetime: "2001-01-01T00:00:00.00Z",
+                    expiry_datetime: "2037-12-31T23:59:00.00Z",
+                    department: nombreDepartamento,
+                    user_title: nombrePuesto,
+                },
+            };
+            const retry = await biostarRequest(conexion, { method: "POST", url: "/api/users", data: altPayload });
+            const retryCode = bioCode(retry.data);
+            if (retry.ok && (!retryCode || retryCode === "0")) {
+                const photoRes = await syncEmpleadoBiostarPhoto({
+                    conexion,
+                    userId: altUserId,
+                    imgUsuario: (empleado as any)?.img_usuario || "",
+                });
+                if (!photoRes.ok) {
+                    return { ok: false, mensaje: photoRes.mensaje || "No se pudo sincronizar la imagen en BioStar." };
+                }
+                return { ok: true, userId: altUserId, groupId: grupo.id, groupName: grupo.name };
+            }
+            const retryMsg = bioMessage(retry.data, retry.message || lastMsg);
+            lastMsg = retryCode ? `${retryMsg} (code ${retryCode})` : retryMsg;
+        }
+    }
+    return { ok: false, mensaje: lastMsg };
+};
+
+const deleteEmpleadoBiostar = async (userId?: string): Promise<{ ok: boolean; mensaje?: string }> => {
+    const id = String(userId || "").trim();
+    if (!id) return { ok: true };
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) return { ok: true };
+    const del = await biostarRequest(conexion, { method: "DELETE", url: `/api/users/${encodeURIComponent(id)}` });
+    if (del.ok || String(del.data?.Response?.code || "") === "0") return { ok: true };
+    return { ok: false, mensaje: bioMessage(del.data, del.message || "No se pudo eliminar el empleado en BioStar.") };
+};
+
 const sincronizarUsuarioCampo = async ({
     empleado,
     accesoCampo,
@@ -1933,7 +3846,10 @@ const sincronizarUsuarioCampo = async ({
 
 export async function crear(req: Request, res: Response): Promise<void> {
     try {
-        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, acceso_campo } = req.body;
+        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, acceso_campo, biostar_group_id } = req.body;
+        const desdePendienteBiostar = !!req.body?.desde_pendiente_biostar;
+        const biostarUserIdPendiente = String(req.body?.biostar_user_id || "").trim();
+        const biostarGroupNamePendiente = String(req.body?.biostar_group_name || "").trim();
         const id_usuario = (req as UserRequest).userId;
         const empresa = await Empresas.findById(id_empresa, 'pisos accesos esRoot activo');
 
@@ -1964,7 +3880,12 @@ export async function crear(req: Request, res: Response): Promise<void> {
         await nuevoUsuario
             .save()
             .then(async (reg_saved) => {
-                const { habilitarIntegracionHv } = await Configuracion.findOne({}, "habilitarIntegracionHv") as IConfiguracion;
+                const { habilitarIntegracionHv, habilitarIntegracionBiostar } = await Configuracion.findOne({}, "habilitarIntegracionHv habilitarIntegracionBiostar") as IConfiguracion;
+                let hikvisionPendiente = false;
+                let biostarPendiente = false;
+                let hikvisionError = "";
+                let biostarError = "";
+
                 if (habilitarIntegracionHv) {
                     const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: accesos } });
                     for await (let panel of paneles) {
@@ -1972,42 +3893,98 @@ export async function crear(req: Request, res: Response): Promise<void> {
                             const { direccion_ip, usuario, contrasena } = panel;
                             const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
                             const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                            // Si hay foto, dejamos que el panel_server maneje la auth internamente
-                            // (evita fallas de hikvision-auth en /api/panel/seguridad).
-                            // if (nuevoUsuario.img_usuario) await HVPANEL.getTokenValue();
                             const syncRes = await HVPANEL.saverUser(mapEmpleadoToPanel(reg_saved));
                             console.log("[EMP] Panel sync respuesta (crear):", syncRes);
                             if (syncRes?.estado === false) {
-                                await Empleados.findByIdAndDelete(reg_saved._id);
-                                await FaceDescriptors.deleteOne({ id_usuario: reg_saved._id });
-                                res.status(200).json({
-                                    estado: false,
-                                    codigo: 'PANEL_SYNC_FAILED',
-                                    mensaje: syncRes?.mensaje || 'El panel no aceptó la foto.',
-                                    datos: syncRes?.datos,
-                                });
-                                return;
+                                hikvisionPendiente = true;
+                                hikvisionError = syncRes?.mensaje || "No se pudo sincronizar en Hikvision.";
                             }
                         } catch (error: any) {
-                            await Empleados.findByIdAndDelete(reg_saved._id);
-                            await FaceDescriptors.deleteOne({ id_usuario: reg_saved._id });
-                            const panelMsg = error?.response?.data?.mensaje || error?.message || 'Error al sincronizar con el panel.';
-                            res.status(200).json({
-                                estado: false,
-                                codigo: 'PANEL_SYNC_FAILED',
-                                mensaje: panelMsg,
-                                datos: error?.response?.data,
-                            });
-                            return;
+                            hikvisionPendiente = true;
+                            hikvisionError = error?.response?.data?.mensaje || error?.message || "Error al sincronizar con el panel.";
                         }
                     }
                 }
+                if (habilitarIntegracionBiostar) {
+                    if (desdePendienteBiostar && biostarUserIdPendiente) {
+                        const empleadoSync = {
+                            ...(reg_saved as any),
+                            biostar_user_id: biostarUserIdPendiente,
+                            nombre: String(nombre || (reg_saved as any)?.nombre || "").trim(),
+                            apellido_pat: String(apellido_pat || (reg_saved as any)?.apellido_pat || "").trim(),
+                            apellido_mat: String(apellido_mat || (reg_saved as any)?.apellido_mat || "").trim(),
+                            correo: String(correo || (reg_saved as any)?.correo || "").trim(),
+                            telefono: String(telefono || (reg_saved as any)?.telefono || "").trim(),
+                            movil: String(movil || (reg_saved as any)?.movil || "").trim(),
+                            extension: String(extension || (reg_saved as any)?.extension || "").trim(),
+                            id_departamento: String(id_departamento || (reg_saved as any)?.id_departamento || "").trim(),
+                            id_puesto: String(id_puesto || (reg_saved as any)?.id_puesto || "").trim(),
+                        } as IEmpleado;
+                        const bioRes = await syncEmpleadoBiostar({
+                            empleado: empleadoSync,
+                            biostar_group_id: String(biostar_group_id || "").trim() || "1",
+                            disabled: false,
+                            strictExistingUserId: true,
+                        });
+                        if (!bioRes.ok) {
+                            biostarPendiente = true;
+                            biostarError = bioRes.mensaje || "No se pudo actualizar el empleado en BioStar.";
+                        }
+                        await Empleados.findByIdAndUpdate(reg_saved._id, {
+                            $set: {
+                                biostar_user_id: biostarUserIdPendiente,
+                                biostar_group_id: bioRes.groupId || String(biostar_group_id || "").trim() || "1",
+                                biostar_group_name: bioRes.groupName || biostarGroupNamePendiente || "",
+                            }
+                        });
+                    } else {
+                        const bioRes = await syncEmpleadoBiostar({
+                            empleado: reg_saved as IEmpleado,
+                            biostar_group_id: String(biostar_group_id || "").trim() || "1",
+                            disabled: false,
+                        });
+                        if (!bioRes.ok) {
+                            biostarPendiente = true;
+                            biostarError = bioRes.mensaje || "No se pudo sincronizar el empleado en BioStar.";
+                        } else {
+                            await Empleados.findByIdAndUpdate(reg_saved._id, {
+                                $set: {
+                                    biostar_user_id: bioRes.userId || "",
+                                    biostar_group_id: bioRes.groupId || "",
+                                    biostar_group_name: bioRes.groupName || "",
+                                }
+                            });
+                        }
+                    }
+                }
+
+                await Empleados.findByIdAndUpdate(reg_saved._id, {
+                    $set: {
+                        sync_hikvision_pendiente: hikvisionPendiente,
+                        sync_biostar_pendiente: biostarPendiente,
+                        sync_hikvision_error: hikvisionError,
+                        sync_biostar_error: biostarError,
+                    },
+                });
+
+                const pendientes = [
+                    ...(hikvisionPendiente ? ["hikvision"] : []),
+                    ...(biostarPendiente ? ["biostar"] : []),
+                ];
                 await sincronizarUsuarioCampo({
                     empleado: reg_saved,
                     accesoCampo: !!acceso_campo,
                     idUsuarioModif: id_usuario,
                 });
-                res.status(200).json({ estado: true, datos: { usuario: true } });
+                res.status(200).json({
+                    estado: true,
+                    datos: { usuario: true },
+                    sync: {
+                        pendiente: pendientes,
+                        hikvision_error: hikvisionError || "",
+                        biostar_error: biostarError || "",
+                    },
+                });
                 setTimeout(() => {
                     (async () => {
                         if (img_usuario) {
@@ -2036,7 +4013,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
 };
 export async function modificar(req: Request, res: Response): Promise<void> {
     try {
-        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, acceso_campo } = req.body;
+        const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, acceso_campo, biostar_group_id } = req.body;
         const id_usuario = (req as UserRequest).userId;
         const empresa = await Empresas.findById(id_empresa, 'esRoot');
 
@@ -2056,6 +4033,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             id_departamento,
             id_cubiculo,
             acceso_campo: !!acceso_campo,
+            biostar_group_id: String(biostar_group_id || prevRegistro?.biostar_group_id || "").trim(),
             fecha_modificacion: Date.now(),
             modificado_por: id_usuario,
         };
@@ -2096,7 +4074,12 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             delete (panelPayload as any).img_usuario;
         }
 
-        const { habilitarIntegracionHv } = await Configuracion.findOne({}, 'habilitarIntegracionHv') as IConfiguracion;
+        const { habilitarIntegracionHv, habilitarIntegracionBiostar } = await Configuracion.findOne({}, 'habilitarIntegracionHv habilitarIntegracionBiostar') as IConfiguracion;
+        let hikvisionPendiente = false;
+        let biostarPendiente = false;
+        let hikvisionError = "";
+        let biostarError = "";
+
         if (habilitarIntegracionHv) {
             const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: accesos } });
             for await (let panel of paneles) {
@@ -2104,125 +4087,65 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                     const { direccion_ip, usuario, contrasena } = panel;
                     const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
                     const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                    // Si hay foto, dejamos que el panel_server maneje la auth internamente
-                    // (evita fallas de hikvision-auth en /api/panel/seguridad).
-                    // if (registro.img_usuario) await HVPANEL.getTokenValue();
                     const syncRes = await HVPANEL.saverUser(panelPayload);
                     console.log("[EMP] Panel sync respuesta (modificar):", syncRes);
                     if (syncRes?.estado === false) {
-                        await Empleados.findByIdAndUpdate(req.params.id, { $set: {
-                            img_usuario: prevRegistro.img_usuario,
-                            nombre: prevRegistro.nombre,
-                            apellido_pat: prevRegistro.apellido_pat,
-                            apellido_mat: prevRegistro.apellido_mat,
-                            movil: prevRegistro.movil,
-                            telefono: prevRegistro.telefono,
-                            extension: prevRegistro.extension,
-                            accesos: prevRegistro.accesos,
-                            id_puesto: prevRegistro.id_puesto,
-                            id_departamento: prevRegistro.id_departamento,
-                            id_cubiculo: prevRegistro.id_cubiculo,
-                            id_empresa: prevRegistro.id_empresa,
-                            id_piso: prevRegistro.id_piso,
-                            correo: prevRegistro.correo,
-                            esRoot: prevRegistro.esRoot,
-                        } });
-                        const prevImg = prevRegistro.img_usuario;
-                        const restorePayload = imgChanged && prevImg ? (() => {
-                            const payload = mapEmpleadoToPanel(prevRegistro);
-                            (payload as any).img_usuario = prevImg;
-                            delete (payload as any).img_usuario_prev;
-                            return payload;
-                        })() : null;
-                        res.status(200).json({
-                            estado: false,
-                            codigo: "PANEL_SYNC_FAILED",
-                            mensaje: syncRes?.mensaje || "El panel no aceptó la foto.",
-                            datos: syncRes?.datos,
-                        });
-                        setTimeout(() => {
-                            (async () => {
-                                if (prevImg) {
-                                    try {
-                                        await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: registro._id, img_usuario: prevImg });
-                                    } catch {
-                                        await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
-                                    }
-                                } else {
-                                    await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
-                                }
-                                if (restorePayload) {
-                                    HVPANEL.saverUser(restorePayload)
-                                        .then((restoreRes: any) => {
-                                            console.log("[EMP] Panel restore prev (modificar):", restoreRes);
-                                        })
-                                        .catch((restoreErr: any) => {
-                                            console.error("[EMP] Panel restore prev error:", restoreErr?.message || restoreErr);
-                                        });
-                                }
-                            })();
-                        }, 0);
-                        return;
+                        hikvisionPendiente = true;
+                        hikvisionError = syncRes?.mensaje || "No se pudo sincronizar en Hikvision.";
                     }
                 } catch (error: any) {
-                    await Empleados.findByIdAndUpdate(req.params.id, { $set: {
-                        img_usuario: prevRegistro.img_usuario,
-                        nombre: prevRegistro.nombre,
-                        apellido_pat: prevRegistro.apellido_pat,
-                        apellido_mat: prevRegistro.apellido_mat,
-                        movil: prevRegistro.movil,
-                        telefono: prevRegistro.telefono,
-                        extension: prevRegistro.extension,
-                        accesos: prevRegistro.accesos,
-                        id_puesto: prevRegistro.id_puesto,
-                        id_departamento: prevRegistro.id_departamento,
-                        id_cubiculo: prevRegistro.id_cubiculo,
-                        id_empresa: prevRegistro.id_empresa,
-                        id_piso: prevRegistro.id_piso,
-                        correo: prevRegistro.correo,
-                        esRoot: prevRegistro.esRoot,
-                    } });
-                    if (prevRegistro.img_usuario) {
-                        try {
-                            await faceDetector.guardarDescriptorUsuario({ id_usu_modif: id_usuario, id_usuario: registro._id, img_usuario: prevRegistro.img_usuario });
-                        } catch {
-                            await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
-                        }
-                    } else {
-                        await faceDetector.deshabilitarDescriptor({ id_usu_modif: id_usuario, id_usuario: registro._id });
-                    }
-                    if (imgChanged && prevRegistro.img_usuario) {
-                        const { direccion_ip, usuario, contrasena } = panel;
-                        const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
-                        const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                        const restorePayload = mapEmpleadoToPanel(prevRegistro);
-                        (restorePayload as any).img_usuario = prevRegistro.img_usuario;
-                        delete (restorePayload as any).img_usuario_prev;
-                        HVPANEL.saverUser(restorePayload)
-                            .then((restoreRes: any) => {
-                                console.log("[EMP] Panel restore prev (modificar catch):", restoreRes);
-                            })
-                            .catch((restoreErr: any) => {
-                                console.error("[EMP] Panel restore prev error:", restoreErr?.message || restoreErr);
-                            });
-                    }
-                    const panelMsg = error?.response?.data?.mensaje || error?.message || "Error al sincronizar con el panel.";
-                    res.status(200).json({
-                        estado: false,
-                        codigo: "PANEL_SYNC_FAILED",
-                        mensaje: panelMsg,
-                        datos: error?.response?.data,
-                    });
-                    return;
+                    hikvisionPendiente = true;
+                    hikvisionError = error?.response?.data?.mensaje || error?.message || "Error al sincronizar con el panel.";
                 }
             }
         }
+
+        if (habilitarIntegracionBiostar) {
+            const bioRes = await syncEmpleadoBiostar({
+                empleado: registro as IEmpleado,
+                biostar_group_id: String(biostar_group_id || (prevRegistro as any)?.biostar_group_id || "1"),
+                disabled: false,
+            });
+            if (!bioRes.ok) {
+                biostarPendiente = true;
+                biostarError = bioRes.mensaje || "No se pudo sincronizar el empleado en BioStar.";
+            } else {
+                await Empleados.findByIdAndUpdate(req.params.id, {
+                    $set: {
+                        biostar_user_id: bioRes.userId || (prevRegistro as any)?.biostar_user_id || "",
+                        biostar_group_id: bioRes.groupId || "",
+                        biostar_group_name: bioRes.groupName || "",
+                    }
+                });
+            }
+        }
+
+        await Empleados.findByIdAndUpdate(req.params.id, {
+            $set: {
+                sync_hikvision_pendiente: hikvisionPendiente,
+                sync_biostar_pendiente: biostarPendiente,
+                sync_hikvision_error: hikvisionError,
+                sync_biostar_error: biostarError,
+            },
+        });
+
+        const pendientes = [
+            ...(hikvisionPendiente ? ["hikvision"] : []),
+            ...(biostarPendiente ? ["biostar"] : []),
+        ];
         await sincronizarUsuarioCampo({
             empleado: registro as IEmpleado,
             accesoCampo: !!acceso_campo,
             idUsuarioModif: id_usuario,
         });
-        res.status(200).json({ estado: true });
+        res.status(200).json({
+            estado: true,
+            sync: {
+                pendiente: pendientes,
+                hikvision_error: hikvisionError || "",
+                biostar_error: biostarError || "",
+            },
+        });
         setTimeout(() => {
             (async () => {
                 if (imgChanged) {
@@ -2254,6 +4177,98 @@ export async function modificar(req: Request, res: Response): Promise<void> {
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 };
+
+export async function reintentarSync(req: Request, res: Response): Promise<void> {
+    try {
+        const id = String(req.params.id || "").trim();
+        if (!id) {
+            res.status(200).json({ estado: false, mensaje: "Id de empleado invalido." });
+            return;
+        }
+        const registro = await Empleados.findById(id);
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: "Empleado no encontrado." });
+            return;
+        }
+
+        const { habilitarIntegracionHv, habilitarIntegracionBiostar } = await Configuracion.findOne({}, "habilitarIntegracionHv habilitarIntegracionBiostar") as IConfiguracion;
+
+        let hikvisionPendiente = !!(registro as any)?.sync_hikvision_pendiente;
+        let biostarPendiente = !!(registro as any)?.sync_biostar_pendiente;
+        let hikvisionError = String((registro as any)?.sync_hikvision_error || "");
+        let biostarError = String((registro as any)?.sync_biostar_error || "");
+
+        if (habilitarIntegracionHv && hikvisionPendiente) {
+            hikvisionPendiente = false;
+            hikvisionError = "";
+            const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: registro.accesos || [] } });
+            const panelPayload = mapEmpleadoToPanel(registro as IEmpleado);
+            for await (let panel of paneles) {
+                try {
+                    const { direccion_ip, usuario, contrasena } = panel;
+                    const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
+                    const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
+                    const syncRes = await HVPANEL.saverUser(panelPayload);
+                    if (syncRes?.estado === false) {
+                        hikvisionPendiente = true;
+                        hikvisionError = syncRes?.mensaje || "No se pudo sincronizar en Hikvision.";
+                    }
+                } catch (error: any) {
+                    hikvisionPendiente = true;
+                    hikvisionError = error?.response?.data?.mensaje || error?.message || "Error al sincronizar con el panel.";
+                }
+            }
+        }
+
+        if (habilitarIntegracionBiostar && biostarPendiente) {
+            const bioRes = await syncEmpleadoBiostar({
+                empleado: registro as IEmpleado,
+                biostar_group_id: String((registro as any)?.biostar_group_id || "1"),
+                disabled: !registro.activo,
+            });
+            if (!bioRes.ok) {
+                biostarPendiente = true;
+                biostarError = bioRes.mensaje || "No se pudo sincronizar el empleado en BioStar.";
+            } else {
+                biostarPendiente = false;
+                biostarError = "";
+                await Empleados.findByIdAndUpdate(id, {
+                    $set: {
+                        biostar_user_id: bioRes.userId || (registro as any)?.biostar_user_id || "",
+                        biostar_group_id: bioRes.groupId || (registro as any)?.biostar_group_id || "",
+                        biostar_group_name: bioRes.groupName || (registro as any)?.biostar_group_name || "",
+                    },
+                });
+            }
+        }
+
+        await Empleados.findByIdAndUpdate(id, {
+            $set: {
+                sync_hikvision_pendiente: hikvisionPendiente,
+                sync_biostar_pendiente: biostarPendiente,
+                sync_hikvision_error: hikvisionError,
+                sync_biostar_error: biostarError,
+            },
+        });
+
+        const pendientes = [
+            ...(hikvisionPendiente ? ["hikvision"] : []),
+            ...(biostarPendiente ? ["biostar"] : []),
+        ];
+        res.status(200).json({
+            estado: true,
+            sync: {
+                pendiente: pendientes,
+                hikvision_error: hikvisionError || "",
+                biostar_error: biostarError || "",
+            },
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
 export async function modificarEstado(req: Request, res: Response): Promise<void> {
     try {
         const { activo } = req.body;
@@ -2267,26 +4282,35 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
             res.status(200).json({ estado: false, mensaje: 'Usuario no encontrado.' });
             return;
         }
-        const registroPanel = mapEmpleadoToPanel(registro);
-        registroPanel.activo = !activo;
+        // Cambio de estado solo en RE (no borrar ni sincronizar en BioStar/Hikvision).
         await FaceDescriptors.updateOne({ id_usuario: req.params.id }, { $set: { activo: !activo } });
-        const { habilitarIntegracionHv } = await Configuracion.findOne({}, 'habilitarIntegracionHv') as IConfiguracion;
-        if (habilitarIntegracionHv) {
-            const paneles = await DispositivosHv.find({ activo: true, tipo_check: { $ne: 0 }, id_acceso: { $in: registro.accesos } });
-            for await (let panel of paneles) {
-                try {
-                    const { direccion_ip, usuario, contrasena } = panel;
-                    const decrypted_pass = decryptPassword(contrasena, CONFIG.SECRET_CRYPTO);
-                    const HVPANEL = new Hikvision(direccion_ip, usuario, decrypted_pass);
-                    await HVPANEL.saverUser(registroPanel);
-                } catch (error: any) {
-                    console.warn("[EMPLEADOS][ESTADO] Sync panel falló:", error?.message || error);
-                }
-            }
-        }
         res.status(200).json({ estado: true });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function eliminarPermanente(req: Request, res: Response): Promise<void> {
+    try {
+        const registro = await Empleados.findById(req.params.id, "activo id_empleado");
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: 'Usuario no encontrado.' });
+            return;
+        }
+        if (registro.id_empleado === 1) {
+            res.status(200).json({ estado: false, mensaje: 'No puede eliminar al usuario maestro.' });
+            return;
+        }
+        if (registro.activo) {
+            res.status(200).json({ estado: false, mensaje: 'Primero desactiva al empleado.' });
+            return;
+        }
+        await Empleados.findByIdAndUpdate(req.params.id, {
+            $set: { eliminado_permanente: true, activo: false }
+        });
+        res.status(200).json({ estado: true });
+    } catch (error: any) {
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 }
@@ -2876,6 +4900,17 @@ const rellenarHojaEmpresasFormato = async ({ isMaster, id_empresa }: { isMaster:
             return workbook.xlsx.writeFile(nameFileExcel);
         });
 }
+
+
+
+
+
+
+
+
+
+
+
 
 
 

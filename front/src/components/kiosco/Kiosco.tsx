@@ -1,6 +1,7 @@
 import {
   alpha,
   Box,
+  Button,
   Card,
   CardActionArea,
   CardContent,
@@ -24,6 +25,7 @@ import { Fragment } from "react/jsx-runtime";
 import { clienteAxios, handlingError } from "../../app/config/axios";
 import dayjs, { Dayjs } from "dayjs";
 import { useCallback, useEffect, useState } from "react";
+import { FormProvider, useForm } from "react-hook-form";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../app/store";
 import type { GridSortModel } from "@mui/x-data-grid";
@@ -34,11 +36,14 @@ import {
   ArrowUpward,
   ChevronLeft,
   ChevronRight,
+  QrCodeScanner,
 } from "@mui/icons-material";
 import ErrorOverlay from "../error/DataGridError";
 import SearchInput from "../recepcion/bitacora/utils/SearchInput";
 import { DatePicker } from "@mui/x-date-pickers";
-import imgSinFoto from "../../assets/img/app/NotFile.png";
+import imgSinFoto from "../../assets/img/app/UserSinImagen.png";
+import { enqueueSnackbar } from "notistack";
+import LectorQrVisitantes from "../recepcion/visitantes/LectorQrVisitantes";
 
 const StyledStack = styled(Stack)(({ theme }) => ({
   width: "100%",
@@ -100,6 +105,8 @@ export default function Kiosco() {
     (state: IRootState) => state.config.data
   );
   const [error, setError] = useState<string>();
+  const formContext = useForm({ defaultValues: { qr: "" } });
+  const [showQRScanner, setShowQRScanner] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [ROWS, setRows] = useState<IRegistro[]>([]);
   const [firstRecord, setFirstRecord] = useState<IRegistro>();
@@ -146,14 +153,22 @@ export default function Kiosco() {
       );
       if (res.data.estado) {
         setError("");
-        setRows(res.data.datos.paginatedResults || []);
+        const rowsLimpios = (res.data.datos.paginatedResults || []).filter(
+          (item: IRegistro) => Number(item?.tipo_origen) === 1 || Number(item?.tipo_origen) === 2
+        );
+        setRows(rowsLimpios);
         setTotalCount(res.data.datos.stats?.totalCount || 0);
         setTotalCountUsersIn(res.data.datos.stats?.totalCountUserIn || 0);
         setTotalCountVisitsIn(res.data.datos.stats?.totalCountVisitIn || 0);
         setTotalCountUsersOut(res.data.datos.stats?.totalCountUserOut || 0);
         setTotalCountVisitsOut(res.data.datos.stats?.totalCountVisitOut || 0);
         if (page === 0) {
-          setFirstRecord(res.data.datos.firstRecord);
+          const firstRecord = res.data.datos.firstRecord as IRegistro | undefined;
+          if (firstRecord && (Number(firstRecord.tipo_origen) === 1 || Number(firstRecord.tipo_origen) === 2)) {
+            setFirstRecord(firstRecord);
+          } else {
+            setFirstRecord(undefined);
+          }
         }
       }
     } catch (error: unknown) {
@@ -407,6 +422,65 @@ export default function Kiosco() {
   const handleClose = () => {
     setShowModal(false);
     setSelectedReg(null);
+  };
+
+  const onQrValidate = async (qr: string): Promise<{ ok: boolean; message: string; img_ine?: string; nombre?: string; tipo_check?: number; biostar_modo_manual?: boolean }> => {
+    const regexEmpleado = /^[0-9]+$/;
+    const regexCardCode = /^VST[A-Z0-9]{16}$/;
+    if (!regexCardCode.test(qr) && !regexEmpleado.test(qr)) {
+      const message = "QR invalido o no corresponde a un empleado/visitante.";
+      enqueueSnackbar(message, { variant: "error" });
+      return { ok: false, message };
+    }
+    try {
+      const res = await clienteAxios.post("/api/eventos/validar-qr", { qr, lector: 0 });
+      if (!res.data.estado) {
+        const message = res.data.mensaje || "No se pudo validar el QR.";
+        enqueueSnackbar(message, { variant: "error" });
+        return { ok: false, message };
+      }
+      const puedeAcceder = res.data.datos?.puedeAcceder;
+      const nombre = res.data.datos?.nombre;
+      const tipoCheck = res.data.datos?.tipo_check;
+      if (puedeAcceder === false) {
+        const message = nombre
+          ? `Acceso pendiente para ${nombre}. Requiere validacion.`
+          : "Acceso pendiente de autorizacion. Requiere validacion.";
+        enqueueSnackbar(message, { variant: "warning" });
+        return { ok: false, message };
+      }
+      const esEntrada = tipoCheck === 6 ? false : true;
+      const esVisitanteQr = regexCardCode.test(qr);
+      const ineRaw = String(res.data?.datos?.img_ine || "").trim();
+      const message = nombre
+        ? `Acceso a ${nombre}. ${esEntrada ? "Bienvenido." : "Hasta luego."}`
+        : esEntrada
+          ? "Acceso permitido. Bienvenido."
+          : "Salida registrada. Hasta luego.";
+      enqueueSnackbar(message, { variant: "success" });
+      return {
+        ok: true,
+        message,
+        img_ine: esVisitanteQr ? ineRaw || "" : undefined,
+        nombre,
+        tipo_check: tipoCheck,
+        biostar_modo_manual: !!res.data?.datos?.biostar_modo_manual,
+      };
+    } catch (error) {
+      handlingError(error);
+      return { ok: false, message: "Error al validar el QR. Intenta de nuevo." };
+    }
+  };
+
+  const onManualClose = async (): Promise<{ ok: boolean; message: string }> => {
+    try {
+      const res = await clienteAxios.post("/api/eventos/biostar/cerrar-manual");
+      const ok = !!res.data?.estado;
+      return { ok, message: res.data?.mensaje || (ok ? "Acceso cerrado." : "No se pudo cerrar.") };
+    } catch (error) {
+      handlingError(error);
+      return { ok: false, message: "Error al cerrar acceso en BioStar." };
+    }
   };
 
   return (
@@ -840,6 +914,17 @@ export default function Kiosco() {
                         }}
                         setValue={setQuickFilter}
                       />
+                      <Box sx={{ width: "100%", display: "flex", justifyContent: "end" }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => setShowQRScanner(true)}
+                          startIcon={<QrCodeScanner fontSize="small" />}
+                          sx={{ textTransform: "none" }}
+                        >
+                          Escanear QR
+                        </Button>
+                      </Box>
                     </StyledStack>
                   </Grid>
                   <Grid
@@ -1032,6 +1117,16 @@ export default function Kiosco() {
         )}
         {error && <ErrorOverlay error={error} onClick={obtenerRegistros} />}
       </Box>
+      {showQRScanner && (
+        <FormProvider {...formContext}>
+          <LectorQrVisitantes
+            name="qr"
+            setShow={setShowQRScanner}
+            onQrValidate={onQrValidate}
+            onManualClose={onManualClose}
+          />
+        </FormProvider>
+      )}
       <Dialog
         open={showModal}
         onClose={handleClose}

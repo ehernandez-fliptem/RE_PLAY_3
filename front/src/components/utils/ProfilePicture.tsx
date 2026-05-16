@@ -15,6 +15,7 @@ import {
   Divider,
   DialogActions,
   Button,
+  Stack,
 } from "@mui/material";
 import {
   CameraAlt,
@@ -28,14 +29,15 @@ import {
 import { Controller, useFormContext } from "react-hook-form";
 import { useConfirm } from "material-ui-confirm";
 import Camera from "./Camera";
-import { resizeImage } from "./functions/extras";
+import { readFileData, resizeImage } from "./functions/extras";
 
-type AllowedFiles = "png" | "jpg" | "jpeg";
+type AllowedFiles = "png" | "jpg" | "jpeg" | "pdf";
 type ProfilePictureProps = {
   name: string;
   maxWidth?: number;
   allowFiles?: Array<AllowedFiles>;
   variant?: "circular" | "rounded" | "square";
+  compact?: boolean;
   disableEdit?: boolean;
   showViewButton?: boolean;
   label?: string;
@@ -49,6 +51,7 @@ export default function ProfilePicture({
   maxWidth,
   allowFiles = ["png", "jpg", "jpeg"],
   variant = "circular",
+  compact = false,
   disableEdit = false,
   showViewButton,
   label,
@@ -78,17 +81,29 @@ export default function ProfilePicture({
         return;
       }
 
-      const resized = await resizeImage(file, maxWidth).catch((error) => {
-        setTimeout(() => {
+      try {
+        const processedFile =
+          fileType === "pdf"
+            ? await readFileData(file)
+            : await resizeImage(file, maxWidth);
+
+        if (!processedFile) {
           setError(name, {
             type: "manual",
-            message: error.message,
+            message: "No se pudo leer el archivo.",
           });
-        }, 5000);
-      });
-      e.target.value = "";
-      setValue(name, resized);
-      trigger(name);
+          return;
+        }
+
+        e.target.value = "";
+        setValue(name, processedFile);
+        trigger(name);
+      } catch (error: any) {
+        setError(name, {
+          type: "manual",
+          message: error?.message || "No se pudo procesar el archivo.",
+        });
+      }
     }
   };
 
@@ -140,6 +155,86 @@ export default function ProfilePicture({
                 {label} {required ? "*" : ""}
               </Typography>
             )}
+            {compact ? (
+              <Box sx={{ width: "100%", maxWidth: 460 }}>
+                <Typography variant="body2" color={field.value ? "success.main" : "text.secondary"} sx={{ mb: 1 }}>
+                  {field.value ? "Archivo cargado" : "Sin archivo seleccionado"}
+                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap">
+                  {!disableEdit && (
+                    <Button
+                      component="label"
+                      variant="outlined"
+                      startIcon={<Upload />}
+                      sx={{
+                        flex: "1 1 170px",
+                        minHeight: 40,
+                        minWidth: 170,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Subir archivo
+                      <input
+                        type="file"
+                        hidden
+                        onChange={handleFileChange}
+                        accept={allowFiles.map((ext) => `.${ext}`).join(",")}
+                      />
+                    </Button>
+                  )}
+                  {!disableEdit && (
+                    <Button
+                      variant="outlined"
+                      startIcon={<CameraAlt />}
+                      onClick={() => setShowCamera(true)}
+                      sx={{
+                        flex: "1 1 170px",
+                        minHeight: 40,
+                        minWidth: 170,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Camara
+                    </Button>
+                  )}
+                  {showViewButton && !!field.value && (
+                    <Button
+                      variant="outlined"
+                      onClick={handleClickOpen}
+                      sx={{
+                        minHeight: 40,
+                        minWidth: 40,
+                        width: 40,
+                        p: 0,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Visibility fontSize="small" />
+                    </Button>
+                  )}
+                  {!disableEdit && !!field.value && (
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={handleDelete}
+                      sx={{
+                        minHeight: 40,
+                        minWidth: 40,
+                        width: 40,
+                        p: 0,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Delete fontSize="small" />
+                    </Button>
+                  )}
+                </Stack>
+              </Box>
+            ) : (
             <Box
               sx={{
                 position: "relative",
@@ -250,6 +345,7 @@ export default function ProfilePicture({
                 )}
               </Box>
             </Box>
+            )}
             {fieldState.error && (
               <FormHelperText error>{fieldState.error.message}</FormHelperText>
             )}
@@ -272,10 +368,11 @@ export default function ProfilePicture({
               </Modal>
             )}
             <Dialog
-              fullScreen
               open={openDialog}
               onClose={handleClose}
               aria-labelledby="responsive-dialog-title"
+              fullWidth
+              maxWidth="lg"
             >
               <DialogContent
                 sx={{
@@ -283,24 +380,29 @@ export default function ProfilePicture({
                   flexDirection: "column",
                   justifyContent: "center",
                   alignItems: "center",
-                  my: 2,
+                  p: 1.5,
+                  minHeight: 320,
                 }}
               >
-                <Avatar
-                  variant="square"
-                  src={currDoc}
-                  sx={{
-                    width: "60%",
-                    height: "60%",
-                  }}
-                  slotProps={{
-                    img: {
-                      style: {
-                        objectFit: "contain",
-                      },
-                    },
-                  }}
-                />
+                {String(currDoc || "").startsWith("data:application/pdf") ? (
+                  <Box
+                    component="iframe"
+                    src={currDoc}
+                    sx={{ width: "100%", height: "78vh", border: 0 }}
+                  />
+                ) : (
+                  <Box
+                    component="img"
+                    src={currDoc}
+                    alt="Vista previa"
+                    sx={{
+                      width: "100%",
+                      maxWidth: "min(100%, 980px)",
+                      maxHeight: "78vh",
+                      objectFit: "contain",
+                    }}
+                  />
+                )}
               </DialogContent>
               <Divider sx={{ my: 1 }} />
               <DialogActions>

@@ -20,7 +20,7 @@ export async function obtenerIntegraciones(_req: Request, res: Response): Promis
         console.log("Obteniendo integraciones de configuración...");
         const registro = await Configuracion.findOne(
             { activo: true },
-            "habilitarIntegracionHv habilitarIntegracionHvBiometria habilitarIntegracionCdvi habilitarContratistas habilitarRegistroCampo documentos_visitantes documentos_contratistas documentos_personalizados"
+            "habilitarIntegracionHv habilitarIntegracionBiostar habilitarIntegracionHvBiometria habilitarIntegracionCdvi habilitarContratistas habilitarRegistroCampo documentos_visitantes documentos_contratistas documentos_personalizados"
         ).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
         res.status(200).send({ estado: true, datos: registro });
     } catch (error: any) {
@@ -32,6 +32,13 @@ export async function obtenerIntegraciones(_req: Request, res: Response): Promis
 export async function modificarIntegraciones(req: Request, res: Response): Promise<void> {
     try {
         const {
+            habilitarIntegracionHv,
+            habilitarIntegracionBiostar,
+            habilitarIntegracionHvBiometria,
+            habilitarIntegracionCdvi,
+            habilitarCamaras,
+            habilitarContratistas,
+            habilitarRegistroCampo,
             documentos_visitantes,
             documentos_contratistas,
             documentos_personalizados,
@@ -81,19 +88,35 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
         };
 
         const update: Record<string, unknown> = {
-            // Hardcode temporal: solo se mantiene activa la integración base de Hikvision.
-            habilitarIntegracionHv: true,
-            habilitarIntegracionHvBiometria: false,
-            habilitarIntegracionCdvi: false,
-            habilitarCamaras: false,
-            habilitarContratistas: false,
-            habilitarRegistroCampo: false,
+            habilitarIntegracionHv: !!habilitarIntegracionHv,
+            habilitarIntegracionBiostar: !!habilitarIntegracionBiostar,
+            habilitarIntegracionHvBiometria:
+                typeof habilitarIntegracionHvBiometria === "boolean" ? habilitarIntegracionHvBiometria : undefined,
+            habilitarCamaras: !!habilitarCamaras,
+            habilitarContratistas:
+                typeof habilitarContratistas === "boolean" ? habilitarContratistas : undefined,
+            habilitarRegistroCampo: typeof habilitarRegistroCampo === "boolean" ? habilitarRegistroCampo : undefined,
             documentos_visitantes: normalizeDocConfig(documentos_visitantes) || undefined,
             documentos_contratistas: normalizeDocConfig(documentos_contratistas) || undefined,
             documentos_personalizados: normalizeCustomDocsConfig(documentos_personalizados) || undefined,
             modificado_por: id_usuario,
             fecha_modificacion: Date.now(),
         };
+        if (typeof habilitarIntegracionCdvi === "boolean") {
+            update.habilitarIntegracionCdvi = habilitarIntegracionCdvi;
+        }
+        if (update.habilitarIntegracionHvBiometria === undefined) {
+            delete update.habilitarIntegracionHvBiometria;
+        }
+        if (!update.habilitarIntegracionHv) {
+            update.habilitarIntegracionHvBiometria = false;
+        }
+        if (update.habilitarContratistas === undefined) {
+            delete update.habilitarContratistas;
+        }
+        if (update.habilitarRegistroCampo === undefined) {
+            delete update.habilitarRegistroCampo;
+        }
         if (update.documentos_visitantes === undefined) {
             delete update.documentos_visitantes;
         }
@@ -132,26 +155,30 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
             await DispositivosHv.updateMany({}, { $set: { es_panel_maestro: false } });
         }
 
-        await Usuarios.updateMany(
-            { rol: 11 },
-            {
-                $set: {
-                    activo: false,
-                    token_web: "",
-                    token_app: "",
-                },
-            }
-        );
-        await Usuarios.updateMany(
-            { rol: 12 },
-            {
-                $set: {
-                    activo: false,
-                    token_web: "",
-                    token_app: "",
-                },
-            }
-        );
+        if (typeof habilitarContratistas === "boolean") {
+            await Usuarios.updateMany(
+                { rol: 11 },
+                {
+                    $set: {
+                        activo: habilitarContratistas,
+                        token_web: "",
+                        token_app: "",
+                    },
+                }
+            );
+        }
+        if (typeof habilitarRegistroCampo === "boolean") {
+            await Usuarios.updateMany(
+                habilitarRegistroCampo ? { rol: 12 } : { rol: [12] },
+                {
+                    $set: {
+                        activo: habilitarRegistroCampo,
+                        token_web: "",
+                        token_app: "",
+                    },
+                }
+            );
+        }
 
         res.status(200).json({ estado: true, datos: update });
     } catch (error: any) {
@@ -166,6 +193,39 @@ export async function obtener(_req: Request, res: Response): Promise<void> {
             { activo: true },
             { activo: 0, creado_por: 0, fecha_creacion: 0, modificado_por: 0, fecha_modificacion: 0 }
         ).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
+        const configJson: any = configuracion ? (configuracion as any).toObject?.() ?? configuracion : {};
+        const envCuentaActiva = !!(
+            CONFIG.MAIL_VISITANTES_ID &&
+            CONFIG.MAIL_VISITANTES_USER &&
+            CONFIG.MAIL_VISITANTES_PASS &&
+            CONFIG.MAIL_VISITANTES_HOST
+        );
+        if (envCuentaActiva) {
+            const envCuenta = {
+                id: CONFIG.MAIL_VISITANTES_ID,
+                nombre: CONFIG.MAIL_VISITANTES_NOMBRE || CONFIG.MAIL_VISITANTES_ID,
+                proveedor: CONFIG.MAIL_VISITANTES_PROVIDER || "gmail",
+                host: CONFIG.MAIL_VISITANTES_HOST,
+                port: Number(CONFIG.MAIL_VISITANTES_PORT || 587),
+                secure: !!CONFIG.MAIL_VISITANTES_SECURE,
+                requireTLS: CONFIG.MAIL_VISITANTES_REQUIRE_TLS !== false,
+                user: CONFIG.MAIL_VISITANTES_USER,
+                pass: CONFIG.MAIL_VISITANTES_PASS,
+                fromName: CONFIG.MAIL_VISITANTES_FROM_NAME || "Flipbot",
+                fromEmail: CONFIG.MAIL_VISITANTES_FROM_EMAIL || CONFIG.MAIL_VISITANTES_USER,
+                activo: true,
+            };
+            const actuales = Array.isArray(configJson?.correo_cuentas) ? configJson.correo_cuentas : [];
+            const sinDuplicado = actuales.filter((c: any) => c?.id !== envCuenta.id);
+            configJson.correo_cuentas = [...sinDuplicado, envCuenta];
+            const cuentaVisitantesActual = configJson?.correo_visitantes_cuenta_id;
+            if (
+                CONFIG.MAIL_VISITANTES_DEFAULT_FOR_TEMPLATE &&
+                (cuentaVisitantesActual === undefined || cuentaVisitantesActual === null)
+            ) {
+                configJson.correo_visitantes_cuenta_id = envCuenta.id;
+            }
+        }
         const tipos_eventos = await TiposEventos.find(
             { activo: true },
             { activo: 0, creado_por: 0, fecha_creacion: 0, modificado_por: 0, fecha_modificacion: 0 }
@@ -188,7 +248,7 @@ export async function obtener(_req: Request, res: Response): Promise<void> {
         );
         res.status(200).send({
             estado: true, datos: {
-                configuracion,
+                configuracion: configJson,
                 tipos_eventos,
                 tipos_registros,
                 tipos_dispositivos,

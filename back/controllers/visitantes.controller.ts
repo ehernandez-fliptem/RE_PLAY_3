@@ -83,8 +83,14 @@ async function syncVisitanteEnPaneles(params: {
   id_visitante: number;
   fullName: string;
   cardNo: string;
-}): Promise<{ ok: boolean; errores: Array<{ ip: string; stage: string; message: string }> }> {
+}): Promise<{
+  ok: boolean;
+  total: number;
+  exitos: string[];
+  errores: Array<{ ip: string; stage: string; message: string }>;
+}> {
   const errores: Array<{ ip: string; stage: string; message: string }> = [];
+  const exitos: string[] = [];
   const employeeNo = calcEmployeeNo(params.id_visitante);
   const cardNoPrimary = String(params.cardNo || "").trim();
   const cardNoFallback = String(employeeNo || "").trim();
@@ -224,10 +230,18 @@ async function syncVisitanteEnPaneles(params: {
         stage: "SYNC_ERROR",
         message: String(e?.message || e).slice(0, 500),
       });
+      continue;
     }
+
+    exitos.push(String(ip));
   }
 
-  return { ok: errores.length === 0, errores };
+  return {
+    ok: panelesOrdenados.length === 0 || exitos.length > 0,
+    total: panelesOrdenados.length,
+    exitos,
+    errores,
+  };
 }
 
 const DOC_CHECK_KEYS = [
@@ -366,6 +380,7 @@ const faceDetector = new FaceDetector();
 
 export async function obtenerTodos(req: Request, res: Response): Promise<void> {
     try {
+        const estadoFiltro = String((req.query as any)?.estado || "activos").trim().toLowerCase();
         const { filter, pagination, sort } = req.query as { filter: string; pagination: string; sort: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
         const querySort = JSON.parse(sort) as QueryParams["sort"];
@@ -382,6 +397,14 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
             ["id_visitante", "empresa", "nombre"]
         );
         const aggregation: PipelineStage[] = [
+            {
+                $match: {
+                    $and: [
+                        estadoFiltro === "inactivos" ? { activo: false } : estadoFiltro === "todos" ? {} : { activo: true },
+                        { eliminado_permanente: { $ne: true } },
+                    ],
+                },
+            },
             {
                 $set: {
                     nombre: {
@@ -402,6 +425,9 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                             then: false,
                             else: true
                         }
+                    },
+                    sync_hikvision_pendiente: {
+                        $ifNull: ["$sync_hikvision_pendiente", false]
                     },
                 }
             },
@@ -459,6 +485,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
 
 export async function obtenerGrid(req: Request, res: Response): Promise<void> {
     try {
+        const estadoFiltro = String((req.query as any)?.estado || "activos").trim().toLowerCase();
         const { filter = "{}", pagination = "{}", sort = "{}" } = req.query as any;
 
         const queryFilter = JSON.parse(filter);
@@ -474,6 +501,14 @@ export async function obtenerGrid(req: Request, res: Response): Promise<void> {
         );
 
         const aggregation: PipelineStage[] = [
+        {
+            $match: {
+            $and: [
+                estadoFiltro === "inactivos" ? { activo: false } : estadoFiltro === "todos" ? {} : { activo: true },
+                { eliminado_permanente: { $ne: true } },
+            ],
+            },
+        },
         {
             $set: {
             // nombre completo
@@ -521,6 +556,9 @@ export async function obtenerGrid(req: Request, res: Response): Promise<void> {
                     },
                 },
                 ],
+            },
+            sync_hikvision_pendiente: {
+                $ifNull: ["$sync_hikvision_pendiente", false],
             },
             },
         },
@@ -835,6 +873,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
     try {
         const {
         img_usuario,
+        img_ine,
         nombre,
         apellido_pat,
         apellido_mat,
@@ -843,6 +882,10 @@ export async function crear(req: Request, res: Response): Promise<void> {
         correo,
         contrasena,
         documentos_checks,
+        viene_en_coche,
+        archivo_licencia,
+        archivo_poliza_seguro,
+        archivo_tarjeta_circulacion,
         } = req.body;
 
         const id_usuario = (req as UserRequest).userId;
@@ -872,16 +915,29 @@ export async function crear(req: Request, res: Response): Promise<void> {
         });
         return;
         }
+        const vieneEnCoche = Boolean(viene_en_coche);
+        if (vieneEnCoche) {
+        if (!String(archivo_licencia || "").trim()) {
+            res.status(400).json({ estado: false, mensaje: "La licencia es obligatoria cuando viene en coche." });
+            return;
+        }
+        if (!String(archivo_poliza_seguro || "").trim()) {
+            res.status(400).json({ estado: false, mensaje: "La póliza de seguro es obligatoria cuando viene en coche." });
+            return;
+        }
+        }
 
         // 4) Preparar imagen UNA sola vez
         lap("resizeImage start");
         const imgResized = await resizeImage(img_usuario);
+        const imgIneResized = await resizeImage(img_ine);
         lap("resizeImage done", { hasImg: !!imgResized });
 
         // 5) Crear visitante (SIN card_code aún)
         const nuevo = new Visitantes({
         contrasena: hash,
         img_usuario: imgResized,
+        img_ine: imgIneResized,
         nombre,
         apellido_pat,
         apellido_mat,
@@ -889,6 +945,10 @@ export async function crear(req: Request, res: Response): Promise<void> {
         telefono,
         correo,
         documentos_checks: normalizedDocChecks,
+        viene_en_coche: vieneEnCoche,
+        archivo_licencia: vieneEnCoche ? String(archivo_licencia || "") : "",
+        archivo_poliza_seguro: vieneEnCoche ? String(archivo_poliza_seguro || "") : "",
+        archivo_tarjeta_circulacion: vieneEnCoche ? String(archivo_tarjeta_circulacion || "") : "",
         creado_por: id_usuario,
         });
 
@@ -924,28 +984,54 @@ export async function crear(req: Request, res: Response): Promise<void> {
           fullName,
           cardNo,
         });
+        const syncPendiente = syncRes.errores.length > 0;
+        await Visitantes.updateOne(
+          { _id: reg_saved._id },
+          {
+            $set: {
+              sync_hikvision_pendiente: syncPendiente,
+              sync_hikvision_error: syncPendiente
+                ? `Pendiente en: ${syncRes.errores.map((e) => e.ip).filter(Boolean).join(", ")}`
+                : "",
+            },
+          }
+        );
 
-        if (!syncRes.ok) {
-          await Visitantes.findByIdAndDelete(reg_saved._id);
-          const firstErr = syncRes.errores[0];
-          res.status(200).json({
-            estado: false,
-            codigo: "PANEL_SYNC_FAILED",
-            mensaje:
-              firstErr?.message ||
-              "Error al sincronizar con el panel.",
-            datos: syncRes.errores,
+        let correoEnviado = false;
+        try {
+          const qrDataUrl = await QRCode.toDataURL(String(cardNo), {
+            errorCorrectionLevel: "H",
+            type: "image/png",
+            width: 500,
+            margin: 2,
           });
-          return;
+          correoEnviado = await enviarCorreoNuevoVisitanteHV(
+            correo,
+            fullName,
+            qrDataUrl
+          );
+          log(`${fecha()} INFO: Crear visitante correo HV. visitante=${String(reg_saved._id)} correo=${String(correo || "")} enviado=${correoEnviado}\n`);
+        } catch (e: any) {
+          log(`${fecha()} ERROR: Crear visitante correo HV. visitante=${String(reg_saved._id)} correo=${String(correo || "")} error=${String(e?.message || e)}\n`);
         }
 
         // 9) Respuesta
         res.status(200).json({
           estado: true,
+          mensaje:
+            syncRes.errores.length > 0
+              ? `Visitante creado. Subido en ${syncRes.exitos.length}/${syncRes.total} panel(es).`
+              : "Visitante creado y sincronizado en paneles.",
           datos: {
             _id: String(reg_saved._id),
             id_visitante: reg_saved.id_visitante,
             card_code: cardNo,
+            correoEnviado,
+            sync: {
+              total: syncRes.total,
+              subidos: syncRes.exitos,
+              fallidos: syncRes.errores,
+            },
           },
         });
 
@@ -993,64 +1079,124 @@ export async function verificar(req: Request, res: Response): Promise<void> {
       { $set: { card_code: cardNo, verificado: true, bloqueado: false, desbloqueado_hasta: endOfTodayDate } }
     );
 
-    QRCode.toDataURL(String(cardNo), {
-      errorCorrectionLevel: "H",
-      type: "image/png",
-      width: 500,
-      margin: 2,
-    })
-      .then((qrDataUrl) =>
-        enviarCorreoNuevoVisitanteHV(
-          visitante.correo,
-          fullName,
-          qrDataUrl
-        )
-      )
-      .then((okMail) => console.log("[VERIFICAR] mail HV ok?", okMail))
-      .catch((e) => console.log("[VERIFICAR] mail HV error:", e?.message || e));
+    try {
+      const qrDataUrl = await QRCode.toDataURL(String(cardNo), {
+        errorCorrectionLevel: "H",
+        type: "image/png",
+        width: 500,
+        margin: 2,
+      });
+      const okMail = await enviarCorreoNuevoVisitanteHV(
+        visitante.correo,
+        fullName,
+        qrDataUrl
+      );
+      log(`${fecha()} INFO: Verificar visitante correo HV. visitante=${String(visitante._id)} correo=${String(visitante.correo || "")} enviado=${okMail}\n`);
+    } catch (e: any) {
+      log(`${fecha()} ERROR: Verificar visitante correo HV. visitante=${String(visitante._id)} correo=${String(visitante.correo || "")} error=${String(e?.message || e)}\n`);
+    }
 
     const syncRes = await syncVisitanteEnPaneles({
       id_visitante: Number(visitante.id_visitante),
       fullName,
       cardNo,
     });
-
-    if (!syncRes.ok) {
-      await Visitantes.updateOne(
-        { _id: visitante._id },
-        {
-          $set: {
-            card_code: String(visitante.card_code || ""),
-            verificado: Boolean(visitante.verificado),
-            bloqueado: Boolean(visitante.bloqueado),
-            desbloqueado_hasta: visitante.desbloqueado_hasta || null,
-          },
-        }
-      );
-      const firstErr = syncRes.errores[0];
-      res.status(200).json({
-        estado: false,
-        codigo: "PANEL_SYNC_FAILED",
-        mensaje:
-          firstErr?.message ||
-          "Error al sincronizar con el panel.",
-        datos: syncRes.errores,
-      });
-      return;
-    }
+    const syncPendiente = syncRes.errores.length > 0;
+    await Visitantes.updateOne(
+      { _id: visitante._id },
+      {
+        $set: {
+          sync_hikvision_pendiente: syncPendiente,
+          sync_hikvision_error: syncPendiente
+            ? `Pendiente en: ${syncRes.errores.map((e) => e.ip).filter(Boolean).join(", ")}`
+            : "",
+        },
+      }
+    );
 
     res.status(200).json({
       estado: true,
+      mensaje:
+        syncRes.errores.length > 0
+          ? `Visitante verificado. Subido en ${syncRes.exitos.length}/${syncRes.total} panel(es).`
+          : "Visitante verificado y sincronizado en paneles.",
       datos: {
         _id: String(visitante._id),
         verificado: true,
         card_code: cardNo,
         bloqueado: false,
         desbloqueado_hasta: endOfTodayDate,
+        sync: {
+          total: syncRes.total,
+          subidos: syncRes.exitos,
+          fallidos: syncRes.errores,
+        },
       },
     });
   } catch (error: any) {
     console.log("[VERIFICAR] ERROR:", error?.message || error);
+    res.status(500).json({ estado: false, mensaje: "Error interno." });
+  }
+}
+
+export async function resincronizarVisitantePaneles(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "Falta el id del visitante." });
+      return;
+    }
+
+    const visitante = await Visitantes.findById(
+      id,
+      "_id id_visitante nombre apellido_pat apellido_mat card_code"
+    ).lean<any>();
+
+    if (!visitante) {
+      res.status(404).json({ estado: false, mensaje: "Visitante no encontrado." });
+      return;
+    }
+
+    const fullName = `${visitante.nombre ?? ""} ${visitante.apellido_pat ?? ""} ${visitante.apellido_mat ?? ""}`
+      .replace(/\s+/g, " ")
+      .trim();
+    const cardNo = String(visitante.card_code || "").trim() || generarCardCodeDesdeId(Number(visitante.id_visitante));
+
+    const syncRes = await syncVisitanteEnPaneles({
+      id_visitante: Number(visitante.id_visitante),
+      fullName,
+      cardNo,
+    });
+    const syncPendiente = syncRes.errores.length > 0;
+    await Visitantes.updateOne(
+      { _id: visitante._id },
+      {
+        $set: {
+          sync_hikvision_pendiente: syncPendiente,
+          sync_hikvision_error: syncPendiente
+            ? `Pendiente en: ${syncRes.errores.map((e) => e.ip).filter(Boolean).join(", ")}`
+            : "",
+        },
+      }
+    );
+
+    res.status(200).json({
+      estado: true,
+      mensaje:
+        syncRes.errores.length > 0
+          ? `Subido en ${syncRes.exitos.length}/${syncRes.total} panel(es).`
+          : "Sincronizacion completada en paneles.",
+      datos: {
+        _id: String(visitante._id),
+        sync: {
+          total: syncRes.total,
+          subidos: syncRes.exitos,
+          fallidos: syncRes.errores,
+        },
+      },
+    });
+  } catch (error: any) {
+    console.log("[RESYNC_VISITANTE] ERROR:", error?.message || error);
     res.status(500).json({ estado: false, mensaje: "Error interno." });
   }
 }
@@ -1142,9 +1288,74 @@ export async function obtenerQR(req: Request, res: Response): Promise<void> {
     }
     }
 
+export async function reenviarCorreoAcceso(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const visitante = await Visitantes.findById(
+            req.params.id,
+            "_id id_visitante card_code verificado correo nombre apellido_pat apellido_mat"
+        ).lean<any>();
+
+        if (!visitante) {
+            res.status(200).json({ estado: false, mensaje: "Visitante no encontrado." });
+            return;
+        }
+
+        if (!visitante.verificado) {
+            res.status(200).json({
+                estado: false,
+                mensaje: "El visitante no está verificado. Verifícalo antes de reenviar el correo.",
+            });
+            return;
+        }
+
+        let cardCode = String(visitante.card_code || "").trim();
+        if (!cardCode) {
+            cardCode = generarCardCodeDesdeId(visitante.id_visitante);
+            await Visitantes.updateOne({ _id: visitante._id }, { $set: { card_code: cardCode } });
+        }
+
+        const qrDataUrl = await QRCode.toDataURL(cardCode, {
+            errorCorrectionLevel: "H",
+            type: "image/png",
+            width: 400,
+            margin: 2,
+        });
+
+        const nombreCompleto = [visitante.nombre, visitante.apellido_pat, visitante.apellido_mat]
+            .filter(Boolean)
+            .join(" ");
+
+        const correoEnviado = await enviarCorreoNuevoVisitanteHV(
+            String(visitante.correo || ""),
+            nombreCompleto,
+            qrDataUrl
+        );
+
+        log(
+            `${fecha()} INFO: Reenviar correo visitante. solicitante=${id_usuario} visitante=${String(
+                visitante._id
+            )} correo=${String(visitante.correo || "")} enviado=${correoEnviado}\n`
+        );
+
+        if (!correoEnviado) {
+            res.status(200).json({ estado: false, mensaje: "No se pudo reenviar el correo del visitante." });
+            return;
+        }
+
+        res.status(200).json({ estado: true, mensaje: "Correo reenviado correctamente." });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
 export async function modificar(req: Request, res: Response): Promise<void> {
     try {
-        const { img_usuario, nombre, apellido_pat, apellido_mat, empresa, telefono, correo, contrasena, documentos_checks } = req.body;
+        const {
+            img_usuario, img_ine, nombre, apellido_pat, apellido_mat, empresa, telefono, correo, contrasena, documentos_checks,
+            viene_en_coche, archivo_licencia, archivo_poliza_seguro, archivo_tarjeta_circulacion
+        } = req.body;
         const id_usuario = (req as UserRequest).userId;
 
         const existe_usuario = await Usuarios.findOne({ correo }, '_id');
@@ -1180,8 +1391,21 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             await hvSetValidForEmployee(employeeNo, { enable: true, beginTime, endTime });
         }
 
+        const vieneEnCoche = Boolean(viene_en_coche);
+        if (vieneEnCoche) {
+            if (!String(archivo_licencia || "").trim()) {
+                res.status(400).json({ estado: false, mensaje: "La licencia es obligatoria cuando viene en coche." });
+                return;
+            }
+            if (!String(archivo_poliza_seguro || "").trim()) {
+                res.status(400).json({ estado: false, mensaje: "La póliza de seguro es obligatoria cuando viene en coche." });
+                return;
+            }
+        }
+
         let updateData = {
             img_usuario: await resizeImage(img_usuario),
+            img_ine: await resizeImage(img_ine),
             nombre,
             apellido_pat,
             apellido_mat,
@@ -1191,6 +1415,10 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             contrasena,
             fecha_modificacion: Date.now(),
             modificado_por: id_usuario,
+            viene_en_coche: vieneEnCoche,
+            archivo_licencia: vieneEnCoche ? String(archivo_licencia || "") : "",
+            archivo_poliza_seguro: vieneEnCoche ? String(archivo_poliza_seguro || "") : "",
+            archivo_tarjeta_circulacion: vieneEnCoche ? String(archivo_tarjeta_circulacion || "") : "",
             ...(docChecksProvided ? { documentos_checks: normalizedDocChecks } : {}),
             ...(requiereReverificacion ? { verificado: false } : {}),
             ...bloqueadoUpdate,
@@ -1274,6 +1502,26 @@ export async function modificarEstado(req: Request, res: Response): Promise<void
         res.status(200).json({ estado: true });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function eliminarPermanente(req: Request, res: Response): Promise<void> {
+    try {
+        const registro = await Visitantes.findById(req.params.id, 'activo id_visitante');
+        if (!registro) {
+            res.status(200).json({ estado: false, mensaje: 'Visitante no encontrado.' });
+            return;
+        }
+        if (registro.activo) {
+            res.status(200).json({ estado: false, mensaje: 'Primero desactiva al visitante.' });
+            return;
+        }
+        await Visitantes.findByIdAndUpdate(req.params.id, {
+            $set: { eliminado_permanente: true, activo: false }
+        });
+        res.status(200).json({ estado: true });
+    } catch (error: any) {
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
     }
 }
@@ -1367,19 +1615,16 @@ export async function cargarProgramacionUsuarios(req: Request, res: Response): P
 
             const nuevoUsuario = new Visitantes({ ...registro, contrasena: contrasena_hashed, creado_por: id_usuario });
             await nuevoUsuario.save();
-            console.log("va a enviar correo a:", registro.correo);
-            console.log("envioCorreos:", envioCorreos);
             if (envioCorreos) {
                 const { correo, contrasena } = registro;
                 let roles = await Roles.find({ rol: { $in: [10] }, activo: true }, 'nombre');
                 const rolesString = roles.map((item) => item.nombre).join(' - ');
-                console.log("enviando correo a:", correo);
                 const nombreCompleto = [registro.nombre, registro.apellido_pat, registro.apellido_mat]
                     .filter(Boolean)
                     .join(" ");
                 resultCorreoUsuario = await enviarCorreoUsuario(correo, contrasena, rolesString, nombreCompleto);
-                console.log("resultado correo:", resultCorreoUsuario);
-                if (registrosGuardados) correosEnviados++;
+                log(`${fecha()} INFO: Carga masiva visitantes correo. correo=${String(correo || "")} enviado=${resultCorreoUsuario}\n`);
+                if (resultCorreoUsuario) correosEnviados++;
             }
             usuariosCreados++;
             registrosGuardados.push({ ...registro, envioHabilitado: envioCorreos, correoEnviado: resultCorreoUsuario });
@@ -1702,3 +1947,7 @@ export const desbloquearBack = async (req: Request, res: Response) => {
         return res.status(500).json({ estado: false, mensaje: "Error al desbloquear visitante" });
     }
 };
+
+
+
+

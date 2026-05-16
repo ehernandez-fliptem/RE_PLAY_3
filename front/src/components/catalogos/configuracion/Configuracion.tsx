@@ -12,6 +12,8 @@ import {
   Card,
   CardContent,
   Divider,
+  Tab,
+  Tabs,
   lighten,
   Stack,
   Typography,
@@ -31,6 +33,7 @@ import ColorPalette from "./partes/ColorPalette";
 import type { ColorPalette as TColorPalette } from "../../../types/theme";
 import { defaultColorPalette } from "../../../themes/defaultTheme";
 import ColorCollections from "./partes/ColorCollections";
+import CorreoVisitantes from "./partes/CorreoVisitantes";
 
 type Colleciones = {
   tipo?: number;
@@ -74,11 +77,44 @@ type FormValues = {
   imgCorreo: string;
   saludaCorreo: string;
   despedidaCorreo: string;
+  correo_cuentas?: Array<{
+    id: string;
+    nombre: string;
+    proveedor: "outlook" | "gmail" | "smtp";
+    host: string;
+    port: number;
+    secure: boolean;
+    requireTLS: boolean;
+    user: string;
+    pass: string;
+    fromName?: string;
+    fromEmail?: string;
+    activo: boolean;
+  }>;
+  correo_visitantes_cuenta_id?: string;
+  correo_visitantes_template: {
+    asunto: string;
+    secciones: Array<{
+      id: string;
+      tipo: "nombre" | "qr" | "texto" | "imagen" | "pdf" | "enlace";
+      titulo?: string;
+      contenido?: string;
+      dataUrl?: string;
+      fileName?: string;
+      fijo?: boolean;
+      enlaceUrl?: string;
+      enlaceTexto?: string;
+      enlaceColor?: string;
+      enlaceAlign?: "left" | "center" | "right";
+      enlaceFontSize?: number;
+    }>;
+  };
   delayProximaFoto: number;
   tiempoFotoVisita: number;
   tiempoCancelacionRegistros: string;
   tiempoToleranciaEntrada: string;
   habilitarIntegracionHv: boolean;
+  habilitarIntegracionBiostar: boolean;
   habilitarIntegracionHvBiometria: boolean;
   habilitarCamaras: boolean;
   habilitarContratistas: boolean;
@@ -143,6 +179,54 @@ const resolver = yup.object().shape({
     .string()
     .max(100, "La despedida debe ser de máximo 100 caracteres")
     .required("Este campo es obligatorio."),
+  correo_visitantes_template: yup
+    .object()
+    .shape({
+      asunto: yup.string().required("Este campo es obligatorio."),
+      secciones: yup.array().of(
+        yup.object().shape({
+          id: yup.string().required(),
+          tipo: yup
+            .mixed<"nombre" | "qr" | "texto" | "imagen" | "pdf" | "enlace">()
+            .oneOf(["nombre", "qr", "texto", "imagen", "pdf", "enlace"])
+            .required(),
+          titulo: yup.string().optional(),
+          contenido: yup.string().optional(),
+          dataUrl: yup.string().optional(),
+          fileName: yup.string().optional(),
+          fijo: yup.boolean().optional(),
+          enlaceUrl: yup.string().optional(),
+          enlaceTexto: yup.string().optional(),
+          enlaceColor: yup.string().optional(),
+          enlaceAlign: yup.mixed<"left" | "center" | "right">().oneOf(["left", "center", "right"]).optional(),
+          enlaceFontSize: yup.number().optional(),
+        })
+      ),
+    })
+    .required(),
+  correo_cuentas: yup
+    .array()
+    .of(
+      yup.object().shape({
+        id: yup.string().required(),
+        nombre: yup.string().required(),
+        proveedor: yup
+          .mixed<"outlook" | "gmail" | "smtp">()
+          .oneOf(["outlook", "gmail", "smtp"])
+          .required(),
+        host: yup.string().required(),
+        port: yup.number().required(),
+        secure: yup.boolean().required(),
+        requireTLS: yup.boolean().required(),
+        user: yup.string().required(),
+        pass: yup.string().optional(),
+        fromName: yup.string().optional(),
+        fromEmail: yup.string().optional(),
+        activo: yup.boolean().required(),
+      })
+    )
+    .optional(),
+  correo_visitantes_cuenta_id: yup.string().optional(),
   delayProximaFoto: yup.number().required("Este campo es obligatorio."),
   tiempoFotoVisita: yup.number().required("Este campo es obligatorio."),
   tiempoCancelacionRegistros: yup
@@ -150,6 +234,9 @@ const resolver = yup.object().shape({
     .required("Este campo es obligatorio."),
   tiempoToleranciaEntrada: yup.string().required("Este campo es obligatorio."),
   habilitarIntegracionHv: yup.boolean().required("Este campo es obligatorio."),
+  habilitarIntegracionBiostar: yup
+    .boolean()
+    .required("Este campo es obligatorio."),
   habilitarIntegracionHvBiometria: yup
     .boolean()
     .required("Este campo es obligatorio."),
@@ -258,11 +345,21 @@ const initialValue: FormValues = {
   imgCorreo: "",
   saludaCorreo: "",
   despedidaCorreo: "",
+  correo_cuentas: [],
+  correo_visitantes_cuenta_id: "",
+  correo_visitantes_template: {
+    asunto: "Registro del visitante",
+    secciones: [
+      { id: "fixed_nombre", tipo: "nombre", fijo: true },
+      { id: "fixed_qr", tipo: "qr", fijo: true },
+    ],
+  },
   delayProximaFoto: 5,
   tiempoFotoVisita: 5,
   tiempoCancelacionRegistros: "30/m",
   tiempoToleranciaEntrada: "30/m",
   habilitarIntegracionHv: false,
+  habilitarIntegracionBiostar: false,
   habilitarIntegracionHvBiometria: false,
   habilitarCamaras: false,
   habilitarContratistas: true,
@@ -321,6 +418,9 @@ export default function Configuracion() {
     mode: "all",
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [tabValue, setTabValue] = useState<
+    "general" | "correos" | "integraciones" | "sistema" | "apariencia" | "colecciones"
+  >("general");
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -390,6 +490,7 @@ export default function Configuracion() {
         enqueueSnackbar("La configuración se modificó correctamente.", {
           variant: "success",
         });
+        formContext.reset(formContext.getValues());
         dispatch(
           updateConfig({
             ...configuracion,
@@ -529,6 +630,7 @@ export default function Configuracion() {
               alpha(theme.palette.divider, 0.3),
               0.88
             )}`,
+            overflow: "visible",
           })}
         >
           <CardContent>
@@ -539,41 +641,61 @@ export default function Configuracion() {
                 <Typography variant="h4" component="h2" textAlign="center">
                   Configuración
                 </Typography>
-                <General />
-                <Divider sx={{ my: 2 }} />
-                <Bitacora />
-                <Divider sx={{ my: 2 }} />
-                <Bot />
-                <Divider sx={{ my: 2 }} />
-                <Integraciones />
-                <Divider sx={{ my: 2 }} />
-                <ColorPalette />
-                <Divider sx={{ my: 2 }} />
-                <ColorCollections
-                  name="tipos_registros"
-                  label="Tipo de registros"
-                />
-                <Divider sx={{ my: 2 }} />
-
-                <ColorCollections
-                  name="tipos_documentos"
-                  label="Tipo de documentos"
-                />
+                <Tabs
+                  value={tabValue}
+                  onChange={(_e, v) => setTabValue(v)}
+                  variant="scrollable"
+                  scrollButtons="auto"
+                  sx={{ mt: 2 }}
+                >
+                  <Tab value="general" label="General" />
+                  <Tab value="correos" label="Correos" />
+                  <Tab value="integraciones" label="Integraciones" />
+                  <Tab value="apariencia" label="Apariencia" />
+                  <Tab value="colecciones" label="Colecciones" />
+                </Tabs>
                 <Divider sx={{ my: 2 }} />
 
-                <ColorCollections
-                  name="tipos_eventos"
-                  label="Tipo de eventos"
-                />
-                <Divider sx={{ my: 2 }} />
+                {tabValue === "general" && <General />}
+                {tabValue === "correos" && <CorreoVisitantes />}
+                {tabValue === "integraciones" && <Integraciones />}
+                {tabValue === "sistema" && (
+                  <Box>
+                    <Bitacora />
+                    <Divider sx={{ my: 2 }} />
+                    <Bot />
+                  </Box>
+                )}
+                {tabValue === "apariencia" && <ColorPalette />}
+                {tabValue === "colecciones" && (
+                  <Box>
+                    <ColorCollections
+                      name="tipos_registros"
+                      label="Tipo de registros"
+                    />
+                    <Divider sx={{ my: 2 }} />
 
-                <ColorCollections name="roles" label="Tipo de roles" />
-                <Divider sx={{ my: 2 }} />
+                    <ColorCollections
+                      name="tipos_documentos"
+                      label="Tipo de documentos"
+                    />
+                    <Divider sx={{ my: 2 }} />
 
-                <ColorCollections
-                  name="tipos_dispositivos"
-                  label="Tipo de dispositivos"
-                />
+                    <ColorCollections
+                      name="tipos_eventos"
+                      label="Tipo de eventos"
+                    />
+                    <Divider sx={{ my: 2 }} />
+
+                    <ColorCollections name="roles" label="Tipo de roles" />
+                    <Divider sx={{ my: 2 }} />
+
+                    <ColorCollections
+                      name="tipos_dispositivos"
+                      label="Tipo de dispositivos"
+                    />
+                  </Box>
+                )}
                 <Divider sx={{ my: 2 }} />
                 <Box
                   component="footer"
@@ -609,3 +731,7 @@ export default function Configuracion() {
     </Fragment>
   );
 }
+
+
+
+

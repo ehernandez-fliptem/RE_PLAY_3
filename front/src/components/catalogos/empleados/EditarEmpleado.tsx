@@ -15,8 +15,10 @@ import {
   Divider,
   IconButton,
   Stack,
+  TextField,
   Typography,
 } from "@mui/material";
+import { Add } from "@mui/icons-material";
 import { AutocompleteElement, FormContainer, SwitchElement, TextFieldElement } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
 import Swal from "sweetalert2";
@@ -85,6 +87,7 @@ type FormValues = {
   id_cubiculo?: string;
   correo: string;
   acceso_campo: boolean;
+  biostar_group_id?: string;
 };
 
 const resolver = yup.object().shape({
@@ -148,6 +151,7 @@ const resolver = yup.object().shape({
     .required("Este campo es obligatorio.")
     .email("Formato de correo inválido."),
   acceso_campo: yup.boolean().required(),
+  biostar_group_id: yup.string().optional(),
 }) as yup.ObjectSchema<FormValues>;
 
 const initialValue: FormValues = {
@@ -166,10 +170,14 @@ const initialValue: FormValues = {
   extension: "",
   correo: "",
   acceso_campo: false,
+  biostar_group_id: "",
 };
 
 export default function EditarEmpleado() {
   const { habilitarRegistroCampo } = useSelector(
+    (state: IRootState) => state.config.data
+  );
+  const { habilitarIntegracionBiostar, habilitarIntegracionHv } = useSelector(
     (state: IRootState) => state.config.data
   );
   const { id: ID } = useParams();
@@ -193,18 +201,19 @@ export default function EditarEmpleado() {
   const [departamentos, setDepartamentos] = useState<TDepartamentos[]>([]);
   const [cubiculos, setCubiculos] = useState<TCubiculos[]>([]);
   const [esUsuarioMaestro, setEsUsuarioMaestro] = useState(false);
+  const [biostarGrupos, setBiostarGrupos] = useState<Array<{ id_externo: string; nombre: string }>>([]);
+  const [modalGrupoOpen, setModalGrupoOpen] = useState(false);
+  const [nuevoGrupo, setNuevoGrupo] = useState("");
+  const [creandoGrupo, setCreandoGrupo] = useState(false);
   const initialFormRef = useRef<FormValues | null>(null);
   const [postSaveOpen, setPostSaveOpen] = useState(false);
-  const [postSaveStep, setPostSaveStep] = useState<"huella" | "tarjeta">(
-    "huella"
-  );
 
   useEffect(() => {
     const obtenerRegistro = async () => {
       try {
         const res = await clienteAxios.get(`/api/empleados/form-editar/${ID}`);
         if (res.data.estado) {
-          const { usuario, empresas } = res.data.datos;
+          const { usuario, empresas, biostarGrupos } = res.data.datos;
           setEsUsuarioMaestro(usuario.id_empleado === 1);
           setEmpresas(empresas);
           setPuestos(puestos);
@@ -218,6 +227,7 @@ export default function EditarEmpleado() {
           setDepartamentos(empresaSeleccionada?.departamentos || []);
           setCubiculos(empresaSeleccionada?.cubiculos || []);
           setAccesos(empresaSeleccionada?.accesos || []);
+          setBiostarGrupos(Array.isArray(biostarGrupos) ? biostarGrupos : []);
           const usuarioForm = {
             ...usuario,
             id_empresa: usuario?.id_empresa ?? "",
@@ -250,6 +260,20 @@ export default function EditarEmpleado() {
   }, [formContext, ID, habilitarRegistroCampo]);
 
   useEffect(() => {
+    if (!habilitarIntegracionBiostar) return;
+    if (!biostarGrupos.length) return;
+    const current = String(formContext.getValues("biostar_group_id") || "").trim();
+    if (current) return;
+    const allUsers =
+      biostarGrupos.find((g) => String(g.nombre || "").trim().toLowerCase() === "all users") ||
+      biostarGrupos.find((g) => String(g.id_externo) === "1") ||
+      biostarGrupos[0];
+    if (allUsers?.id_externo) {
+      formContext.setValue("biostar_group_id", String(allUsers.id_externo), { shouldValidate: true });
+    }
+  }, [habilitarIntegracionBiostar, biostarGrupos, formContext]);
+
+  useEffect(() => {
     if (!habilitarRegistroCampo) {
       formContext.setValue("acceso_campo", false, { shouldValidate: true });
     }
@@ -257,6 +281,10 @@ export default function EditarEmpleado() {
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
+      if (habilitarIntegracionBiostar && !esUsuarioMaestro && !String(data.biostar_group_id || "").trim()) {
+        formContext.setError("biostar_group_id", { type: "manual", message: "Este campo es obligatorio." });
+        return;
+      }
       const initial = initialFormRef.current;
       if (initial) {
         const sameAccesos =
@@ -277,6 +305,8 @@ export default function EditarEmpleado() {
           initial.extension === data.extension &&
           initial.correo === data.correo &&
           initial.acceso_campo === data.acceso_campo &&
+          String(initial.biostar_group_id || "").trim() ===
+            String(data.biostar_group_id || "").trim() &&
           sameAccesos;
         if (noChanges) {
           navigate("/empleados");
@@ -286,12 +316,24 @@ export default function EditarEmpleado() {
       setIsSaving(true);
       const res = await clienteAxios.put(`/api/empleados/${ID}`, data);
       if (res.data.estado) {
+        const pendientes: string[] = Array.isArray(res.data?.sync?.pendiente)
+          ? res.data.sync.pendiente
+          : [];
+        if (pendientes.length > 0) {
+          enqueueSnackbar(
+            `Empleado guardado, pero quedó pendiente sincronizar en: ${pendientes.join(", ")}.`,
+            { variant: "warning" }
+          );
+        }
         enqueueSnackbar("El empleado se modificó correctamente.", {
           variant: "success",
         });
         parentGridDataRef.fetchRows();
-        setPostSaveStep("huella");
-        setPostSaveOpen(true);
+        if (habilitarIntegracionHv) {
+          setPostSaveOpen(true);
+        } else {
+          navigate("/empleados");
+        }
       } else if (res.data.codigo === "PANEL_SYNC_FAILED") {
         setIsSaving(false);
         setShowForm(false);
@@ -303,6 +345,13 @@ export default function EditarEmpleado() {
             "El panel no aceptó la foto. Intenta con otra imagen.",
           showConfirmButton: true,
           allowOutsideClick: false,
+          didOpen: () => {
+            const container = Swal.getContainer();
+            if (container) {
+              container.style.zIndex = "20000";
+              if (container.parentElement) container.parentElement.style.zIndex = "20000";
+            }
+          },
           showClass: { popup: "swal2-show" },
           hideClass: { popup: "swal2-hide" },
         });
@@ -339,11 +388,91 @@ export default function EditarEmpleado() {
     });
   };
 
-  const abrirConfigTarjeta = () => {
-    setPostSaveOpen(false);
-    navigate("/empleados", {
-      state: { openBiometriaFor: ID, biometriaStep: "tarjeta" },
+  const swalTop = {
+    zIndex: 2400,
+    didOpen: () => {
+      const container = Swal.getContainer();
+      if (container) container.style.zIndex = "2400";
+    },
+  };
+
+  const crearGrupoBiostarDesdeForm = async () => {
+    if (creandoGrupo) return;
+    const base = nuevoGrupo.trim();
+    const nombre = base ? base.charAt(0).toUpperCase() + base.slice(1) : "";
+    if (!nombre) return;
+    setCreandoGrupo(true);
+    setModalGrupoOpen(false);
+
+    Swal.fire({
+      title: "Creando grupo",
+      text: "Espera un momento...",
+      allowOutsideClick: false,
+      showConfirmButton: false,
+      ...swalTop,
+      didOpen: () => {
+        const container = Swal.getContainer();
+        if (container) container.style.zIndex = "2400";
+        Swal.showLoading();
+      },
+      showClass: { popup: "swal2-show" },
+      hideClass: { popup: "swal2-hide" },
     });
+
+    try {
+      const res = await clienteAxios.post("/api/biostar-grupos", { nombre });
+      Swal.close();
+
+      if (!res.data?.estado) {
+        await Swal.fire({
+          icon: "error",
+          title: "No se pudo crear",
+          text: res.data?.mensaje || "No se pudo crear el grupo.",
+          showConfirmButton: true,
+          allowOutsideClick: false,
+          ...swalTop,
+          showClass: { popup: "swal2-show" },
+          hideClass: { popup: "swal2-hide" },
+        });
+        return;
+      }
+
+      const gruposRes = await clienteAxios.get("/api/biostar-grupos");
+      if (gruposRes.data?.estado) {
+        const list = Array.isArray(gruposRes.data?.datos) ? gruposRes.data.datos : [];
+        setBiostarGrupos(list);
+        const creado = list.find((g: any) => String(g.nombre || "").toLowerCase() === nombre.toLowerCase());
+        if (creado?.id_externo) {
+          formContext.setValue("biostar_group_id", String(creado.id_externo), { shouldValidate: true });
+        }
+      }
+
+      await Swal.fire({
+        icon: "success",
+        title: "Grupo creado",
+        text: "El grupo se creó correctamente.",
+        showConfirmButton: true,
+        allowOutsideClick: false,
+        ...swalTop,
+        showClass: { popup: "swal2-show" },
+        hideClass: { popup: "swal2-hide" },
+      });
+      setNuevoGrupo("");
+    } catch (error: any) {
+      Swal.close();
+      await Swal.fire({
+        icon: "error",
+        title: "No se pudo crear",
+        text: error?.response?.data?.mensaje || error?.message || "Ocurrió un error al crear el grupo.",
+        showConfirmButton: true,
+        allowOutsideClick: false,
+        ...swalTop,
+        showClass: { popup: "swal2-show" },
+        hideClass: { popup: "swal2-hide" },
+      });
+    } finally {
+      setCreandoGrupo(false);
+    }
   };
 
   if (!showForm) {
@@ -503,6 +632,36 @@ export default function EditarEmpleado() {
                     noOptionsText: "No hay opciones.",
                   }}
                 />
+                {!esUsuarioMaestro && habilitarIntegracionBiostar && (
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center" sx={{ mt: 1 }}>
+                    <Box sx={{ flex: 1, width: "100%" }}>
+                      <AutocompleteElement
+                        name="biostar_group_id"
+                        label="Grupo BioStar"
+                        required
+                        matchId
+                        options={biostarGrupos.map((item) => ({
+                          id: item.id_externo,
+                          label:
+                            String(item.nombre || "").trim().toLowerCase() === "all users"
+                              ? "Predeterminado BioStar"
+                              : item.nombre,
+                        }))}
+                        textFieldProps={{ margin: "normal" }}
+                        autocompleteProps={{ noOptionsText: "No hay opciones." }}
+                      />
+                    </Box>
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      startIcon={<Add />}
+                      sx={{ mt: { xs: 0, sm: 1 } }}
+                      onClick={() => setModalGrupoOpen(true)}
+                    >
+                      Grupo
+                    </Button>
+                  </Stack>
+                )}
                 <Controller
                   name="movil"
                   control={formContext.control}
@@ -619,9 +778,7 @@ export default function EditarEmpleado() {
         fullWidth
       >
         <DialogTitle>
-          {postSaveStep === "huella"
-            ? "Configurar huella"
-            : "Configurar tarjeta"}
+          Configurar huella
           <IconButton
             onClick={cerrarFlujoPostSave}
             sx={{ position: "absolute", right: 8, top: 8 }}
@@ -632,39 +789,47 @@ export default function EditarEmpleado() {
           </IconButton>
         </DialogTitle>
         <DialogContent dividers>
-          {postSaveStep === "huella" ? (
-            <Typography>
-              El empleado se guardo correctamente. Quieres configurar su huella
-              ahora?
-            </Typography>
-          ) : (
-            <Typography>
-              Configuracion de tarjeta (esqueleto): este paso se habilitara en
-              la siguiente fase.
-            </Typography>
-          )}
+          <Typography>
+            El empleado se guardo correctamente. Quieres configurar su huella
+            ahora?
+          </Typography>
         </DialogContent>
         <DialogActions>
-          {postSaveStep === "huella" ? (
-            <Fragment>
-              <Button onClick={() => setPostSaveStep("tarjeta")}>Omitir</Button>
-              <Button variant="contained" onClick={abrirConfigHuella}>
-                Configurar huella
-              </Button>
-            </Fragment>
-          ) : (
-            <Fragment>
-              <Button onClick={cerrarFlujoPostSave}>Omitir</Button>
-              <Button variant="contained" onClick={abrirConfigTarjeta}>
-                Configurar tarjeta
-              </Button>
-            </Fragment>
-          )}
+          <Fragment>
+            <Button onClick={cerrarFlujoPostSave}>Omitir</Button>
+            <Button variant="contained" onClick={abrirConfigHuella}>
+              Configurar huella
+            </Button>
+          </Fragment>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={modalGrupoOpen} onClose={() => setModalGrupoOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>
+          Nuevo Grupo BioStar
+          <IconButton onClick={() => setModalGrupoOpen(false)} sx={{ position: "absolute", right: 8, top: 8 }}>
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            label="Nombre del grupo"
+            value={nuevoGrupo}
+            onChange={(e) => { const raw = String(e.target.value || ""); const normalized = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : ""; setNuevoGrupo(normalized); }}
+            fullWidth
+            margin="normal"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setModalGrupoOpen(false)} disabled={creandoGrupo}>Cancelar</Button>
+          <Button variant="contained" onClick={crearGrupoBiostarDesdeForm} disabled={creandoGrupo}>Crear</Button>
         </DialogActions>
       </Dialog>
     </ModalContainer>
   );
 }
+
+
+
 
 
 

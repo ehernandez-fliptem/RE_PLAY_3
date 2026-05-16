@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+﻿import { lazy, Suspense, useState } from "react";
 import { Close, Save } from "@mui/icons-material";
 import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -12,6 +12,7 @@ import {
   Divider,
   FormControlLabel,
   Stack,
+  Switch,
   Typography,
 } from "@mui/material";
 import { FormContainer, TextFieldElement } from "react-hook-form-mui";
@@ -25,8 +26,6 @@ import { setFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
-import Swal from "sweetalert2";
-import { flushSync } from "react-dom";
 import {
   DOCUMENTOS_CHECKS_LIST,
   EMPTY_DOCUMENTOS_CHECKS,
@@ -37,6 +36,7 @@ const ProfilePicture = lazy(() => import("../../utils/ProfilePicture"));
 
 type FormValues = {
   img_usuario?: string;
+  img_ine?: string;
   nombre: string;
   apellido_pat: string;
   apellido_mat?: string;
@@ -44,6 +44,10 @@ type FormValues = {
   telefono?: string;
   correo: string;
   contrasena?: string;
+  viene_en_coche?: boolean;
+  archivo_licencia?: string;
+  archivo_poliza_seguro?: string;
+  archivo_tarjeta_circulacion?: string;
   documentos_checks: DocumentosChecks;
 };
 
@@ -63,6 +67,16 @@ const resolver = yup.object().shape({
         } else {
           return true;
         }
+      }
+    ),
+  img_ine: yup
+    .string()
+    .test(
+      "isValidUriIne",
+      "La imagen de INE debe ser una URL válida.",
+      (value) => {
+        if (value) return REGEX_BASE64.test(value);
+        return true;
       }
     ),
   nombre: yup
@@ -98,6 +112,36 @@ const resolver = yup.object().shape({
     .required("Este campo es obligatorio.")
     .email("Formato de correo inválido."),
   contrasena: yup.string().notRequired(),
+  viene_en_coche: yup.boolean().default(false),
+  archivo_licencia: yup
+    .string()
+    .test("isValidLic", "El archivo de licencia es inválido.", (value) => {
+      if (value) return REGEX_BASE64.test(value);
+      return true;
+    })
+    .when("viene_en_coche", {
+      is: true,
+      then: (schema) => schema.required("Este campo es obligatorio."),
+      otherwise: (schema) => schema.notRequired(),
+    }),
+  archivo_poliza_seguro: yup
+    .string()
+    .test("isValidPoliza", "El archivo de póliza es inválido.", (value) => {
+      if (value) return REGEX_BASE64.test(value);
+      return true;
+    })
+    .when("viene_en_coche", {
+      is: true,
+      then: (schema) => schema.required("Este campo es obligatorio."),
+      otherwise: (schema) => schema.notRequired(),
+    }),
+  archivo_tarjeta_circulacion: yup
+    .string()
+    .test("isValidTarjeta", "El archivo de tarjeta es inválido.", (value) => {
+      if (value) return REGEX_BASE64.test(value);
+      return true;
+    })
+    .notRequired(),
   documentos_checks: yup.object({
     identificacion_oficial: yup
       .boolean()
@@ -114,6 +158,7 @@ const resolver = yup.object().shape({
 
 const initialValue: FormValues = {
   img_usuario: "",
+  img_ine: "",
   nombre: "",
   apellido_pat: "",
   apellido_mat: "",
@@ -121,12 +166,15 @@ const initialValue: FormValues = {
   telefono: "",
   correo: "",
   contrasena: "",
+  viene_en_coche: false,
+  archivo_licencia: "",
+  archivo_poliza_seguro: "",
+  archivo_tarjeta_circulacion: "",
   documentos_checks: { ...EMPTY_DOCUMENTOS_CHECKS },
 };
 
 export default function NuevoVisitante() {
   const [isSaving, setIsSaving] = useState(false);
-  const [showForm, setShowForm] = useState(true);
   const formContext = useForm({
     defaultValues: initialValue,
     resolver: yupResolver(resolver),
@@ -137,6 +185,39 @@ export default function NuevoVisitante() {
   });
   const navigate = useNavigate();
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
+  const vieneEnCoche = formContext.watch("viene_en_coche");
+
+  const getErrorMessages = (obj: unknown): string[] => {
+    if (!obj || typeof obj !== "object") return [];
+    const current = obj as Record<string, unknown>;
+    const out: string[] = [];
+    if (typeof current.message === "string" && current.message.trim()) {
+      out.push(current.message);
+    }
+    Object.values(current).forEach((value) => {
+      if (value && typeof value === "object") {
+        out.push(...getErrorMessages(value));
+      }
+    });
+    return out;
+  };
+
+  const handleGuardarClick = async () => {
+    const isValid = await formContext.trigger();
+    if (!isValid) {
+      const messages = Array.from(
+        new Set(getErrorMessages(formContext.formState.errors))
+      );
+      enqueueSnackbar(
+        messages.length > 0
+          ? `Faltan campos por completar: ${messages.join(" | ")}`
+          : "Faltan campos obligatorios por completar.",
+        { variant: "warning" }
+      );
+      return;
+    }
+    await formContext.handleSubmit(onSubmit)();
+  };
 
   const generarContrasena = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
@@ -150,96 +231,42 @@ export default function NuevoVisitante() {
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
   try {
     setIsSaving(true);
+    const payloadVehiculo = data.viene_en_coche
+      ? {
+          archivo_licencia: data.archivo_licencia,
+          archivo_poliza_seguro: data.archivo_poliza_seguro,
+          archivo_tarjeta_circulacion: data.archivo_tarjeta_circulacion,
+        }
+      : {
+          archivo_licencia: "",
+          archivo_poliza_seguro: "",
+          archivo_tarjeta_circulacion: "",
+        };
     const payload = {
       ...data,
+      ...payloadVehiculo,
       contrasena: data.contrasena?.trim() ? data.contrasena : generarContrasena(),
     };
     const res = await clienteAxios.post("api/visitantes", payload);
     console.log("RESP CREATE VISITANTE:", res.data);
-
-    if (!res.data.estado && res.data.codigo === "PANEL_SYNC_FAILED") {
-      setIsSaving(false);
-      setShowForm(false);
-      await Swal.fire({
-        icon: "error",
-        title: "No se pudo subir la foto",
-        text:
-          res.data.mensaje ||
-          "El panel no acepto la foto. Intenta con otra imagen.",
-        showConfirmButton: true,
-        allowOutsideClick: false,
-        showClass: { popup: "swal2-show" },
-        hideClass: { popup: "swal2-hide" },
-      });
-      setShowForm(true);
-      return;
-    }
 
     if (!res.data.estado) {
       enqueueSnackbar(res.data.mensaje, { variant: "warning" });
       return;
     }
 
-    const createdId = String(res.data?.datos?._id || "");
-    if (createdId && payload.img_usuario) {
-      let faceInvalid = false;
-      let faceInvalidMessage =
-        "La foto no es válida para el panel. Intenta con otra imagen.";
-      try {
-        const pRes = await clienteAxios.get("/api/dispositivos-hikvision/demonio");
-        const paneles = pRes.data?.datos || [];
-        if (Array.isArray(paneles) && paneles.length > 0) {
-          for (const p of paneles) {
-            try {
-              const panelId = p._id;
-              const syncRes = await clienteAxios.get(
-                `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${createdId}`
-              );
-              if (syncRes.data?.estado === false) {
-                faceInvalid = true;
-                faceInvalidMessage = syncRes.data?.mensaje || faceInvalidMessage;
-                break;
-              }
-            } catch {
-              // no bloquea si un panel falla de red
-            }
-            if (faceInvalid) break;
-          }
-        }
-      } catch {
-        // no bloquea si no se pudieron listar paneles
-      }
-
-      if (faceInvalid) {
-        try {
-          await clienteAxios.patch(`/api/visitantes/revertir-creacion/${createdId}`);
-        } catch {
-          // si falla la reversión, de todos modos mostrar error principal
-        }
-        flushSync(() => {
-          setIsSaving(false);
-          setShowForm(false);
-        });
-        await Swal.fire({
-          icon: "error",
-          title: "No se pudo subir la foto",
-          text: faceInvalidMessage,
-          showConfirmButton: true,
-          allowOutsideClick: false,
-          showClass: { popup: "swal2-show" },
-          hideClass: { popup: "swal2-hide" },
-        });
-        flushSync(() => {
-          setShowForm(true);
-        });
-        return;
-      }
+    const sync = res.data?.datos?.sync || {};
+    const subidos = Array.isArray(sync.subidos) ? sync.subidos : [];
+    const fallidos = Array.isArray(sync.fallidos) ? sync.fallidos : [];
+    if (fallidos.length > 0) {
+      const okTxt = subidos.length > 0 ? `Subido en: ${subidos.join(", ")}.` : "No se subio en paneles.";
+      const failTxt = `Pendiente en: ${fallidos.map((f: any) => f?.ip).filter(Boolean).join(", ")}.`;
+      enqueueSnackbar(`${okTxt} ${failTxt}`, { variant: "warning" });
     }
 
     enqueueSnackbar("Visitante creado con exito", {
       variant: "success",
     });
-
 
     parentGridDataRef.fetchRows();
     navigate("/visitantes");
@@ -251,7 +278,6 @@ export default function NuevoVisitante() {
     setIsSaving(false);
   }
 };
-
 
   /*
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
@@ -284,10 +310,6 @@ export default function NuevoVisitante() {
     navigate("/visitantes");
   };
 
-  if (!showForm) {
-    return null;
-  }
-
   return (
     <ModalContainer containerProps={{ maxWidth: "lg" }}>
       <Box component="section">
@@ -300,12 +322,30 @@ export default function NuevoVisitante() {
                 <Typography variant="h4" component="h2" textAlign="center">
                   Nuevo Visitante
                 </Typography>
-                <Suspense fallback={<ProfilePicturePreview />}>
-                  <ProfilePicture
-                    name="img_usuario"
-                    allowFiles={["png", "jpeg", "jpg"]}
-                  />
-                </Suspense>
+                <Stack
+                  direction={{ xs: "column", md: "row" }}
+                  spacing={2}
+                  justifyContent="center"
+                  alignItems={{ xs: "center", md: "flex-start" }}
+                >
+                  <Suspense fallback={<ProfilePicturePreview />}>
+                    <ProfilePicture
+                      name="img_usuario"
+                      label="Foto"
+                      allowFiles={["png", "jpeg", "jpg"]}
+                    />
+                  </Suspense>
+                  <Suspense fallback={<ProfilePicturePreview />}>
+                    <ProfilePicture
+                      name="img_ine"
+                      label="INE"
+                      variant="rounded"
+                      showViewButton
+                      adjustImageToBox
+                      allowFiles={["png", "jpeg", "jpg"]}
+                    />
+                  </Suspense>
+                </Stack>
                 <Typography variant="overline" component="h6">
                   Generales
                 </Typography>
@@ -365,6 +405,79 @@ export default function NuevoVisitante() {
                   margin="normal"
                   type="email"
                 />
+                <Box
+                  sx={{
+                    mt: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-start",
+                    gap: 2,
+                  }}
+                >
+                  <Typography variant="body2">
+                    Ingreso en vehículo
+                  </Typography>
+                  <Controller
+                    name="viene_en_coche"
+                    control={formContext.control}
+                    render={({ field }) => (
+                      <Switch
+                        checked={Boolean(field.value)}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                      />
+                    )}
+                  />
+                </Box>
+                {vieneEnCoche && (
+                  <Stack spacing={2} sx={{ mt: 1 }}>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                      <Box sx={{ flex: 1, width: "100%" }}>
+                        <Suspense fallback={<ProfilePicturePreview />}>
+                          <ProfilePicture
+                            name="archivo_licencia"
+                            label="Foto de Licencia"
+                            compact
+                            variant="rounded"
+                            showViewButton
+                            adjustImageToBox
+                            required
+                            allowFiles={["png", "jpeg", "jpg", "pdf"]}
+                          />
+                        </Suspense>
+                      </Box>
+                      <Box sx={{ flex: 1, width: "100%" }}>
+                        <Suspense fallback={<ProfilePicturePreview />}>
+                          <ProfilePicture
+                            name="archivo_poliza_seguro"
+                            label="Foto de Póliza de seguro"
+                            compact
+                            variant="rounded"
+                            showViewButton
+                            adjustImageToBox
+                            required
+                            allowFiles={["png", "jpeg", "jpg", "pdf"]}
+                          />
+                        </Suspense>
+                      </Box>
+                    </Stack>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                      <Box sx={{ flex: 1, width: "100%" }}>
+                        <Suspense fallback={<ProfilePicturePreview />}>
+                          <ProfilePicture
+                            name="archivo_tarjeta_circulacion"
+                            label="Tarjeta de circulación (opcional)"
+                            compact
+                            variant="rounded"
+                            showViewButton
+                            adjustImageToBox
+                            allowFiles={["png", "jpeg", "jpg", "pdf"]}
+                          />
+                        </Suspense>
+                      </Box>
+                      <Box sx={{ flex: 1, display: { xs: "none", md: "block" } }} />
+                    </Stack>
+                  </Stack>
+                )}
                 <Typography variant="overline" component="h6" sx={{ mt: 2 }}>
                   Documentos
                 </Typography>
@@ -419,11 +532,12 @@ export default function NuevoVisitante() {
                       Cancelar
                     </Button>
                     <Button
-                      disabled={!formContext.formState.isValid}
-                      type="submit"
+                      disabled={isSaving}
+                      type="button"
                       size="medium"
                       variant="contained"
                       startIcon={<Save />}
+                      onClick={handleGuardarClick}
                     >
                       Guardar
                     </Button>
@@ -437,3 +551,9 @@ export default function NuevoVisitante() {
     </ModalContainer>
   );
 }
+
+
+
+
+
+

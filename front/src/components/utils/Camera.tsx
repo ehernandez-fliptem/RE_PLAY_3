@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   Fragment,
   useCallback,
   useEffect,
@@ -96,6 +96,7 @@ type Props = {
   showModeDetection?: boolean;
   disabledDevicesMenu?: boolean;
   discretMenuDevices?: boolean;
+  containerHeight?: number | string;
 };
 
 export default function Camera({
@@ -111,6 +112,7 @@ export default function Camera({
   showModeDetection = false,
   disabledDevicesMenu = false,
   discretMenuDevices = false,
+  containerHeight = 350,
 }: Props) {
   const { delayProximaFoto } = useSelector(
     (state: IRootState) => state.config.data
@@ -132,6 +134,19 @@ export default function Camera({
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [detectionMode, setDetectionMode] = useState<1 | 2>(defaultMode);
   const [showModal, setShowModal] = useState(false);
+  const isIneCapture = String(name || "").toLowerCase().includes("ine");
+  const isFluidHeight = typeof containerHeight === "string" && containerHeight === "100%";
+
+  const chooseRearCamera = (videoDevices: MediaDeviceInfo[]) => {
+    if (videoDevices.length <= 1) return videoDevices[0]?.deviceId || "";
+    const rearRegex =
+      /(back|rear|environment|trasera|posterior|world|externa|usb)/i;
+    const byLabel = videoDevices.find((d) => rearRegex.test(d.label || ""));
+    if (byLabel?.deviceId) return byLabel.deviceId;
+    return isMobile
+      ? videoDevices[videoDevices.length - 1]?.deviceId || videoDevices[0]?.deviceId || ""
+      : videoDevices[0]?.deviceId || "";
+  };
 
   const handleDevices = useCallback(
     (mediaDevices: MediaDeviceInfo[]) => {
@@ -140,18 +155,56 @@ export default function Camera({
       );
       if (videoDevices.length > 0) {
         setDevices(videoDevices);
-        setDeviceId(
-          isMobile ? videoDevices[1].deviceId : videoDevices[0].deviceId
-        );
+        setDeviceId(chooseRearCamera(videoDevices));
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setDevices]
+    [setDevices, isMobile]
   );
 
-  const captureImage = () => {
+  const cropIneFromDataUrl = (dataUrl: string): Promise<string> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const srcW = img.width;
+        const srcH = img.height;
+        const cropW = Math.round(srcW * 0.78);
+        const cropH = Math.round(srcH * 0.54);
+        const cropX = Math.round((srcW - cropW) / 2);
+        const cropY = Math.round((srcH - cropH) / 2);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = cropW;
+        canvas.height = cropH;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.drawImage(
+          img,
+          cropX,
+          cropY,
+          cropW,
+          cropH,
+          0,
+          0,
+          cropW,
+          cropH
+        );
+        resolve(canvas.toDataURL("image/jpeg", 0.95));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+
+  const captureImage = async () => {
     const picture = webcamRef.current?.getScreenshot();
-    setValue(name, picture);
+    if (!picture) return;
+    const finalPicture = isIneCapture
+      ? await cropIneFromDataUrl(picture)
+      : picture;
+    setValue(name, finalPicture);
     trigger(name);
     clearErrors(name);
     if (setShow) setShow(false);
@@ -309,8 +362,32 @@ export default function Camera({
     setShowModal(false);
   };
 
+  const scanConstraints = deviceId
+    ? {
+        deviceId: { exact: deviceId },
+      }
+    : {
+        facingMode: isMobile ? ({ ideal: "environment" } as const) : ({ ideal: "user" } as const),
+      };
+
+  const webcamConstraints = deviceId
+    ? {
+        deviceId: { exact: deviceId },
+      }
+    : {
+        facingMode: isMobile ? ({ ideal: "environment" } as const) : ({ ideal: "user" } as const),
+      };
+
   return (
-    <Box component="section">
+    <Box
+      component="section"
+      sx={{
+        height: isFluidHeight ? "100%" : "auto",
+        display: isFluidHeight ? "flex" : "block",
+        flexDirection: isFluidHeight ? "column" : "unset",
+        minHeight: 0,
+      }}
+    >
       {!webcamReady && (
         <Box
           sx={{
@@ -361,9 +438,12 @@ export default function Camera({
           alignItems: "center",
           justifyContent: "center",
           width: "100%",
-          height: 350,
-          maxHeight: 350,
+          flex: isFluidHeight ? 1 : "unset",
+          minHeight: isFluidHeight ? 0 : 220,
+          height: containerHeight,
+          maxHeight: typeof containerHeight === "number" ? containerHeight : "none",
           padding: 0,
+          overflow: "hidden",
           border: `1px solid ${theme.palette.divider}`,
           borderRadius: 1,
         }}
@@ -382,14 +462,14 @@ export default function Camera({
         )}
         {detectionMode === 1 && (
           <Fragment>
-            {isScan && deviceId ? (
+            {isScan ? (
               <Fragment>
                 {isScan && handleScan ? (
                   <QrReader
                     key={deviceId}
                     scanDelay={200}
                     videoId={deviceId}
-                    constraints={{ deviceId: { exact: deviceId } }}
+                    constraints={scanConstraints}
                     onResult={handleScan}
                     containerStyle={{
                       width: "100%",
@@ -424,7 +504,7 @@ export default function Camera({
                   })
                 }
                 screenshotFormat="image/jpeg"
-                videoConstraints={{ deviceId: { exact: deviceId } }}
+                videoConstraints={webcamConstraints}
                 style={{ width: "100%", height: "100%", objectFit: "fill" }}
               />
             )}
@@ -445,7 +525,7 @@ export default function Camera({
                 })
               }
               screenshotFormat="image/jpeg"
-              videoConstraints={{ deviceId: { exact: deviceId } }}
+              videoConstraints={webcamConstraints}
               style={{ width: "100%", height: "100%", objectFit: "fill" }}
             />
             <canvas
@@ -468,8 +548,7 @@ export default function Camera({
               inset: 0,
               pointerEvents: "none",
               zIndex: 5,
-              background:
-                "radial-gradient(ellipse at center, rgba(0,0,0,0) 0 45%, rgba(0,0,0,0.45) 46%)",
+              background: "rgba(0,0,0,0.45)",
             }}
           >
             <Box
@@ -483,11 +562,13 @@ export default function Camera({
             >
               <Box
                 sx={{
-                  width: "62%",
-                  height: "78%",
-                  borderRadius: "50%",
+                  width: isIneCapture ? "78%" : "62%",
+                  height: isIneCapture ? "54%" : "78%",
+                  borderRadius: isIneCapture ? "12px" : "50%",
                   border: "2px solid rgba(255,255,255,0.85)",
-                  boxShadow: "0 0 0 2px rgba(0,0,0,0.2) inset",
+                  backgroundColor: "transparent",
+                  boxShadow:
+                    "0 0 0 9999px rgba(0,0,0,0.45), 0 0 0 2px rgba(0,0,0,0.2) inset",
                 }}
               />
             </Box>
@@ -504,7 +585,9 @@ export default function Camera({
                 textShadow: "0 1px 2px rgba(0,0,0,0.6)",
               }}
             >
-              Centra tu cara dentro del óvalo
+              {isIneCapture
+                ? "Centra la INE dentro del rectángulo"
+                : "Centra tu cara dentro del óvalo"}
             </Box>
           </Box>
         )}

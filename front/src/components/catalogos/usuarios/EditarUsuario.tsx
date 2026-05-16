@@ -25,6 +25,7 @@ import {
 import {
   AutocompleteElement,
   FormContainer,
+  SelectElement,
   TextFieldElement,
 } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
@@ -56,6 +57,11 @@ type TEmpresas = {
   nombre: string;
   activo: boolean;
 };
+type TAcceso = {
+  _id: string;
+  identificador?: string;
+  nombre: string;
+};
 
 type FormValues = {
   img_usuario: string;
@@ -67,6 +73,9 @@ type FormValues = {
   correo: string;
   contrasena: string;
   rol: number[];
+  acceso_tablet?: string;
+  modo_tablet_qr?: "entrada" | "salida" | "ambos";
+  accesos: string[];
 };
 
 const resolver = yup.object().shape({
@@ -147,6 +156,36 @@ const resolver = yup.object().shape({
     .of(yup.number().integer())
     .required("Este campo es obligatorio")
     .min(1, "Debe contener al menos un rol"),
+  acceso_tablet: yup
+    .string()
+    .test(
+      "tablet-access-required",
+      "Selecciona un acceso para la tablet.",
+      function (value) {
+        const rol = (this.parent?.rol || []) as number[];
+        if (Array.isArray(rol) && rol.includes(13)) {
+          return !!String(value || "").trim();
+        }
+        return true;
+      }
+    ),
+  modo_tablet_qr: yup
+    .mixed<"entrada" | "salida" | "ambos">()
+    .oneOf(["entrada", "salida", "ambos"])
+    .test(
+      "tablet-mode-required",
+      "Selecciona el modo de tablet.",
+      function (value) {
+        const rol = (this.parent?.rol || []) as number[];
+        if (Array.isArray(rol) && rol.includes(13)) {
+          return ["entrada", "salida", "ambos"].includes(String(value || ""));
+        }
+        return true;
+      }
+    ),
+  accesos: yup
+    .array()
+    .of(yup.string()),
 }) as yup.ObjectSchema<FormValues>;
 
 const initialValue: FormValues = {
@@ -159,6 +198,9 @@ const initialValue: FormValues = {
   correo: "",
   contrasena: "",
   rol: [],
+  acceso_tablet: "",
+  modo_tablet_qr: "ambos",
+  accesos: [],
 };
 
 export default function EditarUsuario() {
@@ -172,6 +214,7 @@ export default function EditarUsuario() {
       if ([1, 2, 4, 5].includes(rol)) return true;
       if (rol === 11) return habilitarContratistas;
       if (rol === 12) return habilitarRegistroCampo;
+      if (rol === 13) return true;
       return false;
     })
     .map((item) => {
@@ -194,17 +237,30 @@ export default function EditarUsuario() {
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
   const [empresas, setEmpresas] = useState<TEmpresas[]>([]);
+  const [accesosCatalogo, setAccesosCatalogo] = useState<TAcceso[]>([]);
   const [esUsuarioMaestro, setEsUsuarioMaestro] = useState(false);
+  const rolSeleccionado = formContext.watch("rol")?.[0];
+  const accesosDisponibles = accesosCatalogo;
 
   useEffect(() => {
     const obtenerRegistro = async () => {
       try {
         const res = await clienteAxios.get(`/api/usuarios/form-editar/${ID}`);
         if (res.data.estado) {
-          const { usuario, empresas } = res.data.datos;
+          const { usuario, empresas, accesos } = res.data.datos;
           setEsUsuarioMaestro(usuario.id_general === 1);
           setEmpresas(empresas);
-          formContext.reset(usuario);
+          setAccesosCatalogo(accesos || []);
+          formContext.reset({
+            ...usuario,
+            acceso_tablet:
+              Array.isArray(usuario.accesos) && usuario.accesos[0]
+                ? String(usuario.accesos[0])
+                : "",
+            modo_tablet_qr: ["entrada", "salida", "ambos"].includes(String((usuario as any).modo_tablet_qr))
+              ? (usuario as any).modo_tablet_qr
+              : "ambos",
+          });
           setIsLoading(false);
         } else {
           enqueueSnackbar(res.data.mensaje, { variant: "warning" });
@@ -230,10 +286,19 @@ export default function EditarUsuario() {
   };
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
-    console.log("envio", data);
-
     try {
-      const res = await clienteAxios.put(`/api/usuarios/${ID}`, data);
+      const payload = {
+        ...data,
+        accesos:
+          Array.isArray(data.rol) && data.rol.includes(13)
+            ? (data.acceso_tablet ? [data.acceso_tablet] : [])
+            : (data.accesos || []),
+        modo_tablet_qr:
+          Array.isArray(data.rol) && data.rol.includes(13)
+            ? (data.modo_tablet_qr || "ambos")
+            : "ambos",
+      };
+      const res = await clienteAxios.put(`/api/usuarios/${ID}`, payload);
       if (res.data.estado) {
         enqueueSnackbar("El usuario se modificó correctamente.", {
           variant: "success",
@@ -424,6 +489,49 @@ export default function EditarUsuario() {
                         </FormControl>
                       )}
                     />
+                    {rolSeleccionado === 13 && (
+                      <>
+                        <AutocompleteElement
+                          name="acceso_tablet"
+                          label="Acceso de tablet"
+                          required
+                          options={accesosDisponibles.map((item: any) => {
+                            const label = item.identificador
+                              ? `${item.identificador} - ${item.nombre}`
+                              : item.nombre;
+                            return { id: item._id, label };
+                          })}
+                          textFieldProps={{
+                            margin: "normal",
+                            helperText:
+                              accesosDisponibles.length === 0
+                                ? "No hay accesos configurados."
+                                : undefined,
+                          }}
+                          autocompleteProps={{
+                            noOptionsText: "No hay accesos disponibles.",
+                            onChange: (_, value) => {
+                              formContext.setValue("acceso_tablet", value?.id ? String(value.id) : "", {
+                                shouldValidate: true,
+                              });
+                            },
+                          }}
+                        />
+                        <SelectElement
+                          name="modo_tablet_qr"
+                          label="Acceso que usara"
+                          required
+                          fullWidth
+                          margin="normal"
+                          slotProps={{ inputLabel: { shrink: true } }}
+                          options={[
+                            { id: "entrada", label: "Entrada" },
+                            { id: "salida", label: "Salida" },
+                            { id: "ambos", label: "Ambos" },
+                          ]}
+                        />
+                      </>
+                    )}
                   </Fragment>
                 )}
                 <Divider sx={{ my: 2 }} />

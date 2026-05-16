@@ -24,6 +24,18 @@ import DispositivosHV from "./catalogos/dispositivos/DispositivosHV";
 import NuevoDispositivoHV from "./catalogos/dispositivos/NuevoDispositivoHV";
 import DetalleDispositivoHV from "./catalogos/dispositivos/DetalleDispositivoHV";
 import EditarDispositivoHV from "./catalogos/dispositivos/EditarDispositivoHV";
+import DispositivosBiostar from "./catalogos/dispositivos/DispositivosBiostar";
+import NuevoDispositivoBiostar from "./catalogos/dispositivos/NuevoDispositivoBiostar";
+import DetalleDispositivoBiostar from "./catalogos/dispositivos/DetalleDispositivoBiostar";
+import EditarDispositivoBiostar from "./catalogos/dispositivos/EditarDispositivoBiostar";
+import DispositivosBiostarRemotos from "./catalogos/dispositivos/DispositivosBiostarRemotos";
+import BiostararGrupos from "./catalogos/dispositivos/BiostararGrupos";
+import BiostararGruposDispositivos from "./catalogos/dispositivos/BiostararGruposDispositivos";
+import BiostararPuertas from "./catalogos/dispositivos/BiostararPuertas";
+import BiostararPuertasAcceso from "./catalogos/dispositivos/BiostararPuertasAcceso";
+import BiostararAccessLevels from "./catalogos/dispositivos/BiostararAccessLevels";
+import BiostararHorarios from "./catalogos/dispositivos/BiostararHorarios";
+import BiostararPermisosAcceso from "./catalogos/dispositivos/BiostararPermisosAcceso";
 import Configuracion from "./catalogos/configuracion/Configuracion";
 import Directorio from "./recepcion/directorio/Directorio";
 import Bitacora from "./recepcion/bitacora/Bitacora";
@@ -38,6 +50,7 @@ import Reportes from "./recepcion/reportes/Reportes";
 import Check from "./controlAcceso/check/Check";
 import Eventos from "./controlAcceso/eventos/Eventos";
 import DetalleEvento from "./controlAcceso/eventos/DetalleEvento";
+import EscanerQr from "./controlAcceso/eventos/EscanerQr";
 import ReporteHoras from "./controlAcceso/reporteHoras/ReporteHoras";
 import DetalleReporteHoras from "./controlAcceso/reporteHoras/DetalleReporteHoras";
 import Pisos from "./catalogos/pisos/Pisos";
@@ -101,7 +114,7 @@ import Campo from "./campo/Campo";
 
 export default function Routes() {
   const { rol } = useSelector((state: IRootState) => state.auth.data);
-  const { habilitarCamaras, habilitarIntegracionHv, habilitarContratistas, habilitarRegistroCampo } =
+  const { habilitarCamaras, habilitarIntegracionHv, habilitarIntegracionBiostar, habilitarContratistas, habilitarRegistroCampo } =
     useSelector(
     (state: IRootState) => state.config.data
   );
@@ -112,10 +125,12 @@ export default function Routes() {
   const esVisit = rol.includes(10);
   const esContratista = rol.includes(11);
   const esCampo = rol.includes(12);
+  const esTablet = rol.includes(13);
   const puedeAdmin = esSuper || esAdmin;
-  const puedeKiosco = esSuper || esAdmin || esRecep;
-  const puedeVisitantes = esSuper || esAdmin || esAnfitrion || esRecep;
-  const usuarioSistema = esSuper || esAdmin || esAnfitrion || esRecep || esContratista || esCampo;
+  const puedeBiostar = (esSuper || esAdmin) && habilitarIntegracionBiostar;
+  const puedeKiosco = esSuper || esAdmin || esRecep || esTablet;
+  const puedeVisitantes = esSuper || esAdmin || esAnfitrion || esRecep || esTablet;
+  const usuarioSistema = esSuper || esAdmin || esAnfitrion || esRecep || esContratista || esCampo || esTablet;
 
   return useRoutes([
     {
@@ -125,6 +140,8 @@ export default function Routes() {
           <Navigate to="/portal-contratistas/visitantes" replace />
         ) : esCampo && habilitarRegistroCampo ? (
           <Navigate to="/campo" replace />
+        ) : esTablet ? (
+          <Navigate to="/kiosco" replace />
         ) : (
           <Dashboard />
         )
@@ -899,6 +916,73 @@ export default function Routes() {
           ],
         },
       ],
+    },
+    {
+      path: "/dispositivos-biostar/*",
+      element: <Navigate to="/biostarar/dispositivos" replace />,
+    },
+    {
+      path: "/biostarar/conexion/*",
+      children: [
+        {
+          path: "",
+          element: puedeBiostar ? <DispositivosBiostar /> : <Unauthorized />,
+          children: [
+            {
+              path: "nuevo-dispositivo",
+              element: puedeBiostar ? <NuevoDispositivoBiostar /> : <Unauthorized />,
+            },
+            {
+              path: "detalle-dispositivo/:id",
+              element: puedeBiostar ? <DetalleDispositivoBiostar /> : <Unauthorized />,
+            },
+            {
+              path: "editar-dispositivo/:id",
+              element: puedeBiostar ? <EditarDispositivoBiostar /> : <Unauthorized />,
+            },
+            {
+              path: "*",
+              element: <Unknown />,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      path: "/escaner-qr",
+      element: esTablet ? <EscanerQr /> : <Unauthorized />,
+    },
+    {
+      path: "/biostarar/dispositivos",
+      element: puedeBiostar ? <DispositivosBiostarRemotos /> : <Unauthorized />,
+    },
+    {
+      path: "/biostarar/grupos",
+      element: puedeBiostar ? <BiostararGrupos /> : <Unauthorized />,
+    },
+    {
+      path: "/biostarar/grupos-dispositivos",
+      element: puedeBiostar ? <BiostararGruposDispositivos /> : <Unauthorized />,
+    },
+    {
+      path: "/biostarar/puertas",
+      element: puedeBiostar ? <BiostararPuertas /> : <Unauthorized />,
+    },
+    {
+      path: "/biostarar/puertas-acceso",
+      element: puedeBiostar ? <BiostararPuertasAcceso /> : <Unauthorized />,
+    },
+    {
+      path: "/biostarar/access-levels",
+      element: puedeBiostar ? <BiostararAccessLevels /> : <Unauthorized />,
+    },
+    {
+      path: "/biostarar/horarios",
+      element: puedeBiostar ? <BiostararHorarios /> : <Unauthorized />,
+    },
+    {
+      path: "/biostarar/permisos-acceso",
+      element: puedeBiostar ? <BiostararPermisosAcceso /> : <Unauthorized />,
     },
     {
       path: "/manual-usuario",

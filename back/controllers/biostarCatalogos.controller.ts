@@ -1,0 +1,1794 @@
+import { Request, Response } from "express";
+import BiostarConexion from "../models/BiostarConexion";
+import DispositivosBiostar from "../models/DispositivosBiostar";
+import { biostarRequest } from "../classes/Biostar";
+import { fecha, log } from "../middlewares/log";
+
+function parseRows(payload: any, keys: string[]): any[] {
+  for (const key of keys) {
+    const value = key.split(".").reduce((acc: any, part: string) => (acc ? acc[part] : undefined), payload);
+    if (Array.isArray(value)) return value;
+  }
+  return [];
+}
+
+async function getBiostarConexionActiva(): Promise<any | null> {
+  const main = await DispositivosBiostar.findOne({ activo: true, es_main: true }).sort({
+    fecha_modificacion: -1,
+    fecha_creacion: -1,
+    _id: -1,
+  });
+  const conexionGlobal = await BiostarConexion.findOne({ activo: true }).sort({
+    fecha_modificacion: -1,
+    fecha_creacion: -1,
+    _id: -1,
+  });
+  const activa = await DispositivosBiostar.findOne({ activo: true }).sort({
+    fecha_modificacion: -1,
+    fecha_creacion: -1,
+    _id: -1,
+  });
+
+  const candidates = [main, conexionGlobal, activa].filter(Boolean) as any[];
+  const tried = new Set<string>();
+
+  for (const candidate of candidates) {
+    const key = `${candidate?.constructor?.modelName || "unknown"}:${String(candidate?._id || "")}`;
+    if (tried.has(key)) continue;
+    tried.add(key);
+
+    const ping = await biostarRequest(candidate as any, { method: "GET", url: "/api/user_groups" });
+    if (ping.ok) return candidate;
+  }
+
+  return candidates[0] || null;
+}
+
+function extractBiostarMessage(payload: any): string {
+  return (
+    payload?.Response?.message ||
+    payload?.response?.message ||
+    payload?.message ||
+    payload?.error ||
+    ""
+  );
+}
+
+function toFriendlyMessage(raw?: string): string {
+  const msg = String(raw || "").trim();
+  if (!msg) return "No se pudo completar la operacion en BioStar.";
+  const lower = msg.toLowerCase();
+  if (lower.includes("failed to parse json")) return "No se pudo procesar la solicitud en BioStar.";
+  if (lower.includes("request is not supported")) return "La version de BioStar no soporta esta operacion con el formato enviado.";
+  if (lower.includes("already") || lower.includes("exists") || lower.includes("duplicat")) return "El grupo ya esta registrado.";
+  return msg;
+}
+
+async function requestWithEndpointFallback(
+  conexion: any,
+  method: "POST" | "PUT" | "DELETE",
+  path: string,
+  data?: any
+) {
+  const endpoints = [`/api${path}`, `/api/v2${path}`];
+  let result: { ok: boolean; data?: any; status?: number; message?: string } = { ok: false };
+  for (const url of endpoints) {
+    result = await biostarRequest(conexion, { method, url, data });
+    if (result.ok) break;
+  }
+  return result;
+}
+
+async function obtenerDispositivosRemotos(conexion: any): Promise<any[]> {
+  const attempts = [
+    biostarRequest(conexion as any, { method: "GET", url: "/api/devices?limit=1000" }),
+    biostarRequest(conexion as any, { method: "POST", url: "/api/devices/search", data: { limit: 1000, offset: 0 } }),
+    biostarRequest(conexion as any, { method: "POST", url: "/api/devices", data: {} }),
+  ];
+
+  for (const p of attempts) {
+    const r = await p;
+    if (!r.ok) continue;
+    const rows = parseRows(r.data, [
+      "DeviceCollection.rows",
+      "device_collection.rows",
+      "rows",
+      "devices",
+    ]);
+    if (Array.isArray(rows)) return rows;
+  }
+  return [];
+}
+
+function resolveGroupId(item: any): string {
+  const raw =
+    item?.device_group_id?.id ??
+    item?.device_group_id ??
+    item?.device_group?.id ??
+    item?.device_group ??
+    "";
+  return String(raw).trim();
+}
+
+function resolveDoorGroupId(item: any): string {
+  const raw =
+    item?.door_group_id?.id ??
+    item?.door_group_id ??
+    item?.door_group?.id ??
+    item?.door_group ??
+    "";
+  return String(raw).trim();
+}
+
+async function obtenerGruposPuertas(conexion: any): Promise<any[]> {
+  const attempts = [
+    biostarRequest(conexion as any, { method: "POST", url: "/api/v2/door_groups/search", data: { limit: 1000, offset: 0 } }),
+    biostarRequest(conexion as any, { method: "GET", url: "/api/door_groups?limit=1000" }),
+  ];
+  for (const p of attempts) {
+    const r = await p;
+    if (!r.ok) continue;
+    const rows = parseRows(r.data, ["DoorGroupCollection.rows", "rows", "door_groups"]);
+    if (Array.isArray(rows)) return rows;
+  }
+  return [];
+}
+
+async function obtenerPuertas(conexion: any): Promise<any[]> {
+  const attempts = [
+    biostarRequest(conexion as any, { method: "POST", url: "/api/v2/doors/search", data: { limit: 1000, offset: 0 } }),
+    biostarRequest(conexion as any, { method: "GET", url: "/api/doors?limit=1000" }),
+  ];
+  for (const p of attempts) {
+    const r = await p;
+    if (!r.ok) continue;
+    const rows = parseRows(r.data, ["DoorCollection.rows", "rows", "doors"]);
+    if (Array.isArray(rows)) return rows;
+  }
+  return [];
+}
+
+export async function listarGruposDispositivos(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const attempts = [
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/device_groups/only_permission_item/search", data: { order_by: "depth:false" } }),
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/device_groups/search", data: { order_by: "depth:false", limit: 1000, offset: 0 } }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/device_groups?limit=1000" }),
+    ];
+
+    let rows: any[] = [];
+    let message = "No se pudieron consultar grupos de dispositivos.";
+    for (const p of attempts) {
+      const r = await p;
+      if (r.ok) {
+        rows = parseRows(r.data, ["DeviceGroupCollection.rows", "rows", "device_groups"]);
+        break;
+      }
+      message = r.message || message;
+    }
+
+    if (!rows.length) {
+      res.status(200).json({ estado: true, datos: [], mensaje: message });
+      return;
+    }
+
+    const datos = rows.map((item: any) => {
+      const nombre = String(item?.name || item?.group_name || "").trim();
+      const normalized = nombre.toLowerCase().replace(/\s+/g, " ").trim();
+      const es_all_devices = normalized === "all devices" || normalized === "all device";
+      return {
+        id_externo: String(item?.id || item?.device_group_id || ""),
+        nombre,
+        depth: Number(item?.depth || 0),
+        parent_id: String(item?.parent_id?.id || item?.parent_id || ""),
+        es_all_devices,
+      };
+    });
+
+    res.status(200).json({ estado: true, datos });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function crearGrupoDispositivo(_req: Request, res: Response): Promise<void> {
+  try {
+    const nombre = String(_req.body?.nombre || "").trim();
+    if (!nombre) {
+      res.status(400).json({ estado: false, mensaje: "El nombre del grupo es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const existentesAttempts = [
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/device_groups/only_permission_item/search", data: { order_by: "depth:false" } }),
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/device_groups/search", data: { order_by: "depth:false", limit: 1000, offset: 0 } }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/device_groups?limit=1000" }),
+    ];
+    for (const p of existentesAttempts) {
+      const r = await p;
+      if (!r.ok) continue;
+      const rows = parseRows(r.data, ["DeviceGroupCollection.rows", "rows", "device_groups"]);
+      const existe = (rows || []).some((item: any) => String(item?.name || item?.group_name || "").trim().toLowerCase() === nombre.toLowerCase());
+      if (existe) {
+        res.status(200).json({ estado: false, mensaje: "No se creo el grupo porque ya existe uno con ese nombre." });
+        return;
+      }
+      break;
+    }
+
+    const payloads = [
+      { DeviceGroup: { name: nombre, parent_id: { id: 1 }, depth: 1 } },
+      { DeviceGroupCollection: { rows: [{ name: nombre, parent_id: { id: 1 }, depth: 1 }] } },
+      { device_group: { name: nombre, parent_id: { id: 1 }, depth: 1 } },
+      { name: nombre, parent_id: { id: 1 }, depth: 1 },
+    ];
+
+    let lastError = "No se pudo crear el grupo de dispositivos en BioStar.";
+    for (const body of payloads) {
+      const createRes = await requestWithEndpointFallback(conexion as any, "POST", "/device_groups", body);
+      if (createRes.ok) {
+        res.status(200).json({ estado: true, mensaje: "Grupo creado correctamente." });
+        return;
+      }
+      lastError = toFriendlyMessage(createRes.message || extractBiostarMessage(createRes.data));
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastError });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function editarGrupoDispositivo(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    const nombre = String(req.body?.nombre || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id del grupo es obligatorio." });
+      return;
+    }
+    if (!nombre) {
+      res.status(400).json({ estado: false, mensaje: "El nombre del grupo es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const payloads = [
+      { DeviceGroup: { id: Number(id), name: nombre } },
+      { device_group: { id: Number(id), name: nombre } },
+      { id: Number(id), name: nombre },
+    ];
+
+    let lastError = "No se pudo editar el grupo de dispositivos en BioStar.";
+    for (const body of payloads) {
+      const editRes = await requestWithEndpointFallback(conexion as any, "PUT", `/device_groups/${id}`, body);
+      if (editRes.ok) {
+        res.status(200).json({ estado: true, mensaje: "Grupo editado correctamente." });
+        return;
+      }
+      lastError = toFriendlyMessage(editRes.message || extractBiostarMessage(editRes.data));
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastError });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function eliminarGrupoDispositivo(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id del grupo es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    if (id === "1") {
+      res.status(200).json({ estado: false, mensaje: "No se puede eliminar el grupo predeterminado (All Devices)." });
+      return;
+    }
+
+    const migrar = String(req.query?.migrate_to_default || "").toLowerCase() === "true";
+    const dispositivos = await obtenerDispositivosRemotos(conexion as any);
+    const enUso = dispositivos.filter((d) => resolveGroupId(d) === id);
+
+    if (enUso.length > 0 && !migrar) {
+      res.status(200).json({
+        estado: false,
+        codigo: "GROUP_IN_USE",
+        mensaje: `El grupo esta en uso por ${enUso.length} dispositivo(s). Si deseas eliminarlo, primero migralos a Predeterminado BioStar.`,
+        datos: { total_dispositivos: enUso.length },
+      });
+      return;
+    }
+
+    if (enUso.length > 0 && migrar) {
+      let migrados = 0;
+      for (const item of enUso) {
+        const deviceId = String(item?.id || item?.device_id || "").trim();
+        if (!deviceId) continue;
+        const payloads = [
+          {
+            Device: {
+              id: deviceId,
+              name: item?.name || item?.device_name || "",
+              device_group: 1,
+              device_group_id: { id: 1 },
+            },
+          },
+          { Device: { id: deviceId, device_group: 1, device_group_id: { id: 1 } } },
+          { id: deviceId, device_group: 1, device_group_id: { id: 1 } },
+        ];
+        for (const body of payloads) {
+          const r = await requestWithEndpointFallback(conexion as any, "PUT", `/devices/${deviceId}`, body);
+          if (r.ok) {
+            migrados++;
+            break;
+          }
+        }
+      }
+      if (migrados < enUso.length) {
+        res.status(200).json({
+          estado: false,
+          mensaje: "No se pudieron migrar todos los dispositivos al grupo Predeterminado BioStar.",
+          datos: { migrados, total: enUso.length },
+        });
+        return;
+      }
+    }
+
+    const delRes = await requestWithEndpointFallback(conexion as any, "DELETE", `/device_groups/${id}`);
+    if (delRes.ok) {
+      res.status(200).json({ estado: true, mensaje: "Grupo eliminado correctamente." });
+      return;
+    }
+
+    res.status(200).json({
+      estado: false,
+      mensaje: toFriendlyMessage(delRes.message || extractBiostarMessage(delRes.data)) || "No se pudo eliminar el grupo de dispositivos.",
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function listarPuertas(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const attempts = [
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/door_groups/search", data: { limit: 1000, offset: 0 } }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/door_groups?limit=1000" }),
+    ];
+
+    let rows: any[] = [];
+    let message = "No se pudieron consultar grupos de puertas.";
+    for (const p of attempts) {
+      const r = await p;
+      if (r.ok) {
+        rows = parseRows(r.data, ["DoorGroupCollection.rows", "rows", "door_groups"]);
+        break;
+      }
+      message = r.message || message;
+    }
+
+    if (!rows.length) {
+      res.status(200).json({ estado: true, datos: [], mensaje: message });
+      return;
+    }
+
+    const datos = rows.map((item: any) => ({
+      id_externo: String(item?.id || item?.door_group_id || ""),
+      nombre: String(item?.name || item?.door_group_name || "").trim(),
+      depth: Number(item?.depth || 0),
+      parent_id: String(item?.parent_id?.id || item?.parent_id || ""),
+      es_all_door_groups:
+        String(item?.name || item?.door_group_name || "")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim() === "all door groups",
+    }));
+
+    res.status(200).json({ estado: true, datos });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function crearPuerta(req: Request, res: Response): Promise<void> {
+  try {
+    const nombre = String(req.body?.nombre || "").trim();
+    if (!nombre) {
+      res.status(400).json({ estado: false, mensaje: "El nombre de la puerta es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const existentesAttempts = [
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/door_groups/search", data: { limit: 1000, offset: 0 } }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/door_groups?limit=1000" }),
+    ];
+    for (const p of existentesAttempts) {
+      const r = await p;
+      if (!r.ok) continue;
+      const rows = parseRows(r.data, ["DoorGroupCollection.rows", "rows", "door_groups"]);
+      const existe = (rows || []).some((item: any) => String(item?.name || item?.door_group_name || "").trim().toLowerCase() === nombre.toLowerCase());
+      if (existe) {
+        res.status(200).json({ estado: false, mensaje: "No se creo el grupo porque ya existe uno con ese nombre." });
+        return;
+      }
+      break;
+    }
+
+    const payloads = [
+      {
+        DoorGroup: {
+          parent_id: { id: 1 },
+          isDoorGroups: true,
+          depth: 1,
+          sync_device_groups: [],
+          sync_devices: [],
+          iconCls: "doorGroupIcon",
+          inherited: true,
+          text: nombre,
+          name: nombre,
+        },
+      },
+      { DoorGroup: { parent_id: { id: 1 }, isDoorGroups: true, depth: 1, name: nombre, text: nombre } },
+      { door_group: { parent_id: { id: 1 }, depth: 1, name: nombre } },
+      { name: nombre, parent_id: { id: 1 }, depth: 1 },
+    ];
+
+    let lastError = "No se pudo crear el grupo de puertas en BioStar.";
+    for (const body of payloads) {
+      const createRes = await requestWithEndpointFallback(conexion as any, "POST", "/door_groups", body);
+      if (createRes.ok) {
+        res.status(200).json({ estado: true, mensaje: "Grupo creado correctamente." });
+        return;
+      }
+      lastError = toFriendlyMessage(createRes.message || extractBiostarMessage(createRes.data));
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastError });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function editarPuerta(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    const nombre = String(req.body?.nombre || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id de la puerta es obligatorio." });
+      return;
+    }
+    if (!nombre) {
+      res.status(400).json({ estado: false, mensaje: "El nombre de la puerta es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const payloads = [
+      { DoorGroup: { name: nombre, id: String(id) } },
+      { door_group: { name: nombre, id: String(id) } },
+      { id: String(id), name: nombre },
+    ];
+
+    let lastError = "No se pudo editar el grupo de puertas en BioStar.";
+    for (const body of payloads) {
+      const editRes = await requestWithEndpointFallback(conexion as any, "PUT", `/door_groups/${id}`, body);
+      if (editRes.ok) {
+        res.status(200).json({ estado: true, mensaje: "Grupo editado correctamente." });
+        return;
+      }
+      lastError = toFriendlyMessage(editRes.message || extractBiostarMessage(editRes.data));
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastError });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function eliminarPuerta(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id de la puerta es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const delRes = await requestWithEndpointFallback(conexion as any, "DELETE", `/door_groups/${id}`);
+    if (delRes.ok) {
+      res.status(200).json({ estado: true, mensaje: "Grupo eliminado correctamente." });
+      return;
+    }
+
+    res.status(200).json({
+      estado: false,
+      mensaje: toFriendlyMessage(delRes.message || extractBiostarMessage(delRes.data)) || "No se pudo eliminar el grupo de puertas.",
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function listarPuertasAcceso(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const [doorsRows, groupsRows, deviceRows] = await Promise.all([
+      obtenerPuertas(conexion),
+      obtenerGruposPuertas(conexion),
+      obtenerDispositivosRemotos(conexion),
+    ]);
+
+    const gruposMap = new Map<string, string>();
+    for (const g of groupsRows) {
+      const gid = String(g?.id || g?.door_group_id || "").trim();
+      if (!gid) continue;
+      gruposMap.set(gid, String(g?.name || g?.door_group_name || "").trim());
+    }
+
+    const dispositivosMap = new Map<string, string>();
+    for (const d of deviceRows) {
+      const did = String(d?.id || d?.device_id || "").trim();
+      if (!did) continue;
+      dispositivosMap.set(did, String(d?.name || d?.device_name || d?.lan?.ip || "").trim());
+    }
+
+    const datos = doorsRows.map((item: any) => {
+      const doorGroupId = resolveDoorGroupId(item);
+      const deviceId = String(
+        item?.entry_device_id?.id ??
+        item?.relay_output_id?.device_id?.id ??
+        item?.exit_button_input_id?.device_id?.id ??
+        item?.sensor_input_id?.device_id?.id ??
+        item?.device_id?.id ??
+        item?.device_id ??
+        item?.device?.id ??
+        item?.device ??
+        ""
+      ).trim();
+      return {
+        id_externo: String(item?.id || item?.door_id || "").trim(),
+        nombre: String(item?.name || item?.door_name || "").trim(),
+        grupo_puerta_id: doorGroupId || "1",
+        grupo_puerta_nombre: gruposMap.get(doorGroupId) || "All Door Groups",
+        dispositivo_id: deviceId,
+        dispositivo_nombre:
+          String(item?.entry_device_id?.name || "").trim() ||
+          String(item?.relay_output_id?.device_id?.name || "").trim() ||
+          String(item?.exit_button_input_id?.device_id?.name || "").trim() ||
+          String(item?.sensor_input_id?.device_id?.name || "").trim() ||
+          dispositivosMap.get(deviceId) ||
+          "",
+        rele_puerta: String(
+          item?.relay_output_id?.relay_index ??
+          item?.relay?.port ??
+          item?.door_relay?.port ??
+          item?.relay_port ??
+          item?.door_relay ??
+          ""
+        ).trim(),
+        boton_salida: String(
+          item?.exit_button_input_id?.input_index ??
+          item?.exit_button?.port ??
+          item?.exit_button_input?.port ??
+          item?.exit_button_port ??
+          item?.exit_button ??
+          ""
+        ).trim(),
+        sensor_puerta: String(
+          item?.sensor_input_id?.input_index ??
+          item?.door_sensor?.port ??
+          item?.sensor?.port ??
+          item?.sensor_port ??
+          item?.door_sensor ??
+          ""
+        ).trim(),
+      };
+    });
+
+    res.status(200).json({ estado: true, datos });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function detallePuertaAcceso(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id de la puerta es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const detailRes = await biostarRequest(conexion as any, { method: "GET", url: `/api/doors/${id}` });
+    if (!detailRes.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(detailRes.message || extractBiostarMessage(detailRes.data)) || "No se pudo consultar la puerta.",
+      });
+      return;
+    }
+
+    const door = detailRes.data?.Door || detailRes.data?.door || detailRes.data || {};
+    const doorGroupId = resolveDoorGroupId(door);
+    const deviceId = String(
+      door?.entry_device_id?.id ??
+      door?.relay_output_id?.device_id?.id ??
+      door?.exit_button_input_id?.device_id?.id ??
+      door?.sensor_input_id?.device_id?.id ??
+      door?.device_id?.id ??
+      door?.device_id ??
+      ""
+    ).trim();
+
+    res.status(200).json({
+      estado: true,
+      datos: {
+        id_externo: String(door?.id || id),
+        nombre: String(door?.name || "").trim(),
+        grupo_puerta_id: doorGroupId || "1",
+        dispositivo_id: deviceId,
+        rele_puerta: String(door?.relay_output_id?.relay_index ?? "").trim(),
+        boton_salida: String(door?.exit_button_input_id?.input_index ?? "").trim(),
+        sensor_puerta: String(door?.sensor_input_id?.input_index ?? "").trim(),
+      },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function listarCatalogosPuertasAcceso(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const [groupsRows, deviceRows] = await Promise.all([
+      obtenerGruposPuertas(conexion),
+      obtenerDispositivosRemotos(conexion),
+    ]);
+
+    const grupos = groupsRows.map((item: any) => ({
+      id_externo: String(item?.id || item?.door_group_id || "").trim(),
+      nombre: String(item?.name || item?.door_group_name || "").trim(),
+    }));
+    const dispositivos = deviceRows.map((item: any) => ({
+      id_externo: String(item?.id || item?.device_id || "").trim(),
+      nombre: String(item?.name || item?.device_name || item?.lan?.ip || "").trim(),
+    }));
+
+    res.status(200).json({ estado: true, datos: { grupos, dispositivos } });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function listarOpcionesAltaPuertaAcceso(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const [doorGroupsRes, deviceGroupsRes, devicesRes] = await Promise.all([
+      biostarRequest(conexion as any, {
+        method: "POST",
+        url: "/api/v2/door_groups/only_permission_item/search",
+        data: { order_by: "depth:false" },
+      }),
+      biostarRequest(conexion as any, {
+        method: "POST",
+        url: "/api/v2/device_groups/search",
+        data: { order_by: "depth:false" },
+      }),
+      biostarRequest(conexion as any, {
+        method: "POST",
+        url: "/api/v2/devices/search",
+        data: { exclude_device_type_id: "254" },
+      }),
+    ]);
+
+    const doorGroups = doorGroupsRes.ok
+      ? parseRows(doorGroupsRes.data, ["DoorGroupCollection.rows", "rows", "door_groups"])
+      : [];
+    const deviceGroups = deviceGroupsRes.ok
+      ? parseRows(deviceGroupsRes.data, ["DeviceGroupCollection.rows", "rows", "device_groups"])
+      : [];
+    const devices = devicesRes.ok
+      ? parseRows(devicesRes.data, ["DeviceCollection.rows", "rows", "devices"])
+      : [];
+
+    const gruposPuerta = doorGroups.map((item: any) => ({
+      id_externo: String(item?.id || item?.door_group_id || "").trim(),
+      nombre: String(item?.name || item?.door_group_name || "").trim(),
+      depth: Number(item?.depth || 0),
+      parent_id: String(item?.parent_id?.id || item?.parent_id || "").trim(),
+    }));
+
+    const gruposDispositivo = deviceGroups.map((item: any) => ({
+      id_externo: String(item?.id || item?.device_group_id || "").trim(),
+      nombre: String(item?.name || item?.group_name || "").trim(),
+      depth: Number(item?.depth || 0),
+      parent_id: String(item?.parent_id?.id || item?.parent_id || "").trim(),
+    }));
+
+    const entryDevices = devices.map((item: any) => ({
+      id_externo: String(item?.id || item?.device_id || "").trim(),
+      nombre: String(item?.name || item?.device_name || "").trim(),
+      grupo_id: String(item?.device_group_id?.id || item?.device_group_id || "").trim(),
+    }));
+
+    res.status(200).json({
+      estado: true,
+      datos: { grupos_puerta: gruposPuerta, grupos_dispositivo: gruposDispositivo, entry_devices: entryDevices },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function crearPuertaAcceso(req: Request, res: Response): Promise<void> {
+  try {
+    const nombre = String(req.body?.nombre || "").trim();
+    const grupo_puerta_id = String(req.body?.grupo_puerta_id || "").trim();
+    const dispositivo_id = String(req.body?.dispositivo_id || "").trim();
+    const rele_puerta = String(req.body?.rele_puerta || "").trim();
+    const boton_salida = String(req.body?.boton_salida || "").trim();
+    const sensor_puerta = String(req.body?.sensor_puerta || "").trim();
+
+    if (!nombre || !grupo_puerta_id || !dispositivo_id) {
+      res.status(400).json({ estado: false, mensaje: "Nombre, grupo y dispositivo son obligatorios." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const payloads = [
+      {
+        Door: {
+          name: nombre,
+          description: "",
+          door_group_id: { id: Number(grupo_puerta_id) || 1 },
+          entry_device_id: { id: Number(dispositivo_id) || dispositivo_id, name: "" },
+          relay_output_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            relay_index: Number(rele_puerta || "0"),
+          },
+          exit_button_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id, name: "" },
+            input_index: Number(boton_salida || "0"),
+            type: "0",
+            simulated_unlock: "0",
+            supervised: "",
+          },
+          sensor_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id, name: "" },
+            input_index: Number(sensor_puerta || "0"),
+            type: "0",
+            apb_use_door_sensor: "0",
+            supervised: "",
+          },
+          antitailsensor_input_id: { device_id: {}, type: "0" },
+          exit_device_id: {},
+          open_duration: 3,
+          open_timeout: 10,
+          open_once: "false",
+          unconditional_lock: "false",
+          dual_authentication: { device: "0", approval_type: "0", timeout: 15 },
+          door_timed_anti_passback: {
+            apb_type: "2",
+            reset_time: "10",
+            open_when_disconnected: 0,
+            selected_device: "0",
+            bypass_groups: [],
+          },
+        },
+      },
+      {
+        Door: {
+          name: nombre,
+          door_group_id: { id: Number(grupo_puerta_id) || 1 },
+          entry_device_id: { id: Number(dispositivo_id) || dispositivo_id },
+          relay_output_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            relay_index: Number(rele_puerta || "0"),
+          },
+          exit_button_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            input_index: Number(boton_salida || "0"),
+          },
+          sensor_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            input_index: Number(sensor_puerta || "0"),
+          },
+        },
+      },
+    ];
+
+    let lastError = "No se pudo crear la puerta en BioStar.";
+    for (const body of payloads) {
+      const createRes = await requestWithEndpointFallback(conexion as any, "POST", "/doors", body);
+      if (createRes.ok) {
+        res.status(200).json({ estado: true, mensaje: "Puerta creada correctamente." });
+        return;
+      }
+      lastError = toFriendlyMessage(createRes.message || extractBiostarMessage(createRes.data));
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastError });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function editarPuertaAcceso(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    const nombre = String(req.body?.nombre || "").trim();
+    const grupo_puerta_id = String(req.body?.grupo_puerta_id || "").trim();
+    const dispositivo_id = String(req.body?.dispositivo_id || "").trim();
+    const rele_puerta = String(req.body?.rele_puerta || "").trim();
+    const boton_salida = String(req.body?.boton_salida || "").trim();
+    const sensor_puerta = String(req.body?.sensor_puerta || "").trim();
+
+    if (!id || !nombre || !grupo_puerta_id || !dispositivo_id) {
+      res.status(400).json({ estado: false, mensaje: "Id, nombre, grupo y dispositivo son obligatorios." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const payloads = [
+      {
+        Door: {
+          id: Number(id) || id,
+          status: "0",
+          name: nombre,
+          description: "",
+          door_group_id: { id: Number(grupo_puerta_id) || 1 },
+          entry_device_id: { id: Number(dispositivo_id) || dispositivo_id, name: "" },
+          relay_output_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            relay_index: Number(rele_puerta || "0"),
+          },
+          exit_button_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id, name: "" },
+            input_index: Number(boton_salida || "0"),
+            type: "0",
+            simulated_unlock: "0",
+            supervised: "",
+          },
+          sensor_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id, name: "" },
+            input_index: Number(sensor_puerta || "0"),
+            type: "0",
+            apb_use_door_sensor: "0",
+            supervised: "",
+          },
+          antitailsensor_input_id: { device_id: {}, type: "0" },
+          exit_device_id: {},
+          open_duration: 3,
+          open_timeout: 10,
+          open_once: "false",
+          unconditional_lock: "false",
+          dual_authentication: { device: "0", approval_type: "0", timeout: 15 },
+          door_timed_anti_passback: {
+            apb_type: "2",
+            reset_time: "10",
+            open_when_disconnected: 0,
+            selected_device: "0",
+            bypass_groups: [],
+          },
+        },
+      },
+      {
+        Door: {
+          id: Number(id) || id,
+          status: "0",
+          name: nombre,
+          door_group_id: { id: Number(grupo_puerta_id) || 1 },
+          entry_device_id: { id: Number(dispositivo_id) || dispositivo_id },
+          relay_output_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            relay_index: Number(rele_puerta || "0"),
+          },
+          exit_button_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            input_index: Number(boton_salida || "0"),
+          },
+          sensor_input_id: {
+            device_id: { id: Number(dispositivo_id) || dispositivo_id },
+            input_index: Number(sensor_puerta || "0"),
+          },
+        },
+      },
+    ];
+
+    let lastError = "No se pudo editar la puerta en BioStar.";
+    for (const body of payloads) {
+      const editRes = await requestWithEndpointFallback(conexion as any, "PUT", `/doors/${id}`, body);
+      if (editRes.ok) {
+        res.status(200).json({ estado: true, mensaje: "Puerta editada correctamente." });
+        return;
+      }
+      lastError = toFriendlyMessage(editRes.message || extractBiostarMessage(editRes.data));
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastError });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function eliminarPuertaAcceso(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id de la puerta es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const delRes = await requestWithEndpointFallback(conexion as any, "DELETE", `/doors/${id}`);
+    if (delRes.ok) {
+      res.status(200).json({ estado: true, mensaje: "Puerta eliminada correctamente." });
+      return;
+    }
+
+    res.status(200).json({
+      estado: false,
+      mensaje: toFriendlyMessage(delRes.message || extractBiostarMessage(delRes.data)) || "No se pudo eliminar la puerta.",
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function listarOpcionesDispositivoPuertaAcceso(req: Request, res: Response): Promise<void> {
+  try {
+    const deviceId = String(req.query?.device_id || "").trim();
+    if (!deviceId) {
+      res.status(400).json({ estado: false, mensaje: "El device_id es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const candidatesRes = await biostarRequest(conexion as any, { method: "GET", url: "/api/devices/candidates" });
+    if (!candidatesRes.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(candidatesRes.message || extractBiostarMessage(candidatesRes.data)) || "No se pudieron consultar candidatos del dispositivo.",
+      });
+      return;
+    }
+
+    const rows = parseRows(candidatesRes.data, ["DeviceRelayCollection.rows", "rows"]);
+    const puertosSet = new Set<string>();
+
+    for (const item of rows) {
+      const did = String(item?.device_id?.id || item?.device_id || "").trim();
+      const sameDevice = did === deviceId || (Number.isFinite(Number(did)) && Number.isFinite(Number(deviceId)) && Number(did) === Number(deviceId));
+      if (!sameDevice) continue;
+      const relayIndex = String(item?.relay_index ?? "").trim();
+      if (relayIndex !== "") puertosSet.add(relayIndex);
+    }
+
+    let puertosRelay = Array.from(puertosSet)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((valor) => ({ valor, etiqueta: `Puerto ${valor}` }));
+
+    let puertosEntrada: Array<{ valor: string; etiqueta: string }> = [];
+    let totalRelayFromConfig = 0;
+    let totalInputFromConfig = 0;
+
+    const configRes = await biostarRequest(conexion as any, { method: "GET", url: `/api/devices/${deviceId}/config` });
+    if (configRes.ok) {
+      const cfg = configRes.data || {};
+      totalRelayFromConfig =
+        [
+          cfg?.relay?.num_relays,
+          cfg?.relay?.number_of_relays,
+          cfg?.relays?.length,
+          cfg?.output?.num_relays,
+          cfg?.output?.num_outputs,
+        ]
+          .map((v: any) => Number(v))
+          .find((v: number) => Number.isFinite(v) && v > 0) || 0;
+      totalInputFromConfig =
+        [
+          cfg?.input?.num_inputs,
+          cfg?.input?.number_of_inputs,
+          cfg?.input?.normal_inputs,
+          cfg?.input?.supervised_inputs_count,
+          cfg?.inputs?.length,
+        ]
+          .map((v: any) => Number(v))
+          .find((v: number) => Number.isFinite(v) && v > 0) || 0;
+    }
+
+    if (totalRelayFromConfig > puertosRelay.length) {
+      puertosRelay = Array.from({ length: totalRelayFromConfig }, (_, i) => ({
+        valor: String(i),
+        etiqueta: `Puerto ${i}`,
+      }));
+    }
+    if (!puertosRelay.length) {
+      puertosRelay = [{ valor: "0", etiqueta: "Puerto 0" }];
+    }
+    const deviceSearchRes = await biostarRequest(conexion as any, {
+      method: "POST",
+      url: "/api/v2/devices/search",
+      data: { id: Number(deviceId) || deviceId },
+    });
+    if (deviceSearchRes.ok) {
+      const deviceRows = parseRows(deviceSearchRes.data, ["DeviceCollection.rows", "rows", "devices"]);
+      const device = (deviceRows || []).find((d: any) => String(d?.id || d?.device_id || "").trim() === deviceId);
+      const input = device?.input || {};
+      const possibleCounts = [
+        input?.num_inputs,
+        input?.number_of_inputs,
+        input?.normal_inputs,
+        input?.supervised_inputs_count,
+      ];
+      const count = possibleCounts
+        .map((v: any) => Number(v))
+        .find((v: number) => Number.isFinite(v) && v > 0);
+      if (count) {
+        puertosEntrada = Array.from({ length: count }, (_, i) => ({
+          valor: String(i),
+          etiqueta: `Input Port ${i}`,
+        }));
+      }
+    }
+    if (totalInputFromConfig > puertosEntrada.length) {
+      puertosEntrada = Array.from({ length: totalInputFromConfig }, (_, i) => ({
+        valor: String(i),
+        etiqueta: `Input Port ${i}`,
+      }));
+    }
+    if (!puertosEntrada.length) {
+      puertosEntrada = puertosRelay.map((p) => ({ valor: p.valor, etiqueta: `Input Port ${p.valor}` }));
+    }
+    if (puertosEntrada.length === 1 && puertosEntrada[0].valor === "0") {
+      puertosEntrada = [
+        { valor: "0", etiqueta: "Input Port 0" },
+        { valor: "1", etiqueta: "Input Port 1" },
+      ];
+    }
+
+    res.status(200).json({
+      estado: true,
+      datos: {
+        rele_puerta: puertosRelay,
+        boton_salida: puertosEntrada,
+        sensor_puerta: puertosEntrada,
+      },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function listarAccessLevels(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const requests = [
+      biostarRequest(conexion as any, {
+        method: "GET",
+        url: `/api/access_levels?SelectAllYN=false&filterObject=${encodeURIComponent("{}")}&limit=50&offset=0`,
+      }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/access_levels" }),
+    ];
+
+    let rows: any[] = [];
+    let message = "No se pudieron consultar los niveles de acceso.";
+    for (const p of requests) {
+      const r = await p;
+      if (r.ok) {
+        rows = parseRows(r.data, ["AccessLevelCollection.rows", "rows", "access_levels"]);
+        break;
+      }
+      message = r.message || message;
+    }
+
+    const datos = (rows || []).map((item: any) => ({
+      id_externo: String(item?.id || item?.access_level_id || "").trim(),
+      nombre: String(item?.name || item?.access_level_name || "").trim(),
+      total_reglas: Array.isArray(item?.access_level_items) ? item.access_level_items.length : 0,
+    }));
+
+    res.status(200).json({ estado: true, datos, mensaje: message });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function detalleAccessLevel(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const detailRes = await biostarRequest(conexion as any, { method: "GET", url: `/api/access_levels/${id}` });
+    if (!detailRes.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(detailRes.message || extractBiostarMessage(detailRes.data)) || "No se pudo consultar el nivel de acceso.",
+      });
+      return;
+    }
+
+    const entity = detailRes.data?.AccessLevel || detailRes.data?.access_level || detailRes.data || {};
+    const items = Array.isArray(entity?.access_level_items) ? entity.access_level_items : [];
+
+    const reglas = items.map((it: any) => ({
+      id_externo: String(it?.id || "").trim(),
+      door_id: String(it?.doors?.[0]?.id || "").trim(),
+      door_nombre: String(it?.doors?.[0]?.name || "").trim(),
+      schedule_id: String(it?.schedule_id?.id || "").trim(),
+      schedule_nombre: String(it?.schedule_id?.name || "").trim(),
+    }));
+
+    res.status(200).json({
+      estado: true,
+      datos: {
+        id_externo: String(entity?.id || id),
+        nombre: String(entity?.name || "").trim(),
+        reglas,
+      },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function catalogosAccessLevel(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const [doorsRes, schedulesRes] = await Promise.all([
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/doors/search", data: {} }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/schedules" }),
+    ]);
+
+    const doors = doorsRes.ok ? parseRows(doorsRes.data, ["DoorCollection.rows", "rows", "doors"]) : [];
+    const schedules = schedulesRes.ok ? parseRows(schedulesRes.data, ["ScheduleCollection.rows", "rows", "schedules"]) : [];
+
+    res.status(200).json({
+      estado: true,
+      datos: {
+        puertas: (doors || []).map((d: any) => ({ id_externo: String(d?.id || "").trim(), nombre: String(d?.name || "").trim() })),
+        horarios: (schedules || []).map((s: any) => ({ id_externo: String(s?.id || "").trim(), nombre: String(s?.name || "").trim() })),
+      },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function crearHorarioAccessLevel(req: Request, res: Response): Promise<void> {
+  try {
+    const nombre = String(req.body?.nombre || "").trim();
+    const dia = Number(req.body?.dia ?? 1);
+    const inicio = Number(req.body?.inicio ?? 480);
+    const fin = Number(req.body?.fin ?? 1020);
+    if (!nombre) {
+      res.status(400).json({ estado: false, mensaje: "El nombre del horario es obligatorio." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const daily = Array.from({ length: 7 }, (_, i) => ({ day_index: i, time_segments: [] as any[] }));
+    daily[Math.max(0, Math.min(6, dia))].time_segments.push({ start_time: inicio, end_time: fin });
+
+    const payload = {
+      Schedule: {
+        name: nombre,
+        daily_schedules: daily,
+        holiday_schedules: [],
+        days_of_iteration: 7,
+        start_date: new Date().toISOString(),
+        use_daily_iteration: true,
+      },
+    };
+
+    const createRes = await biostarRequest(conexion as any, { method: "POST", url: "/api/schedules", data: payload });
+    if (!createRes.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(createRes.message || extractBiostarMessage(createRes.data)) || "No se pudo crear el horario.",
+      });
+      return;
+    }
+    res.status(200).json({ estado: true, mensaje: "Horario creado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function crearAccessLevel(req: Request, res: Response): Promise<void> {
+  try {
+    const nombre = String(req.body?.nombre || "").trim();
+    const reglas = Array.isArray(req.body?.reglas) ? req.body.reglas : [];
+    if (!nombre) {
+      res.status(400).json({ estado: false, mensaje: "El nombre es obligatorio." });
+      return;
+    }
+    if (!reglas.length) {
+      res.status(400).json({ estado: false, mensaje: "Debes agregar al menos una regla." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const access_level_items = reglas.map((r: any) => ({
+      doors: [{ id: Number(r.door_id) || r.door_id, name: String(r.door_nombre || "") }],
+      schedule_id: { id: String(r.schedule_id), name: String(r.schedule_nombre || "") },
+    }));
+
+    const payload = { AccessLevel: { name: nombre, access_level_items } };
+    const createRes = await biostarRequest(conexion as any, { method: "POST", url: "/api/access_levels", data: payload });
+    if (!createRes.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(createRes.message || extractBiostarMessage(createRes.data)) || "No se pudo crear el nivel de acceso.",
+      });
+      return;
+    }
+    res.status(200).json({ estado: true, mensaje: "Nivel de acceso creado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function editarAccessLevel(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    const nombre = String(req.body?.nombre || "").trim();
+    const reglas = Array.isArray(req.body?.reglas) ? req.body.reglas : [];
+    if (!id || !nombre || !reglas.length) {
+      res.status(400).json({ estado: false, mensaje: "Id, nombre y reglas son obligatorios." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const access_level_items = reglas.map((r: any) => ({
+      id: String(r.id_externo || ""),
+      doors: [{ id: Number(r.door_id) || r.door_id, name: String(r.door_nombre || "") }],
+      schedule_id: { id: String(r.schedule_id), name: String(r.schedule_nombre || "") },
+    }));
+
+    const payload = { AccessLevel: { name: nombre, access_level_items, sync_hint: {} } };
+    const editRes = await biostarRequest(conexion as any, { method: "PUT", url: `/api/access_levels/${id}`, data: payload });
+    if (!editRes.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(editRes.message || extractBiostarMessage(editRes.data)) || "No se pudo editar el nivel de acceso.",
+      });
+      return;
+    }
+    res.status(200).json({ estado: true, mensaje: "Nivel de acceso editado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function listarAccessGroups(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const attempts = [
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/access_groups/search", data: {} }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/access_groups?limit=1000" }),
+    ];
+
+    let rows: any[] = [];
+    let message = "No se pudieron consultar los permisos de acceso.";
+    for (const p of attempts) {
+      const r = await p;
+      if (r.ok) {
+        rows = parseRows(r.data, ["AccessGroupCollection.rows", "rows", "access_groups"]);
+        break;
+      }
+      message = r.message || message;
+    }
+
+    const datos = (rows || []).map((item: any) => ({
+      id_externo: String(item?.id || "").trim(),
+      nombre: String(item?.name || "").trim(),
+      descripcion: String(item?.description || "").trim(),
+      total_niveles: Array.isArray(item?.access_levels) ? item.access_levels.length : 0,
+      total_grupos_usuarios: Array.isArray(item?.user_groups) ? item.user_groups.length : 0,
+      total_usuarios: Array.isArray(item?.users) ? item.users.length : 0,
+    }));
+
+    res.status(200).json({ estado: true, datos, mensaje: message });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function catalogosAccessGroups(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const [levelsRes, userGroupsRes, usersRes] = await Promise.all([
+      biostarRequest(conexion as any, { method: "GET", url: "/api/access_levels?order_by=name:false" }),
+      biostarRequest(conexion as any, {
+        method: "POST",
+        url: "/api/v2/user_groups/only_permission_item/search",
+        data: { order_by: "name:false" },
+      }),
+      biostarRequest(conexion as any, { method: "POST", url: "/api/v2/users/search?noblockui", data: { limit: 200, offset: 0 } }),
+    ]);
+
+    const levels = levelsRes.ok ? parseRows(levelsRes.data, ["AccessLevelCollection.rows", "rows", "access_levels"]) : [];
+    const userGroups = userGroupsRes.ok ? parseRows(userGroupsRes.data, ["UserGroupCollection.rows", "rows", "user_groups"]) : [];
+    const users = usersRes.ok ? parseRows(usersRes.data, ["UserCollection.rows", "rows", "users"]) : [];
+
+    res.status(200).json({
+      estado: true,
+      datos: {
+        niveles: (levels || []).map((x: any) => ({ id_externo: String(x?.id || "").trim(), nombre: String(x?.name || "").trim() })),
+        grupos_usuarios: (userGroups || []).map((x: any) => ({ id_externo: String(x?.id || "").trim(), nombre: String(x?.name || "").trim() })),
+        usuarios: (users || []).map((x: any) => ({
+          id_externo: String(x?.user_id || x?.id || "").trim(),
+          nombre: String(x?.name || x?.user_name || "").trim(),
+        })),
+      },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function detalleAccessGroup(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const detailRes = await biostarRequest(conexion as any, { method: "GET", url: `/api/access_groups/${id}?full_users=false` });
+    if (!detailRes.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(detailRes.message || extractBiostarMessage(detailRes.data)) || "No se pudo consultar el permiso de acceso.",
+      });
+      return;
+    }
+
+    const entity = detailRes.data?.AccessGroup || detailRes.data?.access_group || detailRes.data || {};
+    const usersRes = await biostarRequest(conexion as any, { method: "GET", url: `/api/access_groups/${id}/users?noblockui&limit=1000&offset=0` });
+    const userRows = usersRes.ok ? parseRows(usersRes.data, ["UserCollection.rows", "rows", "users"]) : [];
+
+    const niveles = Array.isArray(entity?.access_levels) ? entity.access_levels : [];
+    const grupos = Array.isArray(entity?.user_groups) ? entity.user_groups : [];
+    const usersFromEntity = Array.isArray(entity?.users) ? entity.users : [];
+    const users = userRows.length ? userRows : usersFromEntity;
+
+    res.status(200).json({
+      estado: true,
+      datos: {
+        id_externo: String(entity?.id || id).trim(),
+        nombre: String(entity?.name || "").trim(),
+        descripcion: String(entity?.description || "").trim(),
+        niveles: niveles.map((x: any) => ({ id_externo: String(x?.id || "").trim(), nombre: String(x?.name || "").trim() })),
+        grupos_usuarios: grupos.map((x: any) => ({ id_externo: String(x?.id || "").trim(), nombre: String(x?.name || "").trim() })),
+        usuarios: users.map((x: any) => ({ id_externo: String(x?.user_id || x?.id || "").trim(), nombre: String(x?.name || "").trim() })),
+      },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function crearAccessGroup(req: Request, res: Response): Promise<void> {
+  try {
+    const nombre = String(req.body?.nombre || "").trim();
+    const descripcion = String(req.body?.descripcion || "").trim();
+    const niveles = Array.isArray(req.body?.niveles) ? req.body.niveles : [];
+    const gruposUsuarios = Array.isArray(req.body?.grupos_usuarios) ? req.body.grupos_usuarios : [];
+    const usuarios = Array.isArray(req.body?.usuarios) ? req.body.usuarios : [];
+
+    if (!nombre) {
+      res.status(400).json({ estado: false, mensaje: "El nombre es obligatorio." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const payload = {
+      AccessGroup: {
+        name: nombre,
+        description: descripcion,
+        access_levels: niveles.map((x: any) => ({ id: String(x.id_externo || x.id || ""), name: String(x.nombre || x.name || "") })),
+        user_groups: gruposUsuarios.map((x: any) => ({ id: Number(x.id_externo || x.id || 0), name: String(x.nombre || x.name || "") })),
+        users: usuarios.map((x: any) => ({ user_id: String(x.id_externo || x.user_id || x.id || "") })),
+      },
+    };
+
+    const r = await biostarRequest(conexion as any, { method: "POST", url: "/api/access_groups", data: payload });
+    if (!r.ok) {
+      res.status(200).json({
+        estado: false,
+        mensaje: toFriendlyMessage(r.message || extractBiostarMessage(r.data)) || "No se pudo crear el permiso de acceso.",
+      });
+      return;
+    }
+
+    res.status(200).json({ estado: true, mensaje: "Permiso de acceso creado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function editarAccessGroup(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    const nombre = String(req.body?.nombre || "").trim();
+    const descripcion = String(req.body?.descripcion || "").trim();
+    const niveles = Array.isArray(req.body?.niveles) ? req.body.niveles : [];
+    const gruposUsuarios = Array.isArray(req.body?.grupos_usuarios) ? req.body.grupos_usuarios : [];
+    const usuarios = Array.isArray(req.body?.usuarios) ? req.body.usuarios : [];
+    if (!id || !nombre) {
+      res.status(400).json({ estado: false, mensaje: "Id y nombre son obligatorios." });
+      return;
+    }
+
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+
+    const payloads = [
+      {
+        AccessGroup: {
+          name: nombre,
+          description: descripcion,
+          access_levels: niveles.map((x: any) => ({ id: String(x.id_externo || x.id || ""), name: String(x.nombre || x.name || "") })),
+          user_groups: gruposUsuarios.map((x: any) => ({ id: Number(x.id_externo || x.id || 0), name: String(x.nombre || x.name || "") })),
+          users: usuarios.map((x: any) => ({ user_id: String(x.id_externo || x.user_id || x.id || "") })),
+          sync_hint: {},
+        },
+      },
+      {
+        AccessGroup: {
+          name: nombre,
+          description: descripcion,
+          new_users: usuarios.map((x: any) => ({ user_id: String(x.id_externo || x.user_id || x.id || "") })),
+          sync_hint: {},
+        },
+      },
+    ];
+
+    let lastError = "No se pudo editar el permiso de acceso.";
+    for (const payload of payloads) {
+      const r = await biostarRequest(conexion as any, { method: "PUT", url: `/api/access_groups/${id}`, data: payload });
+      if (r.ok) {
+        res.status(200).json({ estado: true, mensaje: "Permiso de acceso editado correctamente." });
+        return;
+      }
+      lastError = toFriendlyMessage(r.message || extractBiostarMessage(r.data)) || lastError;
+    }
+
+    res.status(200).json({ estado: false, mensaje: lastError });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function eliminarAccessGroup(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id es obligatorio." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+    const r = await biostarRequest(conexion as any, { method: "DELETE", url: `/api/access_groups?id=${encodeURIComponent(id)}` });
+    if (!r.ok) {
+      res.status(200).json({ estado: false, mensaje: toFriendlyMessage(r.message || extractBiostarMessage(r.data)) || "No se pudo eliminar el permiso de acceso." });
+      return;
+    }
+    res.status(200).json({ estado: true, mensaje: "Permiso de acceso eliminado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function listarHorariosBiostar(_req: Request, res: Response): Promise<void> {
+  try {
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+    const requests = [
+      biostarRequest(conexion as any, {
+        method: "GET",
+        url: `/api/schedules?SelectAllYN=false&filterObject=${encodeURIComponent("{}")}&limit=50&offset=0`,
+      }),
+      biostarRequest(conexion as any, { method: "GET", url: "/api/schedules" }),
+    ];
+    let rows: any[] = [];
+    let message = "No se pudieron consultar horarios.";
+    for (const p of requests) {
+      const r = await p;
+      if (r.ok) {
+        rows = parseRows(r.data, ["ScheduleCollection.rows", "rows", "schedules"]);
+        break;
+      }
+      message = r.message || message;
+    }
+    const datos = (rows || []).map((s: any) => ({
+      id_externo: String(s?.id || "").trim(),
+      nombre: String(s?.name || "").trim(),
+      descripcion: String(s?.description || "").trim(),
+      use_daily_iteration: String(s?.use_daily_iteration ?? "false") === "true",
+    }));
+    res.status(200).json({ estado: true, datos, mensaje: message });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function detalleHorarioBiostar(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id es obligatorio." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+    const r = await biostarRequest(conexion as any, { method: "GET", url: `/api/schedules/${id}` });
+    if (!r.ok) {
+      res.status(200).json({ estado: false, mensaje: toFriendlyMessage(r.message || extractBiostarMessage(r.data)) || "No se pudo consultar el horario." });
+      return;
+    }
+    const sch = r.data?.Schedule || r.data?.schedule || r.data || {};
+    res.status(200).json({ estado: true, datos: sch });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function editarHorarioBiostar(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    const schedule = req.body?.Schedule;
+    if (!id || !schedule?.name) {
+      res.status(400).json({ estado: false, mensaje: "Id y nombre son obligatorios." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+    const payload = { Schedule: { ...schedule, id: String(schedule.id || id) } };
+    const r = await biostarRequest(conexion as any, { method: "PUT", url: `/api/schedules/${id}`, data: payload });
+    if (!r.ok) {
+      res.status(200).json({ estado: false, mensaje: toFriendlyMessage(r.message || extractBiostarMessage(r.data)) || "No se pudo editar el horario." });
+      return;
+    }
+    res.status(200).json({ estado: true, mensaje: "Horario editado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function eliminarHorarioBiostar(req: Request, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      res.status(400).json({ estado: false, mensaje: "El id es obligatorio." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+    const r = await biostarRequest(conexion as any, { method: "DELETE", url: `/api/schedules?id=${encodeURIComponent(id)}` });
+    if (!r.ok) {
+      res.status(200).json({ estado: false, mensaje: toFriendlyMessage(r.message || extractBiostarMessage(r.data)) || "No se pudo eliminar el horario." });
+      return;
+    }
+    res.status(200).json({ estado: true, mensaje: "Horario eliminado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}
+
+export async function crearHorarioBiostar(req: Request, res: Response): Promise<void> {
+  try {
+    const schedule = req.body?.Schedule;
+    if (!schedule?.name) {
+      res.status(400).json({ estado: false, mensaje: "El nombre del horario es obligatorio." });
+      return;
+    }
+    const conexion = await getBiostarConexionActiva();
+    if (!conexion) {
+      res.status(200).json({ estado: false, mensaje: "Primero configura la conexion global de BioStar." });
+      return;
+    }
+    const r = await biostarRequest(conexion as any, { method: "POST", url: "/api/schedules", data: { Schedule: schedule } });
+    if (!r.ok) {
+      res.status(200).json({ estado: false, mensaje: toFriendlyMessage(r.message || extractBiostarMessage(r.data)) || "No se pudo crear el horario." });
+      return;
+    }
+    res.status(200).json({ estado: true, mensaje: "Horario creado correctamente." });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+  }
+}

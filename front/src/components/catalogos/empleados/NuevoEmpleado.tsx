@@ -3,7 +3,8 @@ import { Close, Save } from "@mui/icons-material";
 import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import { Box, Button, Card, CardContent, Divider, Stack, Typography } from "@mui/material";
+import { Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, Stack, TextField, Typography } from "@mui/material";
+import { Add, Close as CloseIcon } from "@mui/icons-material";
 import { AutocompleteElement, FormContainer, SwitchElement, TextFieldElement } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
 import Swal from "sweetalert2";
@@ -14,7 +15,7 @@ import ProfilePicturePreview from "../../utils/fallbackRender/ProfilePicturePrev
 import { MuiTelInput } from "mui-tel-input";
 import { setFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
@@ -73,6 +74,7 @@ type FormValues = {
   id_cubiculo?: string;
   correo: string;
   acceso_campo: boolean;
+  biostar_group_id?: string;
 };
 
 const resolver = yup.object().shape({
@@ -136,6 +138,7 @@ const resolver = yup.object().shape({
     .required("Este campo es obligatorio.")
     .email("Formato de correo inválido."),
   acceso_campo: yup.boolean().required(),
+  biostar_group_id: yup.string().optional(),
 }) as yup.ObjectSchema<FormValues>;
 
 const initialValue: FormValues = {
@@ -154,10 +157,14 @@ const initialValue: FormValues = {
   extension: "",
   correo: "",
   acceso_campo: false,
+  biostar_group_id: "",
 };
 
 export default function NuevoEmpleado() {
   const { habilitarRegistroCampo } = useSelector(
+    (state: IRootState) => state.config.data
+  );
+  const { habilitarIntegracionBiostar } = useSelector(
     (state: IRootState) => state.config.data
   );
   const formContext = useForm({
@@ -169,6 +176,12 @@ export default function NuevoEmpleado() {
     mode: "all",
   });
   const navigate = useNavigate();
+  const location = useLocation();
+  const [volverPendientesBiostar] = useState<boolean>(() => {
+    const state = (location.state as any) || {};
+    return !!state?.reopenSyncBiostar || !!state?.biostarPrefill;
+  });
+  const [biostarPrefillMeta] = useState<any>(() => ((location.state as any)?.biostarPrefill || null));
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -179,14 +192,19 @@ export default function NuevoEmpleado() {
   const [puestos, setPuestos] = useState<TPuestos[]>([]);
   const [departamentos, setDepartamentos] = useState<TDepartamentos[]>([]);
   const [cubiculos, setCubiculos] = useState<TCubiculos[]>([]);
+  const [biostarGrupos, setBiostarGrupos] = useState<Array<{ id_externo: string; nombre: string }>>([]);
+  const [modalGrupoOpen, setModalGrupoOpen] = useState(false);
+  const [nuevoGrupo, setNuevoGrupo] = useState("");
+  const [creandoGrupo, setCreandoGrupo] = useState(false);
 
   useEffect(() => {
     const obtenerRegistro = async () => {
       try {
         const res = await clienteAxios.get("/api/empleados/form-nuevo");
         if (res.data.estado) {
-          const { usuario, empresas } = res.data.datos;
+          const { usuario, empresas, biostarGrupos } = res.data.datos;
           setEmpresas(empresas);
+          setBiostarGrupos(Array.isArray(biostarGrupos) ? biostarGrupos : []);
           formContext.reset({
             ...initialValue,
             ...(usuario || {}),
@@ -230,21 +248,72 @@ export default function NuevoEmpleado() {
   }, [formContext, habilitarRegistroCampo]);
 
   useEffect(() => {
+    if (!habilitarIntegracionBiostar) return;
+    if (!biostarGrupos.length) return;
+    const current = String(formContext.getValues("biostar_group_id") || "").trim();
+    if (current) return;
+    const allUsers =
+      biostarGrupos.find((g) => String(g.nombre || "").trim().toLowerCase() === "all users") ||
+      biostarGrupos.find((g) => String(g.id_externo) === "1") ||
+      biostarGrupos[0];
+    if (allUsers?.id_externo) {
+      formContext.setValue("biostar_group_id", String(allUsers.id_externo), { shouldValidate: true });
+    }
+  }, [habilitarIntegracionBiostar, biostarGrupos, formContext]);
+
+  useEffect(() => {
     if (!habilitarRegistroCampo) {
       formContext.setValue("acceso_campo", false, { shouldValidate: true });
     }
   }, [habilitarRegistroCampo, formContext]);
+  useEffect(() => {
+    if (isLoading) return;
+    const pre = (location.state as any)?.biostarPrefill;
+    if (!pre) return;
+    formContext.setValue("nombre", String(pre.nombre || pre.name || ""), { shouldValidate: true });
+    formContext.setValue("apellido_pat", String(pre.apellido_pat || pre.last_name || ""), { shouldValidate: true });
+    formContext.setValue("apellido_mat", String(pre.apellido_mat || ""), { shouldValidate: true });
+    formContext.setValue("correo", String(pre.correo || pre.email || ""), { shouldValidate: true });
+    formContext.setValue("telefono", "", { shouldValidate: true });
+    formContext.setValue("movil", String(pre.movil || pre.telefono || pre.phone || ""), { shouldValidate: true });
+    formContext.setValue("extension", String(pre.extension || ""), { shouldValidate: true });
+    if (String(pre.biostar_group_id || "").trim()) {
+      formContext.setValue("biostar_group_id", String(pre.biostar_group_id), { shouldValidate: true });
+    }
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [formContext, isLoading, location.pathname, location.state, navigate]);
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
+      if (habilitarIntegracionBiostar && !String(data.biostar_group_id || "").trim()) {
+        formContext.setError("biostar_group_id", { type: "manual", message: "Este campo es obligatorio." });
+        return;
+      }
       setIsSaving(true);
-      const res = await clienteAxios.post("api/empleados", data);
+      const payload: any = { ...data };
+      if (biostarPrefillMeta?.biostar_user_id) {
+        payload.desde_pendiente_biostar = true;
+        payload.biostar_user_id = String(biostarPrefillMeta.biostar_user_id || "");
+        payload.biostar_group_name = String(biostarPrefillMeta.biostar_group_name || "");
+      }
+      const res = await clienteAxios.post("api/empleados", payload);
       if (res.data.estado) {
+        const pendientes: string[] = Array.isArray(res.data?.sync?.pendiente)
+          ? res.data.sync.pendiente
+          : [];
+        if (pendientes.length > 0) {
+          enqueueSnackbar(
+            `Empleado guardado, pero quedó pendiente sincronizar en: ${pendientes.join(", ")}.`,
+            { variant: "warning" }
+          );
+        }
         enqueueSnackbar("El empleado se creó correctamente.", {
           variant: "success",
         });
         parentGridDataRef.fetchRows();
-        navigate("/empleados");
+        navigate("/empleados", {
+          state: volverPendientesBiostar ? { reopenSyncBiostar: true } : {},
+        });
       } else if (res.data.codigo === "PANEL_SYNC_FAILED") {
         setIsSaving(false);
         setShowForm(false);
@@ -256,6 +325,13 @@ export default function NuevoEmpleado() {
             "El panel no aceptó la foto. Intenta con otra imagen.",
           showConfirmButton: true,
           allowOutsideClick: false,
+          didOpen: () => {
+            const container = Swal.getContainer();
+            if (container) {
+              container.style.zIndex = "20000";
+              if (container.parentElement) container.parentElement.style.zIndex = "20000";
+            }
+          },
           showClass: { popup: "swal2-show" },
           hideClass: { popup: "swal2-hide" },
         });
@@ -271,13 +347,101 @@ export default function NuevoEmpleado() {
       setIsSaving(false);
     }
   };
+  const swalTop = {
+    zIndex: 2400,
+    didOpen: () => {
+      const container = Swal.getContainer();
+      if (container) container.style.zIndex = "2400";
+    },
+  };
+
+  const crearGrupoBiostarDesdeForm = async () => {
+    if (creandoGrupo) return;
+    const base = nuevoGrupo.trim();
+    const nombre = base ? base.charAt(0).toUpperCase() + base.slice(1) : "";
+    if (!nombre) return;
+    setCreandoGrupo(true);
+    setModalGrupoOpen(false);
+
+    Swal.fire({
+      title: "Creando grupo",
+      text: "Espera un momento...",
+      allowOutsideClick: false,
+      showConfirmButton: false,
+      ...swalTop,
+      didOpen: () => {
+        const container = Swal.getContainer();
+        if (container) container.style.zIndex = "2400";
+        Swal.showLoading();
+      },
+      showClass: { popup: "swal2-show" },
+      hideClass: { popup: "swal2-hide" },
+    });
+
+    try {
+      const res = await clienteAxios.post("/api/biostar-grupos", { nombre });
+      Swal.close();
+
+      if (!res.data?.estado) {
+        await Swal.fire({
+          icon: "error",
+          title: "No se pudo crear",
+          text: res.data?.mensaje || "No se pudo crear el grupo.",
+          showConfirmButton: true,
+          allowOutsideClick: false,
+          ...swalTop,
+          showClass: { popup: "swal2-show" },
+          hideClass: { popup: "swal2-hide" },
+        });
+        return;
+      }
+
+      const gruposRes = await clienteAxios.get("/api/biostar-grupos");
+      if (gruposRes.data?.estado) {
+        const list = Array.isArray(gruposRes.data?.datos) ? gruposRes.data.datos : [];
+        setBiostarGrupos(list);
+        const creado = list.find((g: any) => String(g.nombre || "").toLowerCase() === nombre.toLowerCase());
+        if (creado?.id_externo) {
+          formContext.setValue("biostar_group_id", String(creado.id_externo), { shouldValidate: true });
+        }
+      }
+
+      await Swal.fire({
+        icon: "success",
+        title: "Grupo creado",
+        text: "El grupo se creó correctamente.",
+        showConfirmButton: true,
+        allowOutsideClick: false,
+        ...swalTop,
+        showClass: { popup: "swal2-show" },
+        hideClass: { popup: "swal2-hide" },
+      });
+      setNuevoGrupo("");
+    } catch (error: any) {
+      Swal.close();
+      await Swal.fire({
+        icon: "error",
+        title: "No se pudo crear",
+        text: error?.response?.data?.mensaje || error?.message || "Ocurrió un error al crear el grupo.",
+        showConfirmButton: true,
+        allowOutsideClick: false,
+        ...swalTop,
+        showClass: { popup: "swal2-show" },
+        hideClass: { popup: "swal2-hide" },
+      });
+    } finally {
+      setCreandoGrupo(false);
+    }
+  };
 
   const handleChange = async (value: string, name: "telefono" | "movil") => {
     formContext.setValue(name, value, { shouldValidate: true });
   };
 
   const regresar = () => {
-    navigate("/empleados");
+    navigate("/empleados", {
+          state: volverPendientesBiostar ? { reopenSyncBiostar: true } : {},
+        });
   };
 
   if (!showForm) {
@@ -285,6 +449,7 @@ export default function NuevoEmpleado() {
   }
 
   return (
+    <>
     <ModalContainer containerProps={{ maxWidth: "lg" }}>
       <Box component="section">
         <Card elevation={5}>
@@ -431,6 +596,36 @@ export default function NuevoEmpleado() {
                     noOptionsText: "No hay opciones.",
                   }}
                 />
+                {habilitarIntegracionBiostar && (
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center" sx={{ mt: 1 }}>
+                    <Box sx={{ flex: 1, width: "100%" }}>
+                      <AutocompleteElement
+                        name="biostar_group_id"
+                        label="Grupo BioStar"
+                        required
+                        matchId
+                        options={biostarGrupos.map((item) => ({
+                          id: item.id_externo,
+                          label:
+                            String(item.nombre || "").trim().toLowerCase() === "all users"
+                              ? "Predeterminado BioStar"
+                              : item.nombre,
+                        }))}
+                        textFieldProps={{ margin: "normal" }}
+                        autocompleteProps={{ noOptionsText: "No hay opciones." }}
+                      />
+                    </Box>
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      startIcon={<Add />}
+                      sx={{ mt: { xs: 0, sm: 1 } }}
+                      onClick={() => setModalGrupoOpen(true)}
+                    >
+                      Grupo
+                    </Button>
+                  </Stack>
+                )}
                 <Controller
                   name="movil"
                   control={formContext.control}
@@ -538,8 +733,33 @@ export default function NuevoEmpleado() {
         </Card>
       </Box>
     </ModalContainer>
+    <Dialog open={modalGrupoOpen} onClose={() => setModalGrupoOpen(false)} fullWidth maxWidth="xs">
+      <DialogTitle>
+        Nuevo Grupo BioStar
+        <IconButton onClick={() => setModalGrupoOpen(false)} sx={{ position: "absolute", right: 8, top: 8 }}>
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent>
+        <TextField
+          label="Nombre del grupo"
+          value={nuevoGrupo}
+          onChange={(e) => { const raw = String(e.target.value || ""); const normalized = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : ""; setNuevoGrupo(normalized); }}
+          fullWidth
+          margin="normal"
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setModalGrupoOpen(false)} disabled={creandoGrupo}>Cancelar</Button>
+        <Button variant="contained" onClick={crearGrupoBiostarDesdeForm} disabled={creandoGrupo}>Crear</Button>
+      </DialogActions>
+    </Dialog>
+    </>
   );
 }
+
+
+
 
 
 

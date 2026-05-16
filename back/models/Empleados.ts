@@ -27,6 +27,8 @@ export interface IEmpleado extends Document {
     id_horario?: mongoose.Types.ObjectId;
     accesos: mongoose.Types.ObjectId[];
     huellas_registradas: number[];
+    huellas_hiki_registradas?: number[];
+    huellas_biostar_registradas?: number[];
     huellas_template_dev?: Record<string, string>;
     tarjetas_registradas: string[];
     tarjetas_web?: Array<{
@@ -37,6 +39,13 @@ export interface IEmpleado extends Document {
         fecha_creacion: Date;
     }>;
     acceso_campo: boolean;
+    biostar_user_id?: string;
+    biostar_group_id?: string;
+    biostar_group_name?: string;
+    sync_hikvision_pendiente?: boolean;
+    sync_biostar_pendiente?: boolean;
+    sync_hikvision_error?: string;
+    sync_biostar_error?: string;
     usuario_campo_activo: boolean;
     esRoot: boolean;
     insignias: number[];
@@ -50,6 +59,7 @@ export interface IEmpleado extends Document {
     fecha_modificacion?: Date;
     modificado_por?: mongoose.Types.ObjectId;
     activo: boolean;
+    eliminado_permanente?: boolean;
 }
 
 const empleadoSchema = new Schema<IEmpleado>({
@@ -126,6 +136,8 @@ const empleadoSchema = new Schema<IEmpleado>({
     id_horario: { type: Schema.Types.ObjectId, default: null, ref: 'horarios' },
     accesos: [{ type: Schema.Types.ObjectId, required: true, ref: 'accesos' }],
     huellas_registradas: { type: [Number], default: [] },
+    huellas_hiki_registradas: { type: [Number], default: [] },
+    huellas_biostar_registradas: { type: [Number], default: [] },
     huellas_template_dev: { type: Map, of: String, default: {} },
     tarjetas_registradas: { type: [String], default: [] },
     tarjetas_web: {
@@ -141,6 +153,13 @@ const empleadoSchema = new Schema<IEmpleado>({
         default: [],
     },
     acceso_campo: { type: Boolean, default: false },
+    biostar_user_id: { type: String, default: "" },
+    biostar_group_id: { type: String, default: "" },
+    biostar_group_name: { type: String, default: "" },
+    sync_hikvision_pendiente: { type: Boolean, default: false },
+    sync_biostar_pendiente: { type: Boolean, default: false },
+    sync_hikvision_error: { type: String, default: "" },
+    sync_biostar_error: { type: String, default: "" },
     usuario_campo_activo: { type: Boolean, default: false },
     esRoot: { type: Boolean, require: true, default: false },
     insignias: {
@@ -157,6 +176,7 @@ const empleadoSchema = new Schema<IEmpleado>({
     fecha_modificacion: { type: Date },
     modificado_por: { type: Schema.Types.ObjectId, default: null, ref: 'usuarios' },
     activo: { type: Boolean, default: true },
+    eliminado_permanente: { type: Boolean, default: false },
 });
 
 empleadoSchema.pre<IEmpleado>('save', async function (next) {

@@ -3,6 +3,9 @@ import { PipelineStage, Types } from 'mongoose';
 import Configuracion, { IConfiguracion } from "../models/Configuracion";
 import Horarios, { IHorario } from "../models/Horarios";
 import DispositivosHv from "../models/DispositivosHv";
+import DispositivosSuprema from "../models/DispositivosSuprema";
+import DispositivosBiostar from "../models/DispositivosBiostar";
+import BiostarConexion from "../models/BiostarConexion";
 import Eventos, { IEvento } from "../models/Eventos";
 import Usuarios, { IUsuario } from "../models/Usuarios";
 import Empleados from "../models/Empleados";
@@ -10,6 +13,7 @@ import Registros, { IRegistro } from "../models/Registros";
 import Empresas from "../models/Empresas";
 import Visitantes from "../models/Visitantes";
 import RegistrosCampo from "../models/RegistrosCampo";
+import Accesos from "../models/Accesos";
 import { fecha, log } from "../middlewares/log";
 import {
     validacionRegistroActivo,
@@ -31,6 +35,8 @@ import { REGEX_BASE64 } from "../utils/commonRegex";
 import { socket } from '../utils/socketClient';
 import FaceDetector from "../classes/FaceDetector";
 import FaceDescriptors from "../models/FaceDescriptors";
+import { biostarRequest } from "../classes/Biostar";
+import { abrirPuertaPorAccesoBiostar, cerrarPuertaPorAccesoBiostar } from "../utils/biostarApertura";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -40,6 +46,41 @@ const KIOSCO_PANEL_MODE = {
     CAMPO: "campo",
     TODOS: "todos",
 } as const;
+
+function parseRowsFromPayload(payload: any, keys: string[]): any[] {
+    for (const key of keys) {
+        const value = key
+            .split(".")
+            .reduce((acc: any, part: string) => (acc ? acc[part] : undefined), payload);
+        if (Array.isArray(value)) return value;
+    }
+    return [];
+}
+
+async function getConexionBiostarParaCatalogos(): Promise<any | null> {
+    const main = await DispositivosBiostar.findOne({ activo: true, es_main: true }).sort({
+        fecha_modificacion: -1,
+        fecha_creacion: -1,
+        _id: -1,
+    });
+    const globalConn = await BiostarConexion.findOne({ activo: true }).sort({
+        fecha_modificacion: -1,
+        fecha_creacion: -1,
+        _id: -1,
+    });
+    const activa = await DispositivosBiostar.findOne({ activo: true }).sort({
+        fecha_modificacion: -1,
+        fecha_creacion: -1,
+        _id: -1,
+    });
+
+    const candidates = [main, globalConn, activa].filter(Boolean) as any[];
+    for (const c of candidates) {
+        const ping = await biostarRequest(c as any, { method: "GET", url: "/api/user_groups" });
+        if (ping.ok) return c;
+    }
+    return candidates[0] || null;
+}
 
 export async function obtenerTodosPorFiltro(req: Request, res: Response): Promise<void> {
     try {
@@ -239,6 +280,21 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                 }
             },
             {
+                $lookup: {
+                    from: "suprema_dispositivos",
+                    localField: "id_panel",
+                    foreignField: "_id",
+                    as: "panel_biostar",
+                    pipeline: [
+                        {
+                            $project: {
+                                nombre: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
                 $set: {
                     creado_por: { $arrayElemAt: ["$creado_por", -1] },
                     usuario: { $arrayElemAt: ["$usuario", -1] },
@@ -246,6 +302,7 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                     usuario_por_qr: { $arrayElemAt: ["$usuario_por_qr", -1] },
                     visitante: { $arrayElemAt: ["$visitante", -1] },
                     panel: { $arrayElemAt: ["$panel", -1] },
+                    panel_biostar: { $arrayElemAt: ["$panel_biostar", -1] },
                 },
             },
             {
@@ -271,7 +328,7 @@ export async function obtenerTodosPorFiltro(req: Request, res: Response): Promis
                     },
                     estatus: "$tipo_check",
                     creado_por: "$creado_por.nombre",
-                    panel: "$panel.nombre",
+                    panel: { $ifNull: ["$panel.nombre", "$panel_biostar.nombre"] },
                     usuario: {
                         $cond: [
                             { $ifNull: ["$usuario", false] },
@@ -673,6 +730,21 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
             },
             {
                 $lookup: {
+                    from: "suprema_dispositivos",
+                    localField: "id_panel",
+                    foreignField: "_id",
+                    as: "panel_biostar",
+                    pipeline: [
+                        {
+                            $project: {
+                                nombre: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $lookup: {
                     from: 'accesos',
                     localField: 'id_acceso',
                     foreignField: '_id',
@@ -690,12 +762,13 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
                     registro: { $arrayElemAt: ["$registro", -1] },
                     visitante: { $arrayElemAt: ["$visitante", -1] },
                     panel: { $arrayElemAt: ["$panel", -1] },
+                    panel_biostar: { $arrayElemAt: ["$panel_biostar", -1] },
                     acceso: { $arrayElemAt: ["$acceso", -1] },
                 }
             },
             {
                 $set: {
-                    panel: "$panel.nombre",
+                    panel: { $ifNull: ["$panel.nombre", "$panel_biostar.nombre"] },
                     acceso: "$acceso.nombre",
                     generales: {
                         $cond: [
@@ -937,10 +1010,52 @@ export async function obtenerTodosKiosco(req: Request, res: Response): Promise<v
 
 export async function obtenerPanelesKiosco(_req: Request, res: Response): Promise<void> {
     try {
-        const paneles = await DispositivosHv.find(
+        const panelesHv = await DispositivosHv.find(
             { activo: true },
             { nombre: 1, direccion_ip: 1 }
         ).sort({ nombre: 1 });
+
+        let panelesBiostar: Array<{ _id: Types.ObjectId; nombre: string; direccion_ip: string }> = [];
+        const conexionBio = await getConexionBiostarParaCatalogos();
+        if (conexionBio) {
+            const devicesRes = await biostarRequest(conexionBio as any, {
+                method: "POST",
+                url: "/api/v2/devices/only_permission_item/search",
+                data: {},
+            });
+            if (devicesRes.ok) {
+                const rows = parseRowsFromPayload(devicesRes.data, ["DeviceCollection.rows", "rows", "devices"]);
+                const panelesSuprema = await DispositivosSuprema.find({ activo: true }, "_id nombre direccion_ip").lean<{
+                    _id: Types.ObjectId;
+                    nombre?: string;
+                    direccion_ip?: string;
+                }[]>();
+                const byIp = new Map<string, { _id: Types.ObjectId; nombre: string; direccion_ip: string }>();
+                const byName = new Map<string, { _id: Types.ObjectId; nombre: string; direccion_ip: string }>();
+                panelesSuprema.forEach((p) => {
+                    const item = {
+                        _id: p._id,
+                        nombre: String(p.nombre || "").trim(),
+                        direccion_ip: String(p.direccion_ip || "").trim(),
+                    };
+                    if (item.direccion_ip) byIp.set(item.direccion_ip, item);
+                    if (item.nombre) byName.set(item.nombre.toLowerCase(), item);
+                });
+
+                panelesBiostar = rows
+                    .filter((d: any) => Number(d?.status) === 1)
+                    .map((d: any) => {
+                        const name = String(d?.name || "").trim();
+                        const ip = String(d?.lan?.ip || d?.ip || d?.ip_address || "").trim();
+                        const local = (ip && byIp.get(ip)) || (name && byName.get(name.toLowerCase())) || null;
+                        if (local) return local;
+                        return null;
+                    })
+                    .filter(Boolean) as Array<{ _id: Types.ObjectId; nombre: string; direccion_ip: string }>;
+            }
+        }
+
+        const paneles = [...panelesHv, ...panelesBiostar];
         res.status(200).json({ estado: true, datos: paneles });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
@@ -1203,6 +1318,16 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
     try {
         const id_usuario = (req as UserRequest).userId;
         const id_acceso = (req as UserRequest).accessId;
+        const esTabletQr = Array.isArray((req as UserRequest).role) && (req as UserRequest).role.includes(13);
+        const modoTabletQr = ((req as UserRequest).tabletQrMode || "ambos") as "entrada" | "salida" | "ambos";
+        const accesoConfig = id_acceso
+            ? await Accesos.findById(id_acceso, "modo_apertura_biostar").lean<{ modo_apertura_biostar?: "pulso" | "manual" } | null>()
+            : null;
+        const biostarModoManual = accesoConfig?.modo_apertura_biostar === "manual";
+        const resolverTipoEvento = (ultimo?: number | null) => {
+            if (!esTabletQr || modoTabletQr === "ambos") return ultimo === 5 ? 6 : 5;
+            return modoTabletQr === "entrada" ? 5 : 6;
+        };
         const { qr, tipo_check: tipo_evento, lector } = req.body;
         const regexIDGeneral = /^[\d]+$/;
         const regexCardCode = /^VST[A-Z0-9]{16}$/;
@@ -1310,7 +1435,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                 const qrValue = String(qr || "").trim();
                 const visitante = await Visitantes.findOne(
                     { card_code: qrValue },
-                    "_id nombre apellido_pat apellido_mat bloqueado desbloqueado_hasta activo verificado"
+                    "_id nombre apellido_pat apellido_mat bloqueado desbloqueado_hasta activo verificado img_ine"
                 ).lean<any>();
                 if (!visitante) {
                     comentario = "El registro no fue encontrado o ya no se encuentra disponible.";
@@ -1362,7 +1487,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     tipo_check: { $in: [5, 6] }
                 }).sort({ fecha_creacion: -1 }).lean<any>();
 
-                const tipo_evento = ultimo?.tipo_check === 5 ? 6 : 5;
+                const tipo_evento = resolverTipoEvento(ultimo?.tipo_check);
                 const evento = new Eventos({
                     tipo_dispositivo: 2,
                     tipo_check: tipo_evento,
@@ -1373,6 +1498,20 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     fecha_creacion: Date.now(),
                 });
                 await evento.save();
+                if (tipo_evento === 5) {
+                    const openRes = await abrirPuertaPorAccesoBiostar({
+                        idAcceso: id_acceso || null,
+                        idPersona: visitante._id,
+                        tipoPersona: "visitante",
+                        origen: "hiki_evento",
+                    });
+                    if (!openRes.ok && !openRes.skipped) {
+                        comentario = `No se pudo abrir puerta BioStar: ${openRes.message || "Error desconocido."}`;
+                    }
+                }
+                socket.emit("eventos:nuevo-evento", {
+                    id_evento: evento._id,
+                });
 
                 res.status(200).json({
                     estado: true,
@@ -1380,7 +1519,9 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                         id_visitante: visitante._id,
                         puedeAcceder: true,
                         nombre: nombreCompleto,
-                        tipo_check: tipo_evento
+                        tipo_check: tipo_evento,
+                        img_ine: String((visitante as any)?.img_ine || ""),
+                        biostar_modo_manual: biostarModoManual,
                     }
                 });
                 return;
@@ -1392,12 +1533,14 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                 res.status(200).json({ estado: false, mensaje: comentario });
                 return;
             }
+            let visitanteQrInfo: any = null;
             if (id_visitante) {
                 const visitante = await Visitantes.findById(
                     id_visitante,
-                    "bloqueado desbloqueado_hasta activo"
+                    "bloqueado desbloqueado_hasta activo img_ine"
                 ).lean<any>();
                 if (visitante) {
+                    visitanteQrInfo = visitante;
                     const ahora = dayjs();
                     const desbloqueadoHasta = visitante.desbloqueado_hasta ? dayjs(visitante.desbloqueado_hasta) : null;
                     const desbloqueadoVigente = desbloqueadoHasta ? ahora.isBefore(desbloqueadoHasta) : false;
@@ -1476,7 +1619,7 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     res.status(200).json({ estado: false, mensaje: comentario });
                     return;
                 }
-                const tipo_evento = ulitmo_evento === 5 ? 6 : 5;
+                const tipo_evento = resolverTipoEvento(ulitmo_evento);
                 await cambiarEventoRegistro({
                     tipo_dispositivo: 2,
                     tipo_check: tipo_evento,
@@ -1485,24 +1628,38 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     id_acceso,
                     id_visitante
                 }, { _id: 1 }) as IRegistro;
+                if (tipo_evento === 5) {
+                    const openRes = await abrirPuertaPorAccesoBiostar({
+                        idAcceso: id_acceso || null,
+                        idPersona: id_visitante || null,
+                        tipoPersona: "visitante",
+                        origen: "hiki_evento",
+                    });
+                    if (!openRes.ok && !openRes.skipped) {
+                        comentario = `No se pudo abrir puerta BioStar: ${openRes.message || "Error desconocido."}`;
+                    }
+                }
                 res.status(200).json({
                     estado: true,
-                    datos: { id_registro, puedeAcceder: canAccess, nombre, tipo_check: tipo_evento }
+                    datos: {
+                        id_registro,
+                        puedeAcceder: canAccess,
+                        nombre,
+                        tipo_check: tipo_evento,
+                        img_ine: String((visitanteQrInfo as any)?.img_ine || ""),
+                        biostar_modo_manual: biostarModoManual,
+                    }
                 });
                 return;
             }
         }
         if (regexIDGeneral.test(qr)) {
-            if (lector === 0) {
-                res.status(200).json({ estado: false, mensaje: "No puedes leer QR de empleados en el lector de la bitacora." });
-                return;
-            }
             const empleado = await Empleados.findOne({
                 $or: [
                     { id_empleado: Number(qr) },
                     { id_general: Number(qr) }
                 ]
-            } as any, "activo id_horario");
+            } as any, "activo id_horario accesos nombre apellido_pat apellido_mat");
             if (!empleado) {
                 comentario = "El empleado no fue encontrado.";
                 await guardarEventoNoValido("", "", comentario, id_usuario, qr);
@@ -1515,6 +1672,68 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                 res.status(200).json({ estado: false, mensaje: comentario });
                 return;
             }
+            if (lector === 0) {
+                if (!id_acceso) {
+                    comentario = "Tu usuario no tiene acceso asociado para validar apertura.";
+                    await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, (empleado as any)._id);
+                    res.status(200).json({ estado: false, mensaje: comentario });
+                    return;
+                }
+                const accesosEmpleado = Array.isArray((empleado as any).accesos) ? (empleado as any).accesos : [];
+                const puedeAbrirEnEsteAcceso = accesosEmpleado.some((item: any) => String(item) === String(id_acceso));
+                if (!puedeAbrirEnEsteAcceso) {
+                    comentario = "El empleado no tiene permiso para este acceso.";
+                    await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, (empleado as any)._id);
+                    res.status(200).json({ estado: false, mensaje: comentario });
+                    return;
+                }
+                const ultimo = await Eventos.findOne({
+                    id_empleado: (empleado as any)._id,
+                    id_acceso,
+                    tipo_check: { $in: [5, 6] },
+                })
+                    .sort({ fecha_creacion: -1 })
+                    .lean<{ tipo_check?: number }>();
+                const tipo_evento = resolverTipoEvento(ultimo?.tipo_check);
+                const evento = new Eventos({
+                    tipo_dispositivo: 2,
+                    tipo_check: tipo_evento,
+                    qr: String(qr),
+                    id_empleado: (empleado as any)._id,
+                    id_acceso,
+                    creado_por: id_usuario,
+                    fecha_creacion: Date.now(),
+                });
+                await evento.save();
+
+                let aperturaError = "";
+                if (tipo_evento === 5) {
+                    const openRes = await abrirPuertaPorAccesoBiostar({
+                        idAcceso: id_acceso,
+                        idPersona: (empleado as any)._id,
+                        tipoPersona: "empleado",
+                        origen: "hiki_evento",
+                    });
+                    if (!openRes.ok && !openRes.skipped) {
+                        aperturaError = openRes.message || "Error desconocido.";
+                    }
+                }
+                socket.emit("eventos:nuevo-evento", {
+                    id_evento: evento._id,
+                });
+                const nombre = `${(empleado as any).nombre || ""} ${(empleado as any).apellido_pat || ""} ${(empleado as any).apellido_mat || ""}`.trim();
+                res.status(200).json({
+                    estado: true,
+                    datos: {
+                        puedeAcceder: true,
+                        nombre,
+                        tipo_check: tipo_evento,
+                        advertencia_apertura: aperturaError || undefined,
+                        biostar_modo_manual: biostarModoManual,
+                    },
+                });
+                return;
+            }
             const { validarHorario, autorizacionCheck } = await Configuracion.findOne({}) as IConfiguracion;
             const { id_horario } = empleado as any;
             if (!validarHorario || !id_horario) {
@@ -1524,6 +1743,33 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
             const datos = await validacionHorario(id_horario, tipo_evento);
             res.status(200).json({ estado: true, datos: { ...datos, autorizacionCheck } })
         }
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function cerrarManualBiostar(req: Request, res: Response): Promise<void> {
+    try {
+        const id_acceso = (req as UserRequest).accessId;
+        if (!id_acceso) {
+            res.status(200).json({ estado: false, mensaje: "Tu usuario no tiene acceso asociado para cerrar." });
+            return;
+        }
+
+        const accesoConfig = await Accesos.findById(id_acceso, "modo_apertura_biostar").lean<{ modo_apertura_biostar?: "pulso" | "manual" } | null>();
+        if (!accesoConfig || accesoConfig.modo_apertura_biostar !== "manual") {
+            res.status(200).json({ estado: false, mensaje: "Este acceso no esta configurado en modo manual." });
+            return;
+        }
+
+        const closeRes = await cerrarPuertaPorAccesoBiostar({ idAcceso: id_acceso });
+        if (!closeRes.ok) {
+            res.status(200).json({ estado: false, mensaje: closeRes.message || "No se pudo cerrar en BioStar." });
+            return;
+        }
+
+        res.status(200).json({ estado: true, mensaje: "Acceso cerrado correctamente." });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
@@ -2035,6 +2281,17 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
             });
 
             await evento.save();
+            if (Number(tipo_check_panel) === 5) {
+                const openRes = await abrirPuertaPorAccesoBiostar({
+                    idAcceso: (evento as any)?.id_acceso || null,
+                    idPersona: (evento as any)?.id_empleado || (evento as any)?.id_visitante || null,
+                    tipoPersona: (evento as any)?.id_visitante ? "visitante" : "empleado",
+                    origen: "hiki_evento",
+                });
+                if (!openRes.ok && !openRes.skipped) {
+                    panelWarn("[EVENTOS][PANEL] Apertura BioStar por acceso fallo:", openRes.message);
+                }
+            }
             socket.emit("eventos:nuevo-evento", {
                 id_evento: evento._id,
             });

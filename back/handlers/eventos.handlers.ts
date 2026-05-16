@@ -21,7 +21,7 @@ type IEvento = {
 
 export default async function eventosHandlers(io: Server, socket: Socket): Promise<void> {
     const rol: number[] = socket?.data?.rol || [];
-    const permitirAcceso: boolean = rol.includes(1) || rol.includes(2) || rol.includes(5) || rol.includes(10);
+    const permitirAcceso: boolean = rol.includes(1) || rol.includes(2) || rol.includes(5) || rol.includes(10) || rol.includes(13);
     const visitante_access = socket?.data.visitante_access || false;
     // if (!permitirAcceso && !visitante_access) {
     //     socket.disconnect();

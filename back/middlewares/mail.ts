@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import Configuracion from "../models/Configuracion";
 import { fecha, log } from "./log";
+import { CONFIG } from "../config";
 
 const MAIL_USER = process.env.MAIL_USER || "";
 const MAIL_PASS = process.env.MAIL_PASS || "";
@@ -20,6 +21,7 @@ interface EmailData {
   texto?: string;
   contenido: string;
   plusAttachments?: AttachmentInput[];
+  cuentaId?: string;
 }
 
 function attachmentFromInput(a: AttachmentInput) {
@@ -65,9 +67,10 @@ export async function sendEmail({
   texto = "",
   contenido,
   plusAttachments = [],
+  cuentaId,
 }: EmailData): Promise<boolean> {
   try {
-    const config = await Configuracion.findOne({}, "imgCorreo").lean();
+    const config = await Configuracion.findOne({}, "imgCorreo correo_cuentas").lean<any>();
 
     // Preparamos attachments que vienen desde el caller
     const attachments = plusAttachments.map(attachmentFromInput);
@@ -88,15 +91,73 @@ export async function sendEmail({
       });
     }
 
-const transporter = nodemailer.createTransport({
-  host: "smtp.office365.com",
-  port: 587,
-  secure: false,
-  requireTLS: true,
-  auth: { user: MAIL_USER, pass: MAIL_PASS },
-  logger: true,
-  debug: true,
-});
+    const cuentaEnvActiva = !!(
+      CONFIG.MAIL_VISITANTES_ID &&
+      CONFIG.MAIL_VISITANTES_USER &&
+      CONFIG.MAIL_VISITANTES_PASS &&
+      CONFIG.MAIL_VISITANTES_HOST
+    )
+      ? {
+          id: CONFIG.MAIL_VISITANTES_ID,
+          nombre: CONFIG.MAIL_VISITANTES_NOMBRE || CONFIG.MAIL_VISITANTES_ID,
+          proveedor: CONFIG.MAIL_VISITANTES_PROVIDER || "gmail",
+          host: CONFIG.MAIL_VISITANTES_HOST,
+          port: Number(CONFIG.MAIL_VISITANTES_PORT || 587),
+          secure: !!CONFIG.MAIL_VISITANTES_SECURE,
+          requireTLS: CONFIG.MAIL_VISITANTES_REQUIRE_TLS !== false,
+          user: CONFIG.MAIL_VISITANTES_USER,
+          pass: CONFIG.MAIL_VISITANTES_PASS,
+          fromName: CONFIG.MAIL_VISITANTES_FROM_NAME || "Flipbot",
+          fromEmail: CONFIG.MAIL_VISITANTES_FROM_EMAIL || CONFIG.MAIL_VISITANTES_USER,
+          activo: true,
+        }
+      : null;
+
+        // Priorizar cuenta definida en .env sobre la almacenada en BD cuando comparten id.
+        // Esto evita fallos por credenciales desactualizadas guardadas en configuracion.
+        const cuentasDisponibles = [
+            ...(cuentaEnvActiva ? [cuentaEnvActiva] : []),
+            ...(Array.isArray(config?.correo_cuentas) ? config.correo_cuentas : []),
+        ];
+
+    const cuentaSeleccionada = Array.isArray(cuentasDisponibles)
+      ? cuentasDisponibles.find(
+          (c: any) =>
+            c?.activo !== false &&
+            typeof c?.id === "string" &&
+            c.id === cuentaId
+        )
+      : null;
+
+    const smtpHost = String(cuentaSeleccionada?.host || "smtp.office365.com");
+    const smtpPort = Number(cuentaSeleccionada?.port || 587);
+    const smtpSecure = Boolean(cuentaSeleccionada?.secure || false);
+    const smtpRequireTls = cuentaSeleccionada?.requireTLS !== false;
+    const smtpUser = cuentaSeleccionada ? String(cuentaSeleccionada?.user || "") : MAIL_USER;
+    const smtpPass = cuentaSeleccionada ? String(cuentaSeleccionada?.pass || "") : MAIL_PASS;
+    const fromName = String(cuentaSeleccionada?.fromName || "Flipbot");
+    const fromEmail = String(cuentaSeleccionada?.fromEmail || smtpUser || MAIL_USER);
+
+    if (!smtpUser || !smtpPass) {
+      console.error("MAIL ACCOUNT INCOMPLETA:", {
+        cuentaId,
+        host: smtpHost,
+        port: smtpPort,
+        hasUser: !!smtpUser,
+        hasPass: !!smtpPass,
+      });
+      return false;
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      requireTLS: smtpRequireTls,
+      auth: { user: smtpUser, pass: smtpPass },
+      logger: true,
+      debug: true,
+    });
 
 
     const logoImgHtml = config?.imgCorreo
@@ -143,7 +204,7 @@ const transporter = nodemailer.createTransport({
 </html>`;
 
     const info = await transporter.sendMail({
-      from: `"Flipbot" <${MAIL_USER}>`,
+      from: `"${fromName}" <${fromEmail}>`,
       to: destinatario,
       subject: asunto,
       text: texto,

@@ -18,6 +18,11 @@ export interface IVisitante extends Document {
     codigo: string;
     card_code?: string;
     img_usuario?: string;
+    img_ine?: string;
+    viene_en_coche?: boolean;
+    archivo_licencia?: string;
+    archivo_poliza_seguro?: string;
+    archivo_tarjeta_circulacion?: string;
     correo: string;
     contrasena: string;
     nombre: string;
@@ -44,6 +49,9 @@ export interface IVisitante extends Document {
     modificado_por?: mongoose.Types.ObjectId;
     activo: boolean;
     verificado: boolean;
+    sync_hikvision_pendiente?: boolean;
+    sync_hikvision_error?: string;
+    eliminado_permanente?: boolean;
 }
 
 const visitanteSchema = new Schema<IVisitante>({
@@ -122,6 +130,51 @@ const visitanteSchema = new Schema<IVisitante>({
         permiso_entrada: { type: Boolean, default: false },
         lista_articulos: { type: Boolean, default: false },
     },
+    img_ine: {
+        type: String,
+        default: '',
+        validate: {
+            validator: (v: string | undefined) => {
+                if (!v) return true;
+                return REGEX_BASE64.test(v);
+            },
+            message: () => `La imagen de INE es inválida.`,
+        },
+    },
+    viene_en_coche: { type: Boolean, default: false },
+    archivo_licencia: {
+        type: String,
+        default: '',
+        validate: {
+            validator: (v: string | undefined) => {
+                if (!v) return true;
+                return REGEX_BASE64.test(v);
+            },
+            message: () => `El archivo de licencia es inválido.`,
+        },
+    },
+    archivo_poliza_seguro: {
+        type: String,
+        default: '',
+        validate: {
+            validator: (v: string | undefined) => {
+                if (!v) return true;
+                return REGEX_BASE64.test(v);
+            },
+            message: () => `El archivo de póliza es inválido.`,
+        },
+    },
+    archivo_tarjeta_circulacion: {
+        type: String,
+        default: '',
+        validate: {
+            validator: (v: string | undefined) => {
+                if (!v) return true;
+                return REGEX_BASE64.test(v);
+            },
+            message: () => `El archivo de tarjeta de circulación es inválido.`,
+        },
+    },
     rol: {
         type: [Number],
         required: [true, 'El rol es obligatorio.'],
@@ -141,6 +194,9 @@ const visitanteSchema = new Schema<IVisitante>({
     bloqueado: { type: Boolean, default: false },
     desbloqueado_hasta: { type: Date, default: null },
     verificado: { type: Boolean, default: false },
+    sync_hikvision_pendiente: { type: Boolean, default: false },
+    sync_hikvision_error: { type: String, default: "" },
+    eliminado_permanente: { type: Boolean, default: false },
 });
 
 visitanteSchema.pre<IVisitante>('save', async function (next) {
