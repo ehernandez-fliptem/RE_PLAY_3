@@ -15,6 +15,118 @@ import TiposDispositivos from "../models/TiposDispositivos";
 import Usuarios from "../models/Usuarios";
 import DispositivosHv from "../models/DispositivosHv";
 
+const MODULOS_SISTEMA = [
+    "kiosco",
+    "usuarios",
+    "empleados",
+    "campo",
+    "visitantes",
+    "portal_contratistas",
+    "contratistas",
+    "directorio",
+    "eventos",
+    "escaner_qr",
+    "catalogos",
+    "dispositivos_hikvision",
+    "camaras",
+    "biostar",
+    "configuracion",
+    "permisos",
+] as const;
+
+const MODULOS_POR_ROL_PREDETERMINADO: Record<number, string[]> = {
+    1: [...MODULOS_SISTEMA],
+    2: [
+        "eventos",
+        "kiosco",
+        "empleados",
+        "visitantes",
+        "contratistas",
+        "directorio",
+        "catalogos",
+        "biostar",
+    ],
+    4: ["visitantes"],
+    5: ["eventos", "kiosco", "visitantes"],
+    6: [],
+    7: [],
+    10: [],
+    11: ["portal_contratistas"],
+    12: ["campo"],
+    13: ["kiosco", "visitantes", "eventos", "escaner_qr"],
+};
+
+const MODULO_INICIO_POR_ROL_PREDETERMINADO: Record<number, string> = {
+    1: "eventos",
+    2: "eventos",
+    4: "visitantes",
+    5: "eventos",
+    11: "portal_contratistas",
+    12: "campo",
+    13: "kiosco",
+};
+
+function normalizarPermisosRoles(permisosActuales: any, rolesCatalogo: Array<{ rol: number }>) {
+    const base = Array.isArray(permisosActuales) ? permisosActuales : [];
+    const byRol = new Map<number, any>();
+    base.forEach((item: any) => {
+        if (typeof item?.rol === "number") byRol.set(item.rol, item);
+    });
+
+    return rolesCatalogo.map((r) => {
+        const actual = byRol.get(r.rol);
+        const modulosObj: Record<string, boolean> = {};
+        const defaults = MODULOS_POR_ROL_PREDETERMINADO[r.rol] || [];
+        MODULOS_SISTEMA.forEach((m) => {
+            const actualValue = actual?.modulos && typeof actual.modulos === "object" ? actual.modulos[m] : undefined;
+            modulosObj[m] = typeof actualValue === "boolean" ? actualValue : defaults.includes(m);
+        });
+        const inicioActual = String(actual?.modulo_inicio || "").trim();
+        const inicioPorRol = MODULO_INICIO_POR_ROL_PREDETERMINADO[r.rol] || "";
+        const modulo_inicio =
+            inicioActual && modulosObj[inicioActual]
+                ? inicioActual
+                : (inicioPorRol && modulosObj[inicioPorRol]
+                    ? inicioPorRol
+                    : (defaults.find((m) => modulosObj[m]) || ""));
+        return {
+            rol: r.rol,
+            modulo_inicio,
+            modulos: modulosObj,
+        };
+    });
+}
+
+function rolesPermitidosSegunIntegraciones(
+    flags: { contratistas?: boolean; campo?: boolean },
+    rolesCatalogo: Array<{ rol: number }>
+) {
+    const base = new Set<number>([1, 2, 4, 5, 13]);
+    const legacyOcultos = new Set<number>([6, 7, 10]);
+    if (flags.contratistas) base.add(11);
+    if (flags.campo) base.add(12);
+
+    for (const r of rolesCatalogo) {
+        const rolNum = Number(r.rol);
+        if (!Number.isFinite(rolNum)) continue;
+        if (legacyOcultos.has(rolNum)) continue;
+        if (rolNum === 11 && !flags.contratistas) continue;
+        if (rolNum === 12 && !flags.campo) continue;
+        base.add(rolNum);
+    }
+    return Array.from(base);
+}
+
+function normalizarPermisosRolesFiltrados(
+    permisosActuales: any,
+    rolesCatalogo: Array<{ rol: number }>,
+    flags: { contratistas?: boolean; campo?: boolean }
+) {
+    const rolesPermitidos = new Set(rolesPermitidosSegunIntegraciones(flags, rolesCatalogo));
+    const rolesFiltrados = rolesCatalogo.filter((r) => rolesPermitidos.has(Number(r.rol)));
+    return normalizarPermisosRoles(permisosActuales, rolesFiltrados);
+}
+
 export async function obtenerIntegraciones(_req: Request, res: Response): Promise<void> {
     try {
         console.log("Obteniendo integraciones de configuración...");
@@ -246,6 +358,15 @@ export async function obtener(_req: Request, res: Response): Promise<void> {
             { activo: true },
             { activo: 0, creado_por: 0, fecha_creacion: 0, modificado_por: 0, fecha_modificacion: 0 }
         );
+        const rolesLite = roles.map((r: any) => ({ rol: Number(r.rol) }));
+        configJson.permisos_roles = normalizarPermisosRolesFiltrados(
+            configJson?.permisos_roles,
+            rolesLite,
+            {
+                contratistas: !!configJson?.habilitarContratistas,
+                campo: !!configJson?.habilitarRegistroCampo,
+            }
+        );
         res.status(200).send({
             estado: true, datos: {
                 configuracion: configJson,
@@ -268,8 +389,25 @@ export async function modificar(req: Request, res: Response): Promise<void> {
         const registro = await Configuracion.countDocuments();
         const { id: id_usuario } = jwt.verify(req.headers["x-access-token"] as string, CONFIG.SECRET) as DecodedTokenUser;
 
+        const rolesCatalogo = await Roles.find({ activo: true }, { rol: 1 }).lean<any[]>();
+        const configEntrada = {
+            ...configuracion,
+            permisos_roles: normalizarPermisosRolesFiltrados(
+                configuracion?.permisos_roles,
+                rolesCatalogo.map((r) => ({ rol: Number(r.rol) })),
+                {
+                    contratistas: typeof configuracion?.habilitarContratistas === "boolean"
+                        ? configuracion.habilitarContratistas
+                        : true,
+                    campo: typeof configuracion?.habilitarRegistroCampo === "boolean"
+                        ? configuracion.habilitarRegistroCampo
+                        : false,
+                }
+            ),
+        };
+
         if (registro === 0) {
-            const registro = new Configuracion({ ...configuracion, creado_por: id_usuario, fecha_creacion: Date.now(), imgCorreo: await resizeImage(configuracion.imgCorreo) });
+            const registro = new Configuracion({ ...configEntrada, creado_por: id_usuario, fecha_creacion: Date.now(), imgCorreo: await resizeImage(configEntrada.imgCorreo) });
             const mensajes = await validarModelo(registro);
             if (!isEmptyObject(mensajes)) {
                 res.status(400).json({ estado: false, mensaje: "Revisa que los datos que estás ingresando sean correctos.", mensajes });
@@ -279,7 +417,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
         } else {
             await Configuracion
                 .findOneAndUpdate({},
-                    { $set: { ...configuracion, modificado_por: id_usuario, fecha_modificacion: Date.now(), imgCorreo: await resizeImage(configuracion.imgCorreo) } },
+                    { $set: { ...configEntrada, modificado_por: id_usuario, fecha_modificacion: Date.now(), imgCorreo: await resizeImage(configEntrada.imgCorreo) } },
                     { runValidators: true, projection: { nombre: 1 } }
                 )
                 .catch(async (err) => {

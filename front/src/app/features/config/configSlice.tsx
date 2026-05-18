@@ -34,6 +34,11 @@ interface ConfigState {
         opcionales: { id: string; nombre: string; activo: boolean }[];
       };
     };
+    permisos_roles: Array<{
+      rol: number;
+      modulo_inicio: string;
+      modulos: Record<string, boolean>;
+    }>;
     tipos_dispositivos: { [key: number]: { nombre: string; color: string } };
     tipos_eventos: { [key: number]: { nombre: string; color: string } };
     roles: { [key: number]: { nombre: string; color: string } };
@@ -80,6 +85,7 @@ const initialState = {
       contratistas: { obligatorios: [], opcionales: [] },
       visitantes: { obligatorios: [], opcionales: [] },
     },
+    permisos_roles: [],
     tipos_dispositivos: {} as {
       [key: number]: { nombre: string; color: string };
     },
@@ -128,6 +134,8 @@ export const configSlice = createSlice({
           action.payload.documentos_contratistas || state.data.documentos_contratistas,
         documentos_personalizados:
           action.payload.documentos_personalizados || state.data.documentos_personalizados,
+        permisos_roles:
+          action.payload.permisos_roles || state.data.permisos_roles,
         tipos_dispositivos: action.payload.tipos_dispositivos || state.data.tipos_dispositivos,
         tipos_eventos: action.payload.tipos_eventos || state.data.tipos_eventos,
         roles: action.payload.roles || state.data.roles,

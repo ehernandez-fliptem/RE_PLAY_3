@@ -43,6 +43,8 @@ import type { IRootState } from "../app/store";
 import useNetworkStatus from "./NetworkStatus";
 import KioscoPanel from "./utils/KioscoPanel";
 import { getRoleLabel } from "../app/utils/roleLabels";
+import { canViewModule, getMainModuleForRole, mainModulePath } from "../app/utils/permisosRoles";
+import Swal from "sweetalert2";
 // import Access from "./utils/Access"; // FLAG: Selector de acceso oculto temporalmente - No borrar
 
 const drawerWidth = 200;
@@ -118,6 +120,7 @@ type MenuProps = {
 };
 
 export default function MenuApplication({ children }: MenuProps) {
+  const DIRTY_KEY = "CONFIG_UNSAVED_CHANGES";
   const pageIndex = localStorage.getItem("PAGE_INDEX");
   const {
     habilitarIntegracionHv,
@@ -127,6 +130,7 @@ export default function MenuApplication({ children }: MenuProps) {
     habilitarRegistroCampo,
     roles,
     imgCorreo,
+    permisos_roles,
   } = useSelector((state: IRootState) => state.config.data);
   const { rol, nombre, img_usuario, empresa } = useSelector(
     (state: IRootState) => state.auth.data
@@ -194,7 +198,11 @@ export default function MenuApplication({ children }: MenuProps) {
       // FLAG: Bitácora oculta temporalmente - No borrar
       // if (!path) navigate("/bitacora");
       if (!path) {
-        if (esContratista && habilitarContratistas) {
+        const moduloInicio = getMainModuleForRole(permisos_roles as any, rol);
+        const pathInicio = moduloInicio ? mainModulePath[moduloInicio] : "";
+        if (pathInicio) {
+          navigate(pathInicio);
+        } else if (esContratista && habilitarContratistas) {
           navigate("/portal-contratistas/visitantes");
         } else if (esAnfitrion) {
           navigate("/visitantes");
@@ -276,6 +284,53 @@ export default function MenuApplication({ children }: MenuProps) {
 
   const handleClose = () => {
     setAnchorEl(null);
+  };
+
+  const confirmUnsavedBeforeNavigate = async () => {
+    const isOnConfig = location.pathname.startsWith("/configuracion");
+    const hasUnsaved = localStorage.getItem(DIRTY_KEY) === "true";
+    if (!isOnConfig || !hasUnsaved) return "continue" as const;
+
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "Tienes cambios sin guardar",
+      text: "¿Deseas guardar antes de salir de Configuración?",
+      showCloseButton: true,
+      showCancelButton: false,
+      showDenyButton: true,
+      confirmButtonText: "Guardar",
+      denyButtonText: "Descartar",
+      reverseButtons: false,
+      didOpen: () => {
+        const closeBtn = Swal.getCloseButton();
+        if (closeBtn) closeBtn.style.color = "#d32f2f";
+      },
+    });
+
+    if (result.isConfirmed) {
+      const ok = await (window as any).__saveConfiguracionBeforeLeave?.();
+      return ok ? ("continue" as const) : ("cancel" as const);
+    }
+    if (result.isDenied) {
+      localStorage.setItem(DIRTY_KEY, "false");
+      return "continue" as const;
+    }
+    return "cancel" as const;
+  };
+
+  const handleMenuClickCapture = async (e: React.MouseEvent<HTMLUListElement>) => {
+    const target = e.target as HTMLElement | null;
+    const anchor = target?.closest("a");
+    if (!anchor) return;
+    const href = anchor.getAttribute("href");
+    if (!href || href.startsWith("http")) return;
+    if (href === location.pathname) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const action = await confirmUnsavedBeforeNavigate();
+    if (action === "continue") {
+      navigate(href);
+    }
   };
 
   const getActiveSubId = (
@@ -497,6 +552,7 @@ export default function MenuApplication({ children }: MenuProps) {
         </List>
         <List
           //   component="nav"
+          onClickCapture={handleMenuClickCapture}
           sx={{
             height: "100%",
             overflow: "auto",
@@ -504,11 +560,33 @@ export default function MenuApplication({ children }: MenuProps) {
         >
           {mainMenu.map((item) => {
             let seeItem = obtenerDuplicados(rol, item.rol);
+            const moduloPorItem: Record<string, string> = {
+              "0.5": "kiosco",
+              "0.55": "usuarios",
+              "0.6": "empleados",
+              "0.65": "campo",
+              "0.7": "visitantes",
+              "8": "portal_contratistas",
+              "9": "contratistas",
+              "0.8": "directorio",
+              "0.9": "eventos",
+              "0.91": "escaner_qr",
+              "1": "catalogos",
+              "99": "dispositivos_hikvision",
+              "99.5": "biostar",
+              "100": "configuracion",
+            };
+            const moduloId = moduloPorItem[String(item.id)];
+            if (moduloId) {
+              seeItem = seeItem && canViewModule(permisos_roles as any, rol, moduloId as any);
+            }
             if (item.id === 100) seeItem = rol.includes(1);
-            if (item.id === 99)
-              seeItem =
-                rol.includes(1) &&
-                (habilitarIntegracionHv || habilitarCamaras || habilitarIntegracionBiostar);
+            if (item.id === 99) {
+              const canHv = habilitarIntegracionHv && canViewModule(permisos_roles as any, rol, "dispositivos_hikvision");
+              const canCam = habilitarCamaras && canViewModule(permisos_roles as any, rol, "camaras");
+              const canBio = habilitarIntegracionBiostar && canViewModule(permisos_roles as any, rol, "biostar");
+              seeItem = rol.includes(1) && (canHv || canCam || canBio);
+            }
             if (item.id === 99.5) seeItem = esAdminOSuper && habilitarIntegracionBiostar;
             if (item.id === 0.65) {
               seeItem = seeItem && habilitarRegistroCampo;
@@ -636,11 +714,11 @@ export default function MenuApplication({ children }: MenuProps) {
                         : null;
                       let seeSubItem = obtenerDuplicados(rol, subItem.rol);
                       if (subItem.id === 99.1 && rol.includes(1))
-                        seeSubItem = habilitarIntegracionHv;
+                        seeSubItem = habilitarIntegracionHv && canViewModule(permisos_roles as any, rol, "dispositivos_hikvision");
                       if (subItem.id === 99.2 && rol.includes(1))
-                        seeSubItem = habilitarCamaras;
+                        seeSubItem = habilitarCamaras && canViewModule(permisos_roles as any, rol, "camaras");
                       if ((subItem.id === 99.51 || subItem.id === 99.52 || subItem.id === 99.53) && esAdminOSuper)
-                        seeSubItem = habilitarIntegracionBiostar;
+                        seeSubItem = habilitarIntegracionBiostar && canViewModule(permisos_roles as any, rol, "biostar");
                       if (subItem.id === 8.1 || subItem.id === 8.2 || subItem.id === 9.1 || subItem.id === 9.2) {
                         seeSubItem = seeSubItem && habilitarContratistas;
                       }

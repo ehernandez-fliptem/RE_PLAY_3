@@ -151,10 +151,15 @@ export async function enviarCorreoNuevoVisitanteHV(
     try {
         const config = await Configuracion.findOne({}, "correo_visitantes_template correo_visitantes_cuenta_id").lean<any>();
         const plantilla = config?.correo_visitantes_template || {};
-        const cuentaIdVisitantesConfigurada = String(config?.correo_visitantes_cuenta_id || "").trim();
+        const cuentaVisitantesRaw = config?.correo_visitantes_cuenta_id;
+        const cuentaIdVisitantesConfigurada =
+            cuentaVisitantesRaw === undefined || cuentaVisitantesRaw === null
+                ? undefined
+                : String(cuentaVisitantesRaw).trim();
         const cuentaIdVisitantes =
-            cuentaIdVisitantesConfigurada ||
-            (CONFIG.MAIL_VISITANTES_DEFAULT_FOR_TEMPLATE ? String(CONFIG.MAIL_VISITANTES_ID || "").trim() : "");
+            cuentaIdVisitantesConfigurada !== undefined
+                ? cuentaIdVisitantesConfigurada
+                : (CONFIG.MAIL_VISITANTES_DEFAULT_FOR_TEMPLATE ? String(CONFIG.MAIL_VISITANTES_ID || "").trim() : "");
         const asunto = String(plantilla?.asunto || "Registro del visitante");
         const seccionesRaw = Array.isArray(plantilla?.secciones) ? plantilla.secciones : [];
 

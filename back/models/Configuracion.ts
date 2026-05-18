@@ -38,6 +38,11 @@ export interface IConfiguracion extends Document {
         activo: boolean;
     }>;
     correo_visitantes_cuenta_id?: string;
+    permisos_roles?: Array<{
+        rol: number;
+        modulo_inicio?: string;
+        modulos: Record<string, boolean>;
+    }>;
     correo_visitantes_template?: {
         asunto: string;
         secciones: Array<{
@@ -163,6 +168,11 @@ const configuracionSchema = new Schema<IConfiguracion>({
         activo: { type: Boolean, default: true },
     }],
     correo_visitantes_cuenta_id: { type: String, default: "" },
+    permisos_roles: [{
+        rol: { type: Number, required: true },
+        modulo_inicio: { type: String, default: "" },
+        modulos: { type: Schema.Types.Mixed, default: {} },
+    }],
     correo_visitantes_template: {
         asunto: { type: String, default: "Registro del visitante" },
         secciones: [

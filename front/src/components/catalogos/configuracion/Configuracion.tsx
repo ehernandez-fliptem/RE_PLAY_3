@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import * as yup from "yup";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
@@ -34,6 +34,10 @@ import type { ColorPalette as TColorPalette } from "../../../types/theme";
 import { defaultColorPalette } from "../../../themes/defaultTheme";
 import ColorCollections from "./partes/ColorCollections";
 import CorreoVisitantes from "./partes/CorreoVisitantes";
+import PermisosRoles from "./partes/PermisosRoles";
+import { useSelector } from "react-redux";
+import type { IRootState } from "../../../app/store";
+import Swal from "sweetalert2";
 
 type Colleciones = {
   tipo?: number;
@@ -133,6 +137,11 @@ type FormValues = {
   tipos_eventos: Colleciones[];
   roles: Colleciones[];
   tipos_dispositivos: Colleciones[];
+  permisos_roles: Array<{
+    rol: number;
+    modulo_inicio: string;
+    modulos: Record<string, boolean>;
+  }>;
 };
 
 const colorsResolver = yup.object().shape({
@@ -227,6 +236,16 @@ const resolver = yup.object().shape({
     )
     .optional(),
   correo_visitantes_cuenta_id: yup.string().optional(),
+  permisos_roles: yup
+    .array()
+    .of(
+      yup.object().shape({
+        rol: yup.number().required(),
+        modulo_inicio: yup.string().optional(),
+        modulos: yup.object().optional(),
+      })
+    )
+    .optional(),
   delayProximaFoto: yup.number().required("Este campo es obligatorio."),
   tiempoFotoVisita: yup.number().required("Este campo es obligatorio."),
   tiempoCancelacionRegistros: yup
@@ -406,6 +425,7 @@ const initialValue: FormValues = {
   tipos_eventos: [],
   roles: [],
   tipos_dispositivos: [],
+  permisos_roles: [],
 };
 
 export default function Configuracion() {
@@ -419,9 +439,14 @@ export default function Configuracion() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [tabValue, setTabValue] = useState<
-    "general" | "correos" | "integraciones" | "sistema" | "apariencia" | "colecciones"
+    "general" | "correos" | "integraciones" | "permisos" | "sistema" | "apariencia" | "colecciones"
   >("general");
   const dispatch = useDispatch();
+  const { rol } = useSelector((state: IRootState) => state.auth.data);
+  const esSuperAdmin = rol.includes(1);
+  const DIRTY_KEY = "CONFIG_UNSAVED_CHANGES";
+  type TabType = "general" | "correos" | "integraciones" | "permisos" | "apariencia" | "colecciones";
+  const savedSnapshotRef = useRef<FormValues>(initialValue);
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -449,6 +474,19 @@ export default function Configuracion() {
             tipos_documentos,
             roles,
           });
+          savedSnapshotRef.current = {
+            ...initialValue,
+            ...configuracion,
+            palette: {
+              ...defaultColorPalette,
+              ...configuracion.palette,
+            },
+            tipos_eventos,
+            tipos_registros,
+            tipos_dispositivos,
+            tipos_documentos,
+            roles,
+          };
           setIsLoading(false);
         } else {
           enqueueSnackbar(res.data.mensaje, { variant: "warning" });
@@ -461,8 +499,23 @@ export default function Configuracion() {
     obtenerRegistro();
   }, [formContext]);
 
-  const onSubmit: SubmitHandler<FormValues> = async (data) => {
+  useEffect(() => {
+    localStorage.setItem(DIRTY_KEY, formContext.formState.isDirty ? "true" : "false");
+  }, [formContext.formState.isDirty]);
+
+  useEffect(() => {
+    const handler = (event: BeforeUnloadEvent) => {
+      if (!formContext.formState.isDirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [formContext.formState.isDirty]);
+
+  const guardarConfiguracion = async (data: FormValues): Promise<boolean> => {
     try {
+      let ok = true;
       const {
         tipos_registros,
         tipos_documentos,
@@ -490,7 +543,10 @@ export default function Configuracion() {
         enqueueSnackbar("La configuración se modificó correctamente.", {
           variant: "success",
         });
-        formContext.reset(formContext.getValues());
+        const currentValues = formContext.getValues();
+        formContext.reset(currentValues);
+        savedSnapshotRef.current = currentValues;
+        localStorage.setItem(DIRTY_KEY, "false");
         dispatch(
           updateConfig({
             ...configuracion,
@@ -498,6 +554,7 @@ export default function Configuracion() {
         );
       } else {
         enqueueSnackbar(firstPromised.data.mensaje, { variant: "warning" });
+        ok = false;
       }
       if (secondPromised.data.estado) {
         const {
@@ -613,13 +670,69 @@ export default function Configuracion() {
         );
       } else {
         enqueueSnackbar(secondPromised.data.mensaje, { variant: "warning" });
+        ok = false;
       }
+      return ok;
     } catch (error: unknown) {
       const { erroresForm } = handlingError(error);
       if (erroresForm) setFormErrors(formContext.setError, erroresForm);
+      return false;
     }
   };
 
+  useEffect(() => {
+    (window as any).__saveConfiguracionBeforeLeave = async () =>
+      await new Promise<boolean>((resolve) => {
+        formContext.handleSubmit(
+          async (values) => resolve(await guardarConfiguracion(values)),
+          () => resolve(false)
+        )();
+      });
+
+    return () => {
+      localStorage.removeItem(DIRTY_KEY);
+      delete (window as any).__saveConfiguracionBeforeLeave;
+    };
+  }, [formContext]);
+
+  const onSubmit: SubmitHandler<FormValues> = async (data) => {
+    await guardarConfiguracion(data);
+  };
+
+  const onChangeTab = async (_e: React.SyntheticEvent, v: TabType) => {
+    if (!formContext.formState.isDirty) {
+      setTabValue(v);
+      return;
+    }
+
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "Tienes cambios sin guardar",
+      text: "¿Deseas guardar antes de cambiar de pestaña?",
+      showCloseButton: true,
+      showCancelButton: false,
+      showDenyButton: true,
+      confirmButtonText: "Guardar",
+      denyButtonText: "Descartar",
+      reverseButtons: false,
+      didOpen: () => {
+        const closeBtn = Swal.getCloseButton();
+        if (closeBtn) closeBtn.style.color = "#d32f2f";
+      },
+    });
+
+    if (result.isConfirmed) {
+      const ok = await (window as any).__saveConfiguracionBeforeLeave?.();
+      if (ok) setTabValue(v);
+      return;
+    }
+
+    if (result.isDenied) {
+      formContext.reset(savedSnapshotRef.current);
+      localStorage.setItem(DIRTY_KEY, "false");
+      setTabValue(v);
+    }
+  };
   return (
     <Fragment>
       <Box component="section">
@@ -643,7 +756,7 @@ export default function Configuracion() {
                 </Typography>
                 <Tabs
                   value={tabValue}
-                  onChange={(_e, v) => setTabValue(v)}
+                  onChange={onChangeTab}
                   variant="scrollable"
                   scrollButtons="auto"
                   sx={{ mt: 2 }}
@@ -651,6 +764,7 @@ export default function Configuracion() {
                   <Tab value="general" label="General" />
                   <Tab value="correos" label="Correos" />
                   <Tab value="integraciones" label="Integraciones" />
+                  {esSuperAdmin && <Tab value="permisos" label="Permisos" />}
                   <Tab value="apariencia" label="Apariencia" />
                   <Tab value="colecciones" label="Colecciones" />
                 </Tabs>
@@ -659,6 +773,7 @@ export default function Configuracion() {
                 {tabValue === "general" && <General />}
                 {tabValue === "correos" && <CorreoVisitantes />}
                 {tabValue === "integraciones" && <Integraciones />}
+                {tabValue === "permisos" && esSuperAdmin && <PermisosRoles />}
                 {tabValue === "sistema" && (
                   <Box>
                     <Bitacora />
