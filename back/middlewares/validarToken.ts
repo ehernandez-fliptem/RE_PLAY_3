@@ -45,7 +45,11 @@ export function validarTokenYRol(rolesPermitidos: number[] = [], isRoot: boolean
                 return;
             }
 
-            if (!rolesPermitidos.some((rol) => registro.rol.includes(rol))) {
+            const tieneRolPersonalizado = Array.isArray((registro as any).rol)
+                ? (registro as any).rol.some((r: number) => Number(r) >= 100)
+                : false;
+
+            if (!rolesPermitidos.some((rol) => registro.rol.includes(rol)) && !tieneRolPersonalizado) {
                 log(`${fecha()} ERROR: No autorizado.\n`);
                 res.status(401).json({ estado: false, mensaje: "No autorizado." });
                 return;

@@ -73,6 +73,7 @@ import visitantesRoutes from './routes/visitantes.routes';
 import campoRoutes from './routes/campo.routes';
 
 import { CONFIG } from './config';
+import { setSocketServer } from './realtime/socketBus';
 
 const ENV = CONFIG.NODE_ENV as "DEV" | "PROD";
 if (!ENV) throw new Error("Entorno por definir");
@@ -200,6 +201,7 @@ export default async function Server() {
         });
 
         io.use(validarTokenWS);
+        setSocketServer(io);
 
         // Iniciar servidor WebSocket
         io.on('connection', onConnection);

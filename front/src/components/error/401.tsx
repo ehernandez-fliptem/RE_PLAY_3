@@ -8,9 +8,21 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import type { IRootState } from "../../app/store";
 
 export default function Unauthorized() {
+  const navigate = useNavigate();
+  const { token } = useSelector((state: IRootState) => state.auth.data);
+
+  useEffect(() => {
+    if (token) {
+      navigate("/", { replace: true });
+    }
+  }, [token, navigate]);
+
   return (
     <Box component="section">
       <Card

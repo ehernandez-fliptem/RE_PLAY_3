@@ -4,7 +4,6 @@ import Contador from './plugin/Contador';
 
 import {
     REGEX_EMAIL,
-    REGEX_ROLES,
     REGEX_NAME,
     REGEX_BASE64,
 } from '../utils/commonRegex';
@@ -82,7 +81,9 @@ const usuarioSchema = new Schema<IUsuario>({
         required: [true, 'El rol es obligatorio.'],
         validate: {
             validator: (arr: number[]) =>
-                !arr.some((i) => !Number.isInteger(i)) && REGEX_ROLES.test(arr.toString()),
+                Array.isArray(arr) &&
+                arr.length > 0 &&
+                arr.every((i) => Number.isInteger(i) && i > 0),
             message: () => 'Los valores para el campo rol son incorrectos.',
         },
         ref: "roles"

@@ -128,27 +128,31 @@ export default function Routes() {
   const esContratista = rol.includes(11);
   const esCampo = rol.includes(12);
   const esTablet = rol.includes(13);
+  const esRolPersonalizado = rol.some((r) => Number(r) >= 100);
   const puedeAdmin = esSuper || esAdmin;
   const puedeBiostar = (esSuper || esAdmin) && habilitarIntegracionBiostar;
   const puedeKiosco = esSuper || esAdmin || esRecep || esTablet;
   const puedeVisitantes = esSuper || esAdmin || esAnfitrion || esRecep || esTablet;
-  const usuarioSistema = esSuper || esAdmin || esAnfitrion || esRecep || esContratista || esCampo || esTablet;
+  const usuarioSistema = esSuper || esAdmin || esAnfitrion || esRecep || esContratista || esCampo || esTablet || esRolPersonalizado;
   const canModule = (modulo: Parameters<typeof canViewModule>[2]) =>
     canViewModule(permisosRoles as any, rol, modulo);
-  const canCatalogos = puedeAdmin && canModule("catalogos");
-  const canUsuarios = esSuper && canModule("usuarios");
-  const canEmpleados = puedeAdmin && canModule("empleados");
-  const canVisitantes = puedeVisitantes && canModule("visitantes");
-  const canEventos = puedeKiosco && canModule("eventos");
-  const canEscaner = esTablet && canModule("escaner_qr");
-  const canDirectorio = puedeAdmin && canModule("directorio");
-  const canHikvision = esSuper && habilitarIntegracionHv && canModule("dispositivos_hikvision");
-  const canCamaras = esSuper && habilitarCamaras && canModule("camaras");
-  const canBiostar = puedeBiostar && canModule("biostar");
-  const canContratistas = puedeAdmin && habilitarContratistas && canModule("contratistas");
+  const canCatalogos = (puedeAdmin || esRolPersonalizado) && canModule("catalogos");
+  const canUsuarios = (esSuper || esRolPersonalizado) && canModule("usuarios");
+  const canEmpleados = (puedeAdmin || esRolPersonalizado) && canModule("empleados");
+  const canVisitantes = (puedeVisitantes || esRolPersonalizado) && canModule("visitantes");
+  const canEventos = (puedeKiosco || esRolPersonalizado) && canModule("eventos");
+  const canEscaner = (esTablet || esRolPersonalizado) && canModule("escaner_qr");
+  const canDirectorio = (puedeAdmin || esRolPersonalizado) && canModule("directorio");
+  const canHikvision =
+    (esSuper || esRolPersonalizado) && habilitarIntegracionHv && canModule("dispositivos_hikvision");
+  const canCamaras = (esSuper || esRolPersonalizado) && habilitarCamaras && canModule("camaras");
+  const canBiostar =
+    ((puedeBiostar || esRolPersonalizado) && habilitarIntegracionBiostar && canModule("biostar"));
+  const canContratistas =
+    (puedeAdmin || esRolPersonalizado) && habilitarContratistas && canModule("contratistas");
   const canPortalContratistas =
-    (esContratista || esSuper) && habilitarContratistas && canModule("portal_contratistas");
-  const canConfiguracion = esSuper && canModule("configuracion");
+    (esContratista || esSuper || esRolPersonalizado) && habilitarContratistas && canModule("portal_contratistas");
+  const canConfiguracion = (esSuper || esRolPersonalizado) && canModule("configuracion");
 
   return useRoutes([
     {

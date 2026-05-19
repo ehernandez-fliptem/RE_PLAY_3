@@ -210,18 +210,16 @@ export default function NuevoUsuario() {
   const ROLES = Object.entries(roles)
     .filter((item) => {
       const rol = Number(item[0]);
-      if ([1, 2, 4, 5].includes(rol)) return true;
+      if ([6, 7, 10].includes(rol)) return false;
       if (rol === 11) return habilitarContratistas;
       if (rol === 12) return habilitarRegistroCampo;
-      if (rol === 13) return true;
-      return false;
+      return true;
     })
-    .map((item) => {
-      return {
-        id: Number(item[0]),
-        label: getRoleLabel(Number(item[0]), item[1].nombre),
-      };
-    });
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map((item) => ({
+      id: Number(item[0]),
+      label: getRoleLabel(Number(item[0]), item[1].nombre),
+    }));
   const theme = useTheme();
   const isTinyMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const formContext = useForm({
@@ -320,6 +318,70 @@ export default function NuevoUsuario() {
 
   const handleChange = async (value: string, name: "telefono") => {
     formContext.setValue(name, value, { shouldValidate: true });
+  };
+
+  const getFirstErrorMessage = (errors: any): string | null => {
+    if (!errors || typeof errors !== "object") return null;
+    for (const key of Object.keys(errors)) {
+      const value = errors[key];
+      if (!value) continue;
+      if (typeof value?.message === "string" && value.message.trim()) {
+        return value.message;
+      }
+      if (typeof value === "object") {
+        const nested = getFirstErrorMessage(value);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  };
+
+  const handleSaveClick = async () => {
+    const isValid = await formContext.trigger();
+    if (!isValid) {
+      const orderedFields: Array<{ key: keyof FormValues; label: string }> = [
+        { key: "nombre", label: "Nombre" },
+        { key: "apellido_pat", label: "Apellido paterno" },
+        { key: "apellido_mat", label: "Apellido materno" },
+        { key: "id_empresa", label: "Empresa" },
+        { key: "telefono", label: "Teléfono" },
+        { key: "correo", label: "Correo" },
+        { key: "contrasena", label: "Contraseña" },
+        { key: "rol", label: "Perfil de acceso" },
+        { key: "acceso_tablet", label: "Acceso de tablet" },
+        { key: "modo_tablet_qr", label: "Acceso que usará" },
+      ];
+
+      const rolEsTablet = Array.isArray(formContext.getValues("rol"))
+        ? formContext.getValues("rol").includes(13)
+        : false;
+
+      const firstFieldWithError = orderedFields.find((f) => {
+        if (!rolEsTablet && (f.key === "acceso_tablet" || f.key === "modo_tablet_qr")) {
+          return false;
+        }
+        return Boolean(formContext.getFieldState(f.key, formContext.formState).error);
+      });
+
+      const fieldError = firstFieldWithError
+        ? formContext.getFieldState(firstFieldWithError.key, formContext.formState).error?.message
+        : null;
+
+      const firstError =
+        firstFieldWithError && fieldError
+          ? fieldError === "Este campo es obligatorio."
+            ? `El campo ${firstFieldWithError.label} es requerido.`
+            : `${firstFieldWithError.label} ${fieldError}`
+          : getFirstErrorMessage(formContext.formState.errors) ||
+            "Falta completar campos obligatorios o hay datos inválidos.";
+
+      if (firstFieldWithError) {
+        formContext.setFocus(firstFieldWithError.key);
+      }
+      enqueueSnackbar(firstError, { variant: "warning" });
+      return;
+    }
+    void formContext.handleSubmit(onSubmit)();
   };
 
   const regresar = () => {
@@ -550,11 +612,11 @@ export default function NuevoUsuario() {
                       Cancelar
                     </Button>
                     <Button
-                      disabled={!formContext.formState.isValid}
-                      type="submit"
+                      type="button"
                       size="medium"
                       variant="contained"
                       startIcon={<Save />}
+                      onClick={handleSaveClick}
                     >
                       Guardar
                     </Button>

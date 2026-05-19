@@ -1,14 +1,16 @@
 import { useMemo, useState } from "react";
-import { Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Select, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
+import { Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, IconButton, InputLabel, MenuItem, Select, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography } from "@mui/material";
 import { useFormContext } from "react-hook-form";
 import { MODULOS_PERMISOS, type ModuloPermisoId } from "../../../../app/constants/permisosModulos";
 import { getRoleLabel } from "../../../../app/utils/roleLabels";
 import Swal from "sweetalert2";
-import { Replay } from "@mui/icons-material";
+import { DeleteOutline, Replay } from "@mui/icons-material";
+import { clienteAxios } from "../../../../app/config/axios";
+import { enqueueSnackbar } from "notistack";
 
 export default function PermisosRoles() {
   const { watch, setValue } = useFormContext();
-  const roles = (watch("roles") || []) as Array<{ rol?: number; nombre: string }>;
+  const roles = (watch("roles") || []) as Array<{ _id?: string; rol?: number; nombre: string }>;
   const permisos = (watch("permisos_roles") || []) as Array<{
     rol: number;
     modulo_inicio: string;
@@ -147,26 +149,115 @@ export default function PermisosRoles() {
     setValue("permisos_roles", nuevosPermisos, { shouldDirty: true, shouldValidate: false });
   };
 
-  const crearRol = () => {
+  const resetRolPredeterminado = async (rolNum: number, nombreRol: string) => {
+    const defaults = defaultsByRole[rolNum] || [];
+    const idx = idxByRol.get(rolNum);
+    const actual = idx !== undefined
+      ? permisos[idx]
+      : { rol: rolNum, modulo_inicio: "", modulos: {} as Record<string, boolean> };
+
+    const actualInicio = String(actual.modulo_inicio || "");
+    const defaultInicio = defaults[0] || "";
+    const sameInicio = actualInicio === defaultInicio;
+    const sameModulos = MODULOS_PERMISOS.every((m) => {
+      const currentValue = Boolean(actual.modulos?.[m.id]);
+      const defaultValue = defaults.includes(m.id);
+      return currentValue === defaultValue;
+    });
+    if (sameInicio && sameModulos) return;
+
+    const confirm = await Swal.fire({
+      icon: "warning",
+      title: "Reiniciar rol",
+      text: `¿Seguro que deseas reiniciar el rol "${nombreRol}" a predeterminado?`,
+      showCancelButton: true,
+      confirmButtonText: "Sí, reiniciar",
+      cancelButtonText: "Cancelar",
+    });
+    if (!confirm.isConfirmed) return;
+
+    const modulos: Record<string, boolean> = {};
+    MODULOS_PERMISOS.forEach((m) => {
+      modulos[m.id] = defaults.includes(m.id);
+    });
+    const next = [...(watch("permisos_roles") || [])] as typeof permisos;
+    const modulo_inicio = defaults[0] || "";
+    if (idx !== undefined) {
+      next[idx] = { rol: rolNum, modulos, modulo_inicio };
+    } else {
+      next.push({ rol: rolNum, modulos, modulo_inicio });
+    }
+    setValue("permisos_roles", next, { shouldDirty: true, shouldValidate: false });
+  };
+
+  const crearRol = async () => {
     const nombre = nuevoRolNombre.trim();
     if (!nombre) return;
-    const currentRoles = (watch("roles") || []) as Array<{ rol?: number; nombre: string; color?: string }>;
-    const used = new Set(currentRoles.map((r) => Number(r.rol || 0)).filter((n) => n > 0));
-    let newRolNum = 100;
-    while (used.has(newRolNum)) newRolNum += 1;
+    try {
+      const res = await clienteAxios.post("/api/configuracion/roles/personalizado", { nombre });
+      if (!res.data?.estado) {
+        enqueueSnackbar(res.data?.mensaje || "No se pudo crear el rol.", { variant: "warning" });
+        return;
+      }
 
-    const nextRoles = [...currentRoles, { rol: newRolNum, nombre, color: "#6B6B6B" }];
-    setValue("roles", nextRoles, { shouldDirty: true, shouldValidate: false });
+      const nuevoRol = {
+        _id: String(res.data?.datos?._id || ""),
+        rol: Number(res.data?.datos?.rol || 0),
+        nombre: String(res.data?.datos?.nombre || nombre),
+      };
+      const currentRoles = (watch("roles") || []) as Array<{ _id?: string; rol?: number; nombre: string }>;
+      const nextRoles = [...currentRoles, nuevoRol];
+      setValue("roles", nextRoles, { shouldDirty: true, shouldValidate: false });
 
-    const base = nuevoRolBase === "" ? null : permisos.find((p) => Number(p.rol) === Number(nuevoRolBase));
-    const modulos = base?.modulos ? { ...base.modulos } : {};
-    const modulo_inicio = base?.modulo_inicio || "";
-    const nextPermisos = [...permisos, { rol: newRolNum, modulos, modulo_inicio }];
-    setValue("permisos_roles", nextPermisos, { shouldDirty: true, shouldValidate: false });
+      const base = nuevoRolBase === "" ? null : permisos.find((p) => Number(p.rol) === Number(nuevoRolBase));
+      const modulos = base?.modulos ? { ...base.modulos } : {};
+      const modulo_inicio = base?.modulo_inicio || "";
+      const nextPermisos = [...permisos, { rol: nuevoRol.rol!, modulos, modulo_inicio }];
+      setValue("permisos_roles", nextPermisos, { shouldDirty: true, shouldValidate: false });
 
-    setNuevoRolNombre("");
-    setNuevoRolBase("");
-    setOpenNuevoRol(false);
+      setNuevoRolNombre("");
+      setNuevoRolBase("");
+      setOpenNuevoRol(false);
+      enqueueSnackbar("Rol creado correctamente.", { variant: "success" });
+    } catch (error: any) {
+      enqueueSnackbar(error?.response?.data?.mensaje || "No se pudo crear el rol.", { variant: "error" });
+    }
+  };
+
+  const formatRoleName = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .replace(/(^|\s)\S/g, (l) => l.toUpperCase());
+
+  const eliminarRolCustom = async (rolNum: number, nombreRol: string) => {
+    const confirm = await Swal.fire({
+      icon: "warning",
+      title: "Eliminar rol",
+      text: `¿Seguro que deseas eliminar el rol "${nombreRol}"?`,
+      showCancelButton: true,
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+    });
+    if (!confirm.isConfirmed) return;
+
+    try {
+      const res = await clienteAxios.delete(`/api/configuracion/roles/personalizado/${rolNum}`);
+      if (!res.data?.estado) {
+        enqueueSnackbar(res.data?.mensaje || "No se pudo eliminar el rol.", { variant: "warning" });
+        return;
+      }
+      const nextRoles = ((watch("roles") || []) as Array<{ _id?: string; rol?: number; nombre: string }>)
+        .filter((r) => Number(r.rol || 0) !== rolNum);
+      setValue("roles", nextRoles, { shouldDirty: true, shouldValidate: false });
+
+      const nextPermisos = ((watch("permisos_roles") || []) as typeof permisos)
+        .filter((p) => Number(p.rol) !== rolNum);
+      setValue("permisos_roles", nextPermisos, { shouldDirty: true, shouldValidate: false });
+      enqueueSnackbar("Rol eliminado correctamente.", { variant: "success" });
+    } catch (error: any) {
+      enqueueSnackbar(error?.response?.data?.mensaje || "No se pudo eliminar el rol.", { variant: "error" });
+    }
   };
 
   return (
@@ -209,6 +300,7 @@ export default function PermisosRoles() {
             {modulosVisibles.map((m) => (
               <TableCell key={m.id} align="center">{m.nombre}</TableCell>
             ))}
+            <TableCell align="center">Acciones</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -219,7 +311,9 @@ export default function PermisosRoles() {
             const opcionesInicio = modulosVisibles.filter((m) => Boolean(row.modulos?.[m.id]));
             return (
               <TableRow key={rolNum || r.nombre}>
-                <TableCell>{r.nombre}</TableCell>
+                <TableCell>
+                  <Typography variant="body2">{r.nombre}</Typography>
+                </TableCell>
                 <TableCell sx={{ minWidth: 180 }}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Modulo</InputLabel>
@@ -238,17 +332,33 @@ export default function PermisosRoles() {
                 {modulosVisibles.map((m) => {
                   const checked =
                     Boolean(row.modulos?.[m.id]) ||
-                    (rolNum === 1 && m.id === "permisos");
+                    (rolNum === 1 && (m.id === "permisos" || m.id === "configuracion"));
                   return (
                     <TableCell key={m.id} align="center">
                       <Checkbox
                         checked={checked}
-                        disabled={rolNum === 1 && m.id === "permisos"}
+                        disabled={rolNum === 1 && (m.id === "permisos" || m.id === "configuracion")}
                         onChange={(e) => toggleModulo(rolNum, m.id, e.target.checked)}
                       />
                     </TableCell>
                   );
                 })}
+                <TableCell align="center">
+                  <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+                    <Tooltip title={`Reiniciar rol ${r.nombre}`}>
+                      <IconButton size="small" onClick={() => resetRolPredeterminado(rolNum, r.nombre)}>
+                        <Replay fontSize="inherit" />
+                      </IconButton>
+                    </Tooltip>
+                    {rolNum >= 100 && (
+                      <Tooltip title={`Eliminar rol ${r.nombre}`}>
+                        <IconButton size="small" color="error" onClick={() => eliminarRolCustom(rolNum, r.nombre)}>
+                          <DeleteOutline fontSize="inherit" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Box>
+                </TableCell>
               </TableRow>
             );
           })}
@@ -260,7 +370,7 @@ export default function PermisosRoles() {
           <TextField
             label="Nombre del rol"
             value={nuevoRolNombre}
-            onChange={(e) => setNuevoRolNombre(e.target.value)}
+            onChange={(e) => setNuevoRolNombre(formatRoleName(e.target.value))}
             fullWidth
             margin="dense"
           />
@@ -269,7 +379,10 @@ export default function PermisosRoles() {
             <Select
               label="Base de rol"
               value={nuevoRolBase}
-              onChange={(e) => setNuevoRolBase(e.target.value === "" ? "" : Number(e.target.value))}
+              onChange={(e) => {
+                const selected = String(e.target.value ?? "");
+                setNuevoRolBase(selected === "" ? "" : Number(selected));
+              }}
             >
               <MenuItem value=""><em>Sin predeterminado</em></MenuItem>
               {rolesVisibles.map((r) => (

@@ -141,6 +141,7 @@ export default function MenuApplication({ children }: MenuProps) {
   const esContratista = rol.includes(11);
   const esCampo = rol.includes(12);
   const esTablet = rol.includes(13);
+  const esRolPersonalizado = rol.some((r) => Number(r) >= 100);
   const esAdminOSuper = rol.includes(1) || rol.includes(2);
   const theme = useTheme();
   const navigate = useNavigate();
@@ -351,6 +352,42 @@ export default function MenuApplication({ children }: MenuProps) {
     return active;
   };
 
+  useEffect(() => {
+    const pathModuloMap: Array<{ startsWith: string; modulo: string }> = [
+      { startsWith: "/kiosco", modulo: "kiosco" },
+      { startsWith: "/usuarios", modulo: "usuarios" },
+      { startsWith: "/empleados", modulo: "empleados" },
+      { startsWith: "/campo", modulo: "campo" },
+      { startsWith: "/visitantes", modulo: "visitantes" },
+      { startsWith: "/portal-contratistas", modulo: "portal_contratistas" },
+      { startsWith: "/contratistas", modulo: "contratistas" },
+      { startsWith: "/directorio", modulo: "directorio" },
+      { startsWith: "/eventos", modulo: "eventos" },
+      { startsWith: "/escaner-qr", modulo: "escaner_qr" },
+      { startsWith: "/accesos", modulo: "catalogos" },
+      { startsWith: "/empresas", modulo: "catalogos" },
+      { startsWith: "/pisos", modulo: "catalogos" },
+      { startsWith: "/departamentos", modulo: "catalogos" },
+      { startsWith: "/puestos", modulo: "catalogos" },
+      { startsWith: "/cubiculos", modulo: "catalogos" },
+      { startsWith: "/dispositivos-hikvision", modulo: "dispositivos_hikvision" },
+      { startsWith: "/camaras", modulo: "camaras" },
+      { startsWith: "/biostarar", modulo: "biostar" },
+      { startsWith: "/configuracion", modulo: "configuracion" },
+    ];
+    const current = pathModuloMap.find((p) => location.pathname.startsWith(p.startsWith));
+    if (!current) return;
+    const canCurrent = canViewModule(permisos_roles as any, rol, current.modulo as any);
+    if (canCurrent) return;
+
+    const moduloInicio = getMainModuleForRole(permisos_roles as any, rol);
+    const destino = (moduloInicio && mainModulePath[moduloInicio]) || "/eventos";
+    if (destino !== location.pathname) {
+      navigate(destino, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, permisos_roles, rol]);
+
   return (
     <Box sx={{ display: "flex" }}>
       <CssBaseline />
@@ -560,6 +597,7 @@ export default function MenuApplication({ children }: MenuProps) {
         >
           {mainMenu.map((item) => {
             let seeItem = obtenerDuplicados(rol, item.rol);
+            if (esRolPersonalizado) seeItem = true;
             const moduloPorItem: Record<string, string> = {
               "0.5": "kiosco",
               "0.55": "usuarios",
@@ -580,14 +618,16 @@ export default function MenuApplication({ children }: MenuProps) {
             if (moduloId) {
               seeItem = seeItem && canViewModule(permisos_roles as any, rol, moduloId as any);
             }
-            if (item.id === 100) seeItem = rol.includes(1);
+            if (item.id === 100) {
+              seeItem = rol.includes(1) && canViewModule(permisos_roles as any, rol, "configuracion");
+            }
             if (item.id === 99) {
               const canHv = habilitarIntegracionHv && canViewModule(permisos_roles as any, rol, "dispositivos_hikvision");
               const canCam = habilitarCamaras && canViewModule(permisos_roles as any, rol, "camaras");
               const canBio = habilitarIntegracionBiostar && canViewModule(permisos_roles as any, rol, "biostar");
-              seeItem = rol.includes(1) && (canHv || canCam || canBio);
+              seeItem = (rol.includes(1) || esRolPersonalizado) && (canHv || canCam || canBio);
             }
-            if (item.id === 99.5) seeItem = esAdminOSuper && habilitarIntegracionBiostar;
+            if (item.id === 99.5) seeItem = (esAdminOSuper || esRolPersonalizado) && habilitarIntegracionBiostar;
             if (item.id === 0.65) {
               seeItem = seeItem && habilitarRegistroCampo;
             }
@@ -713,11 +753,18 @@ export default function MenuApplication({ children }: MenuProps) {
                         ? getActiveSubId(item.submenu as Array<{ id: number; path?: string }>)
                         : null;
                       let seeSubItem = obtenerDuplicados(rol, subItem.rol);
+                      if (esRolPersonalizado) seeSubItem = true;
                       if (subItem.id === 99.1 && rol.includes(1))
                         seeSubItem = habilitarIntegracionHv && canViewModule(permisos_roles as any, rol, "dispositivos_hikvision");
                       if (subItem.id === 99.2 && rol.includes(1))
                         seeSubItem = habilitarCamaras && canViewModule(permisos_roles as any, rol, "camaras");
                       if ((subItem.id === 99.51 || subItem.id === 99.52 || subItem.id === 99.53) && esAdminOSuper)
+                        seeSubItem = habilitarIntegracionBiostar && canViewModule(permisos_roles as any, rol, "biostar");
+                      if (subItem.id === 99.1 && esRolPersonalizado)
+                        seeSubItem = habilitarIntegracionHv && canViewModule(permisos_roles as any, rol, "dispositivos_hikvision");
+                      if (subItem.id === 99.2 && esRolPersonalizado)
+                        seeSubItem = habilitarCamaras && canViewModule(permisos_roles as any, rol, "camaras");
+                      if ((subItem.id === 99.51 || subItem.id === 99.52 || subItem.id === 99.53) && esRolPersonalizado)
                         seeSubItem = habilitarIntegracionBiostar && canViewModule(permisos_roles as any, rol, "biostar");
                       if (subItem.id === 8.1 || subItem.id === 8.2 || subItem.id === 9.1 || subItem.id === 9.2) {
                         seeSubItem = seeSubItem && habilitarContratistas;

@@ -14,6 +14,7 @@ import Roles from "../models/Roles";
 import TiposDispositivos from "../models/TiposDispositivos";
 import Usuarios from "../models/Usuarios";
 import DispositivosHv from "../models/DispositivosHv";
+import { emitSocketEvent } from "../realtime/socketBus";
 
 const MODULOS_SISTEMA = [
     "kiosco",
@@ -81,6 +82,10 @@ function normalizarPermisosRoles(permisosActuales: any, rolesCatalogo: Array<{ r
             const actualValue = actual?.modulos && typeof actual.modulos === "object" ? actual.modulos[m] : undefined;
             modulosObj[m] = typeof actualValue === "boolean" ? actualValue : defaults.includes(m);
         });
+        // Regla fija: Super Admin siempre conserva acceso a Configuración.
+        if (Number(r.rol) === 1) {
+            modulosObj.configuracion = true;
+        }
         const inicioActual = String(actual?.modulo_inicio || "").trim();
         const inicioPorRol = MODULO_INICIO_POR_ROL_PREDETERMINADO[r.rol] || "";
         const modulo_inicio =
@@ -414,6 +419,14 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                 return;
             }
             await registro.save();
+            emitSocketEvent("configuracion:permisos-actualizados", {
+                ts: Date.now(),
+                roles: Array.isArray(configEntrada?.permisos_roles)
+                    ? configEntrada.permisos_roles.map((p: any) => Number(p?.rol)).filter((r: number) => Number.isFinite(r))
+                    : [],
+            });
+            res.status(200).json({ estado: true });
+            return;
         } else {
             await Configuracion
                 .findOneAndUpdate({},
@@ -428,6 +441,12 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                     }
                     res.status(500).send({ estado: false, mensaje: `${err.name}: ${err.message}` });
                 });
+            emitSocketEvent("configuracion:permisos-actualizados", {
+                ts: Date.now(),
+                roles: Array.isArray(configEntrada?.permisos_roles)
+                    ? configEntrada.permisos_roles.map((p: any) => Number(p?.rol)).filter((r: number) => Number.isFinite(r))
+                    : [],
+            });
             res.status(200).json({ estado: true });
         }
     } catch (error: any) {
@@ -568,6 +587,92 @@ export async function modificarColecciones(req: Request, res: Response): Promise
                 }
             });
         })(res)
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function crearRolPersonalizado(req: Request, res: Response): Promise<void> {
+    try {
+        const nombre = String(req.body?.nombre || "").trim();
+        if (!nombre) {
+            res.status(400).json({ estado: false, mensaje: "El nombre del rol es obligatorio." });
+            return;
+        }
+        const { id: id_usuario } = jwt.verify(req.headers["x-access-token"] as string, CONFIG.SECRET) as DecodedTokenUser;
+        const ultimo = await Roles.findOne({}, { rol: 1 }).sort({ rol: -1 }).lean<{ rol: number } | null>();
+        const maxRol = Number(ultimo?.rol || 99);
+        const nuevoRolNumero = Math.max(100, maxRol + 1);
+
+        const nuevo = await Roles.create({
+            rol: nuevoRolNumero,
+            nombre,
+            color: "#6B6B6B",
+            creado_por: id_usuario,
+            modificado_por: id_usuario,
+            fecha_modificacion: Date.now(),
+            activo: true,
+        });
+
+        res.status(200).json({
+            estado: true,
+            datos: {
+                _id: nuevo._id,
+                rol: nuevo.rol,
+                nombre: nuevo.nombre,
+                color: nuevo.color,
+            },
+        });
+        emitSocketEvent("configuracion:permisos-actualizados", {
+            ts: Date.now(),
+            roles: [Number(nuevo.rol)],
+        });
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+export async function eliminarRolPersonalizado(req: Request, res: Response): Promise<void> {
+    try {
+        const rolNum = Number(req.params.rol);
+        if (!Number.isFinite(rolNum) || rolNum < 100) {
+            res.status(400).json({ estado: false, mensaje: "Solo se pueden eliminar roles personalizados." });
+            return;
+        }
+
+        const registro = await Roles.findOne({ rol: rolNum, activo: true }, "_id nombre").lean<{ _id: any; nombre: string } | null>();
+        if (!registro?._id) {
+            res.status(404).json({ estado: false, mensaje: "No se encontró el rol personalizado." });
+            return;
+        }
+
+        const usuariosAsignados = await Usuarios.countDocuments({ rol: { $in: [rolNum] }, eliminado_permanente: { $ne: true } });
+        if (usuariosAsignados > 0) {
+            res.status(200).json({
+                estado: false,
+                mensaje: `No se puede eliminar el rol "${registro.nombre}" porque está asignado a ${usuariosAsignados} usuario(s). Reasigna esos usuarios primero.`,
+                datos: { usuarios_asignados: usuariosAsignados },
+            });
+            return;
+        }
+
+        await Roles.updateOne({ _id: registro._id }, { $set: { activo: false, fecha_modificacion: Date.now() } });
+        await Configuracion.updateMany(
+            {},
+            {
+                $pull: {
+                    permisos_roles: { rol: rolNum },
+                } as any,
+            }
+        );
+
+        res.status(200).json({ estado: true, mensaje: "Rol personalizado eliminado correctamente." });
+        emitSocketEvent("configuracion:permisos-actualizados", {
+            ts: Date.now(),
+            roles: [rolNum],
+        });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
