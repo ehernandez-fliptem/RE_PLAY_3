@@ -7,6 +7,8 @@ const envRootPath = path.resolve(__dirname, "..", "..", ".env");
 const envLocalPath = path.resolve(__dirname, "..", ".env");
 const envMailPath = path.resolve(__dirname, "..", ".env.correos");
 const envMailExamplePath = path.resolve(__dirname, "..", ".env.correos.example");
+const envClientsPath = path.resolve(__dirname, "..", ".env.clientes");
+const envClientsExamplePath = path.resolve(__dirname, "..", ".env.clientes.example");
 if (fs.existsSync(envRootPath)) {
     dotenv.config({ path: envRootPath });
 }
@@ -20,6 +22,12 @@ if (fs.existsSync(envMailPath)) {
 } else if (fs.existsSync(envMailExamplePath)) {
     // Fallback para facilitar pruebas cuando solo existe el .example.
     dotenv.config({ path: envMailExamplePath, override: true });
+}
+// Archivo opcional para controlar visibilidad de modulos/integraciones por cliente.
+if (fs.existsSync(envClientsPath)) {
+    dotenv.config({ path: envClientsPath, override: true });
+} else if (fs.existsSync(envClientsExamplePath)) {
+    dotenv.config({ path: envClientsExamplePath, override: true });
 }
 dotenv.config();
 
@@ -91,6 +99,9 @@ const envSchema = z.object({
     MAIL_VISITANTES_FROM_NAME: z.string().optional().default(""),
     MAIL_VISITANTES_FROM_EMAIL: z.string().optional().default(""),
     MAIL_VISITANTES_DEFAULT_FOR_TEMPLATE: envBoolean.optional().default(false),
+    INTEGRACIONES_VISIBILIDAD_MODO: z.enum(["ALL", "CLIENT"]).optional().default("ALL"),
+    INTEGRACIONES_VISIBLES: z.string().optional().default(""),
+    CLIENTE_ID: z.string().optional().default(""),
     
 });
 let CONFIG: z.infer<typeof envSchema>;

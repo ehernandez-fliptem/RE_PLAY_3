@@ -22,7 +22,14 @@ import { updateConfig } from "../../../../app/features/config/configSlice";
 import Swal from "sweetalert2";
 
 export default function Integraciones() {
-  const mostrarSoloIntegracionesSolicitadas = true;
+  const mostrarSoloIntegracionesSolicitadas = false;
+  const [visibilidad, setVisibilidad] = useState({
+    registro_campo: true,
+    biostar: true,
+    hikvision: true,
+    hikvision_biometria: true,
+    contratistas: true,
+  });
   const { getValues, watch, setValue } = useFormContext();
   const [isSaving, setIsSaving] = useState(false);
   const [expandedDocs, setExpandedDocs] = useState<
@@ -34,6 +41,31 @@ export default function Integraciones() {
   const habilitarIntegracionHv = watch("habilitarIntegracionHv");
   const docsVisitantes = watch("documentos_visitantes");
   const docsContratistas = watch("documentos_contratistas");
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const res = await clienteAxios.get("/api/configuracion/integraciones");
+        const cfg = res?.data?.visibilidad?.visibles;
+        if (isMounted && cfg && typeof cfg === "object") {
+          setVisibilidad((prev) => ({
+            ...prev,
+            registro_campo: cfg.registro_campo !== false,
+            biostar: cfg.biostar !== false,
+            hikvision: cfg.hikvision !== false,
+            hikvision_biometria: cfg.hikvision_biometria !== false,
+            contratistas: cfg.contratistas !== false,
+          }));
+        }
+      } catch {
+        // Si falla, se deja visible todo por defecto.
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   type DocScope = "contratistas" | "visitantes";
   type DocBucket = "obligatorios" | "opcionales";
@@ -454,7 +486,7 @@ export default function Integraciones() {
         <Devices color="primary" sx={{ mr: 1 }} />{" "}
         <strong>Integraciones</strong>
       </Typography>
-      {!mostrarSoloIntegracionesSolicitadas && (
+      {!mostrarSoloIntegracionesSolicitadas && visibilidad.registro_campo && (
       <Grid container spacing={2} sx={{ my: 2 }}>
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
@@ -489,6 +521,7 @@ export default function Integraciones() {
         </Grid>
       </Grid>
       )}
+      {visibilidad.biostar && (
       <Grid container spacing={2} sx={{ my: 2 }}>
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
@@ -522,6 +555,8 @@ export default function Integraciones() {
           />
         </Grid>
       </Grid>
+      )}
+      {visibilidad.hikvision && (
       <Grid container spacing={2} sx={{ my: 2 }}>
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
@@ -555,7 +590,8 @@ export default function Integraciones() {
           />
         </Grid>
       </Grid>
-      {habilitarIntegracionHv && (
+      )}
+      {visibilidad.hikvision && visibilidad.hikvision_biometria && habilitarIntegracionHv && (
         <Grid container spacing={2} sx={{ my: 1, ml: { xs: 0, sm: 2 } }}>
           <Grid size={{ xs: 12, sm: 10 }}>
             <Stack spacing={0}>
@@ -591,7 +627,7 @@ export default function Integraciones() {
           </Grid>
         </Grid>
       )}
-      {!mostrarSoloIntegracionesSolicitadas && (
+      {!mostrarSoloIntegracionesSolicitadas && visibilidad.contratistas && (
       <>
       <Grid container spacing={2} sx={{ my: 2 }}>
         <Grid size={{ xs: 12, sm: 10 }}>
@@ -759,21 +795,6 @@ export default function Integraciones() {
       )}
       </>
       )}
-      <Grid container spacing={2} sx={{ my: 1 }}>
-        <Grid
-          size={{ xs: 12 }}
-          sx={{ display: "flex", justifyContent: { xs: "center", sm: "end" } }}
-        >
-          <Button
-            variant="contained"
-            size="small"
-            onClick={guardarIntegraciones}
-            disabled={isSaving}
-          >
-            Guardar integraciones
-          </Button>
-        </Grid>
-      </Grid>
     </Fragment>
   );
 }

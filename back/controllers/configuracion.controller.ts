@@ -132,6 +132,49 @@ function normalizarPermisosRolesFiltrados(
     return normalizarPermisosRoles(permisosActuales, rolesFiltrados);
 }
 
+type IntegracionesVisibilidad = {
+    modo: "ALL" | "CLIENT";
+    cliente_id: string;
+    visibles: {
+        registro_campo: boolean;
+        biostar: boolean;
+        hikvision: boolean;
+        hikvision_biometria: boolean;
+        contratistas: boolean;
+    };
+};
+
+function obtenerVisibilidadIntegraciones(): IntegracionesVisibilidad {
+    const modo = CONFIG.INTEGRACIONES_VISIBILIDAD_MODO === "CLIENT" ? "CLIENT" : "ALL";
+    const cliente_id = String(CONFIG.CLIENTE_ID || "").trim();
+    const defaults = {
+        registro_campo: true,
+        biostar: true,
+        hikvision: true,
+        hikvision_biometria: true,
+        contratistas: true,
+    };
+    if (modo === "ALL") {
+        return { modo, cliente_id, visibles: defaults };
+    }
+    const raw = String(CONFIG.INTEGRACIONES_VISIBLES || "")
+        .split(",")
+        .map((x) => x.trim().toLowerCase())
+        .filter(Boolean);
+    const permitidas = new Set(raw);
+    return {
+        modo,
+        cliente_id,
+        visibles: {
+            registro_campo: permitidas.has("registro_campo"),
+            biostar: permitidas.has("biostar"),
+            hikvision: permitidas.has("hikvision"),
+            hikvision_biometria: permitidas.has("hikvision_biometria"),
+            contratistas: permitidas.has("contratistas"),
+        },
+    };
+}
+
 export async function obtenerIntegraciones(_req: Request, res: Response): Promise<void> {
     try {
         console.log("Obteniendo integraciones de configuración...");
@@ -139,7 +182,7 @@ export async function obtenerIntegraciones(_req: Request, res: Response): Promis
             { activo: true },
             "habilitarIntegracionHv habilitarIntegracionBiostar habilitarIntegracionHvBiometria habilitarIntegracionCdvi habilitarContratistas habilitarRegistroCampo documentos_visitantes documentos_contratistas documentos_personalizados"
         ).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
-        res.status(200).send({ estado: true, datos: registro });
+        res.status(200).send({ estado: true, datos: registro, visibilidad: obtenerVisibilidadIntegraciones() });
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
@@ -379,7 +422,8 @@ export async function obtener(_req: Request, res: Response): Promise<void> {
                 tipos_registros,
                 tipos_dispositivos,
                 tipos_documentos,
-                roles
+                roles,
+                visibilidad_integraciones: obtenerVisibilidadIntegraciones(),
             }
         });
     } catch (error: any) {
