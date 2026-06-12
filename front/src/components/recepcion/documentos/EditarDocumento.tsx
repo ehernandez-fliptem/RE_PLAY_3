@@ -22,7 +22,7 @@ import {
 import { closeSnackbar, enqueueSnackbar } from "notistack";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import Spinner from "../../utils/Spinner";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
@@ -276,7 +276,7 @@ export default function EditarDocumento() {
             {formContext.formState.isSubmitting || isLoading ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext}>
+              <FormContainer formContext={formContext} onError={notifyFormErrors}>
                 <Controller
                   name="estatus"
                   control={formContext.control}
@@ -488,7 +488,6 @@ export default function EditarDocumento() {
                         <Fragment>
                           {[1, 3].includes(field.value) && (
                             <Button
-                              //   disabled={!formContext.formState.isValid}
                               type="button"
                               size="medium"
                               variant="contained"
@@ -503,7 +502,6 @@ export default function EditarDocumento() {
                           )}
                           {[1, 2, 3].includes(field.value) && (
                             <Button
-                              //   disabled={!formContext.formState.isValid}
                               type="button"
                               size="medium"
                               variant="contained"

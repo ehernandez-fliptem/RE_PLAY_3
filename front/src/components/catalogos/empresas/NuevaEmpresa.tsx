@@ -30,7 +30,7 @@ import { clienteAxios, handlingError } from "../../../app/config/axios";
 import Spinner from "../../utils/Spinner";
 import ProfilePicturePreview from "../../utils/fallbackRender/ProfilePicturePreview";
 import Telefonos from "./telefonos/Telefonos";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import ModalContainer from "../../utils/ModalContainer";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
@@ -224,7 +224,7 @@ export default function NuevaEmpresa() {
             {formContext.formState.isSubmitting || isLoading ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext} onSuccess={onSubmit}>
+              <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
                 <Typography variant="h4" component="h2" textAlign="center">
                   Nueva Empresa
                 </Typography>
@@ -383,7 +383,6 @@ export default function NuevaEmpresa() {
                       Cancelar
                     </Button>
                     <Button
-                      disabled={!formContext.formState.isValid}
                       type="submit"
                       size="medium"
                       variant="contained"

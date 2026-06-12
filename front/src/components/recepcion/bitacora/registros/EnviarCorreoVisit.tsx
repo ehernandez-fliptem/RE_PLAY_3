@@ -23,7 +23,7 @@ import dayjs from "dayjs";
 import * as yup from "yup";
 import { useNavigate } from "react-router-dom";
 import { clienteAxios, handlingError } from "../../../../app/config/axios";
-import { setFormErrors } from "../../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../../helpers/formHelper";
 import { enqueueSnackbar } from "notistack";
 import { Close, Save } from "@mui/icons-material";
 import { DateTimePicker } from "@mui/x-date-pickers";
@@ -164,7 +164,7 @@ export default function EnviarCorreoVisit() {
             {formContext.formState.isSubmitting ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext} onSuccess={onSubmit}>
+              <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
                 <Typography variant="h4" component="h2" textAlign="center">
                   Enviar liga de creación para cita
                 </Typography>
@@ -241,7 +241,6 @@ export default function EnviarCorreoVisit() {
                       Cancelar
                     </Button>
                     <Button
-                      disabled={!formContext.formState.isValid}
                       type="submit"
                       size="medium"
                       variant="contained"

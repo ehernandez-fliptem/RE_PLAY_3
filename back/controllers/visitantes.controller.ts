@@ -7,6 +7,7 @@ import QRCode from 'qrcode';
 import { UserRequest } from '../types/express';
 import { QueryParams } from '../types/queryparams';
 import Visitantes, { IVisitante } from '../models/Visitantes';
+import Configuracion from '../models/Configuracion';
 import Roles from '../models/Roles';
 import Usuarios from '../models/Usuarios';
 import { generarCodigoUnico, isEmptyObject, resizeImage, customAggregationForDataGrids, columnToLetter, marcarDuplicados, decryptPassword } from '../utils/utils';
@@ -24,9 +25,18 @@ import FaceDescriptors from '../models/FaceDescriptors';
 import path from "path";
 import dayjs from "dayjs";
 import sharp from "sharp";
+import tesseract from "node-tesseract-ocr";
 import { execFile } from "child_process";
 import DispositivosHv from "../models/DispositivosHv";
 import crypto from "crypto";
+import Eventos from "../models/Eventos";
+import {
+  setVisitantePanelAccess,
+  getPastValidRange,
+  getTemporaryValidRange,
+  getTodayValidRange,
+  type PanelAccessMode,
+} from "../utils/visitantesPanelAccess";
 
 
 // ===============================
@@ -79,6 +89,16 @@ const hvLogError = (stage: string, data: Record<string, unknown>) => {
   log(`${fecha()} [HV][${stage}] ${JSON.stringify(data)}\n`);
 };
 
+const isVehiculoVisitantesEnabled = async (): Promise<boolean> => {
+  const cfg = await Configuracion.findOne(
+    { activo: true },
+    "habilitarVisitantesAvanzado habilitarVisitantesVehiculo"
+  )
+    .sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 })
+    .lean<any>();
+  return cfg?.habilitarVisitantesAvanzado !== false && cfg?.habilitarVisitantesVehiculo !== false;
+};
+
 async function syncVisitanteEnPaneles(params: {
   id_visitante: number;
   fullName: string;
@@ -94,8 +114,7 @@ async function syncVisitanteEnPaneles(params: {
   const employeeNo = calcEmployeeNo(params.id_visitante);
   const cardNoPrimary = String(params.cardNo || "").trim();
   const cardNoFallback = String(employeeNo || "").trim();
-  const beginTime = dayjs().format("YYYY-MM-DDT00:00:00");
-  const endTime = dayjs().format("YYYY-MM-DDT23:59:59");
+  const { beginTime, endTime } = getPastValidRange();
 
   const paneles = await DispositivosHv.find(
     { activo: true },
@@ -271,6 +290,76 @@ const didDocChecksChange = (
   const b = normalizeDocChecks(next);
   return DOC_CHECK_KEYS.some((key) => a[key] !== b[key]);
 };
+
+const ACCESS_MINUTES = 5;
+
+function normalizeIdentityText(value: unknown): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-ZÑ\s]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+}
+
+function identityTokens(value: unknown): string[] {
+  const stop = new Set([
+    "NOMBRE", "CREDENCIAL", "PARA", "VOTAR", "INSTITUTO", "NACIONAL", "ELECTORAL",
+    "MEXICO", "DOMICILIO", "SEXO", "FECHA", "NACIMIENTO", "CLAVE", "ELECTOR",
+    "CURP", "ESTADO", "MUNICIPIO", "SECCION", "LOCALIDAD", "EMISION", "VIGENCIA",
+  ]);
+  return normalizeIdentityText(value)
+    .split(" ")
+    .filter((token) => token.length > 2 && !stop.has(token));
+}
+
+function compareIdentity(systemName: string, ocrText: string) {
+  const expected = identityTokens(systemName);
+  const found = new Set(identityTokens(ocrText));
+  const matched = expected.filter((token) => found.has(token));
+  const required = expected.length <= 1 ? expected.length : Math.min(2, expected.length);
+  return {
+    ok: required > 0 && matched.length >= required,
+    expected,
+    found: Array.from(found),
+    matched,
+    required,
+  };
+}
+
+async function extractIneText(img: string): Promise<string> {
+  const raw = String(img || "");
+  const base64 = raw.includes("base64,") ? raw.split("base64,")[1] : raw;
+  const imgBuffer = Buffer.from(base64, "base64");
+  const image = await sharp(imgBuffer)
+    .greyscale()
+    .resize({ width: 1200, fit: "inside" })
+    .normalize()
+    .sharpen()
+    .toBuffer();
+  const text = await tesseract.recognize(image, {
+    lang: "spa",
+    oem: 3,
+    psm: 6,
+    dpi: 300,
+  });
+  return String(text || "").replace(/\s+/g, " ").trim();
+}
+
+function inferMissingMaterno(params: { nombre: string; apellido_pat: string; apellido_mat?: string; ocrText: string }) {
+  if (String(params.apellido_mat || "").trim()) return "";
+  const expected = new Set(identityTokens(`${params.nombre} ${params.apellido_pat}`));
+  const found = identityTokens(params.ocrText);
+  const extras = found.filter((token) => !expected.has(token));
+  return extras.length ? extras[extras.length - 1] : "";
+}
+
+function accessStateForMode(mode: PanelAccessMode): "entrada_autorizada" | "salida_autorizada" | "cerrado" {
+  if (mode === "entrada" || mode === "ambos") return "entrada_autorizada";
+  if (mode === "salida") return "salida_autorizada";
+  return "cerrado";
+}
 
 ///// bloquear y desbloquear visitantes
     function getHoyRangoLocal() {
@@ -915,7 +1004,8 @@ export async function crear(req: Request, res: Response): Promise<void> {
         });
         return;
         }
-        const vieneEnCoche = Boolean(viene_en_coche);
+        const vehiculoVisitantesEnabled = await isVehiculoVisitantesEnabled();
+        const vieneEnCoche = vehiculoVisitantesEnabled && Boolean(viene_en_coche);
         if (vieneEnCoche) {
         if (!String(archivo_licencia || "").trim()) {
             res.status(400).json({ estado: false, mensaje: "La licencia es obligatoria cuando viene en coche." });
@@ -972,11 +1062,21 @@ export async function crear(req: Request, res: Response): Promise<void> {
           .replace(/\s+/g, " ")
           .trim();
         const cardNo = generarCardCodeDesdeId(Number(reg_saved.id_visitante));
-        const endOfTodayDate = dayjs().endOf("day").toDate();
+        const closedDate = dayjs().subtract(3, "day").endOf("day").toDate();
 
         await Visitantes.updateOne(
           { _id: reg_saved._id },
-          { $set: { card_code: cardNo, verificado: true, bloqueado: false, desbloqueado_hasta: endOfTodayDate } }
+          {
+            $set: {
+              card_code: cardNo,
+              verificado: true,
+              bloqueado: true,
+              desbloqueado_hasta: closedDate,
+              acceso_qr_estado: "cerrado",
+              acceso_qr_modo: "",
+              acceso_qr_expira: null,
+            },
+          }
         );
 
         const syncRes = await syncVisitanteEnPaneles({
@@ -1072,11 +1172,21 @@ export async function verificar(req: Request, res: Response): Promise<void> {
       cardNo = generarCardCodeDesdeId(Number(visitante.id_visitante));
     }
 
-    const endOfTodayDate = dayjs().endOf("day").toDate();
+    const closedDate = dayjs().subtract(3, "day").endOf("day").toDate();
 
     await Visitantes.updateOne(
       { _id: visitante._id },
-      { $set: { card_code: cardNo, verificado: true, bloqueado: false, desbloqueado_hasta: endOfTodayDate } }
+      {
+        $set: {
+          card_code: cardNo,
+          verificado: true,
+          bloqueado: true,
+          desbloqueado_hasta: closedDate,
+          acceso_qr_estado: "cerrado",
+          acceso_qr_modo: "",
+          acceso_qr_expira: null,
+        },
+      }
     );
 
     try {
@@ -1124,8 +1234,8 @@ export async function verificar(req: Request, res: Response): Promise<void> {
         _id: String(visitante._id),
         verificado: true,
         card_code: cardNo,
-        bloqueado: false,
-        desbloqueado_hasta: endOfTodayDate,
+        bloqueado: true,
+        desbloqueado_hasta: closedDate,
         sync: {
           total: syncRes.total,
           subidos: syncRes.exitos,
@@ -1136,6 +1246,158 @@ export async function verificar(req: Request, res: Response): Promise<void> {
   } catch (error: any) {
     console.log("[VERIFICAR] ERROR:", error?.message || error);
     res.status(500).json({ estado: false, mensaje: "Error interno." });
+  }
+}
+
+export async function autorizarAccesoQr(req: Request, res: Response): Promise<void> {
+  try {
+    const id_usuario = (req as UserRequest).userId;
+    const {
+      qr,
+      modo = "entrada",
+      img_ine,
+      motivo = "",
+      guardar_ine = true,
+      actualizar_datos = true,
+    } = req.body as {
+      qr?: string;
+      modo?: PanelAccessMode;
+      img_ine?: string;
+      motivo?: string;
+      guardar_ine?: boolean;
+      actualizar_datos?: boolean;
+    };
+
+    const qrValue = String(qr || "").trim();
+    if (!/^VST[A-Z0-9]{16}$/.test(qrValue)) {
+      res.status(400).json({ estado: false, mensaje: "QR invalido o no corresponde a un visitante." });
+      return;
+    }
+
+    const accessMode = String(modo || "entrada") as PanelAccessMode;
+    if (!["entrada", "salida", "ambos"].includes(accessMode)) {
+      res.status(400).json({ estado: false, mensaje: "Modo de acceso invalido." });
+      return;
+    }
+
+    const visitante = await Visitantes.findOne(
+      { card_code: qrValue },
+      "_id id_visitante nombre apellido_pat apellido_mat activo verificado bloqueado img_ine acceso_qr_estado acceso_qr_expira"
+    ).lean<any>();
+    if (!visitante) {
+      res.status(404).json({ estado: false, mensaje: "Visitante no encontrado." });
+      return;
+    }
+    if (!visitante.activo) {
+      res.status(200).json({ estado: false, mensaje: "Visitante inactivo." });
+      return;
+    }
+    if (!visitante.verificado) {
+      res.status(200).json({ estado: false, mensaje: "El visitante no esta verificado." });
+      return;
+    }
+
+    const fullName = `${visitante.nombre || ""} ${visitante.apellido_pat || ""} ${visitante.apellido_mat || ""}`
+      .replace(/\s+/g, " ")
+      .trim();
+
+    let ocrText = "";
+    let comparison: ReturnType<typeof compareIdentity> | null = null;
+    const requiresIne = accessMode === "entrada" || accessMode === "ambos";
+    if (requiresIne) {
+      if (!String(img_ine || "").trim()) {
+        res.status(200).json({ estado: false, requiere_ine: true, mensaje: "Para activar entrada se debe capturar la INE." });
+        return;
+      }
+      try {
+        ocrText = await extractIneText(String(img_ine));
+      } catch (error: any) {
+        res.status(200).json({ estado: false, mensaje: `No se pudo leer la INE: ${error?.message || error}` });
+        return;
+      }
+      comparison = compareIdentity(fullName, ocrText);
+      if (!comparison.ok) {
+        res.status(200).json({
+          estado: false,
+          mensaje: "La identificacion no coincide con el visitante del QR.",
+          datos: {
+            visitante: fullName,
+            ocr: ocrText,
+            coincidencias: comparison,
+          },
+        });
+        return;
+      }
+    }
+
+    if (accessMode === "salida") {
+      const ultimaEntrada = await Eventos.findOne({
+        id_visitante: visitante._id,
+        tipo_check: 5,
+      }).sort({ fecha_creacion: -1 }).lean<any>();
+      const ultimaSalida = await Eventos.findOne({
+        id_visitante: visitante._id,
+        tipo_check: 6,
+      }).sort({ fecha_creacion: -1 }).lean<any>();
+      if (!ultimaEntrada || (ultimaSalida && dayjs(ultimaSalida.fecha_creacion).isAfter(dayjs(ultimaEntrada.fecha_creacion)))) {
+        res.status(200).json({ estado: false, mensaje: "No se puede activar salida sin una entrada previa pendiente de salida." });
+        return;
+      }
+    }
+
+    const validRange = accessMode === "salida" ? getTodayValidRange() : getTemporaryValidRange(ACCESS_MINUTES);
+    const panelSync = await setVisitantePanelAccess({
+      id_visitante: Number(visitante.id_visitante),
+      target: accessMode,
+      validRange,
+    });
+    const expira = dayjs(validRange.endTime).toDate();
+    const updateData: Record<string, unknown> = {
+      bloqueado: false,
+      desbloqueado_hasta: expira,
+      acceso_qr_estado: accessStateForMode(accessMode),
+      acceso_qr_modo: accessMode,
+      acceso_qr_expira: expira,
+      acceso_qr_autorizado_por: id_usuario,
+      acceso_qr_motivo: String(motivo || "").trim(),
+      acceso_qr_ocr_texto: ocrText,
+      fecha_modificacion: new Date(),
+      modificado_por: id_usuario,
+    };
+    if (requiresIne && guardar_ine && String(img_ine || "").trim() && !String(visitante.img_ine || "").trim()) {
+      updateData.img_ine = await resizeImage(String(img_ine));
+    }
+    if (requiresIne && actualizar_datos) {
+      const materno = inferMissingMaterno({
+        nombre: visitante.nombre,
+        apellido_pat: visitante.apellido_pat,
+        apellido_mat: visitante.apellido_mat,
+        ocrText,
+      });
+      if (materno) updateData.apellido_mat = materno;
+    }
+
+    await Visitantes.updateOne({ _id: visitante._id }, { $set: updateData });
+
+    res.status(200).json({
+      estado: true,
+      mensaje:
+        accessMode === "salida"
+          ? "Salida habilitada para paneles de salida."
+          : `Entrada habilitada por ${ACCESS_MINUTES} minutos.`,
+      datos: {
+        id_visitante: visitante._id,
+        nombre: fullName,
+        modo: accessMode,
+        expira,
+        ocr: ocrText,
+        coincidencias: comparison,
+        paneles: panelSync,
+      },
+    });
+  } catch (error: any) {
+    log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+    res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
   }
 }
 
@@ -1391,7 +1653,8 @@ export async function modificar(req: Request, res: Response): Promise<void> {
             await hvSetValidForEmployee(employeeNo, { enable: true, beginTime, endTime });
         }
 
-        const vieneEnCoche = Boolean(viene_en_coche);
+        const vehiculoVisitantesEnabled = await isVehiculoVisitantesEnabled();
+        const vieneEnCoche = vehiculoVisitantesEnabled && Boolean(viene_en_coche);
         if (vieneEnCoche) {
             if (!String(archivo_licencia || "").trim()) {
                 res.status(400).json({ estado: false, mensaje: "La licencia es obligatoria cuando viene en coche." });
@@ -1864,11 +2127,8 @@ export const bloquearBack = async (req: Request, res: Response) => {
         return res.status(404).json({ estado: false, mensaje: "Visitante no encontrado" });
         }
 
-        // 1) Hikvision: expirar (ayer)
-        const employeeNo = calcEmployeeNo(visitante.id_visitante);
-        const { beginTime, endTime } = getRangoPasado();
-
-        await hvSetValidForEmployee(employeeNo, { enable: true, beginTime, endTime });
+        const { endTime } = getRangoPasado();
+        await setVisitantePanelAccess({ id_visitante: Number(visitante.id_visitante), target: "ninguno" });
 
         // 2) Mongo: marcar bloqueado y limpiar desbloqueo
         const updated = await Visitantes.findByIdAndUpdate(
@@ -1878,6 +2138,9 @@ export const bloquearBack = async (req: Request, res: Response) => {
             bloqueado: true,
             // guarda la fecha real que pusiste en el panel (ayer 23:59:59)
             desbloqueado_hasta: new Date(endTime),
+            acceso_qr_estado: "cerrado",
+            acceso_qr_modo: "",
+            acceso_qr_expira: null,
             } 
         },
         { new: true }
@@ -1897,6 +2160,93 @@ export const bloquearBack = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.log("[BLOQUEAR] ERROR:", error?.message || error);
         return res.status(500).json({ estado: false, mensaje: "Error al bloquear visitante" });
+    }
+};
+
+export const desbloquearAccesoBack = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const id_usuario = (req as UserRequest).userId;
+        const modo = String(req.body?.modo || "entrada") as PanelAccessMode;
+        const motivo = String(req.body?.motivo || "").trim();
+
+        if (!["entrada", "salida", "ambos"].includes(modo)) {
+            return res.status(400).json({ estado: false, mensaje: "Modo de acceso invalido." });
+        }
+
+        const visitante = await Visitantes.findById(
+            id,
+            "_id bloqueado id_visitante desbloqueado_hasta intentos verificado activo"
+        ).lean<any>();
+        if (!visitante) {
+            return res.status(404).json({ estado: false, mensaje: "Visitante no encontrado" });
+        }
+        if (!visitante.activo || !visitante.verificado) {
+            return res.status(200).json({ estado: false, mensaje: "El visitante debe estar activo y verificado." });
+        }
+        if ((modo === "entrada" || modo === "ambos") && !req.body?.confirmar_entrada_manual) {
+            return res.status(200).json({
+                estado: false,
+                requiere_ine: true,
+                mensaje: "Para activar entrada usa la validacion con INE/OCR.",
+            });
+        }
+        if (modo === "salida") {
+            const ultimaEntrada = await Eventos.findOne({ id_visitante: visitante._id, tipo_check: 5 }).sort({ fecha_creacion: -1 }).lean<any>();
+            const ultimaSalida = await Eventos.findOne({ id_visitante: visitante._id, tipo_check: 6 }).sort({ fecha_creacion: -1 }).lean<any>();
+            if (!ultimaEntrada || (ultimaSalida && dayjs(ultimaSalida.fecha_creacion).isAfter(dayjs(ultimaEntrada.fecha_creacion)))) {
+                return res.status(200).json({
+                    estado: false,
+                    mensaje: "No se puede activar salida sin una entrada previa pendiente de salida.",
+                });
+            }
+        }
+
+        const validRange = modo === "entrada" ? getTemporaryValidRange(ACCESS_MINUTES) : getTodayValidRange();
+        const panelSync = await setVisitantePanelAccess({
+            id_visitante: Number(visitante.id_visitante),
+            target: modo,
+            validRange,
+        });
+        const expira = dayjs(validRange.endTime).toDate();
+
+        const updated = await Visitantes.findByIdAndUpdate(
+            id,
+            {
+                $set: {
+                    bloqueado: false,
+                    intentos: 0,
+                    desbloqueado_hasta: expira,
+                    acceso_qr_estado: accessStateForMode(modo),
+                    acceso_qr_modo: modo,
+                    acceso_qr_expira: expira,
+                    acceso_qr_autorizado_por: id_usuario,
+                    acceso_qr_motivo: motivo,
+                    fecha_modificacion: new Date(),
+                    modificado_por: id_usuario,
+                },
+            },
+            { new: true }
+        )
+            .select("_id bloqueado desbloqueado_hasta acceso_qr_estado acceso_qr_modo acceso_qr_expira")
+            .lean<any>();
+
+        return res.json({
+            estado: true,
+            mensaje: modo === "salida" ? "Salida habilitada." : "Acceso habilitado temporalmente.",
+            data: {
+                _id: updated._id,
+                bloqueado: false,
+                desbloqueado_hasta: updated.desbloqueado_hasta,
+                acceso_qr_estado: updated.acceso_qr_estado,
+                acceso_qr_modo: updated.acceso_qr_modo,
+                acceso_qr_expira: updated.acceso_qr_expira,
+                paneles: panelSync,
+            },
+        });
+    } catch (error: any) {
+        console.log("[DESBLOQUEAR_ACCESS] ERROR:", error?.message || error);
+        return res.status(500).json({ estado: false, mensaje: "Error al habilitar acceso" });
     }
 };
 

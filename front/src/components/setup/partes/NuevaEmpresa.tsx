@@ -31,7 +31,7 @@ import { clienteAxios, handlingError } from "../../../app/config/axios";
 import Spinner from "../../utils/Spinner";
 import ProfilePicturePreview from "../../utils/fallbackRender/ProfilePicturePreview";
 import Telefonos from "../../catalogos/empresas/telefonos/Telefonos";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 
 const ProfilePicture = lazy(() => import("../../utils/ProfilePicture"));
 
@@ -193,7 +193,7 @@ export default function NuevaEmpresa({ setEmpresas }: Props) {
             {formContext.formState.isSubmitting || isLoading ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext} onSuccess={onSubmit}>
+              <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
                 <Typography variant="h4" component="h2" textAlign="center">
                   Empresa Maestra
                 </Typography>
@@ -291,7 +291,6 @@ export default function NuevaEmpresa({ setEmpresas }: Props) {
                     sx={{ width: "100%" }}
                   >
                     <Button
-                      disabled={!formContext.formState.isValid}
                       type="submit"
                       size="medium"
                       variant="contained"

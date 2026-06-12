@@ -42,7 +42,7 @@ import Spinner from "../../utils/Spinner";
 import PasswordValidAdornment from "../../utils/PasswordValidAdornment";
 import ProfilePicturePreview from "../../utils/fallbackRender/ProfilePicturePreview";
 import { MuiTelInput } from "mui-tel-input";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
@@ -377,7 +377,7 @@ export default function EditarUsuario() {
       enqueueSnackbar(firstError, { variant: "warning" });
       return;
     }
-    void formContext.handleSubmit(onSubmit)();
+    void formContext.handleSubmit(onSubmit, notifyFormErrors)();
   };
 
   const regresar = () => {
@@ -392,7 +392,7 @@ export default function EditarUsuario() {
             {formContext.formState.isSubmitting || isLoading ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext} onSuccess={onSubmit}>
+              <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
                 <Typography variant="h4" component="h2" textAlign="center">
                   Editar usuario del sistema
                 </Typography>

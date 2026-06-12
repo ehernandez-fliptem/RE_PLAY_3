@@ -41,7 +41,7 @@ import {
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import Spinner from "../../utils/Spinner";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import PasswordValidAdornment from "../../utils/PasswordValidAdornment";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
@@ -239,7 +239,7 @@ export default function EditarDispositivo() {
             {formContext.formState.isSubmitting || isLoading ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext}>
+              <FormContainer formContext={formContext} onError={notifyFormErrors}>
                 <Typography variant="h4" component="h2" textAlign="center">
                   Editar Dispositivo
                 </Typography>
@@ -413,22 +413,20 @@ export default function EditarDispositivo() {
                     </Button>
                     {isConnected.estado ? (
                       <Button
-                        disabled={!formContext.formState.isValid}
                         type="submit"
                         size="medium"
                         variant="contained"
-                        onClick={formContext.handleSubmit(onSubmit)}
+                        onClick={formContext.handleSubmit(onSubmit, notifyFormErrors)}
                         startIcon={<Save />}
                       >
                         Guardar
                       </Button>
                     ) : (
                       <Button
-                        disabled={!formContext.formState.isValid}
                         type="submit"
                         size="medium"
                         variant="contained"
-                        onClick={formContext.handleSubmit(testConnection)}
+                        onClick={formContext.handleSubmit(testConnection, notifyFormErrors)}
                         startIcon={<NetworkCheck />}
                       >
                         Probar conexión

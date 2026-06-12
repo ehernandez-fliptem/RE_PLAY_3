@@ -39,6 +39,7 @@ export default function Integraciones() {
   const habilitarContratistas = watch("habilitarContratistas");
   const habilitarRegistroCampo = watch("habilitarRegistroCampo");
   const habilitarIntegracionHv = watch("habilitarIntegracionHv");
+  const habilitarVisitantesAvanzado = watch("habilitarVisitantesAvanzado");
   const docsVisitantes = watch("documentos_visitantes");
   const docsContratistas = watch("documentos_contratistas");
 
@@ -179,6 +180,8 @@ export default function Integraciones() {
         habilitarCamaras,
         habilitarContratistas,
         habilitarRegistroCampo,
+        habilitarVisitantesAvanzado,
+        habilitarVisitantesVehiculo,
       } = getValues();
       const documentos_visitantes = getValues("documentos_visitantes");
       const documentos_contratistas = getValues("documentos_contratistas");
@@ -190,6 +193,8 @@ export default function Integraciones() {
         habilitarCamaras,
         habilitarContratistas,
         habilitarRegistroCampo,
+        habilitarVisitantesAvanzado,
+        habilitarVisitantesVehiculo,
         documentos_visitantes,
         documentos_contratistas,
         documentos_personalizados,
@@ -232,6 +237,8 @@ export default function Integraciones() {
             habilitarCamaras,
             habilitarContratistas,
             habilitarRegistroCampo,
+            habilitarVisitantesAvanzado,
+            habilitarVisitantesVehiculo,
             documentos_visitantes,
             documentos_contratistas,
             documentos_personalizados,
@@ -486,6 +493,73 @@ export default function Integraciones() {
         <Devices color="primary" sx={{ mr: 1 }} />{" "}
         <strong>Integraciones</strong>
       </Typography>
+      <Grid container spacing={2} sx={{ my: 2 }}>
+        <Grid size={{ xs: 12, sm: 10 }}>
+          <Stack spacing={0}>
+            <Typography variant="overline" component="h2">
+              <strong>Configuracion avanzada de visitantes</strong>
+            </Typography>
+            <Typography
+              variant="body2"
+              component="span"
+              sx={{ ml: { xs: 0, sm: 2 } }}
+            >
+              <small>
+                Activa controles opcionales para el registro de visitantes. Si
+                se apaga, sus opciones quedan guardadas pero no se aplican.
+              </small>
+            </Typography>
+          </Stack>
+        </Grid>
+        <Grid
+          size={{ xs: 12, sm: 2 }}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: { xs: "center", sm: "end" },
+          }}
+        >
+          <SwitchElement
+            label=""
+            labelPlacement="start"
+            name="habilitarVisitantesAvanzado"
+          />
+        </Grid>
+      </Grid>
+      {habilitarVisitantesAvanzado && (
+        <Grid container spacing={2} sx={{ my: 1, ml: { xs: 0, sm: 2 } }}>
+          <Grid size={{ xs: 12, sm: 10 }}>
+            <Stack spacing={0}>
+              <Typography variant="overline" component="h2">
+                <strong>Ingreso en vehiculo</strong>
+              </Typography>
+              <Typography
+                variant="body2"
+                component="span"
+                sx={{ ml: { xs: 0, sm: 2 } }}
+              >
+                <small>
+                  Permite capturar documentos de vehiculo en visitantes.
+                </small>
+              </Typography>
+            </Stack>
+          </Grid>
+          <Grid
+            size={{ xs: 12, sm: 2 }}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: { xs: "center", sm: "end" },
+            }}
+          >
+            <SwitchElement
+              label=""
+              labelPlacement="start"
+              name="habilitarVisitantesVehiculo"
+            />
+          </Grid>
+        </Grid>
+      )}
       {!mostrarSoloIntegracionesSolicitadas && visibilidad.registro_campo && (
       <Grid container spacing={2} sx={{ my: 2 }}>
         <Grid size={{ xs: 12, sm: 10 }}>

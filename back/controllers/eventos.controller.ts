@@ -37,6 +37,11 @@ import FaceDetector from "../classes/FaceDetector";
 import FaceDescriptors from "../models/FaceDescriptors";
 import { biostarRequest } from "../classes/Biostar";
 import { abrirPuertaPorAccesoBiostar, cerrarPuertaPorAccesoBiostar } from "../utils/biostarApertura";
+import {
+    getPanelModeFromTipoEvento,
+    setVisitantePanelAccess,
+    getTodayValidRange,
+} from "../utils/visitantesPanelAccess";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -1454,6 +1459,22 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                     return;
                 }
 
+                if (!req.body?.autorizar_evento) {
+                    const nombreCompleto = `${visitante.nombre ?? ""} ${visitante.apellido_pat ?? ""} ${visitante.apellido_mat ?? ""}`.trim();
+                    res.status(200).json({
+                        estado: true,
+                        datos: {
+                            id_visitante: visitante._id,
+                            puedeAcceder: false,
+                            requiere_validacion_identidad: true,
+                            nombre: nombreCompleto,
+                            img_ine: String((visitante as any)?.img_ine || ""),
+                            mensaje: "Escanea la INE del visitante para habilitar entrada.",
+                        },
+                    });
+                    return;
+                }
+
                 if (desbloqueadoHasta && ahora.isAfter(desbloqueadoHasta)) {
                     comentario = "El acceso del visitante ha expirado.";
                     await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, visitante._id);
@@ -2204,10 +2225,11 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
         const panel = panelObjectId
             ? await DispositivosHv.findById(
                 panelObjectId,
-                "id_acceso reloj_offset_segundos reloj_alerta_activa reloj_ultimo_desfase_segundos reloj_ultima_muestra"
+                "id_acceso tipo_evento reloj_offset_segundos reloj_alerta_activa reloj_ultimo_desfase_segundos reloj_ultima_muestra"
             ).lean<{
                 _id: Types.ObjectId;
                 id_acceso?: Types.ObjectId;
+                tipo_evento?: number;
                 reloj_offset_segundos?: number;
                 reloj_alerta_activa?: boolean;
                 reloj_ultimo_desfase_segundos?: number;
@@ -2264,7 +2286,8 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
         const imgRaw = typeof img_check === "string" ? img_check : "";
         const imgEvento = REGEX_BASE64.test(imgRaw) ? await resizeImage(imgRaw) : imgRaw;
 
-        const guardarEvento = async (datosEvento: Partial<IEvento>) => {
+        const guardarEvento = async (datosEvento: Partial<IEvento> & { tipo_check_override?: number }) => {
+            const tipoCheckFinal = Number(datosEvento.tipo_check_override || tipo_check_panel);
             const evento = new Eventos({
                 ...datosEvento,
                 qr: String(ID),
@@ -2277,11 +2300,11 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
                 img_evento: imgEvento,
                 id_panel: panelObjectId,
                 id_acceso: panel?.id_acceso || null,
-                tipo_check: Number(tipo_check_panel),
+                tipo_check: tipoCheckFinal,
             });
 
             await evento.save();
-            if (Number(tipo_check_panel) === 5) {
+            if (tipoCheckFinal === 5) {
                 const openRes = await abrirPuertaPorAccesoBiostar({
                     idAcceso: (evento as any)?.id_acceso || null,
                     idPersona: (evento as any)?.id_empleado || (evento as any)?.id_visitante || null,
@@ -2369,6 +2392,63 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
             return { omitir: false, comentario };
         };
 
+        const resolverTipoVisitantePorEstado = (visitante: any): { ok: boolean; tipo?: 5 | 6; mensaje?: string } => {
+            const panelMode = getPanelModeFromTipoEvento(panel?.tipo_evento);
+            const estado = String(visitante?.acceso_qr_estado || "cerrado");
+            const expira = visitante?.acceso_qr_expira ? dayjs(visitante.acceso_qr_expira) : null;
+            const expiro = !!expira && dayjs().isAfter(expira);
+
+            if (estado === "entrada_autorizada") {
+                if (expiro) return { ok: false, mensaje: "AUTORIZACION_ENTRADA_EXPIRADA" };
+                if (panelMode === "salida") return { ok: false, mensaje: "PANEL_NO_ES_ENTRADA" };
+                return { ok: true, tipo: 5 };
+            }
+            if (estado === "dentro" || estado === "salida_autorizada") {
+                if (panelMode === "entrada") return { ok: false, mensaje: "PANEL_NO_ES_SALIDA" };
+                return { ok: true, tipo: 6 };
+            }
+            return { ok: false, mensaje: "QR_VISITANTE_NO_AUTORIZADO" };
+        };
+
+        const aplicarTransicionVisitante = async (visitante: any, tipo: 5 | 6) => {
+            if (tipo === 5) {
+                await Visitantes.updateOne(
+                    { _id: visitante._id },
+                    {
+                        $set: {
+                            bloqueado: false,
+                            desbloqueado_hasta: dayjs().endOf("day").toDate(),
+                            acceso_qr_estado: "dentro",
+                            acceso_qr_modo: "salida",
+                            acceso_qr_expira: null,
+                            acceso_qr_ultimo_evento: fechaEventoDate,
+                        },
+                    }
+                );
+                await setVisitantePanelAccess({
+                    id_visitante: Number(visitante.id_visitante),
+                    target: "salida",
+                    validRange: getTodayValidRange(),
+                });
+                return;
+            }
+
+            await Visitantes.updateOne(
+                { _id: visitante._id },
+                {
+                    $set: {
+                        bloqueado: true,
+                        desbloqueado_hasta: dayjs().subtract(3, "day").endOf("day").toDate(),
+                        acceso_qr_estado: "cerrado",
+                        acceso_qr_modo: "",
+                        acceso_qr_expira: null,
+                        acceso_qr_ultimo_evento: fechaEventoDate,
+                    },
+                }
+            );
+            await setVisitantePanelAccess({ id_visitante: Number(visitante.id_visitante), target: "ninguno" });
+        };
+
         if (regexIDGeneral.test(String(ID))) {
             const empleado = await Empleados.findOne({ id_empleado: Number(ID) } as any, "img_usuario");
             if (empleado) {
@@ -2399,9 +2479,20 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
             const idVisitante = Number(ID) - 990000;
             const visitante = await Visitantes.findOne({ id_visitante: idVisitante });
             if (visitante) {
+                const permiso = resolverTipoVisitantePorEstado(visitante);
+                if (!permiso.ok || !permiso.tipo) {
+                    await guardarEvento({
+                        id_visitante: visitante._id,
+                        img_usuario: (visitante as any).img_usuario || "",
+                        tipo_check_override: 7,
+                        comentario: permiso.mensaje || "QR_VISITANTE_NO_AUTORIZADO",
+                    });
+                    res.status(200).json({ estado: false, mensaje: permiso.mensaje || "QR visitante no autorizado." });
+                    return;
+                }
                 const analisis = await validarSecuenciaEvento({
                     id_visitante: visitante._id,
-                    tipo_check: Number(tipo_check_panel),
+                    tipo_check: permiso.tipo,
                     fechaEventoDate,
                     id_panel: panelObjectId,
                 });
@@ -2417,8 +2508,10 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
                 await guardarEvento({
                     id_visitante: visitante._id,
                     img_usuario: (visitante as any).img_usuario || "",
+                    tipo_check_override: permiso.tipo,
                     comentario: analisis.comentario,
                 });
+                await aplicarTransicionVisitante(visitante, permiso.tipo);
                 res.status(200).json({ estado: true });
                 return;
             }
@@ -2433,9 +2526,20 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
         if (regexCardCode.test(String(ID))) {
             const visitante = await Visitantes.findOne({ card_code: ID });
             if (visitante) {
+                const permiso = resolverTipoVisitantePorEstado(visitante);
+                if (!permiso.ok || !permiso.tipo) {
+                    await guardarEvento({
+                        id_visitante: visitante._id,
+                        img_usuario: (visitante as any).img_usuario || "",
+                        tipo_check_override: 7,
+                        comentario: permiso.mensaje || "QR_VISITANTE_NO_AUTORIZADO",
+                    });
+                    res.status(200).json({ estado: false, mensaje: permiso.mensaje || "QR visitante no autorizado." });
+                    return;
+                }
                 const analisis = await validarSecuenciaEvento({
                     id_visitante: visitante._id,
-                    tipo_check: Number(tipo_check_panel),
+                    tipo_check: permiso.tipo,
                     fechaEventoDate,
                     id_panel: panelObjectId,
                 });
@@ -2451,8 +2555,10 @@ export async function guardarEventoPanel(req: Request, res: Response): Promise<v
                 await guardarEvento({
                     id_visitante: visitante._id,
                     img_usuario: (visitante as any).img_usuario || "",
+                    tipo_check_override: permiso.tipo,
                     comentario: analisis.comentario,
                 });
+                await aplicarTransicionVisitante(visitante, permiso.tipo);
                 res.status(200).json({ estado: true });
                 return;
             }

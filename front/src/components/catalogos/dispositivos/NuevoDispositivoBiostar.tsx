@@ -30,6 +30,8 @@ import {
   REGEX_USERNAME,
 } from "../../../app/constants/CommonRegex";
 import PasswordValidAdornment from "../../utils/PasswordValidAdornment";
+import { notifyFormErrors } from "../../helpers/formHelper";
+
 
 type FormValues = {
   nombre: string;
@@ -171,7 +173,7 @@ export default function NuevoDispositivoBiostar() {
       <Box component="section">
         <Card elevation={5}>
           <CardContent>
-            <FormContainer formContext={formContext} onSuccess={onSubmit}>
+            <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
               <Typography variant="h4" sx={{ mt: 1, mb: 2, textAlign: "center" }}>
                 Nuevo Dispositivo
               </Typography>

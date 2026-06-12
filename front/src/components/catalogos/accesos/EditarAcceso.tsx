@@ -16,7 +16,7 @@ import { SelectElement } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import Spinner from "../../utils/Spinner";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
@@ -126,7 +126,7 @@ export default function EditarAcceso() {
             {formContext.formState.isSubmitting || isLoading ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext} onSuccess={onSubmit}>
+              <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
                 <Typography variant="h4" component="h2" textAlign="center">
                   Editar Acceso
                 </Typography>
@@ -193,7 +193,6 @@ export default function EditarAcceso() {
                       Cancelar
                     </Button>
                     <Button
-                      disabled={!formContext.formState.isValid}
                       type="submit"
                       size="medium"
                       variant="contained"

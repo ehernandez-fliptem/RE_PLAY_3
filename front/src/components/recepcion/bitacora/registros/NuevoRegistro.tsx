@@ -51,6 +51,8 @@ import { esES } from "@mui/x-data-grid/locales";
 import { AxiosError } from "axios";
 import Spinner from "../../../utils/Spinner";
 import dayjs from "dayjs";
+import { notifyFormErrors } from "../../../helpers/formHelper";
+
 
 type TAccesos = {
   id_acceso: string;
@@ -305,7 +307,7 @@ export default function NuevoRegistro() {
       <Box component="section">
         <Card elevation={5}>
           <CardContent>
-            <FormContainer formContext={formContext} onSuccess={onSubmit}>
+            <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
               {!isSummary ? (
                 <Fragment>
                   <Typography variant="h4" component="h2" textAlign="center">

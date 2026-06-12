@@ -21,7 +21,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { TextFieldElement, FormContainer } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
-import { setFormErrors } from "../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../helpers/formHelper";
 import LogoHeader from "./LogoHeader";
 import AuthContainer from "./AuthContainer";
 import Swal from "sweetalert2";
@@ -142,7 +142,7 @@ export default function Login() {
           >
             <LogoHeader />
            
-            <FormContainer formContext={formContext} onSuccess={autenticar}>
+            <FormContainer formContext={formContext} onSuccess={autenticar} onError={notifyFormErrors}>
               <TextFieldElement
                 name="correo"
                 placeholder="Ingresa tu correo"
@@ -240,7 +240,6 @@ export default function Login() {
               </Grid>
 
               <Button
-                disabled={!formContext.formState.isValid}
                 type="submit"
                 fullWidth
                 variant="contained"

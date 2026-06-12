@@ -27,7 +27,21 @@ import {
   // Upload, // Carga masiva oculta temporalmente
   Visibility,
 } from "@mui/icons-material";
-import { Avatar, Button, Chip, IconButton, Tooltip } from "@mui/material";
+import {
+  Avatar,
+  Button,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControlLabel,
+  IconButton,
+  Radio,
+  RadioGroup,
+  TextField,
+  Tooltip,
+} from "@mui/material";
 import { enqueueSnackbar } from "notistack";
 import { useConfirm } from "material-ui-confirm";
 import { AxiosError } from "axios";
@@ -36,8 +50,9 @@ import ErrorOverlay from "../../error/DataGridError";
 import Spinner from "../../utils/Spinner";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
-import { FormProvider, useForm } from "react-hook-form";
+import { FormProvider, useForm, useWatch } from "react-hook-form";
 import LectorQrVisitantes from "./LectorQrVisitantes";
+import Camera from "../../utils/Camera";
 
 import { isBlockedNow } from "../../../utils/bloqueo";
 
@@ -61,7 +76,15 @@ export default function Visitantes() {
   const { rol } = useSelector((state: IRootState) => state.auth.data);
   const esRecep = rol.includes(5);
   const formContext = useForm({ defaultValues: { qr: "" } });
+  const accessForm = useForm({ defaultValues: { img_ine_manual: "" } });
+  const manualIne = useWatch({ control: accessForm.control, name: "img_ine_manual" }) as string;
   const [showQRScanner, setShowQRScanner] = useState(false);
+  const [accessModal, setAccessModal] = useState<{
+    open: boolean;
+    row: any | null;
+    modo: "entrada" | "salida" | "ambos";
+    motivo: string;
+  }>({ open: false, row: null, modo: "salida", motivo: "" });
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [isDownloadingQr, setIsDownloadingQr] = useState({
     id_usuario: "",
@@ -80,7 +103,7 @@ export default function Visitantes() {
 
   const onQrValidate = async (
     qr: string
-  ): Promise<{ ok: boolean; message: string; img_ine?: string; nombre?: string; tipo_check?: number; biostar_modo_manual?: boolean }> => {
+  ): Promise<{ ok: boolean; message: string; img_ine?: string; nombre?: string; tipo_check?: number; biostar_modo_manual?: boolean; requiere_validacion_identidad?: boolean }> => {
     const regexCardCode = /^VST[A-Z0-9]{16}$/;
     const isValid = regexCardCode.test(qr);
     if (!isValid) {
@@ -98,6 +121,17 @@ export default function Visitantes() {
         const puedeAcceder = res.data.datos?.puedeAcceder;
         const nombre = res.data.datos?.nombre;
         const tipoCheck = res.data.datos?.tipo_check;
+        if (res.data.datos?.requiere_validacion_identidad) {
+          const message = res.data.datos?.mensaje || "Captura la INE para habilitar entrada.";
+          enqueueSnackbar(message, { variant: "info" });
+          return {
+            ok: false,
+            message,
+            nombre,
+            img_ine: String(res.data?.datos?.img_ine || ""),
+            requiere_validacion_identidad: true,
+          };
+        }
         if (puedeAcceder === false) {
           const message = nombre
             ? `Acceso pendiente para ${nombre}. Requiere validación.`
@@ -130,6 +164,43 @@ export default function Visitantes() {
       return {
         ok: false,
         message: "Error al validar el QR. Intenta de nuevo.",
+      };
+    }
+  };
+
+  const onAuthorizeIdentity = async ({
+    qr,
+    img_ine,
+  }: {
+    qr: string;
+    img_ine: string;
+  }): Promise<{ ok: boolean; message: string; img_ine?: string; nombre?: string; tipo_check?: number; biostar_modo_manual?: boolean; requiere_validacion_identidad?: boolean }> => {
+    try {
+      const res = await clienteAxios.post("/api/visitantes/autorizar-qr", {
+        qr,
+        img_ine,
+        modo: "entrada",
+        guardar_ine: true,
+        actualizar_datos: true,
+      });
+      const ok = !!res.data?.estado;
+      const message = res.data?.mensaje || (ok ? "Entrada habilitada." : "No se pudo validar la identidad.");
+      enqueueSnackbar(message, { variant: ok ? "success" : "warning" });
+      if (ok) {
+        apiRef.current?.dataSource?.fetchRows?.();
+      }
+      return {
+        ok,
+        message,
+        nombre: res.data?.datos?.nombre,
+        img_ine,
+        tipo_check: 5,
+      };
+    } catch (error) {
+      handlingError(error);
+      return {
+        ok: false,
+        message: "Error al validar INE. Intenta de nuevo.",
       };
     }
   };
@@ -430,6 +501,9 @@ const accionDesbloquear = (ID: string) => {
     enqueueSnackbar("Debes restaurar al visitante para habilitar el acceso.", { variant: "warning" });
     return;
   }
+  accessForm.reset({ img_ine_manual: "" });
+  setAccessModal({ open: true, row, modo: "salida", motivo: "" });
+  return;
   confirm({
     title: "¿Seguro que desea desbloquear a este visitante?",
     description: "Esta acción restaura los intentos y habilita el acceso SOLO por hoy.",
@@ -460,6 +534,67 @@ const accionDesbloquear = (ID: string) => {
       }
     })
     .catch(() => {});
+};
+
+const cerrarModalAcceso = () => {
+  setAccessModal({ open: false, row: null, modo: "salida", motivo: "" });
+  accessForm.reset({ img_ine_manual: "" });
+};
+
+const ejecutarAccesoManual = async () => {
+  const row = accessModal.row;
+  if (!row?._id) return;
+  setRowLoading(row._id, true);
+  try {
+    let res;
+    if (accessModal.modo === "entrada" || accessModal.modo === "ambos") {
+      if (!manualIne) {
+        enqueueSnackbar("Captura la INE para activar entrada.", { variant: "warning" });
+        return;
+      }
+      const qr = String(row.card_code || "").trim();
+      if (!qr) {
+        enqueueSnackbar("El visitante no tiene QR disponible.", { variant: "warning" });
+        return;
+      }
+      res = await clienteAxios.post("/api/visitantes/autorizar-qr", {
+        qr,
+        img_ine: manualIne,
+        modo: accessModal.modo,
+        motivo: accessModal.motivo,
+        guardar_ine: true,
+        actualizar_datos: true,
+      });
+    } else {
+      res = await clienteAxios.patch(`/api/visitantes/desbloquear/${row._id}`, {
+        modo: "salida",
+        motivo: accessModal.motivo,
+      });
+    }
+
+    if (res.data.estado) {
+      const v = res.data.data || res.data.datos || {};
+      apiRef.current?.updateRows([
+        {
+          _id: row._id,
+          bloqueado: false,
+          desbloqueado_hasta: v.desbloqueado_hasta ?? v.expira ?? null,
+          acceso_qr_estado: v.acceso_qr_estado,
+          acceso_qr_modo: v.acceso_qr_modo ?? accessModal.modo,
+          acceso_qr_expira: v.acceso_qr_expira ?? v.expira ?? null,
+        },
+      ]);
+      enqueueSnackbar(res.data.mensaje || "Acceso actualizado.", { variant: "success" });
+      cerrarModalAcceso();
+    } else {
+      enqueueSnackbar(res.data.mensaje || "No se pudo actualizar acceso.", { variant: "warning" });
+    }
+  } catch (error: any) {
+    const { restartSession } = handlingError(error);
+    if (restartSession) navigate("/logout", { replace: true });
+  } finally {
+    setRowLoading(row._id, false);
+  }
 };
 
 const accionBloquear = (ID: string) => {
@@ -895,11 +1030,63 @@ const accionBloquear = (ID: string) => {
             name="qr"
             setShow={setShowQRScanner}
             onQrValidate={onQrValidate}
+            onAuthorizeIdentity={onAuthorizeIdentity}
             onManualClose={onManualClose}
             // testQr="VST0000016B86B273FF"
           />
         </FormProvider>
       )}
+      <Dialog open={accessModal.open} onClose={cerrarModalAcceso} maxWidth="md" fullWidth>
+        <DialogTitle>Habilitar acceso</DialogTitle>
+        <DialogContent>
+          <RadioGroup
+            row
+            value={accessModal.modo}
+            onChange={(event) =>
+              setAccessModal((prev) => ({
+                ...prev,
+                modo: event.target.value as "entrada" | "salida" | "ambos",
+              }))
+            }
+          >
+            <FormControlLabel value="entrada" control={<Radio />} label="Entrada" />
+            <FormControlLabel value="salida" control={<Radio />} label="Salida" />
+            <FormControlLabel value="ambos" control={<Radio />} label="Ambos" />
+          </RadioGroup>
+          <TextField
+            fullWidth
+            margin="dense"
+            label="Motivo"
+            value={accessModal.motivo}
+            onChange={(event) => setAccessModal((prev) => ({ ...prev, motivo: event.target.value }))}
+          />
+          {(accessModal.modo === "entrada" || accessModal.modo === "ambos") && (
+            <FormProvider {...accessForm}>
+              <Camera
+                name="img_ine_manual"
+                showButton
+                defaultMode={1}
+                containerHeight={360}
+              />
+              {manualIne && (
+                <Avatar
+                  src={manualIne}
+                  variant="rounded"
+                  sx={{ width: "100%", height: 160, mt: 2 }}
+                />
+              )}
+            </FormProvider>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button color="secondary" onClick={cerrarModalAcceso}>
+            Cancelar
+          </Button>
+          <Button variant="contained" onClick={ejecutarAccesoManual}>
+            Aplicar
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Outlet context={apiRef.current?.dataSource} />
     </div>
   );

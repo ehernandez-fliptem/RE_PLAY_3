@@ -34,7 +34,7 @@ import Spinner from "../../utils/Spinner";
 import PasswordValidAdornment from "../../utils/PasswordValidAdornment";
 import ProfilePicturePreview from "../../utils/fallbackRender/ProfilePicturePreview";
 import { MuiTelInput } from "mui-tel-input";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 
 const ProfilePicture = lazy(() => import("../../utils/ProfilePicture"));
 
@@ -230,7 +230,7 @@ export default function NuevoUsuario({ setUsuarios }: Props) {
             {formContext.formState.isSubmitting || isLoading ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext} onSuccess={onSubmit}>
+              <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
                 <Typography variant="h4" component="h2" textAlign="center">
                   Usuario Maestro
                 </Typography>
@@ -401,7 +401,6 @@ export default function NuevoUsuario({ setUsuarios }: Props) {
                     sx={{ width: "100%" }}
                   >
                     <Button
-                      disabled={!formContext.formState.isValid}
                       type="submit"
                       size="medium"
                       variant="contained"

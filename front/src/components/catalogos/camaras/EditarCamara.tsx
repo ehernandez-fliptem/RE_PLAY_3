@@ -41,7 +41,7 @@ import {
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import Spinner from "../../utils/Spinner";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import PasswordValidAdornment from "../../utils/PasswordValidAdornment";
 
 type TEvento = {
@@ -222,7 +222,7 @@ export default function EditarCamara() {
             {formContext.formState.isSubmitting || isLoading ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext}>
+              <FormContainer formContext={formContext} onError={notifyFormErrors}>
                 <Typography variant="h4" component="h2" textAlign="center">
                   Editar Cámara
                 </Typography>
@@ -361,22 +361,20 @@ export default function EditarCamara() {
                     </Button>
                     {isConnected.estado ? (
                       <Button
-                        disabled={!formContext.formState.isValid}
                         type="submit"
                         size="medium"
                         variant="contained"
-                        onClick={formContext.handleSubmit(onSubmit)}
+                        onClick={formContext.handleSubmit(onSubmit, notifyFormErrors)}
                         startIcon={<Save />}
                       >
                         Guardar
                       </Button>
                     ) : (
                       <Button
-                        disabled={!formContext.formState.isValid}
                         type="submit"
                         size="medium"
                         variant="contained"
-                        onClick={formContext.handleSubmit(testConnection)}
+                        onClick={formContext.handleSubmit(testConnection, notifyFormErrors)}
                         startIcon={<NetworkCheck />}
                       >
                         Probar conexión

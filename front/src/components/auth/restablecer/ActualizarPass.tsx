@@ -16,7 +16,7 @@ import { useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { TextFieldElement, FormContainer } from "react-hook-form-mui";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import { enqueueSnackbar } from "notistack";
 import { Fragment, useState } from "react";
 import {
@@ -145,7 +145,7 @@ export default function ActualizarPass({ token }: Props) {
               }}
               formContext={formContext}
               onSuccess={verificarCorreo}
-            >
+             onError={notifyFormErrors}>
               <TextFieldElement
                 name="contrasena"
                 label="Nueva Contraseña"
@@ -227,7 +227,6 @@ export default function ActualizarPass({ token }: Props) {
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <Button
-                    disabled={!formContext.formState.isValid}
                     sx={{ width: "100%" }}
                     type="submit"
                     fullWidth

@@ -29,6 +29,8 @@ import { TextFieldElement } from "react-hook-form-mui";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { handlingError } from "../../../../app/config/axios";
 import Spinner from "../../../utils/Spinner";
+import { notifyFormErrors } from "../../../helpers/formHelper";
+
 
 type FormValues = {
   numero: string;
@@ -180,7 +182,7 @@ export default function Telefonos({ name, label, required }: Props) {
                       variant="contained"
                       color="primary"
                       startIcon={<Add />}
-                      onClick={formContext.handleSubmit(handleAdd)}
+                      onClick={formContext.handleSubmit(handleAdd, notifyFormErrors)}
                     >
                       Agregar
                     </Button>

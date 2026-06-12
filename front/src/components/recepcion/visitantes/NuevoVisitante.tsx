@@ -1,5 +1,6 @@
 ﻿import { lazy, Suspense, useState } from "react";
 import { Close, Save } from "@mui/icons-material";
+import { useEffect } from "react";
 import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -22,10 +23,12 @@ import { clienteAxios, handlingError } from "../../../app/config/axios";
 import Spinner from "../../utils/Spinner";
 import ProfilePicturePreview from "../../utils/fallbackRender/ProfilePicturePreview";
 import { MuiTelInput } from "mui-tel-input";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
+import { useSelector } from "react-redux";
+import type { IRootState } from "../../../app/store";
 import {
   DOCUMENTOS_CHECKS_LIST,
   EMPTY_DOCUMENTOS_CHECKS,
@@ -185,7 +188,20 @@ export default function NuevoVisitante() {
   });
   const navigate = useNavigate();
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
+  const { habilitarVisitantesAvanzado, habilitarVisitantesVehiculo } =
+    useSelector((state: IRootState) => state.config.data);
+  const habilitarVehiculoVisitantes =
+    habilitarVisitantesAvanzado !== false && habilitarVisitantesVehiculo !== false;
   const vieneEnCoche = formContext.watch("viene_en_coche");
+
+  useEffect(() => {
+    if (!habilitarVehiculoVisitantes) {
+      formContext.setValue("viene_en_coche", false, { shouldValidate: true });
+      formContext.setValue("archivo_licencia", "", { shouldValidate: true });
+      formContext.setValue("archivo_poliza_seguro", "", { shouldValidate: true });
+      formContext.setValue("archivo_tarjeta_circulacion", "", { shouldValidate: true });
+    }
+  }, [formContext, habilitarVehiculoVisitantes]);
 
   const getErrorMessages = (obj: unknown): string[] => {
     if (!obj || typeof obj !== "object") return [];
@@ -216,7 +232,7 @@ export default function NuevoVisitante() {
       );
       return;
     }
-    await formContext.handleSubmit(onSubmit)();
+    await formContext.handleSubmit(onSubmit, notifyFormErrors)();
   };
 
   const generarContrasena = () => {
@@ -231,7 +247,7 @@ export default function NuevoVisitante() {
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
   try {
     setIsSaving(true);
-    const payloadVehiculo = data.viene_en_coche
+    const payloadVehiculo = habilitarVehiculoVisitantes && data.viene_en_coche
       ? {
           archivo_licencia: data.archivo_licencia,
           archivo_poliza_seguro: data.archivo_poliza_seguro,
@@ -245,6 +261,7 @@ export default function NuevoVisitante() {
     const payload = {
       ...data,
       ...payloadVehiculo,
+      viene_en_coche: habilitarVehiculoVisitantes && Boolean(data.viene_en_coche),
       contrasena: data.contrasena?.trim() ? data.contrasena : generarContrasena(),
     };
     const res = await clienteAxios.post("api/visitantes", payload);
@@ -318,7 +335,7 @@ export default function NuevoVisitante() {
             {isSaving || formContext.formState.isSubmitting ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext} onSuccess={onSubmit}>
+              <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
                 <Typography variant="h4" component="h2" textAlign="center">
                   Nuevo Visitante
                 </Typography>
@@ -405,30 +422,32 @@ export default function NuevoVisitante() {
                   margin="normal"
                   type="email"
                 />
-                <Box
-                  sx={{
-                    mt: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "flex-start",
-                    gap: 2,
-                  }}
-                >
-                  <Typography variant="body2">
-                    Ingreso en vehículo
-                  </Typography>
-                  <Controller
-                    name="viene_en_coche"
-                    control={formContext.control}
-                    render={({ field }) => (
-                      <Switch
-                        checked={Boolean(field.value)}
-                        onChange={(e) => field.onChange(e.target.checked)}
-                      />
-                    )}
-                  />
-                </Box>
-                {vieneEnCoche && (
+                {habilitarVehiculoVisitantes && (
+                  <Box
+                    sx={{
+                      mt: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "flex-start",
+                      gap: 2,
+                    }}
+                  >
+                    <Typography variant="body2">
+                      Ingreso en vehículo
+                    </Typography>
+                    <Controller
+                      name="viene_en_coche"
+                      control={formContext.control}
+                      render={({ field }) => (
+                        <Switch
+                          checked={Boolean(field.value)}
+                          onChange={(e) => field.onChange(e.target.checked)}
+                        />
+                      )}
+                    />
+                  </Box>
+                )}
+                {habilitarVehiculoVisitantes && vieneEnCoche && (
                   <Stack spacing={2} sx={{ mt: 1 }}>
                     <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                       <Box sx={{ flex: 1, width: "100%" }}>

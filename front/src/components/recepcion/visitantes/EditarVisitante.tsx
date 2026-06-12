@@ -26,12 +26,14 @@ import { clienteAxios, handlingError } from "../../../app/config/axios";
 import Spinner from "../../utils/Spinner";
 import ProfilePicturePreview from "../../utils/fallbackRender/ProfilePicturePreview";
 import { MuiTelInput } from "mui-tel-input";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
 import { useConfirm } from "material-ui-confirm";
 import { flushSync } from "react-dom";
+import { useSelector } from "react-redux";
+import type { IRootState } from "../../../app/store";
 import {
   DOCUMENTOS_CHECKS_LIST,
   EMPTY_DOCUMENTOS_CHECKS,
@@ -184,6 +186,10 @@ export default function EditarVisitante() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const parentGridDataRef = useOutletContext<GridDataSourceApiBase>();
+  const { habilitarVisitantesAvanzado, habilitarVisitantesVehiculo } =
+    useSelector((state: IRootState) => state.config.data);
+  const habilitarVehiculoVisitantes =
+    habilitarVisitantesAvanzado !== false && habilitarVisitantesVehiculo !== false;
   const vieneEnCoche = formContext.watch("viene_en_coche");
   const [isLoading, setIsLoading] = useState(true);
   const [isVerificado, setIsVerificado] = useState(false);
@@ -222,8 +228,17 @@ export default function EditarVisitante() {
       );
       return;
     }
-    await formContext.handleSubmit(onSubmit)();
+    await formContext.handleSubmit(onSubmit, notifyFormErrors)();
   };
+
+  useEffect(() => {
+    if (!habilitarVehiculoVisitantes) {
+      formContext.setValue("viene_en_coche", false, { shouldValidate: true });
+      formContext.setValue("archivo_licencia", "", { shouldValidate: true });
+      formContext.setValue("archivo_poliza_seguro", "", { shouldValidate: true });
+      formContext.setValue("archivo_tarjeta_circulacion", "", { shouldValidate: true });
+    }
+  }, [formContext, habilitarVehiculoVisitantes]);
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -237,6 +252,12 @@ export default function EditarVisitante() {
           };
           formContext.reset({
             ...visitante,
+            viene_en_coche: habilitarVehiculoVisitantes ? Boolean(visitante.viene_en_coche) : false,
+            archivo_licencia: habilitarVehiculoVisitantes ? visitante.archivo_licencia || "" : "",
+            archivo_poliza_seguro: habilitarVehiculoVisitantes ? visitante.archivo_poliza_seguro || "" : "",
+            archivo_tarjeta_circulacion: habilitarVehiculoVisitantes
+              ? visitante.archivo_tarjeta_circulacion || ""
+              : "",
             documentos_checks: normalizedChecks,
           });
           originalFormRef.current = {
@@ -267,7 +288,7 @@ export default function EditarVisitante() {
       }
     };
     obtenerRegistro();
-  }, [formContext, ID]);
+  }, [formContext, ID, habilitarVehiculoVisitantes]);
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     try {
       const docsChanged = !areDocumentosChecksEqual(
@@ -290,7 +311,7 @@ export default function EditarVisitante() {
       }
 
       setIsSaving(true);
-      const payloadVehiculo = data.viene_en_coche
+      const payloadVehiculo = habilitarVehiculoVisitantes && data.viene_en_coche
         ? {
             archivo_licencia: data.archivo_licencia,
             archivo_poliza_seguro: data.archivo_poliza_seguro,
@@ -304,6 +325,7 @@ export default function EditarVisitante() {
       const payload = {
         ...data,
         ...payloadVehiculo,
+        viene_en_coche: habilitarVehiculoVisitantes && Boolean(data.viene_en_coche),
       };
       const res = await clienteAxios.put(`/api/visitantes/${ID}`, payload);
       if (res.data.estado) {
@@ -434,7 +456,7 @@ export default function EditarVisitante() {
             {isLoading || isSaving ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext} onSuccess={onSubmit}>
+              <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
                 <Typography variant="h4" component="h2" textAlign="center">
                   Editar Visitante
                 </Typography>
@@ -521,6 +543,7 @@ export default function EditarVisitante() {
                   margin="normal"
                   type="email"
                 />
+                {habilitarVehiculoVisitantes && (
                 <Box
                   sx={{
                     mt: 1,
@@ -544,7 +567,8 @@ export default function EditarVisitante() {
                     )}
                   />
                 </Box>
-                {vieneEnCoche && (
+                )}
+                {habilitarVehiculoVisitantes && vieneEnCoche && (
                   <Stack spacing={2} sx={{ mt: 1 }}>
                     <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                       <Box sx={{ flex: 1, width: "100%" }}>

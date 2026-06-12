@@ -22,6 +22,8 @@ interface ConfigState {
     habilitarCamaras: boolean;
     habilitarContratistas: boolean;
     habilitarRegistroCampo: boolean;
+    habilitarVisitantesAvanzado: boolean;
+    habilitarVisitantesVehiculo: boolean;
     documentos_visitantes: Record<string, boolean>;
     documentos_contratistas: Record<string, boolean>;
     documentos_personalizados: {
@@ -79,6 +81,8 @@ const initialState = {
     habilitarCamaras: false,
     habilitarContratistas: true,
     habilitarRegistroCampo: false,
+    habilitarVisitantesAvanzado: true,
+    habilitarVisitantesVehiculo: true,
     documentos_visitantes: {},
     documentos_contratistas: {},
     documentos_personalizados: {

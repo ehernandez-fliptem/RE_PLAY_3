@@ -16,7 +16,7 @@ import { FormContainer } from "react-hook-form-mui";
 import { enqueueSnackbar } from "notistack";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import Spinner from "../../utils/Spinner";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import { REGEX_BASE64 } from "../../../app/constants/CommonRegex";
 import General from "../../catalogos/configuracion/partes/General";
 
@@ -106,7 +106,7 @@ export default function NuevaConfiguracion({ setConfiguracion }: Props) {
             {formContext.formState.isSubmitting ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext} onSuccess={onSubmit}>
+              <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
                 <Typography variant="h4" component="h2" textAlign="center">
                   Configuración Inicial
                 </Typography>
@@ -128,7 +128,6 @@ export default function NuevaConfiguracion({ setConfiguracion }: Props) {
                     sx={{ width: "100%" }}
                   >
                     <Button
-                      disabled={!formContext.formState.isValid}
                       type="submit"
                       size="medium"
                       variant="contained"

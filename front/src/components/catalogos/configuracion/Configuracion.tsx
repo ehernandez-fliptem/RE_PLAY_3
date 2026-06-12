@@ -3,7 +3,7 @@ import { useForm, type SubmitHandler } from "react-hook-form";
 import * as yup from "yup";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { enqueueSnackbar } from "notistack";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import { yupResolver } from "@hookform/resolvers/yup";
 import {
   alpha,
@@ -123,6 +123,8 @@ type FormValues = {
   habilitarCamaras: boolean;
   habilitarContratistas: boolean;
   habilitarRegistroCampo: boolean;
+  habilitarVisitantesAvanzado: boolean;
+  habilitarVisitantesVehiculo: boolean;
   documentos_visitantes: DocChecks;
   documentos_contratistas: DocChecks;
   documentos_personalizados: DocCustomConfig;
@@ -262,6 +264,8 @@ const resolver = yup.object().shape({
   habilitarCamaras: yup.boolean().required("Este campo es obligatorio."),
   habilitarContratistas: yup.boolean().required("Este campo es obligatorio."),
   habilitarRegistroCampo: yup.boolean().required("Este campo es obligatorio."),
+  habilitarVisitantesAvanzado: yup.boolean().required("Este campo es obligatorio."),
+  habilitarVisitantesVehiculo: yup.boolean().required("Este campo es obligatorio."),
   documentos_visitantes: yup
     .object()
     .shape({
@@ -383,6 +387,8 @@ const initialValue: FormValues = {
   habilitarCamaras: false,
   habilitarContratistas: true,
   habilitarRegistroCampo: false,
+  habilitarVisitantesAvanzado: true,
+  habilitarVisitantesVehiculo: true,
   documentos_visitantes: {
     identificacion_oficial: true,
     sua: true,
@@ -750,7 +756,7 @@ export default function Configuracion() {
             {formContext.formState.isSubmitting || isLoading ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext} onSuccess={onSubmit}>
+              <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
                 <Typography variant="h4" component="h2" textAlign="center">
                   Configuración
                 </Typography>
@@ -828,7 +834,6 @@ export default function Configuracion() {
                     sx={{ width: "100%" }}
                   >
                     <Button
-                      disabled={!formContext.formState.isValid}
                       type="submit"
                       size="medium"
                       variant="contained"

@@ -32,6 +32,8 @@ import {
 } from "../../../../../../../app/config/axios";
 import Spinner from "../../../../../../utils/Spinner";
 import { enqueueSnackbar } from "notistack";
+import { notifyFormErrors } from "../../../../../../helpers/formHelper";
+
 
 type Accesos = {
   _id: string;
@@ -246,13 +248,12 @@ export default function Accesos({ name, label, required }: Props) {
                         Regresar
                       </Button>
                       <Button
-                        disabled={!formContext.formState.isValid}
                         size="small"
                         type="button"
                         variant="contained"
                         color="primary"
                         startIcon={<Add />}
-                        onClick={formContext.handleSubmit(handleAdd)}
+                        onClick={formContext.handleSubmit(handleAdd, notifyFormErrors)}
                       >
                         Agregar
                       </Button>

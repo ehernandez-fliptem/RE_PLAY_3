@@ -17,6 +17,8 @@ import { Delete, Add } from "@mui/icons-material";
 import { esES } from "@mui/x-data-grid/locales";
 import { handlingError } from "../../../../../../app/config/axios";
 import AutocompleteInput from "../utils/AutocompleteInput";
+import { notifyFormErrors } from "../../../../../helpers/formHelper";
+
 const pageSizeOptions = [5, 10, 25];
 
 type FormValues = {
@@ -202,7 +204,7 @@ export default function FormCitas({ name }: Props) {
               type="button"
               size="medium"
               variant="contained"
-              onClick={formContext.handleSubmit(handleAdd)}
+              onClick={formContext.handleSubmit(handleAdd, notifyFormErrors)}
               startIcon={<Add />}
             >
               Agregar {fields.length ? `(${fields.length})` : ""}

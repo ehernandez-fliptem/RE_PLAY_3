@@ -35,7 +35,7 @@ import {
   Visibility,
   VisibilityOff,
 } from "@mui/icons-material";
-import { setFormErrors } from "../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../helpers/formHelper";
 import PasswordValidAdornment from "../utils/PasswordValidAdornment";
 import { MuiTelInput } from "mui-tel-input";
 import Spinner from "../utils/Spinner";
@@ -201,7 +201,7 @@ export default function EditarPerfil() {
             {formContext.formState.isSubmitting || isLoading ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext} onSuccess={onSubmit}>
+              <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
                 <Typography variant="h5" component="h2" textAlign="center">
                   Perfil
                 </Typography>
@@ -359,7 +359,6 @@ export default function EditarPerfil() {
                       Cancelar
                     </Button>
                     <Button
-                      disabled={!formContext.formState.isValid}
                       type="submit"
                       size="medium"
                       variant="contained"

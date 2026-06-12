@@ -72,6 +72,8 @@ export interface IConfiguracion extends Document {
     habilitarCamaras: boolean;
     habilitarContratistas: boolean;
     habilitarRegistroCampo: boolean;
+    habilitarVisitantesAvanzado: boolean;
+    habilitarVisitantesVehiculo: boolean;
     documentos_visitantes?: {
         identificacion_oficial: boolean;
         sua: boolean;
@@ -212,6 +214,8 @@ const configuracionSchema = new Schema<IConfiguracion>({
     habilitarCamaras: { type: Boolean, default: false },
     habilitarContratistas: { type: Boolean, default: true },
     habilitarRegistroCampo: { type: Boolean, default: false },
+    habilitarVisitantesAvanzado: { type: Boolean, default: true },
+    habilitarVisitantesVehiculo: { type: Boolean, default: true },
     documentos_visitantes: {
         identificacion_oficial: { type: Boolean, default: true },
         sua: { type: Boolean, default: true },

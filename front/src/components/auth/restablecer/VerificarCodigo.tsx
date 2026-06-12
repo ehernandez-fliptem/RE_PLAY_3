@@ -12,7 +12,7 @@ import {
   Controller
 } from "react-hook-form-mui";
 import { MuiOtpInput } from "mui-one-time-password-input";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import { enqueueSnackbar } from "notistack";
 import LogoHeader from "../LogoHeader";
 
@@ -99,7 +99,7 @@ export default function VerificarCodigo({ setCodigoValido, setToken }: Props) {
               }}
               formContext={formContext}
               onSuccess={submit}
-            >
+             onError={notifyFormErrors}>
               <Controller
                 name="codigo"
                 control={formContext.control}
@@ -140,7 +140,6 @@ export default function VerificarCodigo({ setCodigoValido, setToken }: Props) {
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <Button
-                    disabled={!formContext.formState.isValid}
                     sx={{ width: "100%" }}
                     type="submit"
                     fullWidth

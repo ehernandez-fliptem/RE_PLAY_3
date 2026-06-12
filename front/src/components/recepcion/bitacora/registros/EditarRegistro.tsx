@@ -23,7 +23,7 @@ import {
 import { useErrorBoundary } from "react-error-boundary";
 import Spinner from "../../../utils/Spinner";
 import { enqueueSnackbar } from "notistack";
-import { setFormErrors } from "../../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../../helpers/formHelper";
 import FormEditarCitas from "./partes/forms/FormEditarCitas";
 import FormModificar from "./partes/forms/FormModificar";
 import {
@@ -172,7 +172,7 @@ export default function EditarRegistro() {
             {(isLoading || formContext.formState.isSubmitting) ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext} onSuccess={onSubmit}>
+              <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
                 <Fragment>
                   <Typography variant="h4" component="h2" textAlign="center">
                     {type === 1 ? "Modificar" : "Permitir entrada"}

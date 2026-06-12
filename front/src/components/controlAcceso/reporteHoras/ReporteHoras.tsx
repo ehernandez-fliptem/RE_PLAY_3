@@ -37,6 +37,8 @@ import { ClearAll, Search, Visibility } from "@mui/icons-material";
 import { enqueueSnackbar } from "notistack";
 import { DatePicker } from "@mui/x-date-pickers";
 import InfiniteAutocomplete from "../../utils/InfiniteAutocomplete";
+import { notifyFormErrors } from "../../helpers/formHelper";
+
 
 const pageSizeOptions = [10, 25, 50];
 
@@ -212,7 +214,7 @@ export default function ReporteHoras() {
             {isLoading ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext} onSuccess={onSubmit}>
+              <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
                 <Typography variant="h4" component="h2" textAlign="center">
                   Reporte de Horas
                 </Typography>
@@ -339,7 +341,6 @@ export default function ReporteHoras() {
                         Limpiar
                       </Button>
                       <Button
-                        disabled={!formContext.formState.isValid}
                         type="submit"
                         size="medium"
                         variant="contained"

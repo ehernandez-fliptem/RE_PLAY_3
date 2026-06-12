@@ -49,6 +49,13 @@ export interface IVisitante extends Document {
     modificado_por?: mongoose.Types.ObjectId;
     activo: boolean;
     verificado: boolean;
+    acceso_qr_estado?: "cerrado" | "entrada_autorizada" | "dentro" | "salida_autorizada" | "expirado";
+    acceso_qr_modo?: "entrada" | "salida" | "ambos" | "";
+    acceso_qr_expira?: Date | null;
+    acceso_qr_autorizado_por?: mongoose.Types.ObjectId | null;
+    acceso_qr_motivo?: string;
+    acceso_qr_ocr_texto?: string;
+    acceso_qr_ultimo_evento?: Date | null;
     sync_hikvision_pendiente?: boolean;
     sync_hikvision_error?: string;
     eliminado_permanente?: boolean;
@@ -194,6 +201,22 @@ const visitanteSchema = new Schema<IVisitante>({
     bloqueado: { type: Boolean, default: false },
     desbloqueado_hasta: { type: Date, default: null },
     verificado: { type: Boolean, default: false },
+    acceso_qr_estado: {
+        type: String,
+        enum: ["cerrado", "entrada_autorizada", "dentro", "salida_autorizada", "expirado"],
+        default: "cerrado",
+        index: true,
+    },
+    acceso_qr_modo: {
+        type: String,
+        enum: ["entrada", "salida", "ambos", ""],
+        default: "",
+    },
+    acceso_qr_expira: { type: Date, default: null },
+    acceso_qr_autorizado_por: { type: Schema.Types.ObjectId, default: null, ref: 'usuarios' },
+    acceso_qr_motivo: { type: String, default: "" },
+    acceso_qr_ocr_texto: { type: String, default: "" },
+    acceso_qr_ultimo_evento: { type: Date, default: null },
     sync_hikvision_pendiente: { type: Boolean, default: false },
     sync_hikvision_error: { type: String, default: "" },
     eliminado_permanente: { type: Boolean, default: false },

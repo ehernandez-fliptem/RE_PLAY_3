@@ -13,6 +13,7 @@ import {
 import { CheckCircle, Cancel, Replay } from "@mui/icons-material";
 import type { OnResultFunction } from "react-qr-reader";
 import { useFormContext } from "react-hook-form";
+import { useWatch } from "react-hook-form";
 import Camera from "../../utils/Camera";
 import Spinner from "../../utils/Spinner";
 
@@ -23,12 +24,15 @@ type ResultState = {
   nombre?: string;
   tipo_check?: number;
   biostar_modo_manual?: boolean;
+  requiere_validacion_identidad?: boolean;
+  qr?: string;
 };
 
 type Props = {
   name: string;
   setShow: React.Dispatch<React.SetStateAction<boolean>>;
   onQrValidate: (value: string) => Promise<ResultState>;
+  onAuthorizeIdentity?: (value: { qr: string; img_ine: string }) => Promise<ResultState>;
   testQr?: string;
   hideBackdrop?: boolean;
   hideActions?: boolean;
@@ -47,8 +51,10 @@ export default function LectorQrVisitantes({
   allowBackdropClose = false,
   allowEscapeClose = true,
   onManualClose,
+  onAuthorizeIdentity,
 }: Props) {
   const formContext = useFormContext();
+  const ineCapture = useWatch({ control: formContext.control, name: "img_ine_validacion" }) as string;
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<ResultState | null>(null);
   const [isClosingManual, setIsClosingManual] = useState(false);
@@ -61,7 +67,7 @@ export default function LectorQrVisitantes({
     formContext.setValue(name, value);
     try {
       const next = await onQrValidate(value);
-      setResult(next);
+      setResult({ ...next, qr: value });
     } finally {
       setIsLoading(false);
     }
@@ -71,6 +77,7 @@ export default function LectorQrVisitantes({
     setResult(null);
     setManualCloseMessage("");
     formContext.setValue(name, "");
+    formContext.setValue("img_ine_validacion", "");
   };
 
   const handleManualClose = async () => {
@@ -104,7 +111,18 @@ export default function LectorQrVisitantes({
     formContext.setValue(name, testQr);
     try {
       const next = await onQrValidate(testQr);
-      setResult(next);
+      setResult({ ...next, qr: testQr });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAuthorizeIdentity = async () => {
+    if (!result?.qr || !ineCapture || !onAuthorizeIdentity) return;
+    setIsLoading(true);
+    try {
+      const next = await onAuthorizeIdentity({ qr: result.qr, img_ine: ineCapture });
+      setResult({ ...next, qr: result.qr });
     } finally {
       setIsLoading(false);
     }
@@ -167,7 +185,54 @@ export default function LectorQrVisitantes({
           </Box>
         )}
 
-        {!isLoading && result && (
+        {!isLoading && result && result.requiere_validacion_identidad && (
+          <Stack spacing={2} alignItems="center" sx={{ py: 2 }}>
+            <Typography variant="h6" textAlign="center">
+              Validar identidad
+            </Typography>
+            <Typography variant="body2" textAlign="center">
+              {result.nombre ? `QR de ${result.nombre}. Captura la INE para habilitar entrada.` : result.message}
+            </Typography>
+            <Box sx={{ width: "100%", maxWidth: 620 }}>
+              <Camera
+                name="img_ine_validacion"
+                showButton
+                defaultMode={1}
+                containerHeight={360}
+                disabledDevicesMenu={false}
+              />
+            </Box>
+            {ineCapture && (
+              <Box
+                component="img"
+                src={ineCapture}
+                alt="INE capturada"
+                sx={{
+                  width: "100%",
+                  maxWidth: 420,
+                  maxHeight: 180,
+                  objectFit: "contain",
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 1,
+                }}
+              />
+            )}
+            <Button
+              variant="contained"
+              color="primary"
+              disabled={!ineCapture || !onAuthorizeIdentity}
+              onClick={handleAuthorizeIdentity}
+            >
+              Validar INE y habilitar entrada
+            </Button>
+            <Button variant="outlined" startIcon={<Replay />} onClick={handleRetry}>
+              Escanear otro QR
+            </Button>
+          </Stack>
+        )}
+
+        {!isLoading && result && !result.requiere_validacion_identidad && (
           <Stack spacing={2} alignItems="center" sx={{ py: 3 }}>
             {result.ok ? (
               <CheckCircle color="success" sx={{ fontSize: 64 }} />

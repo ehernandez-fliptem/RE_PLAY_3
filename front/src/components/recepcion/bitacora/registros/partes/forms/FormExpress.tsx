@@ -25,6 +25,8 @@ import {
 } from "../../../../../../app/config/axios";
 import AutocompleteInput from "../utils/AutocompleteInput";
 import { enqueueSnackbar } from "notistack";
+import { notifyFormErrors } from "../../../../../helpers/formHelper";
+
 const pageSizeOptions = [5, 10, 25];
 
 type Pases = {
@@ -321,7 +323,7 @@ export default function FormExpress({ name }: Props) {
               type="button"
               size="medium"
               variant="contained"
-              onClick={formContext.handleSubmit(handleAdd)}
+              onClick={formContext.handleSubmit(handleAdd, notifyFormErrors)}
               startIcon={<Add />}
             >
               Agregar {fields.length ? `(${fields.length})` : ""}

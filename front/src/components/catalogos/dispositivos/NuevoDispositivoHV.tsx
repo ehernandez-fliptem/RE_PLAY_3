@@ -41,7 +41,7 @@ import type { GridDataSourceApiBase } from "@mui/x-data-grid";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import Spinner from "../../utils/Spinner";
 import PasswordValidAdornment from "../../utils/PasswordValidAdornment";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import { enqueueSnackbar } from "notistack";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
@@ -315,7 +315,7 @@ const onSubmit: SubmitHandler<FormValues> = async (data) => {
             {formContext.formState.isSubmitting || isLoading ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext}>
+              <FormContainer formContext={formContext} onError={notifyFormErrors}>
                 <Typography variant="h4" component="h2" textAlign="center">
                   Nuevo Dispositivo
                 </Typography>
@@ -489,22 +489,20 @@ const onSubmit: SubmitHandler<FormValues> = async (data) => {
                     </Button>
                     {isConnected.estado ? (
                       <Button
-                        disabled={!formContext.formState.isValid}
                         type="submit"
                         size="medium"
                         variant="contained"
-                        onClick={formContext.handleSubmit(onSubmit)}
+                        onClick={formContext.handleSubmit(onSubmit, notifyFormErrors)}
                         startIcon={<Save />}
                       >
                         Guardar
                       </Button>
                     ) : (
                       <Button
-                        disabled={!formContext.formState.isValid}
                         type="submit"
                         size="medium"
                         variant="contained"
-                        onClick={formContext.handleSubmit(testConnection)}
+                        onClick={formContext.handleSubmit(testConnection, notifyFormErrors)}
                         startIcon={<NetworkCheck />}
                       >
                         Probar conexión

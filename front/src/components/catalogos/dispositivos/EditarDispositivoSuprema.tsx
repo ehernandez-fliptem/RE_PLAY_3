@@ -20,6 +20,8 @@ import {
 } from "../../../app/constants/CommonRegex";
 import PasswordValidAdornment from "../../utils/PasswordValidAdornment";
 import Swal from "sweetalert2";
+import { notifyFormErrors } from "../../helpers/formHelper";
+
 
 type FormValues = {
   nombre: string;
@@ -149,7 +151,7 @@ export default function EditarDispositivoSuprema() {
             {isLoading ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext} onSuccess={onSubmit}>
+              <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
                 <Stack spacing={2}>
                   <Grid container spacing={2}>
                     <Grid size={{ xs: 12, sm: 8 }}>

@@ -25,7 +25,7 @@ import { TextFieldElement } from "react-hook-form-mui";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { enqueueSnackbar } from "notistack";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import Spinner from "../../utils/Spinner";
 import type { GridValidRowModel } from "@mui/x-data-grid";
 import type { GridDataSource } from "@mui/x-data-grid";
@@ -196,13 +196,12 @@ export default function Pisos({ setPisos }: Props) {
                     sx={{ width: "100%" }}
                   >
                     <Button
-                      disabled={!formContext.formState.isValid}
                       size="small"
                       type="button"
                       variant="contained"
                       color="primary"
                       startIcon={<Add />}
-                      onClick={formContext.handleSubmit(onSubmit)}
+                      onClick={formContext.handleSubmit(onSubmit, notifyFormErrors)}
                     >
                       Agregar
                     </Button>

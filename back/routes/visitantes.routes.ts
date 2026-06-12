@@ -10,13 +10,14 @@ import {
     cargarFormato,
     cargarProgramacionUsuarios,
     descargarFormato,
-    desbloquearBack,
+    desbloquearAccesoBack,
     bloquearBack,
     obtenerTodosActivos,
     obtenerQR,
     obtenerFormEditarVisitante,
     anonimizar,
     verificar,
+    autorizarAccesoQr,
     revertirCreacion,
     resincronizarVisitantePaneles,
     eliminarPermanente,
@@ -36,6 +37,7 @@ router.get('/qr/', validarTokenYRol([10]), obtenerQR);
 router.get("/:id", validarTokenYRol([1, 2, 4, 5, 13]), obtenerUno);
 router.post("/", validarTokenYRol([1, 2, 4, 5, 13]), crear);
 router.patch("/verificar/:id", validarTokenYRol([1, 2, 4, 5, 13]), verificar);
+router.post("/autorizar-qr", validarTokenYRol([1, 2, 5, 13]), autorizarAccesoQr);
 router.patch("/resync/:id", validarTokenYRol([1, 2, 4, 5, 13]), resincronizarVisitantePaneles);
 router.patch("/reenviar/:id", validarTokenYRol([1, 2, 4, 5, 13]), reenviarCorreoAcceso);
 router.post("/cargar-formato", validarTokenYRol([1, 2]), cargarFormato);
@@ -44,7 +46,7 @@ router.put("/:id", validarTokenYRol([1, 2, 4, 5, 13]), modificar);
 // router.patch("/anonimizar/:id", validarTokenYRol([1, 2]), anonimizar);
 router.patch("/revertir-creacion/:id", validarTokenYRol([1, 2, 4, 5, 13]), revertirCreacion);
 router.patch("/bloquear/:id", validarTokenYRol([1, 2]), bloquearBack);
-router.patch("/desbloquear/:id", validarTokenYRol([1, 2]), desbloquearBack);
+router.patch("/desbloquear/:id", validarTokenYRol([1, 2]), desbloquearAccesoBack);
 router.patch("/eliminar-permanente/:id", validarTokenYRol([1, 2, 4, 5, 13]), eliminarPermanente);
 router.patch("/:id", validarTokenYRol([1, 2, 4, 5, 13]), modificarEstado);
 

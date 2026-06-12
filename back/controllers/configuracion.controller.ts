@@ -180,7 +180,7 @@ export async function obtenerIntegraciones(_req: Request, res: Response): Promis
         console.log("Obteniendo integraciones de configuración...");
         const registro = await Configuracion.findOne(
             { activo: true },
-            "habilitarIntegracionHv habilitarIntegracionBiostar habilitarIntegracionHvBiometria habilitarIntegracionCdvi habilitarContratistas habilitarRegistroCampo documentos_visitantes documentos_contratistas documentos_personalizados"
+            "habilitarIntegracionHv habilitarIntegracionBiostar habilitarIntegracionHvBiometria habilitarIntegracionCdvi habilitarContratistas habilitarRegistroCampo habilitarVisitantesAvanzado habilitarVisitantesVehiculo documentos_visitantes documentos_contratistas documentos_personalizados"
         ).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
         res.status(200).send({ estado: true, datos: registro, visibilidad: obtenerVisibilidadIntegraciones() });
     } catch (error: any) {
@@ -199,6 +199,8 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
             habilitarCamaras,
             habilitarContratistas,
             habilitarRegistroCampo,
+            habilitarVisitantesAvanzado,
+            habilitarVisitantesVehiculo,
             documentos_visitantes,
             documentos_contratistas,
             documentos_personalizados,
@@ -256,6 +258,10 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
             habilitarContratistas:
                 typeof habilitarContratistas === "boolean" ? habilitarContratistas : undefined,
             habilitarRegistroCampo: typeof habilitarRegistroCampo === "boolean" ? habilitarRegistroCampo : undefined,
+            habilitarVisitantesAvanzado:
+                typeof habilitarVisitantesAvanzado === "boolean" ? habilitarVisitantesAvanzado : undefined,
+            habilitarVisitantesVehiculo:
+                typeof habilitarVisitantesVehiculo === "boolean" ? habilitarVisitantesVehiculo : undefined,
             documentos_visitantes: normalizeDocConfig(documentos_visitantes) || undefined,
             documentos_contratistas: normalizeDocConfig(documentos_contratistas) || undefined,
             documentos_personalizados: normalizeCustomDocsConfig(documentos_personalizados) || undefined,
@@ -276,6 +282,12 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
         }
         if (update.habilitarRegistroCampo === undefined) {
             delete update.habilitarRegistroCampo;
+        }
+        if (update.habilitarVisitantesAvanzado === undefined) {
+            delete update.habilitarVisitantesAvanzado;
+        }
+        if (update.habilitarVisitantesVehiculo === undefined) {
+            delete update.habilitarVisitantesVehiculo;
         }
         if (update.documentos_visitantes === undefined) {
             delete update.documentos_visitantes;

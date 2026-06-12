@@ -41,7 +41,7 @@ import type { GridDataSourceApiBase } from "@mui/x-data-grid";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 import Spinner from "../../utils/Spinner";
 import PasswordValidAdornment from "../../utils/PasswordValidAdornment";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import { enqueueSnackbar } from "notistack";
 
 type TEvento = {
@@ -211,7 +211,7 @@ export default function NuevaCamara() {
             {formContext.formState.isSubmitting || isLoading ? (
               <Spinner />
             ) : (
-              <FormContainer formContext={formContext}>
+              <FormContainer formContext={formContext} onError={notifyFormErrors}>
                 <Typography variant="h4" component="h2" textAlign="center">
                   Nueva Cámara
                 </Typography>
@@ -350,22 +350,20 @@ export default function NuevaCamara() {
                     </Button>
                     {isConnected.estado ? (
                       <Button
-                        disabled={!formContext.formState.isValid}
                         type="submit"
                         size="medium"
                         variant="contained"
-                        onClick={formContext.handleSubmit(onSubmit)}
+                        onClick={formContext.handleSubmit(onSubmit, notifyFormErrors)}
                         startIcon={<Save />}
                       >
                         Guardar
                       </Button>
                     ) : (
                       <Button
-                        disabled={!formContext.formState.isValid}
                         type="submit"
                         size="medium"
                         variant="contained"
-                        onClick={formContext.handleSubmit(testConnection)}
+                        onClick={formContext.handleSubmit(testConnection, notifyFormErrors)}
                         startIcon={<NetworkCheck />}
                       >
                         Probar conexión

@@ -34,7 +34,7 @@ import {
   Image,
   Save,
 } from "@mui/icons-material";
-import { setFormErrors } from "../../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../../helpers/formHelper";
 import {
   REGEX_BASE64,
   REGEX_NAME,
@@ -274,7 +274,7 @@ export default function NuevoRegistroVisit() {
           {formContext.formState.isSubmitting || isLoading ? (
             <Spinner />
           ) : (
-            <FormContainer formContext={formContext} onSuccess={onSubmit}>
+            <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
               <Typography variant="h4" component="h2" textAlign="center">
                 Nueva cita
               </Typography>
@@ -495,7 +495,6 @@ export default function NuevoRegistroVisit() {
                   sx={{ width: "100%" }}
                 >
                   <Button
-                    disabled={!formContext.formState.isValid}
                     type="submit"
                     size="medium"
                     variant="contained"

@@ -39,6 +39,8 @@ import { DateTimePicker } from "@mui/x-date-pickers";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../../../app/store";
 import InfiniteAutocomplete from "../../utils/InfiniteAutocomplete";
+import { notifyFormErrors } from "../../helpers/formHelper";
+
 
 const pageSizeOptions = [10, 25, 50];
 
@@ -203,7 +205,7 @@ export default function ValidarDocumentos() {
           })}
         >
           <CardContent>
-            <FormContainer formContext={formContext} onSuccess={onSubmit}>
+            <FormContainer formContext={formContext} onSuccess={onSubmit} onError={notifyFormErrors}>
               <Typography variant="h4" component="h2" textAlign="center">
                 Validar documentación
               </Typography>
@@ -369,7 +371,6 @@ export default function ValidarDocumentos() {
                       Limpiar
                     </Button>
                     <Button
-                      disabled={!formContext.formState.isValid}
                       type="submit"
                       size="medium"
                       variant="contained"

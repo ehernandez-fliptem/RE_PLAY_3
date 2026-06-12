@@ -8,7 +8,7 @@ import { useForm, type SubmitHandler } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { TextFieldElement, FormContainer } from "react-hook-form-mui";
-import { setFormErrors } from "../../helpers/formHelper";
+import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import { enqueueSnackbar } from "notistack";
 import LogoHeader from "../LogoHeader";
 
@@ -96,7 +96,7 @@ export default function VerificarCorreo({ setCorreoEnviado }: Props) {
               }}
               formContext={formContext}
               onSuccess={verificarCorreo}
-            >
+             onError={notifyFormErrors}>
               <TextFieldElement
                 name="correo"
                 label="Correo"
@@ -133,7 +133,6 @@ export default function VerificarCorreo({ setCorreoEnviado }: Props) {
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <Button
-                    disabled={!formContext.formState.isValid}
                     sx={{ width: "100%" }}
                     type="submit"
                     fullWidth

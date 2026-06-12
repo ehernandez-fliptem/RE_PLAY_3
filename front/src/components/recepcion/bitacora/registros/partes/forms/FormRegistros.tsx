@@ -29,6 +29,8 @@ import {
 import { enqueueSnackbar } from "notistack";
 import AutocompleteInput from "../utils/AutocompleteInput";
 import AutocompleteOcrInput from "../utils/AutocompleteOcrInput";
+import { notifyFormErrors } from "../../../../../helpers/formHelper";
+
 const pageSizeOptions = [5, 10, 25];
 
 type Pases = {
@@ -399,7 +401,7 @@ export default function FormRegistros({ name }: Props) {
               type="button"
               size="medium"
               variant="contained"
-              onClick={formContext.handleSubmit(handleAdd)}
+              onClick={formContext.handleSubmit(handleAdd, notifyFormErrors)}
               startIcon={<Add />}
             >
               Agregar {fields.length ? `(${fields.length})` : ""}
