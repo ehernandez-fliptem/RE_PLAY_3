@@ -325,6 +325,16 @@ function normalizeIdentityText(value: unknown): string {
     .toUpperCase();
 }
 
+function formatPersonNamePart(value: unknown): string {
+  return String(value || "")
+    .trim()
+    .toLocaleLowerCase("es-MX")
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .map((part) => part ? `${part.charAt(0).toLocaleUpperCase("es-MX")}${part.slice(1)}` : "")
+    .join(" ");
+}
+
 function identityTokens(value: unknown): string[] {
   const stop = new Set([
     "NOMBRE", "CREDENCIAL", "PARA", "VOTAR", "INSTITUTO", "NACIONAL", "ELECTORAL",
@@ -685,7 +695,7 @@ function inferMissingMaterno(params: { nombre: string; apellido_pat: string; ape
   const expected = new Set(identityTokens(`${params.nombre} ${params.apellido_pat}`));
   const found = identityTokens(params.ocrText);
   const extras = found.filter((token) => !expected.has(token));
-  return extras.length ? extras[extras.length - 1] : "";
+  return extras.length ? formatPersonNamePart(extras[extras.length - 1]) : "";
 }
 
 function accessStateForMode(mode: PanelAccessMode): "entrada_autorizada" | "salida_autorizada" | "cerrado" {
