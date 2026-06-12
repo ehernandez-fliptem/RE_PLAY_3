@@ -64,6 +64,7 @@ import { isBlockedNow } from "../../../utils/bloqueo";
 import CircularProgress from "@mui/material/CircularProgress";
 import { FormControl, InputLabel, MenuItem, Select } from "@mui/material";
 import { areDocumentosChecksComplete } from "./documentosChecks";
+import DocumentosIncompletosContent from "./DocumentosIncompletosContent";
 // sin helpers de documentos en tabla
 
 
@@ -364,11 +365,18 @@ export default function Visitantes() {
     if (!areDocumentosChecksComplete(row?.documentos_checks)) {
       confirm({
         title: "Documentos incompletos",
-        description:
-          "Para poder verificar al visitante se deben de tener todos los documentos marcados.",
+        content: (
+          <DocumentosIncompletosContent
+            documentosChecks={row?.documentos_checks}
+          />
+        ),
         allowClose: true,
-        confirmationText: "Cerrar",
+        confirmationText: "Entendido",
         hideCancelButton: true,
+        confirmationButtonProps: {
+          color: "primary",
+          variant: "contained",
+        },
       }).catch(() => {});
       return;
     }

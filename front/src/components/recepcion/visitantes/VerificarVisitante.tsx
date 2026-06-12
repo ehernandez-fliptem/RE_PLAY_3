@@ -26,6 +26,7 @@ import {
   normalizeDocumentosChecks,
   type DocumentosChecks,
 } from "./documentosChecks";
+import DocumentosIncompletosContent from "./DocumentosIncompletosContent";
 
 type TUsuario = {
   img_usuario: string;
@@ -113,11 +114,16 @@ export default function VerificarVisitante() {
     if (!docsComplete) {
       await confirm({
         title: "Documentos incompletos",
-        description:
-          "Para poder verificar el visitante, se debe tener todos los documentos marcados.",
+        content: (
+          <DocumentosIncompletosContent documentosChecks={checks} />
+        ),
         allowClose: true,
-        confirmationText: "Cerrar",
+        confirmationText: "Entendido",
         hideCancelButton: true,
+        confirmationButtonProps: {
+          color: "primary",
+          variant: "contained",
+        },
       }).catch(() => {});
       return;
     }

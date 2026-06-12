@@ -33,6 +33,16 @@ export const areDocumentosChecksComplete = (
 ): boolean =>
   DOCUMENTOS_CHECKS_LIST.every(({ key }) => Boolean(value?.[key]));
 
+export const getDocumentosChecksStatus = (
+  value?: Partial<DocumentosChecks> | null
+) => {
+  const normalized = normalizeDocumentosChecks(value);
+  return {
+    completos: DOCUMENTOS_CHECKS_LIST.filter(({ key }) => normalized[key]),
+    faltantes: DOCUMENTOS_CHECKS_LIST.filter(({ key }) => !normalized[key]),
+  };
+};
+
 export const areDocumentosChecksEqual = (
   a?: Partial<DocumentosChecks> | null,
   b?: Partial<DocumentosChecks> | null
