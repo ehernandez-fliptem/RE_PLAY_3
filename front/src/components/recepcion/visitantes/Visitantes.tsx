@@ -63,8 +63,13 @@ import { isBlockedNow } from "../../../utils/bloqueo";
 
 import CircularProgress from "@mui/material/CircularProgress";
 import { FormControl, InputLabel, MenuItem, Select } from "@mui/material";
-import { areDocumentosChecksComplete } from "./documentosChecks";
+import {
+  DOCUMENTOS_CHECKS_LIST,
+  areDocumentosChecksComplete,
+  getDocumentosChecksStatus,
+} from "./documentosChecks";
 import DocumentosIncompletosContent from "./DocumentosIncompletosContent";
+import { generatePdfReport, openPdfBlob } from "../../../utils/pdfReport";
 // sin helpers de documentos en tabla
 
 
@@ -134,7 +139,7 @@ export default function Visitantes() {
   const [error, setError] = useState<string>();
   const navigate = useNavigate();
   const confirm = useConfirm();
-  const { rol } = useSelector((state: IRootState) => state.auth.data);
+  const { rol, nombre: nombreUsuario } = useSelector((state: IRootState) => state.auth.data);
   const esRecep = rol.includes(5);
   const formContext = useForm({ defaultValues: { qr: "" } });
   const accessForm = useForm({ defaultValues: { img_ine_manual: "" } });
@@ -147,6 +152,13 @@ export default function Visitantes() {
     motivo: string;
   }>({ open: false, row: null, modo: "salida", motivo: "" });
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const lastGridParamsRef = useRef<any>({
+    filterModel: { quickFilterValues: [] },
+    paginationModel: { page: 0, pageSize: 10 },
+    sortModel: [],
+  });
+  const lastRowCountRef = useRef(0);
   const [isDownloadingQr, setIsDownloadingQr] = useState({
     id_usuario: "",
     descargando: false,
@@ -288,6 +300,7 @@ export default function Visitantes() {
   const dataSource: GridDataSource = useMemo(
     () => ({
       getRows: async (params) => {
+        lastGridParamsRef.current = params;
         let rows: GridValidRowModel[] = [];
         let rowCount: number = 0;
         try {
@@ -304,6 +317,7 @@ export default function Visitantes() {
             setError("");
             rows = res.data.datos.paginatedResults || [];
             rowCount = res.data.datos.totalCount[0]?.count || 0;
+            lastRowCountRef.current = rowCount;
           }
         } catch (error) {
           const { restartSession } = handlingError(error);
@@ -319,6 +333,106 @@ export default function Visitantes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [estadoFiltro]
   );
+
+  const getEstadoFiltroLabel = () => {
+    if (estadoFiltro === "activos") return "Activos";
+    if (estadoFiltro === "inactivos") return "Inactivos";
+    return "Todos";
+  };
+
+  const formatAccessStatus = (row: any) => {
+    if (!row?.activo) return "Inactivo";
+    if (isBlockedNow(row)) return "Bloqueado";
+    if (!row?.verificado) return "Pendiente verificacion";
+    return "Habilitado";
+  };
+
+  const formatDocsStatus = (row: any) => {
+    const { completos, faltantes } = getDocumentosChecksStatus(row?.documentos_checks);
+    if (!completos.length) return "Sin documentos";
+    if (!faltantes.length) return "Completos";
+    return `${completos.length}/${DOCUMENTOS_CHECKS_LIST.length} completos`;
+  };
+
+  const exportarVisitantesPdf = async () => {
+    const targetWindow = window.open("", "_blank");
+    if (targetWindow) {
+      targetWindow.document.write("<p style='font-family: Arial; padding: 24px;'>Generando reporte...</p>");
+    }
+    setIsExportingPdf(true);
+    try {
+      const params = lastGridParamsRef.current || {};
+      const quickFilterValues = params.filterModel?.quickFilterValues || [];
+      const totalRows = lastRowCountRef.current || 0;
+      const paginationModel = {
+        page: 0,
+        pageSize: Math.max(totalRows, 1000),
+      };
+      const urlParams = new URLSearchParams({
+        filter: JSON.stringify(quickFilterValues),
+        pagination: JSON.stringify(paginationModel),
+        sort: JSON.stringify(params.sortModel || []),
+        estado: estadoFiltro,
+      });
+      const res = await clienteAxios.get("/api/visitantes?" + urlParams.toString());
+      const rows = res.data?.estado ? res.data.datos?.paginatedResults || [] : [];
+      const searchText = Array.isArray(quickFilterValues) && quickFilterValues.length
+        ? quickFilterValues.join(" ")
+        : "Sin busqueda";
+      const today = new Date().toISOString().slice(0, 10);
+      const pdfBlob = generatePdfReport({
+        title: "Reporte de visitantes",
+        subtitle: "Gestion de Visitantes",
+        fileName: `reporte-visitantes-${today}.pdf`,
+        generatedBy: nombreUsuario || undefined,
+        orientation: "landscape",
+        filters: [
+          { label: "Estado", value: getEstadoFiltroLabel() },
+          { label: "Busqueda", value: searchText },
+        ],
+        columns: [
+          { header: "Nombre", key: "nombre", width: 150 },
+          { header: "Empresa", key: "empresa", width: 120 },
+          {
+            header: "Estatus",
+            key: "verificado",
+            width: 82,
+            align: "center",
+            format: (row: any) => row.verificado ? "Verificado" : "No verificado",
+          },
+          {
+            header: "QR",
+            key: "verificado",
+            width: 76,
+            align: "center",
+            format: (row: any) => row.verificado ? "Disponible" : "No disponible",
+          },
+          {
+            header: "Acceso",
+            key: "activo",
+            width: 96,
+            align: "center",
+            format: formatAccessStatus,
+          },
+          {
+            header: "Documentos",
+            key: "documentos_checks",
+            width: 98,
+            align: "center",
+            format: formatDocsStatus,
+          },
+        ],
+        rows,
+        emptyMessage: "No se encontraron visitantes con los filtros seleccionados.",
+      });
+      openPdfBlob(pdfBlob, targetWindow);
+    } catch (error) {
+      targetWindow?.close();
+      enqueueSnackbar("No se pudo generar el reporte. Intenta nuevamente.", { variant: "error" });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
 
   const initialState: GridInitialState = useMemo(
     () => ({
@@ -1088,6 +1202,9 @@ const accionBloquear = (ID: string) => {
           toolbar: () => (
             <DataGridToolbar
               tableTitle="Gestión de Visitantes"
+              onExport={exportarVisitantesPdf}
+              exportLoading={isExportingPdf}
+              exportTooltip="Generar reporte PDF de visitantes"
               customActionButtons={
                 <Fragment>
                   <Tooltip title="Escanear QR">

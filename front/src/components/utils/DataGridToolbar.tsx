@@ -18,6 +18,7 @@ import Badge from "@mui/material/Badge";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import MenuItem from "@mui/material/MenuItem";
 import Divider from "@mui/material/Divider";
 import TextField from "@mui/material/TextField";
@@ -26,6 +27,7 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import SearchIcon from "@mui/icons-material/Search";
 import Typography from "@mui/material/Typography";
 import { Box, Stack, useMediaQuery } from "@mui/material";
+import CircularProgress from "@mui/material/CircularProgress";
 
 type OwnerState = {
   expanded: boolean;
@@ -65,6 +67,9 @@ type Props = {
   showExportButton?: boolean;
   showSearchButton?: boolean;
   customActionButtons?: React.ReactNode;
+  onExport?: () => void;
+  exportLoading?: boolean;
+  exportTooltip?: string;
 };
 
 export default function DataGridToolbar({
@@ -74,6 +79,9 @@ export default function DataGridToolbar({
   showExportButton = true,
   showSearchButton = true,
   customActionButtons,
+  onExport,
+  exportLoading = false,
+  exportTooltip = "Generar reporte PDF",
 }: Props) {
   const [exportMenuOpen, setExportMenuOpen] = React.useState(false);
   const exportMenuTriggerRef = React.useRef<HTMLButtonElement>(null);
@@ -142,7 +150,25 @@ export default function DataGridToolbar({
             </Tooltip>
           )}
 
-          {showExportButton && (
+          {showExportButton && onExport && (
+            <Tooltip title={exportLoading ? "Generando..." : exportTooltip}>
+              <span>
+                <ToolbarButton
+                  id="export-pdf-trigger"
+                  disabled={exportLoading}
+                  onClick={onExport}
+                >
+                  {exportLoading ? (
+                    <CircularProgress size={18} />
+                  ) : (
+                    <PictureAsPdfIcon fontSize="small" />
+                  )}
+                </ToolbarButton>
+              </span>
+            </Tooltip>
+          )}
+
+          {showExportButton && !onExport && (
             <React.Fragment>
               <Tooltip title="Exportar">
                 <ToolbarButton

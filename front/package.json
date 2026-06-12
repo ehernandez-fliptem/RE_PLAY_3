@@ -27,6 +27,8 @@
     "clsx": "^2.1.1",
     "dayjs": "^1.11.13",
     "face-api.js": "^0.22.2",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "material-ui-confirm": "^4.0.0",
     "mui-one-time-password-input": "^5.0.0",
     "mui-tel-input": "^9.0.1",
