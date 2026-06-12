@@ -698,6 +698,109 @@ function inferMissingMaterno(params: { nombre: string; apellido_pat: string; ape
   return extras.length ? formatPersonNamePart(extras[extras.length - 1]) : "";
 }
 
+type IneNameData = {
+  nombre: string;
+  apellido_pat: string;
+  apellido_mat: string;
+  source: string;
+};
+
+const INE_NAME_STOP_HEADERS = new Set([
+  "NOMBRE",
+  "DOMICILIO",
+  "SEXO",
+  "FECHA DE NACIMIENTO",
+  "FECHA",
+  "CLAVE DE ELECTOR",
+  "CLAVE",
+  "CURP",
+  "ANO DE REGISTRO",
+  "AÑO DE REGISTRO",
+  "REGISTRO",
+  "SECCION",
+  "SECCIÓN",
+  "VIGENCIA",
+]);
+
+function isLikelyIneNameLine(line: string): boolean {
+  const normalized = normalizeIdentityText(line);
+  if (!normalized || normalized.length < 3) return false;
+  if (INE_NAME_STOP_HEADERS.has(normalized)) return false;
+  if ([...INE_NAME_STOP_HEADERS].some((header) => normalized.startsWith(`${header} `))) return false;
+  if (/\d/.test(normalized)) return false;
+  const tokens = normalized.split(" ").filter(Boolean);
+  if (!tokens.length || tokens.length > 4) return false;
+  return tokens.every((token) => /^[A-ZÑ]{3,}$/.test(token));
+}
+
+function cleanIneNameLine(line: string): string {
+  return normalizeIdentityText(line)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseIneNameBlock(ocrText: string): IneNameData | null {
+  const lines = String(ocrText || "")
+    .split(/\r?\n/)
+    .map((line) => cleanIneNameLine(line))
+    .filter(Boolean);
+
+  const nameIndex = lines.findIndex((line) => line === "NOMBRE" || line.startsWith("NOMBRE "));
+  const candidates: string[] = [];
+
+  if (nameIndex >= 0) {
+    const sameLine = lines[nameIndex].replace(/^NOMBRE\s*/, "").trim();
+    if (isLikelyIneNameLine(sameLine)) candidates.push(sameLine);
+
+    for (let index = nameIndex + 1; index < lines.length && candidates.length < 3; index += 1) {
+      const line = lines[index];
+      if ([...INE_NAME_STOP_HEADERS].some((header) => line === header || line.startsWith(`${header} `))) break;
+      if (isLikelyIneNameLine(line)) candidates.push(line);
+    }
+  }
+
+  if (candidates.length < 3) {
+    for (let index = 0; index <= lines.length - 3; index += 1) {
+      const block = lines.slice(index, index + 3);
+      if (block.every(isLikelyIneNameLine)) {
+        const after = lines[index + 3] || "";
+        if (after === "DOMICILIO" || after.startsWith("DOMICILIO ")) {
+          candidates.splice(0, candidates.length, ...block);
+          break;
+        }
+      }
+    }
+  }
+
+  if (candidates.length < 3) return null;
+  return {
+    apellido_pat: formatPersonNamePart(candidates[0]),
+    apellido_mat: formatPersonNamePart(candidates[1]),
+    nombre: formatPersonNamePart(candidates[2]),
+    source: candidates.slice(0, 3).join(" | "),
+  };
+}
+
+function inferIdentityDataFromIne(params: {
+  nombre: string;
+  apellido_pat: string;
+  apellido_mat?: string;
+  ocrText: string;
+}): IneNameData | null {
+  const parsed = parseIneNameBlock(params.ocrText);
+  if (!parsed) return null;
+
+  const currentTokens = identityTokens(`${params.nombre} ${params.apellido_pat} ${params.apellido_mat || ""}`);
+  const parsedTokens = identityTokens(`${parsed.nombre} ${parsed.apellido_pat} ${parsed.apellido_mat}`);
+  const matchedCurrent = currentTokens.filter((token) =>
+    parsedTokens.some((candidate) => tokenSimilarity(token, candidate) >= 0.82)
+  );
+  const minimumMatches = currentTokens.length <= 2 ? currentTokens.length : Math.ceil(currentTokens.length * 0.67);
+  if (!currentTokens.length || matchedCurrent.length < minimumMatches) return null;
+
+  return parsed;
+}
+
 function accessStateForMode(mode: PanelAccessMode): "entrada_autorizada" | "salida_autorizada" | "cerrado" {
   if (mode === "entrada" || mode === "ambos") return "entrada_autorizada";
   if (mode === "salida") return "salida_autorizada";
@@ -1769,14 +1872,33 @@ export async function autorizarAccesoQr(req: Request, res: Response): Promise<vo
       logOcrStep(traceId, "db:save_ine_done");
     }
     if (requiresIne && actualizar_datos) {
-      const materno = inferMissingMaterno({
+      const ineNameData = inferIdentityDataFromIne({
         nombre: visitante.nombre,
         apellido_pat: visitante.apellido_pat,
         apellido_mat: visitante.apellido_mat,
         ocrText,
       });
-      if (materno) updateData.apellido_mat = materno;
-      logOcrStep(traceId, "db:infer_materno", { inferred: Boolean(materno), materno });
+      if (ineNameData) {
+        updateData.nombre = ineNameData.nombre;
+        updateData.apellido_pat = ineNameData.apellido_pat;
+        updateData.apellido_mat = ineNameData.apellido_mat;
+        logOcrStep(traceId, "db:infer_identity", {
+          inferred: true,
+          source: ineNameData.source,
+          nombre: ineNameData.nombre,
+          apellido_pat: ineNameData.apellido_pat,
+          apellido_mat: ineNameData.apellido_mat,
+        });
+      } else {
+        const materno = inferMissingMaterno({
+          nombre: visitante.nombre,
+          apellido_pat: visitante.apellido_pat,
+          apellido_mat: visitante.apellido_mat,
+          ocrText,
+        });
+        if (materno) updateData.apellido_mat = materno;
+        logOcrStep(traceId, "db:infer_identity", { inferred: Boolean(materno), fallbackMaterno: materno });
+      }
     }
 
     logOcrStep(traceId, "db:update_start", { fields: Object.keys(updateData) });
