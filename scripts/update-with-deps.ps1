@@ -1,0 +1,104 @@
+param(
+    [string]$BasePath = (Resolve-Path (Join-Path $PSScriptRoot "..")),
+    [ValidateSet("all", "back", "panel", "demonio", "backfront")]
+    [string]$Target = "all"
+)
+
+function Write-Step($msg) { Write-Host "`n==> $msg" }
+
+$ErrorActionPreference = "Stop"
+
+$back = Join-Path $BasePath "back"
+$front = Join-Path $BasePath "front"
+$panel = Join-Path $BasePath "panel_server"
+$demonio = Join-Path $BasePath "demonio_eventos"
+
+function Install-Deps($path, $name) {
+    Write-Step "$name install"
+    Push-Location $path
+    npm install
+    Pop-Location
+}
+
+function Build-Front {
+    Write-Step "Front build"
+    Push-Location $front
+    npm run build
+    Pop-Location
+}
+
+function Copy-Front-To-Back {
+    Write-Step "Copiando dist del front al back"
+    $src = Join-Path $front "dist"
+    $dest = Join-Path $back "dist\dist"
+    if (!(Test-Path $src)) { throw "No se encontro $src" }
+    if (!(Test-Path $dest)) { New-Item -ItemType Directory -Force $dest | Out-Null }
+    Copy-Item -Path (Join-Path $src "*") -Destination $dest -Recurse -Force
+}
+
+function Build-Back {
+    Write-Step "Back build"
+    Push-Location $back
+    npm run build
+    Pop-Location
+}
+
+function Build-Panel {
+    Write-Step "Panel build"
+    Push-Location $panel
+    npm run build
+    Pop-Location
+}
+
+function Build-Demonio {
+    Write-Step "Demonio build"
+    Push-Location $demonio
+    npm run build
+    Pop-Location
+}
+
+switch ($Target) {
+    "back" {
+        Install-Deps $back "Back"
+        Build-Back
+    }
+    "panel" {
+        Install-Deps $panel "Panel"
+        Build-Panel
+    }
+    "demonio" {
+        Install-Deps $demonio "Demonio"
+        Build-Demonio
+    }
+    "backfront" {
+        Install-Deps $front "Front"
+        Install-Deps $back "Back"
+        Build-Front
+        Copy-Front-To-Back
+        Build-Back
+    }
+    "all" {
+        Install-Deps $front "Front"
+        Install-Deps $back "Back"
+        Install-Deps $panel "Panel"
+        Install-Deps $demonio "Demonio"
+        Build-Front
+        Copy-Front-To-Back
+        Build-Back
+        Build-Panel
+        Build-Demonio
+    }
+}
+
+Write-Step "Reiniciando PM2"
+$pm2Cmd = (Get-Command pm2 -ErrorAction SilentlyContinue).Path
+if (-not $pm2Cmd) {
+    $pm2Cmd = Join-Path $env:APPDATA "npm\pm2.cmd"
+}
+if (Test-Path $pm2Cmd) {
+    & $pm2Cmd restart all
+    & $pm2Cmd list
+} else {
+    Write-Host "No se encontro pm2 en PATH ni en $env:APPDATA\\npm. Usa: npm -g i pm2" -ForegroundColor Red
+    exit 1
+}
