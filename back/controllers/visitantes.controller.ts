@@ -297,7 +297,7 @@ function normalizeIdentityText(value: unknown): string {
   return String(value || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^A-ZÑ\s]/gi, " ")
+    .replace(/[^A-Z0-9\s]/gi, " ")
     .replace(/\s+/g, " ")
     .trim()
     .toUpperCase();
@@ -308,43 +308,155 @@ function identityTokens(value: unknown): string[] {
     "NOMBRE", "CREDENCIAL", "PARA", "VOTAR", "INSTITUTO", "NACIONAL", "ELECTORAL",
     "MEXICO", "DOMICILIO", "SEXO", "FECHA", "NACIMIENTO", "CLAVE", "ELECTOR",
     "CURP", "ESTADO", "MUNICIPIO", "SECCION", "LOCALIDAD", "EMISION", "VIGENCIA",
+    "REGISTRO", "DIRECCION", "COLONIA", "CALLE", "ANO", "VALIDA",
+    "IDENTIFICACION", "OFICIAL", "ESTADOS", "UNIDOS", "MEXICANOS",
   ]);
-  return normalizeIdentityText(value)
-    .split(" ")
-    .filter((token) => token.length > 2 && !stop.has(token));
+  return Array.from(new Set(
+    normalizeIdentityText(value)
+      .split(" ")
+      .filter((token) => token.length > 2 && !/^\d+$/.test(token) && !stop.has(token))
+  ));
+}
+
+function levenshteinDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a) return b.length;
+  if (!b) return a.length;
+
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  const curr = Array.from({ length: b.length + 1 }, () => 0);
+
+  for (let i = 1; i <= a.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+    }
+    for (let j = 0; j <= b.length; j++) prev[j] = curr[j];
+  }
+
+  return prev[b.length];
+}
+
+function tokenSimilarity(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (a.length >= 5 && b.length >= 5 && (a.includes(b) || b.includes(a))) return 0.9;
+
+  const maxLen = Math.max(a.length, b.length);
+  return maxLen ? 1 - levenshteinDistance(a, b) / maxLen : 0;
 }
 
 function compareIdentity(systemName: string, ocrText: string) {
   const expected = identityTokens(systemName);
-  const found = new Set(identityTokens(ocrText));
-  const matched = expected.filter((token) => found.has(token));
-  const required = expected.length <= 1 ? expected.length : Math.min(2, expected.length);
+  const found = identityTokens(ocrText);
+  const matched = expected.filter((token) =>
+    found.some((candidate) => tokenSimilarity(token, candidate) >= 0.82)
+  );
+  const required =
+    expected.length <= 1 ? expected.length : expected.length === 2 ? 2 : Math.ceil(expected.length * 0.67);
   return {
     ok: required > 0 && matched.length >= required,
     expected,
-    found: Array.from(found),
+    found,
     matched,
     required,
+    score: expected.length ? matched.length / expected.length : 0,
   };
 }
 
-async function extractIneText(img: string): Promise<string> {
+function decodeBase64Image(img: string): Buffer {
   const raw = String(img || "");
-  const base64 = raw.includes("base64,") ? raw.split("base64,")[1] : raw;
+  const base64 = raw.includes("base64,") ? raw.split("base64,").pop() || "" : raw;
+  if (!base64.trim()) throw new Error("La imagen de INE viene vacia.");
+
   const imgBuffer = Buffer.from(base64, "base64");
-  const image = await sharp(imgBuffer)
+  if (imgBuffer.length < 1024) throw new Error("La imagen de INE no es valida.");
+  if (imgBuffer.length > 12 * 1024 * 1024) throw new Error("La imagen de INE es demasiado pesada.");
+
+  return imgBuffer;
+}
+
+function normalizeOcrOutput(value: string): string {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+async function buildIneOcrVariants(imgBuffer: Buffer): Promise<Buffer[]> {
+  const metadata = await sharp(imgBuffer).rotate().metadata();
+  if (!metadata.width || !metadata.height) throw new Error("No se pudo leer la imagen de INE.");
+
+  const normalized = await sharp(imgBuffer)
+    .rotate()
+    .resize({ width: 1800, height: 1200, fit: "inside", withoutEnlargement: false })
     .greyscale()
-    .resize({ width: 1200, fit: "inside" })
     .normalize()
     .sharpen()
+    .jpeg({ quality: 95 })
     .toBuffer();
-  const text = await tesseract.recognize(image, {
-    lang: "spa",
+
+  const highContrast = await sharp(imgBuffer)
+    .rotate()
+    .resize({ width: 2000, height: 1300, fit: "inside", withoutEnlargement: false })
+    .greyscale()
+    .linear(1.25, -12)
+    .normalize()
+    .sharpen({ sigma: 1.2 })
+    .threshold(150)
+    .jpeg({ quality: 95 })
+    .toBuffer();
+
+  return [normalized, highContrast];
+}
+
+async function runTesseract(buffer: Buffer, psm: number): Promise<string> {
+  const text = await tesseract.recognize(buffer, {
+    lang: "spa+eng",
     oem: 3,
-    psm: 6,
+    psm,
     dpi: 300,
+    preserve_interword_spaces: "1",
   });
-  return String(text || "").replace(/\s+/g, " ").trim();
+  return normalizeOcrOutput(String(text || ""));
+}
+
+async function extractIneText(img: string): Promise<string> {
+  const imgBuffer = decodeBase64Image(img);
+  const variants = await buildIneOcrVariants(imgBuffer);
+  const attempts: Array<{ buffer: Buffer; psm: number }> = [
+    { buffer: variants[0], psm: 6 },
+    { buffer: variants[1], psm: 6 },
+    { buffer: variants[0], psm: 11 },
+  ];
+  const texts: string[] = [];
+
+  for (const attempt of attempts) {
+    try {
+      const text = await runTesseract(attempt.buffer, attempt.psm);
+      if (text && identityTokens(text).length > 0) texts.push(text);
+    } catch (error: any) {
+      log(fecha() + " WARN: OCR INE intento fallido: " + (error?.message || error) + "\n");
+    }
+  }
+
+  const merged = Array.from(
+    new Set(
+      texts
+        .join("\n")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+    )
+  ).join("\n");
+
+  if (identityTokens(merged).length < 2) {
+    throw new Error("No se pudo extraer texto suficiente de la INE. Intenta con mejor luz y la credencial completa dentro del rectangulo.");
+  }
+
+  return merged;
 }
 
 function inferMissingMaterno(params: { nombre: string; apellido_pat: string; apellido_mat?: string; ocrText: string }) {
@@ -2297,7 +2409,6 @@ export const desbloquearBack = async (req: Request, res: Response) => {
         return res.status(500).json({ estado: false, mensaje: "Error al desbloquear visitante" });
     }
 };
-
 
 
 
