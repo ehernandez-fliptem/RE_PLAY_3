@@ -97,6 +97,7 @@ type Props = {
   disabledDevicesMenu?: boolean;
   discretMenuDevices?: boolean;
   containerHeight?: number | string;
+  autoCaptureIne?: boolean;
 };
 
 export default function Camera({
@@ -113,6 +114,7 @@ export default function Camera({
   disabledDevicesMenu = false,
   discretMenuDevices = false,
   containerHeight = 350,
+  autoCaptureIne = false,
 }: Props) {
   const { delayProximaFoto } = useSelector(
     (state: IRootState) => state.config.data
@@ -135,6 +137,12 @@ export default function Camera({
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [detectionMode, setDetectionMode] = useState<1 | 2>(defaultMode);
   const [showModal, setShowModal] = useState(false);
+  const [autoCaptureHint, setAutoCaptureHint] = useState("");
+  const [autoCaptureDone, setAutoCaptureDone] = useState(false);
+  const stableFrameRef = useRef<{ data: Uint8ClampedArray | null; count: number }>({
+    data: null,
+    count: 0,
+  });
   const isIneCapture = String(name || "").toLowerCase().includes("ine");
   const isFluidHeight = typeof containerHeight === "string" && containerHeight === "100%";
   const cameraObjectFit = isIneCapture ? "contain" : "fill";
@@ -270,6 +278,93 @@ export default function Camera({
     if (setShow) setShow(false);
   };
 
+  const evaluateIneFrame = useCallback(() => {
+    const video = (camRef || webcamRef).current?.video;
+    const container = cameraBoxRef.current?.getBoundingClientRect();
+    if (!video || !container?.width || !container?.height || video.readyState < 2) {
+      return { ok: false, hint: "Preparando camara..." };
+    }
+
+    const srcW = video.videoWidth;
+    const srcH = video.videoHeight;
+    if (!srcW || !srcH) return { ok: false, hint: "Preparando camara..." };
+
+    const fitScale = Math.min(container.width / srcW, container.height / srcH);
+    const visibleW = srcW * fitScale;
+    const visibleH = srcH * fitScale;
+    const visibleX = (container.width - visibleW) / 2;
+    const visibleY = (container.height - visibleH) / 2;
+    const guide = getIneGuideRect(container.width, container.height);
+    const guideLeft = Math.max(guide.x, visibleX);
+    const guideTop = Math.max(guide.y, visibleY);
+    const guideRight = Math.min(guide.x + guide.width, visibleX + visibleW);
+    const guideBottom = Math.min(guide.y + guide.height, visibleY + visibleH);
+    const cropX = Math.round(((guideLeft - visibleX) / visibleW) * srcW);
+    const cropY = Math.round(((guideTop - visibleY) / visibleH) * srcH);
+    const cropW = Math.round(((guideRight - guideLeft) / visibleW) * srcW);
+    const cropH = Math.round(((guideBottom - guideTop) / visibleH) * srcH);
+
+    if (cropW < srcW * 0.35 || cropH < srcH * 0.25) {
+      return { ok: false, hint: "Centra la INE dentro del rectangulo" };
+    }
+
+    const sampleW = 96;
+    const sampleH = 60;
+    const canvas = document.createElement("canvas");
+    canvas.width = sampleW;
+    canvas.height = sampleH;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return { ok: false, hint: "No se pudo analizar la imagen" };
+    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, sampleW, sampleH);
+    const data = ctx.getImageData(0, 0, sampleW, sampleH).data;
+
+    let brightness = 0;
+    let contrast = 0;
+    let edgeScore = 0;
+    const gray = new Uint8ClampedArray(sampleW * sampleH);
+    for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+      const value = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+      gray[j] = value;
+      brightness += value;
+    }
+    brightness /= gray.length;
+    for (let i = 0; i < gray.length; i++) {
+      contrast += Math.abs(gray[i] - brightness);
+    }
+    contrast /= gray.length;
+    for (let y = 1; y < sampleH - 1; y++) {
+      for (let x = 1; x < sampleW - 1; x++) {
+        const idx = y * sampleW + x;
+        edgeScore += Math.abs(gray[idx] - gray[idx - 1]) + Math.abs(gray[idx] - gray[idx - sampleW]);
+      }
+    }
+    edgeScore /= sampleW * sampleH;
+
+    let motion = 0;
+    const prev = stableFrameRef.current.data;
+    if (prev) {
+      for (let i = 0; i < gray.length; i += 8) {
+        motion += Math.abs(gray[i] - prev[i]);
+      }
+      motion /= Math.ceil(gray.length / 8);
+    }
+    stableFrameRef.current.data = gray;
+
+    if (brightness < 55) return { ok: false, hint: "Falta luz" };
+    if (brightness > 225) return { ok: false, hint: "Hay mucho reflejo" };
+    if (contrast < 18 || edgeScore < 10) return { ok: false, hint: "Acerca o enfoca la INE" };
+    if (motion > 8) {
+      stableFrameRef.current.count = 0;
+      return { ok: false, hint: "Mantente quieto" };
+    }
+
+    stableFrameRef.current.count += 1;
+    return {
+      ok: stableFrameRef.current.count >= 3,
+      hint: stableFrameRef.current.count >= 2 ? "Capturando..." : "Mantente quieto",
+    };
+  }, [camRef]);
+
   useEffect(() => {
     const checkCameraPermissions = async () => {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -311,6 +406,26 @@ export default function Camera({
   useEffect(() => {
     setDetectionMode(defaultMode);
   }, [defaultMode]);
+
+  useEffect(() => {
+    setAutoCaptureDone(false);
+    stableFrameRef.current = { data: null, count: 0 };
+  }, [deviceId, name]);
+
+  useEffect(() => {
+    if (!autoCaptureIne || !isIneCapture || !webcamReady || autoCaptureDone || isScan) return;
+    const interval = window.setInterval(async () => {
+      const result = evaluateIneFrame();
+      setAutoCaptureHint(result.hint);
+      if (result.ok) {
+        setAutoCaptureDone(true);
+        window.clearInterval(interval);
+        await captureImage();
+      }
+    }, 700);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCaptureIne, isIneCapture, webcamReady, autoCaptureDone, isScan, evaluateIneFrame]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | undefined = undefined;
@@ -651,7 +766,7 @@ export default function Camera({
               }}
             >
               {isIneCapture
-                ? "Centra la INE dentro del rectángulo"
+                ? autoCaptureHint || "Centra la INE dentro del rectangulo"
                 : "Centra tu cara dentro del óvalo"}
             </Box>
           </Box>

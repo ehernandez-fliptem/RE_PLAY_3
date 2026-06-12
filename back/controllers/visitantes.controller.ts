@@ -292,6 +292,24 @@ const didDocChecksChange = (
 
 const ACCESS_MINUTES = 5;
 
+function ocrTraceId(): string {
+  return `ocr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function logOcrStep(traceId: string, step: string, data: Record<string, unknown> = {}) {
+  log(`${fecha()} [VISITANTES][OCR][${traceId}][${step}] ${JSON.stringify(data)}\n`);
+}
+
+function summarizeOcrText(text: string) {
+  const tokens = identityTokens(text);
+  return {
+    chars: String(text || "").length,
+    lines: String(text || "").split(/\r?\n/).filter(Boolean).length,
+    tokenCount: tokens.length,
+    tokens: tokens.slice(0, 20),
+  };
+}
+
 function normalizeIdentityText(value: unknown): string {
   return String(value || "")
     .normalize("NFD")
@@ -364,12 +382,25 @@ function compareIdentity(systemName: string, ocrText: string) {
   };
 }
 
-function decodeBase64Image(img: string): Buffer {
+function decodeBase64Image(img: string, traceId = ""): Buffer {
   const raw = String(img || "");
   const base64 = raw.includes("base64,") ? raw.split("base64,").pop() || "" : raw;
+  if (traceId) {
+    logOcrStep(traceId, "decode:start", {
+      hasDataUrlHeader: raw.includes("base64,"),
+      rawChars: raw.length,
+      base64Chars: base64.length,
+    });
+  }
   if (!base64.trim()) throw new Error("La imagen de INE viene vacia.");
 
   const imgBuffer = Buffer.from(base64, "base64");
+  if (traceId) {
+    logOcrStep(traceId, "decode:buffer", {
+      bytes: imgBuffer.length,
+      kb: Math.round(imgBuffer.length / 1024),
+    });
+  }
   if (imgBuffer.length < 1024) throw new Error("La imagen de INE no es valida.");
   if (imgBuffer.length > 12 * 1024 * 1024) throw new Error("La imagen de INE es demasiado pesada.");
 
@@ -384,9 +415,19 @@ function normalizeOcrOutput(value: string): string {
     .join("\n");
 }
 
-async function buildIneOcrVariants(imgBuffer: Buffer): Promise<Buffer[]> {
+async function buildIneOcrVariants(imgBuffer: Buffer, traceId = ""): Promise<Buffer[]> {
   const metadata = await sharp(imgBuffer).rotate().metadata();
   if (!metadata.width || !metadata.height) throw new Error("No se pudo leer la imagen de INE.");
+  if (traceId) {
+    logOcrStep(traceId, "image:metadata", {
+      width: metadata.width,
+      height: metadata.height,
+      format: metadata.format,
+      orientation: metadata.orientation,
+      space: metadata.space,
+      channels: metadata.channels,
+    });
+  }
 
   const base = sharp(imgBuffer).rotate();
   const normalized = await base
@@ -423,13 +464,40 @@ async function buildIneOcrVariants(imgBuffer: Buffer): Promise<Buffer[]> {
     .jpeg({ quality: 90 })
     .toBuffer();
 
-  return [normalized, highContrast, textZone];
+  const variants = [normalized, highContrast, textZone];
+  if (traceId) {
+    const variantMeta = await Promise.all(
+      variants.map(async (buffer, index) => {
+        const item = await sharp(buffer).metadata();
+        return {
+          index,
+          bytes: buffer.length,
+          kb: Math.round(buffer.length / 1024),
+          width: item.width,
+          height: item.height,
+        };
+      })
+    );
+    logOcrStep(traceId, "image:variants", { variants: variantMeta });
+  }
+  return variants;
 }
 
-async function runTesseract(buffer: Buffer, psm: number, lang = "spa"): Promise<string> {
+async function runTesseract(buffer: Buffer, psm: number, lang = "spa", traceId = "", attemptIndex = 0): Promise<string> {
   await fs.promises.mkdir(path.join(process.cwd(), "temp"), { recursive: true });
   const inputPath = path.join(process.cwd(), "temp", `ine-ocr-${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`);
   await fs.promises.writeFile(inputPath, buffer);
+  const startedAt = Date.now();
+  if (traceId) {
+    logOcrStep(traceId, "tesseract:start", {
+      attempt: attemptIndex,
+      psm,
+      lang,
+      inputBytes: buffer.length,
+      inputKb: Math.round(buffer.length / 1024),
+      tempFile: path.basename(inputPath),
+    });
+  }
   try {
     const text = await new Promise<string>((resolve, reject) => {
       execFile(
@@ -458,15 +526,29 @@ async function runTesseract(buffer: Buffer, psm: number, lang = "spa"): Promise<
         }
       );
     });
-    return normalizeOcrOutput(text);
+    const normalized = normalizeOcrOutput(text);
+    if (traceId) {
+      logOcrStep(traceId, "tesseract:done", {
+        attempt: attemptIndex,
+        psm,
+        lang,
+        ms: Date.now() - startedAt,
+        ...summarizeOcrText(normalized),
+      });
+    }
+    return normalized;
   } finally {
     fs.promises.unlink(inputPath).catch(() => {});
   }
 }
 
-async function runOcrAttempt(attempt: { buffer: Buffer; psm: number; lang?: string }): Promise<string> {
+async function runOcrAttempt(
+  attempt: { buffer: Buffer; psm: number; lang?: string },
+  traceId = "",
+  attemptIndex = 0
+): Promise<string> {
   return Promise.race([
-    runTesseract(attempt.buffer, attempt.psm, attempt.lang),
+    runTesseract(attempt.buffer, attempt.psm, attempt.lang, traceId, attemptIndex),
     new Promise<string>((_, reject) => {
       setTimeout(() => reject(new Error("Tiempo agotado al leer la INE.")), 28000);
     }),
@@ -477,9 +559,13 @@ function hasEnoughIdentityText(text: string): boolean {
   return identityTokens(text).length >= 2;
 }
 
-async function extractIneText(img: string, expectedName = ""): Promise<string> {
-  const imgBuffer = decodeBase64Image(img);
-  const variants = await buildIneOcrVariants(imgBuffer);
+async function extractIneText(img: string, expectedName = "", traceId = ""): Promise<string> {
+  logOcrStep(traceId, "extract:start", {
+    hasExpectedName: Boolean(expectedName),
+    expectedTokens: identityTokens(expectedName),
+  });
+  const imgBuffer = decodeBase64Image(img, traceId);
+  const variants = await buildIneOcrVariants(imgBuffer, traceId);
   const attempts: Array<{ buffer: Buffer; psm: number; lang?: string }> = [
     { buffer: variants[0], psm: 6, lang: "spa" },
     { buffer: variants[1], psm: 6, lang: "spa" },
@@ -490,15 +576,46 @@ async function extractIneText(img: string, expectedName = ""): Promise<string> {
   ];
   const texts: string[] = [];
 
-  for (const attempt of attempts) {
+  for (const [index, attempt] of attempts.entries()) {
     try {
-      const text = await runOcrAttempt(attempt);
+      logOcrStep(traceId, "attempt:before", {
+        attempt: index + 1,
+        psm: attempt.psm,
+        lang: attempt.lang,
+        variantBytes: attempt.buffer.length,
+      });
+      const text = await runOcrAttempt(attempt, traceId, index + 1);
       if (text && identityTokens(text).length > 0) texts.push(text);
       const mergedAttempt = texts.join("\n");
-      if (expectedName && compareIdentity(expectedName, mergedAttempt).ok) break;
-      if (!expectedName && hasEnoughIdentityText(mergedAttempt)) break;
+      const currentComparison = expectedName ? compareIdentity(expectedName, mergedAttempt) : null;
+      logOcrStep(traceId, "attempt:after", {
+        attempt: index + 1,
+        acceptedText: Boolean(text && identityTokens(text).length > 0),
+        merged: summarizeOcrText(mergedAttempt),
+        comparison: currentComparison
+          ? {
+              ok: currentComparison.ok,
+              matched: currentComparison.matched,
+              required: currentComparison.required,
+              score: currentComparison.score,
+            }
+          : null,
+      });
+      if (expectedName && currentComparison?.ok) {
+        logOcrStep(traceId, "attempt:stop", { reason: "identity_match", attempt: index + 1 });
+        break;
+      }
+      if (!expectedName && hasEnoughIdentityText(mergedAttempt)) {
+        logOcrStep(traceId, "attempt:stop", { reason: "enough_text", attempt: index + 1 });
+        break;
+      }
     } catch (error: any) {
-      log(fecha() + " WARN: OCR INE intento fallido: " + (error?.message || error) + "\n");
+      logOcrStep(traceId, "attempt:error", {
+        attempt: index + 1,
+        psm: attempt.psm,
+        lang: attempt.lang,
+        message: error?.message || String(error),
+      });
     }
   }
 
@@ -513,9 +630,11 @@ async function extractIneText(img: string, expectedName = ""): Promise<string> {
   ).join("\n");
 
   if (!hasEnoughIdentityText(merged)) {
+    logOcrStep(traceId, "extract:not_enough_text", { merged: summarizeOcrText(merged) });
     throw new Error("No se pudo extraer texto suficiente de la INE. Intenta con mejor luz y la credencial completa dentro del rectangulo.");
   }
 
+  logOcrStep(traceId, "extract:done", { merged: summarizeOcrText(merged) });
   return merged;
 }
 
@@ -1422,6 +1541,7 @@ export async function verificar(req: Request, res: Response): Promise<void> {
 }
 
 export async function autorizarAccesoQr(req: Request, res: Response): Promise<void> {
+  const traceId = ocrTraceId();
   try {
     const id_usuario = (req as UserRequest).userId;
     const {
@@ -1441,13 +1561,25 @@ export async function autorizarAccesoQr(req: Request, res: Response): Promise<vo
     };
 
     const qrValue = String(qr || "").trim();
+    logOcrStep(traceId, "request:start", {
+      userId: id_usuario,
+      modo,
+      qrPrefix: qrValue.slice(0, 6),
+      qrLength: qrValue.length,
+      hasIne: Boolean(String(img_ine || "").trim()),
+      ineChars: String(img_ine || "").length,
+      guardar_ine,
+      actualizar_datos,
+    });
     if (!/^VST[A-Z0-9]{16}$/.test(qrValue)) {
+      logOcrStep(traceId, "request:invalid_qr", { qrLength: qrValue.length });
       res.status(400).json({ estado: false, mensaje: "QR invalido o no corresponde a un visitante." });
       return;
     }
 
     const accessMode = String(modo || "entrada") as PanelAccessMode;
     if (!["entrada", "salida", "ambos"].includes(accessMode)) {
+      logOcrStep(traceId, "request:invalid_mode", { accessMode });
       res.status(400).json({ estado: false, mensaje: "Modo de acceso invalido." });
       return;
     }
@@ -1457,14 +1589,27 @@ export async function autorizarAccesoQr(req: Request, res: Response): Promise<vo
       "_id id_visitante nombre apellido_pat apellido_mat activo verificado bloqueado img_ine acceso_qr_estado acceso_qr_expira"
     ).lean<any>();
     if (!visitante) {
+      logOcrStep(traceId, "visitor:not_found", { qrPrefix: qrValue.slice(0, 6) });
       res.status(404).json({ estado: false, mensaje: "Visitante no encontrado." });
       return;
     }
+    logOcrStep(traceId, "visitor:loaded", {
+      id: String(visitante._id),
+      id_visitante: visitante.id_visitante,
+      activo: visitante.activo,
+      verificado: visitante.verificado,
+      bloqueado: visitante.bloqueado,
+      hasStoredIne: Boolean(String(visitante.img_ine || "").trim()),
+      acceso_qr_estado: visitante.acceso_qr_estado,
+      acceso_qr_expira: visitante.acceso_qr_expira,
+    });
     if (!visitante.activo) {
+      logOcrStep(traceId, "visitor:inactive");
       res.status(200).json({ estado: false, mensaje: "Visitante inactivo." });
       return;
     }
     if (!visitante.verificado) {
+      logOcrStep(traceId, "visitor:not_verified");
       res.status(200).json({ estado: false, mensaje: "El visitante no esta verificado." });
       return;
     }
@@ -1476,19 +1621,36 @@ export async function autorizarAccesoQr(req: Request, res: Response): Promise<vo
     let ocrText = "";
     let comparison: ReturnType<typeof compareIdentity> | null = null;
     const requiresIne = accessMode === "entrada" || accessMode === "ambos";
+    logOcrStep(traceId, "flow:mode", {
+      accessMode,
+      requiresIne,
+      fullNameChars: fullName.length,
+      expectedTokens: identityTokens(fullName),
+    });
     if (requiresIne) {
       if (!String(img_ine || "").trim()) {
+        logOcrStep(traceId, "ine:missing");
         res.status(200).json({ estado: false, requiere_ine: true, mensaje: "Para activar entrada se debe capturar la INE." });
         return;
       }
       try {
-      ocrText = await extractIneText(String(img_ine), fullName);
+        ocrText = await extractIneText(String(img_ine), fullName, traceId);
       } catch (error: any) {
+        logOcrStep(traceId, "ine:extract_error", { message: error?.message || String(error) });
         res.status(200).json({ estado: false, mensaje: `No se pudo leer la INE: ${error?.message || error}` });
         return;
       }
       comparison = compareIdentity(fullName, ocrText);
+      logOcrStep(traceId, "ine:comparison", {
+        ok: comparison.ok,
+        expected: comparison.expected,
+        found: comparison.found.slice(0, 30),
+        matched: comparison.matched,
+        required: comparison.required,
+        score: comparison.score,
+      });
       if (!comparison.ok) {
+        logOcrStep(traceId, "ine:rejected", { reason: "identity_mismatch" });
         res.status(200).json({
           estado: false,
           mensaje: "La identificacion no coincide con el visitante del QR.",
@@ -1511,17 +1673,30 @@ export async function autorizarAccesoQr(req: Request, res: Response): Promise<vo
         id_visitante: visitante._id,
         tipo_check: 6,
       }).sort({ fecha_creacion: -1 }).lean<any>();
+      logOcrStep(traceId, "exit:previous_events", {
+        hasEntrada: Boolean(ultimaEntrada),
+        entradaFecha: ultimaEntrada?.fecha_creacion,
+        hasSalida: Boolean(ultimaSalida),
+        salidaFecha: ultimaSalida?.fecha_creacion,
+      });
       if (!ultimaEntrada || (ultimaSalida && dayjs(ultimaSalida.fecha_creacion).isAfter(dayjs(ultimaEntrada.fecha_creacion)))) {
+        logOcrStep(traceId, "exit:rejected_no_open_visit");
         res.status(200).json({ estado: false, mensaje: "No se puede activar salida sin una entrada previa pendiente de salida." });
         return;
       }
     }
 
     const validRange = accessMode === "salida" ? getTodayValidRange() : getTemporaryValidRange(ACCESS_MINUTES);
+    logOcrStep(traceId, "panel:sync_start", { accessMode, validRange });
     const panelSync = await setVisitantePanelAccess({
       id_visitante: Number(visitante.id_visitante),
       target: accessMode,
       validRange,
+    });
+    logOcrStep(traceId, "panel:sync_done", {
+      total: panelSync.total,
+      actualizados: panelSync.actualizados?.length,
+      errores: panelSync.errores?.map((item: any) => ({ ip: item.ip, error: item.error || item.message || item.mensaje })).slice(0, 10),
     });
     const expira = dayjs(validRange.endTime).toDate();
     const updateData: Record<string, unknown> = {
@@ -1537,7 +1712,9 @@ export async function autorizarAccesoQr(req: Request, res: Response): Promise<vo
       modificado_por: id_usuario,
     };
     if (requiresIne && guardar_ine && String(img_ine || "").trim() && !String(visitante.img_ine || "").trim()) {
+      logOcrStep(traceId, "db:save_ine_start");
       updateData.img_ine = await resizeImage(String(img_ine));
+      logOcrStep(traceId, "db:save_ine_done");
     }
     if (requiresIne && actualizar_datos) {
       const materno = inferMissingMaterno({
@@ -1547,10 +1724,14 @@ export async function autorizarAccesoQr(req: Request, res: Response): Promise<vo
         ocrText,
       });
       if (materno) updateData.apellido_mat = materno;
+      logOcrStep(traceId, "db:infer_materno", { inferred: Boolean(materno), materno });
     }
 
+    logOcrStep(traceId, "db:update_start", { fields: Object.keys(updateData) });
     await Visitantes.updateOne({ _id: visitante._id }, { $set: updateData });
+    logOcrStep(traceId, "db:update_done");
 
+    logOcrStep(traceId, "request:success", { accessMode, expira, panelTotal: panelSync.total });
     res.status(200).json({
       estado: true,
       mensaje:
@@ -1568,6 +1749,7 @@ export async function autorizarAccesoQr(req: Request, res: Response): Promise<vo
       },
     });
   } catch (error: any) {
+    logOcrStep(traceId, "request:error", { name: error?.name, message: error?.message || String(error) });
     log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
     res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
   }

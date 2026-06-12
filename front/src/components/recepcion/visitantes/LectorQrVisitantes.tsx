@@ -63,6 +63,8 @@ export default function LectorQrVisitantes({
   const [result, setResult] = useState<ResultState | null>(null);
   const [isClosingManual, setIsClosingManual] = useState(false);
   const [manualCloseMessage, setManualCloseMessage] = useState<string>("");
+  const [identityError, setIdentityError] = useState("");
+  const [ineCameraKey, setIneCameraKey] = useState(0);
 
   const handleScan: OnResultFunction = async (scan) => {
     if (!scan?.getText()) return;
@@ -80,8 +82,26 @@ export default function LectorQrVisitantes({
   const handleRetry = () => {
     setResult(null);
     setManualCloseMessage("");
+    setIdentityError("");
+    setIneCameraKey((value) => value + 1);
     formContext.setValue(name, "");
     formContext.setValue("img_ine_validacion", "");
+  };
+
+  const handleRetryIdentity = () => {
+    setIdentityError("");
+    setIneCameraKey((value) => value + 1);
+    formContext.setValue("img_ine_validacion", "");
+    if (result?.qr) {
+      setResult({
+        ...result,
+        ok: false,
+        requiere_validacion_identidad: true,
+        message: result.nombre
+          ? `QR de ${result.nombre}. Captura la INE para habilitar entrada.`
+          : "Captura la INE para habilitar entrada.",
+      });
+    }
   };
 
   const handleManualClose = async () => {
@@ -124,9 +144,22 @@ export default function LectorQrVisitantes({
   const handleAuthorizeIdentity = async () => {
     if (!result?.qr || !ineCapture || !onAuthorizeIdentity) return;
     setIsLoading(true);
+    setIdentityError("");
     try {
       const next = await onAuthorizeIdentity({ qr: result.qr, img_ine: ineCapture });
-      setResult({ ...next, qr: result.qr });
+      if (next.ok) {
+        setResult({ ...next, qr: result.qr });
+      } else {
+        setIdentityError(next.message || "No se pudo validar la INE. Captura otra foto.");
+        formContext.setValue("img_ine_validacion", "");
+        setResult({
+          ...result,
+          ...next,
+          ok: false,
+          qr: result.qr,
+          requiere_validacion_identidad: true,
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -214,6 +247,11 @@ export default function LectorQrVisitantes({
             <Typography variant="body2" textAlign="center">
               {result.nombre ? `QR de ${result.nombre}. Captura la INE para habilitar entrada.` : result.message}
             </Typography>
+            {!!identityError && (
+              <Typography color="error.main" variant="body2" textAlign="center" fontWeight={600}>
+                {identityError}
+              </Typography>
+            )}
             <Box
               sx={{
                 width: "100%",
@@ -223,11 +261,13 @@ export default function LectorQrVisitantes({
               }}
             >
               <Camera
+                key={ineCameraKey}
                 name="img_ine_validacion"
                 showButton
                 defaultMode={1}
                 containerHeight={isMobile ? "min(52dvh, 430px)" : 380}
                 disabledDevicesMenu={false}
+                autoCaptureIne
               />
             </Box>
             {ineCapture && (
@@ -254,7 +294,15 @@ export default function LectorQrVisitantes({
             >
               Validar INE y habilitar entrada
             </Button>
-            <Button variant="outlined" startIcon={<Replay />} onClick={handleRetry}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ width: "100%", maxWidth: 520 }}>
+              <Button fullWidth variant="outlined" startIcon={<Replay />} onClick={handleRetryIdentity}>
+                Capturar INE de nuevo
+              </Button>
+              <Button fullWidth variant="contained" color="secondary" onClick={() => setShow(false)}>
+                Salir
+              </Button>
+            </Stack>
+            <Button variant="text" startIcon={<Replay />} onClick={handleRetry}>
               Escanear otro QR
             </Button>
           </Stack>
