@@ -607,6 +607,7 @@ export default function Camera({
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
+            flexShrink: 0,
           }}
         >
           <Select
@@ -625,9 +626,12 @@ export default function Camera({
       <Box
         component="footer"
         sx={{
-          mt: 2,
+          mt: isFluidHeight ? 1 : 2,
           display: "flex",
+          gap: 1,
+          flexShrink: 0,
           justifyContent: "space-between",
+          flexDirection: { xs: "column-reverse", sm: "row" },
         }}
       >
         {!!setShow && (

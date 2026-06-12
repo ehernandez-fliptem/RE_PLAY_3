@@ -203,7 +203,9 @@ export default function LectorQrVisitantes({
               py: { xs: 1, sm: 2 },
               flex: 1,
               minHeight: 0,
-              overflow: "hidden",
+              overflowY: "auto",
+              overflowX: "hidden",
+              pr: { xs: 0.5, sm: 0 },
             }}
           >
             <Typography variant="h6" textAlign="center">
@@ -216,7 +218,7 @@ export default function LectorQrVisitantes({
               sx={{
                 width: "100%",
                 maxWidth: 680,
-                flex: { xs: 1, sm: "unset" },
+                flex: { xs: "0 0 auto", sm: "unset" },
                 minHeight: { xs: 0, sm: "unset" },
               }}
             >
@@ -224,7 +226,7 @@ export default function LectorQrVisitantes({
                 name="img_ine_validacion"
                 showButton
                 defaultMode={1}
-                containerHeight={isMobile ? "100%" : 380}
+                containerHeight={isMobile ? "min(52dvh, 430px)" : 380}
                 disabledDevicesMenu={false}
               />
             </Box>

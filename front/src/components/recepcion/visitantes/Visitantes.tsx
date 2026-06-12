@@ -1192,12 +1192,12 @@ const accionBloquear = (ID: string) => {
           />
           {(accessModal.modo === "entrada" || accessModal.modo === "ambos") && (
             <FormProvider {...accessForm}>
-              <Box sx={{ flex: fullScreenAccessModal ? 1 : "unset", minHeight: 0 }}>
+              <Box sx={{ flex: "0 0 auto", minHeight: 0 }}>
                 <Camera
                   name="img_ine_manual"
                   showButton
                   defaultMode={1}
-                  containerHeight={fullScreenAccessModal ? "100%" : 380}
+                  containerHeight={fullScreenAccessModal ? "min(54dvh, 440px)" : 380}
                 />
               </Box>
               {manualIne && (
