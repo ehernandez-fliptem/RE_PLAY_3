@@ -42,6 +42,14 @@ export default function ModalContainer({
           p: 2,
           outline: "none",
           "&:focus, &:focus-visible": { outline: "none" },
+          "&.app-modal-background-active, &:has(.app-spinner-background)": {
+            pointerEvents: "none",
+          },
+          "&.app-modal-background-active .MuiBackdrop-root, &:has(.app-spinner-background) .MuiBackdrop-root": {
+            opacity: "0 !important",
+            visibility: "hidden",
+            pointerEvents: "none",
+          },
         },
         ...(Array.isArray(modalSx) ? modalSx : modalSx ? [modalSx] : []),
       ]}
@@ -57,6 +65,32 @@ export default function ModalContainer({
             paddingX: 0,
             outline: "none",
             "&:focus, &:focus-visible": { outline: "none" },
+            "&:has(.app-spinner-compact)": {
+              width: "min(340px, calc(100dvw - 32px))",
+              maxWidth: "min(340px, calc(100dvw - 32px))",
+            },
+            "&:has(.app-spinner-background)": {
+              position: "fixed",
+              right: 16,
+              bottom: 16,
+              width: "fit-content",
+              minWidth: 132,
+              maxWidth: "min(220px, calc(100dvw - 32px))",
+              maxHeight: "none",
+              pointerEvents: "none",
+            },
+            "&:has(.app-spinner-background) .MuiCard-root": {
+              bgcolor: "background.paper",
+              borderRadius: 2,
+              boxShadow: "0 8px 24px rgba(15, 23, 42, 0.16)",
+            },
+            "&:has(.app-spinner-background) .MuiCardContent-root": {
+              py: 1,
+              px: 1.5,
+              "&:last-child": {
+                pb: 1,
+              },
+            },
           },
           ...(Array.isArray(containerSx) ? containerSx : containerSx ? [containerSx] : []),
         ]}

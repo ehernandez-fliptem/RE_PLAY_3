@@ -1010,6 +1010,9 @@ export async function sincronizarPanel(req: Request, res: Response): Promise<voi
 
 export async function sincronizarVisitanteEnPanel(req: Request, res: Response): Promise<void> {
     console.log("Iniciando sincrionizacion de visitantes oanel 1")
+  const PANEL_CONNECT_TIMEOUT_SECONDS = 2;
+  const PANEL_MAX_TIME_SECONDS = 8;
+  const PANEL_PROCESS_TIMEOUT_MS = 10000;
   // ===============================
   // Curl helper: devuelve status + body (NO revienta en 400/500)
   // ===============================
@@ -1018,8 +1021,18 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
       const marker = "___HTTP_STATUS___";
       execFile(
         "curl",
-        ["--silent", "--show-error", ...args, "-w", `\n${marker}%{http_code}`],
-        { windowsHide: true, timeout: 60000, maxBuffer: 20 * 1024 * 1024 },
+        [
+          "--silent",
+          "--show-error",
+          "--connect-timeout",
+          String(PANEL_CONNECT_TIMEOUT_SECONDS),
+          "--max-time",
+          String(PANEL_MAX_TIME_SECONDS),
+          ...args,
+          "-w",
+          `\n${marker}%{http_code}`,
+        ],
+        { windowsHide: true, timeout: PANEL_PROCESS_TIMEOUT_MS, maxBuffer: 20 * 1024 * 1024 },
         (err, stdout, stderr) => {
           const out = String(stdout || "");
           const errText = String(stderr || "").trim();
@@ -1391,7 +1404,14 @@ export async function sincronizarVisitanteEnPanel(req: Request, res: Response): 
     });
   } catch (e: any) {
     console.log("[SYNC-VIS] ERROR:", String(e?.message || e));
-    res.status(500).json({ estado: false, mensaje: String(e?.message || e) });
+    res.status(200).json({
+      estado: true,
+      datos: {
+        skipped: true,
+        codigo: "PANEL_NO_DISPONIBLE",
+      },
+      mensaje: "Panel no disponible, se omitio la sincronizacion en segundo plano.",
+    });
   }
 }
 

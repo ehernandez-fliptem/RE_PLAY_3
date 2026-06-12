@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Box, Stack, styled, Typography, type Theme } from "@mui/material";
 type Sizes = "small" | "medium" | "large";
 type LoaderProps = {
@@ -79,19 +80,51 @@ type Props = {
   title?: string;
   fullPage?: boolean;
   size?: Sizes;
+  backgroundAfterMs?: number;
 };
 
-export default function Spinner({ title, fullPage, size }: Props) {
+export default function Spinner({ title, fullPage, size, backgroundAfterMs = 8000 }: Props) {
+  const [isBackground, setIsBackground] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (size === "small" || backgroundAfterMs <= 0) return;
+    const timer = window.setTimeout(() => setIsBackground(true), backgroundAfterMs);
+    return () => window.clearTimeout(timer);
+  }, [backgroundAfterMs, size]);
+
+  useEffect(() => {
+    const modalRoot = rootRef.current?.closest('[role="presentation"]');
+    if (!modalRoot) return;
+    if (isBackground) {
+      modalRoot.classList.add("app-modal-background-active");
+    }
+    return () => {
+      modalRoot.classList.remove("app-modal-background-active");
+    };
+  }, [isBackground]);
+
   if (size === "small") {
     return <Loader size={size} />;
   }
 
-  const label = title || "Cargando";
+  const label = isBackground ? "Cargando" : title || "Cargando";
 
   return (
     <Box
+      ref={rootRef}
+      className={isBackground ? "app-spinner-compact app-spinner-background" : "app-spinner-compact"}
       sx={
-        fullPage
+        isBackground
+          ? {
+              width: "100%",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              py: 1.5,
+              px: 2,
+            }
+          : fullPage
           ? {
             width: "100dvw",
             height: "100dvh",
@@ -111,21 +144,18 @@ export default function Spinner({ title, fullPage, size }: Props) {
       component={Stack}
     >
       <Box
-        sx={(theme) => ({
-          width: { xs: 148, sm: 160 },
-          minHeight: { xs: 138, sm: 150 },
-          borderRadius: 3,
-          bgcolor: "background.paper",
-          border: `1px solid ${theme.palette.divider}`,
-          boxShadow: "0 16px 40px rgba(15, 23, 42, 0.16)",
+        sx={{
+          width: "fit-content",
+          minWidth: isBackground ? "auto" : 96,
+          minHeight: isBackground ? "auto" : 92,
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          gap: 2,
-        })}
+          gap: isBackground ? 0 : 1.5,
+        }}
       >
-        <Loader size={size || "medium"} />
+        {!isBackground && <Loader size={size || "medium"} />}
         <Typography
           variant="body2"
           sx={{
@@ -134,6 +164,7 @@ export default function Spinner({ title, fullPage, size }: Props) {
             letterSpacing: 0,
             lineHeight: 1.2,
             textAlign: "center",
+            whiteSpace: "nowrap",
           }}
         >
           {label}

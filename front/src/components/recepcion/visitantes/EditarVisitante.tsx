@@ -345,10 +345,14 @@ export default function EditarVisitante() {
                 try {
                   const panelId = p._id;
                   const syncRes = await clienteAxios.get(
-                    `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${ID}`
+                    `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${ID}`,
+                    { timeout: 12000 }
                   );
                   console.log("[SYNC-VIS] respuesta FDSetUp", syncRes.data);
-                  if (syncRes.data?.estado === false) {
+                  if (
+                    syncRes.data?.estado === false &&
+                    ["FACE_INVALID", "FACE_DELETE_FAILED"].includes(String(syncRes.data?.codigo || ""))
+                  ) {
                     faceInvalid = true;
                     faceInvalidMessage =
                       syncRes.data?.mensaje || faceInvalidMessage;
@@ -380,7 +384,8 @@ export default function EditarVisitante() {
                 for (const panelId of panelesARevertir) {
                   try {
                     await clienteAxios.get(
-                      `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${ID}`
+                      `/api/dispositivos-hikvision/sincronizar-visitante/${panelId}/${ID}`,
+                      { timeout: 12000 }
                     );
                   } catch {
                     // Si una restauracion de panel falla, no bloquea el modal final.
