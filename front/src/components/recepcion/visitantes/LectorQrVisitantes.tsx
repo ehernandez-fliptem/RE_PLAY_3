@@ -72,7 +72,10 @@ export default function LectorQrVisitantes({
     setIsLoading(true);
     const value = scan.getText();
     formContext.setValue(name, value);
+    formContext.setValue("img_ine_validacion", "");
+    setIneCameraKey((current) => current + 1);
     setIdentityValidationFailed(false);
+    setIdentityError("");
     try {
       const next = await onQrValidate(value);
       setResult({ ...next, qr: value });
@@ -137,7 +140,10 @@ export default function LectorQrVisitantes({
     if (!testQr) return;
     setIsLoading(true);
     formContext.setValue(name, testQr);
+    formContext.setValue("img_ine_validacion", "");
+    setIneCameraKey((current) => current + 1);
     setIdentityValidationFailed(false);
+    setIdentityError("");
     try {
       const next = await onQrValidate(testQr);
       setResult({ ...next, qr: testQr });
