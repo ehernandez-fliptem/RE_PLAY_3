@@ -12,6 +12,8 @@ import {
   ChevronLeft,
   Devices,
   Face,
+  FlashlightOff,
+  FlashlightOn,
   QrCode,
 } from "@mui/icons-material";
 import {
@@ -139,6 +141,9 @@ export default function Camera({
   const [showModal, setShowModal] = useState(false);
   const [autoCaptureHint, setAutoCaptureHint] = useState("");
   const [autoCaptureDone, setAutoCaptureDone] = useState(false);
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchEnabled, setTorchEnabled] = useState(false);
   const stableFrameRef = useRef<{ data: Uint8ClampedArray | null; count: number }>({
     data: null,
     count: 0,
@@ -526,7 +531,34 @@ export default function Camera({
   }, [camRef, handleScanFace, delayProximaFoto]);
 
   const handleDeviceChange = (newDeviceId: string) => {
+    setTorchEnabled(false);
+    setTorchSupported(false);
+    setMediaStream(null);
     setDeviceId(newDeviceId);
+  };
+
+  const handleUserMedia = (stream: MediaStream) => {
+    setMediaStream(stream);
+    const track = stream.getVideoTracks()[0];
+    const capabilities = track?.getCapabilities?.() as MediaTrackCapabilities & { torch?: boolean };
+    setTorchSupported(Boolean(capabilities?.torch));
+    setTorchEnabled(false);
+  };
+
+  const toggleTorch = async () => {
+    const track = mediaStream?.getVideoTracks()[0];
+    if (!track || !torchSupported) return;
+    const next = !torchEnabled;
+    try {
+      await track.applyConstraints({
+        advanced: [{ torch: next } as MediaTrackConstraintSet],
+      });
+      setTorchEnabled(next);
+    } catch (error) {
+      setTorchSupported(false);
+      setTorchEnabled(false);
+      handlingError(error);
+    }
   };
 
   const handleClickOpen = () => {
@@ -638,6 +670,19 @@ export default function Camera({
             </Button>
           </Box>
         )}
+        {isIneCapture && torchSupported && !isScan && (
+          <Box sx={{ position: "absolute", top: 12, right: 12, zIndex: 95 }}>
+            <Button
+              variant="contained"
+              color={torchEnabled ? "warning" : "secondary"}
+              onClick={toggleTorch}
+              sx={{ minWidth: 44, width: 44, height: 44, borderRadius: "50%", p: 0 }}
+              title={torchEnabled ? "Apagar flash" : "Prender flash"}
+            >
+              {torchEnabled ? <FlashlightOff /> : <FlashlightOn />}
+            </Button>
+          </Box>
+        )}
         {detectionMode === 1 && (
           <Fragment>
             {isScan ? (
@@ -681,6 +726,7 @@ export default function Camera({
                     mensaje: formatCameraError(error),
                   })
                 }
+                onUserMedia={handleUserMedia}
                 screenshotFormat="image/jpeg"
                 videoConstraints={webcamConstraints}
                 style={{ width: "100%", height: "100%", objectFit: cameraObjectFit }}
@@ -702,6 +748,7 @@ export default function Camera({
                   mensaje: formatCameraError(error),
                 })
               }
+              onUserMedia={handleUserMedia}
               screenshotFormat="image/jpeg"
               videoConstraints={webcamConstraints}
               style={{ width: "100%", height: "100%", objectFit: cameraObjectFit }}
