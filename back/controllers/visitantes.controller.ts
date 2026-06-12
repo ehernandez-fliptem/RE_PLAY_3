@@ -481,6 +481,8 @@ async function buildIneOcrVariants(imgBuffer: Buffer, traceId = ""): Promise<Ocr
     await makeVariant("full_normal", null, "normal", 1600),
     await makeVariant("full_threshold", null, "threshold", 1600),
     await makeVariant("card_text_contrast", fromRegion(0.14, 0.18, 0.70, 0.60), "contrast", 1500),
+    await makeVariant("name_block_contrast", fromRegion(0.325, 0.385, 0.36, 0.13), "contrast", 1600),
+    await makeVariant("name_block_normal", fromRegion(0.325, 0.385, 0.36, 0.13), "normal", 1600),
     await makeVariant("name_wide_contrast", fromRegion(0.27, 0.28, 0.46, 0.26), "contrast", 1400),
     await makeVariant("name_photo_contrast", fromRegion(0.30, 0.36, 0.42, 0.18), "contrast", 1400),
     await makeVariant("name_tight_normal", fromRegion(0.32, 0.38, 0.32, 0.12), "normal", 1300),
@@ -616,6 +618,8 @@ async function extractIneText(img: string, expectedName = "", traceId = ""): Pro
   const variants = await buildIneOcrVariants(imgBuffer, traceId);
   const byName = new Map(variants.map((variant) => [variant.name, variant]));
   const attempts: OcrAttempt[] = [
+    { variant: byName.get("name_block_contrast") || variants[0], psm: 6, lang: "spa" },
+    { variant: byName.get("name_block_normal") || variants[0], psm: 6, lang: "spa" },
     { variant: byName.get("name_wide_contrast") || variants[0], psm: 6, lang: "spa" },
     { variant: byName.get("name_tight_normal") || variants[0], psm: 6, lang: "spa" },
     { variant: byName.get("center_text_normal") || variants[0], psm: 6, lang: "spa" },
@@ -690,14 +694,6 @@ async function extractIneText(img: string, expectedName = "", traceId = ""): Pro
   return merged;
 }
 
-function inferMissingMaterno(params: { nombre: string; apellido_pat: string; apellido_mat?: string; ocrText: string }) {
-  if (String(params.apellido_mat || "").trim()) return "";
-  const expected = new Set(identityTokens(`${params.nombre} ${params.apellido_pat}`));
-  const found = identityTokens(params.ocrText);
-  const extras = found.filter((token) => !expected.has(token));
-  return extras.length ? formatPersonNamePart(extras[extras.length - 1]) : "";
-}
-
 type IneNameData = {
   nombre: string;
   apellido_pat: string;
@@ -707,6 +703,7 @@ type IneNameData = {
 
 const INE_NAME_STOP_HEADERS = new Set([
   "NOMBRE",
+  "NUMBRE",
   "DOMICILIO",
   "SEXO",
   "FECHA DE NACIMIENTO",
@@ -722,15 +719,47 @@ const INE_NAME_STOP_HEADERS = new Set([
   "VIGENCIA",
 ]);
 
-function isLikelyIneNameLine(line: string): boolean {
+const INE_NAME_NOISE_TOKENS = new Set([
+  "MY",
+  "MN",
+  "MM",
+  "AA",
+  "AY",
+  "UN",
+  "EL",
+  "ESO",
+  "NETA",
+  "NEAL",
+  "SOTO",
+]);
+
+function isIneNameHeader(line: string): boolean {
+  const [firstToken] = normalizeIdentityText(line).split(" ").filter(Boolean);
+  return Boolean(firstToken) && tokenSimilarity(firstToken, "NOMBRE") >= 0.78;
+}
+
+function isIneStopHeader(line: string): boolean {
   const normalized = normalizeIdentityText(line);
-  if (!normalized || normalized.length < 3) return false;
-  if (INE_NAME_STOP_HEADERS.has(normalized)) return false;
-  if ([...INE_NAME_STOP_HEADERS].some((header) => normalized.startsWith(`${header} `))) return false;
-  if (/\d/.test(normalized)) return false;
-  const tokens = normalized.split(" ").filter(Boolean);
-  if (!tokens.length || tokens.length > 4) return false;
-  return tokens.every((token) => /^[A-ZÑ]{3,}$/.test(token));
+  return [...INE_NAME_STOP_HEADERS].some((header) => normalized === header || normalized.startsWith(`${header} `));
+}
+
+function cleanIneNameCandidateLine(line: string): string {
+  let normalized = normalizeIdentityText(line);
+  for (const header of INE_NAME_STOP_HEADERS) {
+    const index = normalized.indexOf(header);
+    if (index === 0) return "";
+    if (index > 0) normalized = normalized.slice(0, index).trim();
+  }
+  const tokens = normalized
+    .split(" ")
+    .filter((token) =>
+      token.length > 2 &&
+      /^[A-ZÑ]+$/.test(token) &&
+      !INE_NAME_STOP_HEADERS.has(token) &&
+      !INE_NAME_NOISE_TOKENS.has(token)
+    );
+  if (!tokens.length || tokens.length > 4) return "";
+  return tokens.join(" ");
 }
 
 function cleanIneNameLine(line: string): string {
@@ -745,24 +774,26 @@ function parseIneNameBlock(ocrText: string): IneNameData | null {
     .map((line) => cleanIneNameLine(line))
     .filter(Boolean);
 
-  const nameIndex = lines.findIndex((line) => line === "NOMBRE" || line.startsWith("NOMBRE "));
+  const nameIndex = lines.findIndex((line) => isIneNameHeader(line));
   const candidates: string[] = [];
 
   if (nameIndex >= 0) {
-    const sameLine = lines[nameIndex].replace(/^NOMBRE\s*/, "").trim();
-    if (isLikelyIneNameLine(sameLine)) candidates.push(sameLine);
+    const sameLine = lines[nameIndex].split(" ").slice(1).join(" ").trim();
+    const sameLineName = cleanIneNameCandidateLine(sameLine);
+    if (sameLineName) candidates.push(sameLineName);
 
     for (let index = nameIndex + 1; index < lines.length && candidates.length < 3; index += 1) {
       const line = lines[index];
-      if ([...INE_NAME_STOP_HEADERS].some((header) => line === header || line.startsWith(`${header} `))) break;
-      if (isLikelyIneNameLine(line)) candidates.push(line);
+      if (isIneStopHeader(line)) break;
+      const candidate = cleanIneNameCandidateLine(line);
+      if (candidate) candidates.push(candidate);
     }
   }
 
   if (candidates.length < 3) {
     for (let index = 0; index <= lines.length - 3; index += 1) {
-      const block = lines.slice(index, index + 3);
-      if (block.every(isLikelyIneNameLine)) {
+      const block = lines.slice(index, index + 3).map(cleanIneNameCandidateLine);
+      if (block.every(Boolean)) {
         const after = lines[index + 3] || "";
         if (after === "DOMICILIO" || after.startsWith("DOMICILIO ")) {
           candidates.splice(0, candidates.length, ...block);
@@ -790,12 +821,12 @@ function inferIdentityDataFromIne(params: {
   const parsed = parseIneNameBlock(params.ocrText);
   if (!parsed) return null;
 
-  const currentTokens = identityTokens(`${params.nombre} ${params.apellido_pat} ${params.apellido_mat || ""}`);
+  const currentTokens = identityTokens(`${params.nombre} ${params.apellido_pat}`);
   const parsedTokens = identityTokens(`${parsed.nombre} ${parsed.apellido_pat} ${parsed.apellido_mat}`);
   const matchedCurrent = currentTokens.filter((token) =>
     parsedTokens.some((candidate) => tokenSimilarity(token, candidate) >= 0.82)
   );
-  const minimumMatches = currentTokens.length <= 2 ? currentTokens.length : Math.ceil(currentTokens.length * 0.67);
+  const minimumMatches = currentTokens.length <= 1 ? 2 : Math.min(2, currentTokens.length);
   if (!currentTokens.length || matchedCurrent.length < minimumMatches) return null;
 
   return parsed;
@@ -1890,14 +1921,7 @@ export async function autorizarAccesoQr(req: Request, res: Response): Promise<vo
           apellido_mat: ineNameData.apellido_mat,
         });
       } else {
-        const materno = inferMissingMaterno({
-          nombre: visitante.nombre,
-          apellido_pat: visitante.apellido_pat,
-          apellido_mat: visitante.apellido_mat,
-          ocrText,
-        });
-        if (materno) updateData.apellido_mat = materno;
-        logOcrStep(traceId, "db:infer_identity", { inferred: Boolean(materno), fallbackMaterno: materno });
+        logOcrStep(traceId, "db:infer_identity", { inferred: false, reason: "name_block_not_found" });
       }
     }
 
