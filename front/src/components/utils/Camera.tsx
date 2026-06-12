@@ -119,6 +119,7 @@ export default function Camera({
   );
   const webcamRef = useRef<Webcam>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const cameraBoxRef = useRef<HTMLDivElement>(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { showBoundary } = useErrorBoundary();
@@ -167,16 +168,65 @@ export default function Camera({
     [setDevices, isMobile]
   );
 
+  const getIneGuideRect = (containerW: number, containerH: number) => {
+    const aspect = 1.586;
+    let width = Math.min(containerW * 0.88, 640);
+    let height = width / aspect;
+    const maxHeight = containerH * 0.58;
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = height * aspect;
+    }
+    return {
+      x: (containerW - width) / 2,
+      y: (containerH - height) / 2,
+      width,
+      height,
+    };
+  };
+  const ineGuideSx = isIneCapture
+    ? {
+        width: "min(88%, 640px)",
+        aspectRatio: "1.586 / 1",
+        maxHeight: "58%",
+        height: "auto",
+      }
+    : {};
+
   const cropIneFromDataUrl = (dataUrl: string): Promise<string> =>
     new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
         const srcW = img.width;
         const srcH = img.height;
-        const cropW = Math.round(srcW * 0.78);
-        const cropH = Math.round(srcH * 0.54);
-        const cropX = Math.round((srcW - cropW) / 2);
-        const cropY = Math.round((srcH - cropH) / 2);
+        const container = cameraBoxRef.current?.getBoundingClientRect();
+        let cropX = Math.round(srcW * 0.06);
+        let cropY = Math.round(srcH * 0.12);
+        let cropW = Math.round(srcW * 0.88);
+        let cropH = Math.round(srcH * 0.76);
+
+        if (container?.width && container?.height) {
+          const fitScale = Math.min(container.width / srcW, container.height / srcH);
+          const visibleW = srcW * fitScale;
+          const visibleH = srcH * fitScale;
+          const visibleX = (container.width - visibleW) / 2;
+          const visibleY = (container.height - visibleH) / 2;
+          const guide = getIneGuideRect(container.width, container.height);
+          const guideLeft = Math.max(guide.x, visibleX);
+          const guideTop = Math.max(guide.y, visibleY);
+          const guideRight = Math.min(guide.x + guide.width, visibleX + visibleW);
+          const guideBottom = Math.min(guide.y + guide.height, visibleY + visibleH);
+
+          cropX = Math.round(((guideLeft - visibleX) / visibleW) * srcW);
+          cropY = Math.round(((guideTop - visibleY) / visibleH) * srcH);
+          cropW = Math.round(((guideRight - guideLeft) / visibleW) * srcW);
+          cropH = Math.round(((guideBottom - guideTop) / visibleH) * srcH);
+        }
+
+        cropX = Math.max(0, Math.min(srcW - 1, cropX));
+        cropY = Math.max(0, Math.min(srcH - 1, cropY));
+        cropW = Math.max(1, Math.min(srcW - cropX, cropW));
+        cropH = Math.max(1, Math.min(srcH - cropY, cropH));
 
         const maxWidth = 1400;
         const scale = Math.min(1, maxWidth / cropW);
@@ -442,6 +492,7 @@ export default function Camera({
       )}
       {!webcamReady && <Spinner />}
       <Box
+        ref={cameraBoxRef}
         sx={{
           position: "relative",
           display: webcamReady ? "flex" : "none",
@@ -574,10 +625,10 @@ export default function Camera({
             >
               <Box
                 sx={{
-                  width: isIneCapture ? "min(88%, 640px)" : "62%",
-                  aspectRatio: isIneCapture ? "1.586 / 1" : undefined,
-                  maxHeight: isIneCapture ? "58%" : undefined,
-                  height: isIneCapture ? "auto" : "78%",
+                  width: isIneCapture ? ineGuideSx.width : "62%",
+                  aspectRatio: isIneCapture ? ineGuideSx.aspectRatio : undefined,
+                  maxHeight: isIneCapture ? ineGuideSx.maxHeight : undefined,
+                  height: isIneCapture ? ineGuideSx.height : "78%",
                   borderRadius: isIneCapture ? "12px" : "50%",
                   border: "2px solid rgba(255,255,255,0.85)",
                   backgroundColor: "transparent",

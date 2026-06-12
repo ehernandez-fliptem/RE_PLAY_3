@@ -388,8 +388,9 @@ async function buildIneOcrVariants(imgBuffer: Buffer): Promise<Buffer[]> {
   const metadata = await sharp(imgBuffer).rotate().metadata();
   if (!metadata.width || !metadata.height) throw new Error("No se pudo leer la imagen de INE.");
 
-  const normalized = await sharp(imgBuffer)
-    .rotate()
+  const base = sharp(imgBuffer).rotate();
+  const normalized = await base
+    .clone()
     .resize({ width: 1400, height: 900, fit: "inside", withoutEnlargement: false })
     .greyscale()
     .normalize()
@@ -397,8 +398,8 @@ async function buildIneOcrVariants(imgBuffer: Buffer): Promise<Buffer[]> {
     .jpeg({ quality: 88 })
     .toBuffer();
 
-  const highContrast = await sharp(imgBuffer)
-    .rotate()
+  const highContrast = await base
+    .clone()
     .resize({ width: 1500, height: 950, fit: "inside", withoutEnlargement: false })
     .greyscale()
     .linear(1.18, -8)
@@ -407,10 +408,25 @@ async function buildIneOcrVariants(imgBuffer: Buffer): Promise<Buffer[]> {
     .jpeg({ quality: 88 })
     .toBuffer();
 
-  return [normalized, highContrast];
+  const textZone = await base
+    .clone()
+    .extract({
+      left: Math.round(metadata.width * 0.14),
+      top: Math.round(metadata.height * 0.18),
+      width: Math.round(metadata.width * 0.62),
+      height: Math.round(metadata.height * 0.58),
+    })
+    .resize({ width: 1200, fit: "inside", withoutEnlargement: false })
+    .greyscale()
+    .normalize()
+    .sharpen()
+    .jpeg({ quality: 90 })
+    .toBuffer();
+
+  return [normalized, highContrast, textZone];
 }
 
-async function runTesseract(buffer: Buffer, psm: number): Promise<string> {
+async function runTesseract(buffer: Buffer, psm: number, lang = "spa"): Promise<string> {
   await fs.promises.mkdir(path.join(process.cwd(), "temp"), { recursive: true });
   const inputPath = path.join(process.cwd(), "temp", `ine-ocr-${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`);
   await fs.promises.writeFile(inputPath, buffer);
@@ -422,7 +438,7 @@ async function runTesseract(buffer: Buffer, psm: number): Promise<string> {
           inputPath,
           "stdout",
           "-l",
-          "spa",
+          lang,
           "--oem",
           "3",
           "--psm",
@@ -448,9 +464,9 @@ async function runTesseract(buffer: Buffer, psm: number): Promise<string> {
   }
 }
 
-async function runOcrAttempt(attempt: { buffer: Buffer; psm: number }): Promise<string> {
+async function runOcrAttempt(attempt: { buffer: Buffer; psm: number; lang?: string }): Promise<string> {
   return Promise.race([
-    runTesseract(attempt.buffer, attempt.psm),
+    runTesseract(attempt.buffer, attempt.psm, attempt.lang),
     new Promise<string>((_, reject) => {
       setTimeout(() => reject(new Error("Tiempo agotado al leer la INE.")), 28000);
     }),
@@ -461,12 +477,16 @@ function hasEnoughIdentityText(text: string): boolean {
   return identityTokens(text).length >= 2;
 }
 
-async function extractIneText(img: string): Promise<string> {
+async function extractIneText(img: string, expectedName = ""): Promise<string> {
   const imgBuffer = decodeBase64Image(img);
   const variants = await buildIneOcrVariants(imgBuffer);
-  const attempts: Array<{ buffer: Buffer; psm: number }> = [
-    { buffer: variants[0], psm: 6 },
-    { buffer: variants[1], psm: 11 },
+  const attempts: Array<{ buffer: Buffer; psm: number; lang?: string }> = [
+    { buffer: variants[0], psm: 6, lang: "spa" },
+    { buffer: variants[1], psm: 6, lang: "spa" },
+    { buffer: variants[2], psm: 6, lang: "spa" },
+    { buffer: variants[0], psm: 11, lang: "spa" },
+    { buffer: variants[2], psm: 11, lang: "spa" },
+    { buffer: variants[2], psm: 6, lang: "eng" },
   ];
   const texts: string[] = [];
 
@@ -474,7 +494,9 @@ async function extractIneText(img: string): Promise<string> {
     try {
       const text = await runOcrAttempt(attempt);
       if (text && identityTokens(text).length > 0) texts.push(text);
-      if (hasEnoughIdentityText(texts.join("\n"))) break;
+      const mergedAttempt = texts.join("\n");
+      if (expectedName && compareIdentity(expectedName, mergedAttempt).ok) break;
+      if (!expectedName && hasEnoughIdentityText(mergedAttempt)) break;
     } catch (error: any) {
       log(fecha() + " WARN: OCR INE intento fallido: " + (error?.message || error) + "\n");
     }
@@ -1460,7 +1482,7 @@ export async function autorizarAccesoQr(req: Request, res: Response): Promise<vo
         return;
       }
       try {
-        ocrText = await extractIneText(String(img_ine));
+      ocrText = await extractIneText(String(img_ine), fullName);
       } catch (error: any) {
         res.status(200).json({ estado: false, mensaje: `No se pudo leer la INE: ${error?.message || error}` });
         return;
@@ -2447,4 +2469,3 @@ export const desbloquearBack = async (req: Request, res: Response) => {
         return res.status(500).json({ estado: false, mensaje: "Error al desbloquear visitante" });
     }
 };
-
