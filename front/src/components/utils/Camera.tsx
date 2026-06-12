@@ -683,6 +683,41 @@ export default function Camera({
             </Button>
           </Box>
         )}
+        {isIneCapture && showButton && webcamReady && !isScan && (
+          <Box
+            sx={{
+              position: "absolute",
+              left: 12,
+              right: 12,
+              bottom: 12,
+              zIndex: 96,
+              display: "flex",
+              justifyContent: "center",
+              pointerEvents: "none",
+            }}
+          >
+            <Button
+              size="medium"
+              type="button"
+              variant="contained"
+              color="primary"
+              onClick={captureImage}
+              startIcon={<CameraAlt />}
+              sx={{
+                pointerEvents: "auto",
+                minHeight: 44,
+                px: 3,
+                borderRadius: 2,
+                fontWeight: 700,
+                boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
+                width: { xs: "100%", sm: "auto" },
+                maxWidth: 360,
+              }}
+            >
+              Tomar foto
+            </Button>
+          </Box>
+        )}
         {detectionMode === 1 && (
           <Fragment>
             {isScan ? (
@@ -802,7 +837,7 @@ export default function Camera({
             <Box
               sx={{
                 position: "absolute",
-                bottom: 12,
+                bottom: isIneCapture && showButton ? 68 : 12,
                 left: 0,
                 right: 0,
                 textAlign: "center",
@@ -841,42 +876,44 @@ export default function Camera({
           </Select>
         </Box>
       )}
-      <Box
-        component="footer"
-        sx={{
-          mt: isFluidHeight ? 1 : 2,
-          display: "flex",
-          gap: 1,
-          flexShrink: 0,
-          justifyContent: "space-between",
-          flexDirection: { xs: "column-reverse", sm: "row" },
-        }}
-      >
-        {!!setShow && (
-          <Button
-            size="medium"
-            type="submit"
-            variant="contained"
-            color="secondary"
-            onClick={() => setShow(false)}
-            startIcon={<ChevronLeft />}
-          >
-            Cancelar
-          </Button>
-        )}
-        {showButton && webcamReady && (
-          <Button
-            size="medium"
-            type="submit"
-            variant="contained"
-            color="primary"
-            onClick={captureImage}
-            startIcon={<CameraAlt />}
-          >
-            Tomar foto
-          </Button>
-        )}
-      </Box>
+      {((!!setShow) || (showButton && webcamReady && !isIneCapture)) && (
+        <Box
+          component="footer"
+          sx={{
+            mt: isFluidHeight ? 1 : 2,
+            display: "flex",
+            gap: 1,
+            flexShrink: 0,
+            justifyContent: "space-between",
+            flexDirection: { xs: "column-reverse", sm: "row" },
+          }}
+        >
+          {!!setShow && (
+            <Button
+              size="medium"
+              type="submit"
+              variant="contained"
+              color="secondary"
+              onClick={() => setShow(false)}
+              startIcon={<ChevronLeft />}
+            >
+              Cancelar
+            </Button>
+          )}
+          {showButton && webcamReady && !isIneCapture && (
+            <Button
+              size="medium"
+              type="submit"
+              variant="contained"
+              color="primary"
+              onClick={captureImage}
+              startIcon={<CameraAlt />}
+            >
+              Tomar foto
+            </Button>
+          )}
+        </Box>
+      )}
       <Dialog open={showModal} onClose={handleClose}>
         <DialogTitle textAlign="center">Dispositivos disponibles</DialogTitle>
         <DialogContent>

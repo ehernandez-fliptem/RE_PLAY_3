@@ -180,6 +180,8 @@ export default function LectorQrVisitantes({
     }
   };
 
+  const isIdentityValidation = !!result?.requiere_validacion_identidad;
+
   const content = (
     <>
       <CardContent
@@ -230,81 +232,140 @@ export default function LectorQrVisitantes({
 
         {!isLoading && result && result.requiere_validacion_identidad && (
           <Stack
-            spacing={2}
-            alignItems="center"
+            spacing={{ xs: 1.25, sm: 1.75 }}
             sx={{
-              py: { xs: 1, sm: 2 },
+              py: { xs: 0.5, sm: 1.5 },
               flex: 1,
               minHeight: 0,
               overflowY: "auto",
               overflowX: "hidden",
-              pr: { xs: 0.5, sm: 0 },
+              px: { xs: 0.25, sm: 0 },
             }}
           >
-            <Typography variant="h6" textAlign="center">
-              Validar identidad
-            </Typography>
-            <Typography variant="body2" textAlign="center">
-              {result.nombre ? `QR de ${result.nombre}. Captura la INE para habilitar entrada.` : result.message}
-            </Typography>
-            {!!identityError && (
-              <Typography color="error.main" variant="body2" textAlign="center" fontWeight={600}>
-                {identityError}
+            <Box sx={{ width: "100%", textAlign: "center" }}>
+              <Typography variant="h6" fontWeight={800}>
+                Validar identidad
               </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {result.nombre ? `QR de ${result.nombre}` : result.message}
+              </Typography>
+            </Box>
+            {!!identityError && (
+              <Box
+                sx={{
+                  width: "100%",
+                  border: "1px solid",
+                  borderColor: "error.light",
+                  bgcolor: "rgba(211, 47, 47, 0.08)",
+                  color: "error.main",
+                  borderRadius: 1.5,
+                  px: 1.5,
+                  py: 1,
+                }}
+              >
+                <Typography variant="body2" textAlign="center" fontWeight={700}>
+                {identityError}
+                </Typography>
+              </Box>
             )}
             <Box
               sx={{
                 width: "100%",
-                maxWidth: 680,
-                flex: { xs: "0 0 auto", sm: "unset" },
-                minHeight: { xs: 0, sm: "unset" },
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) 280px" },
+                gap: { xs: 1.25, md: 2 },
+                alignItems: "stretch",
               }}
             >
-              <Camera
-                key={ineCameraKey}
-                name="img_ine_validacion"
-                showButton
-                defaultMode={1}
-                containerHeight={isMobile ? "min(52dvh, 430px)" : 380}
-                disabledDevicesMenu={false}
-                autoCaptureIne
-              />
-            </Box>
-            {ineCapture && (
               <Box
-                component="img"
-                src={ineCapture}
-                alt="INE capturada"
                 sx={{
                   width: "100%",
-                  maxWidth: 420,
-                  maxHeight: 180,
-                  objectFit: "contain",
+                  minWidth: 0,
+                }}
+              >
+                <Camera
+                  key={ineCameraKey}
+                  name="img_ine_validacion"
+                  showButton
+                  defaultMode={1}
+                  containerHeight={isMobile ? "min(48dvh, 390px)" : 390}
+                  disabledDevicesMenu={false}
+                  autoCaptureIne
+                />
+              </Box>
+              <Box
+                sx={{
                   border: "1px solid",
                   borderColor: "divider",
-                  borderRadius: 1,
+                  borderRadius: 2,
+                  bgcolor: "background.paper",
+                  p: 1.25,
+                  minHeight: { xs: 96, md: "auto" },
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  gap: 1,
                 }}
-              />
-            )}
-            <Button
-              variant="contained"
-              color="primary"
-              disabled={!ineCapture || !onAuthorizeIdentity}
-              onClick={handleAuthorizeIdentity}
+              >
+                <Typography variant="subtitle2" fontWeight={800}>
+                  Captura actual
+                </Typography>
+                {ineCapture ? (
+                  <Box
+                    component="img"
+                    src={ineCapture}
+                    alt="INE capturada"
+                    sx={{
+                      width: "100%",
+                      maxHeight: { xs: 120, md: 210 },
+                      objectFit: "contain",
+                      borderRadius: 1,
+                      bgcolor: "grey.100",
+                    }}
+                  />
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Coloca la INE en el recuadro y toma la foto.
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+            <Box
+              sx={{
+                width: "100%",
+                position: { xs: "sticky", sm: "static" },
+                bottom: 0,
+                zIndex: 2,
+                bgcolor: "background.paper",
+                borderTop: { xs: "1px solid", sm: "none" },
+                borderColor: "divider",
+                pt: { xs: 1, sm: 0 },
+              }}
             >
-              Validar INE y habilitar entrada
-            </Button>
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ width: "100%", maxWidth: 520 }}>
-              <Button fullWidth variant="outlined" startIcon={<Replay />} onClick={handleRetryIdentity}>
-                Capturar INE de nuevo
-              </Button>
-              <Button fullWidth variant="contained" color="secondary" onClick={() => setShow(false)}>
-                Salir
-              </Button>
-            </Stack>
-            <Button variant="text" startIcon={<Replay />} onClick={handleRetry}>
-              Escanear otro QR
-            </Button>
+              <Stack spacing={1} sx={{ width: "100%" }}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  color="primary"
+                  disabled={!ineCapture || !onAuthorizeIdentity}
+                  onClick={handleAuthorizeIdentity}
+                  sx={{ minHeight: 46, fontWeight: 800 }}
+                >
+                  Validar INE y habilitar entrada
+                </Button>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                  <Button fullWidth variant="outlined" startIcon={<Replay />} onClick={handleRetryIdentity}>
+                    Capturar de nuevo
+                  </Button>
+                  <Button fullWidth variant="outlined" color="secondary" onClick={handleRetry}>
+                    Otro QR
+                  </Button>
+                  <Button fullWidth variant="text" color="inherit" onClick={() => setShow(false)}>
+                    Salir
+                  </Button>
+                </Stack>
+              </Stack>
+            </Box>
           </Stack>
         )}
 
@@ -400,7 +461,7 @@ export default function LectorQrVisitantes({
           </Stack>
         )}
       </CardContent>
-      {!hideActions && (
+      {!hideActions && !isIdentityValidation && (
         <CardActions sx={{ px: 3, pb: 3 }}>
           <Stack
             spacing={2}
