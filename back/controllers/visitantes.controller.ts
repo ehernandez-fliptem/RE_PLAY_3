@@ -25,7 +25,6 @@ import FaceDescriptors from '../models/FaceDescriptors';
 import path from "path";
 import dayjs from "dayjs";
 import sharp from "sharp";
-import tesseract from "node-tesseract-ocr";
 import { execFile } from "child_process";
 import DispositivosHv from "../models/DispositivosHv";
 import crypto from "crypto";
@@ -391,36 +390,75 @@ async function buildIneOcrVariants(imgBuffer: Buffer): Promise<Buffer[]> {
 
   const normalized = await sharp(imgBuffer)
     .rotate()
-    .resize({ width: 1800, height: 1200, fit: "inside", withoutEnlargement: false })
+    .resize({ width: 1400, height: 900, fit: "inside", withoutEnlargement: false })
     .greyscale()
     .normalize()
     .sharpen()
-    .jpeg({ quality: 95 })
+    .jpeg({ quality: 88 })
     .toBuffer();
 
   const highContrast = await sharp(imgBuffer)
     .rotate()
-    .resize({ width: 2000, height: 1300, fit: "inside", withoutEnlargement: false })
+    .resize({ width: 1500, height: 950, fit: "inside", withoutEnlargement: false })
     .greyscale()
-    .linear(1.25, -12)
+    .linear(1.18, -8)
     .normalize()
-    .sharpen({ sigma: 1.2 })
-    .threshold(150)
-    .jpeg({ quality: 95 })
+    .sharpen()
+    .jpeg({ quality: 88 })
     .toBuffer();
 
   return [normalized, highContrast];
 }
 
 async function runTesseract(buffer: Buffer, psm: number): Promise<string> {
-  const text = await tesseract.recognize(buffer, {
-    lang: "spa+eng",
-    oem: 3,
-    psm,
-    dpi: 300,
-    preserve_interword_spaces: "1",
-  });
-  return normalizeOcrOutput(String(text || ""));
+  await fs.promises.mkdir(path.join(process.cwd(), "temp"), { recursive: true });
+  const inputPath = path.join(process.cwd(), "temp", `ine-ocr-${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`);
+  await fs.promises.writeFile(inputPath, buffer);
+  try {
+    const text = await new Promise<string>((resolve, reject) => {
+      execFile(
+        "tesseract",
+        [
+          inputPath,
+          "stdout",
+          "-l",
+          "spa",
+          "--oem",
+          "3",
+          "--psm",
+          String(psm),
+          "--dpi",
+          "300",
+          "-c",
+          "preserve_interword_spaces=1",
+        ],
+        { windowsHide: true, timeout: 25000, maxBuffer: 6 * 1024 * 1024 },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(new Error(String(stderr || error.message).trim()));
+            return;
+          }
+          resolve(String(stdout || ""));
+        }
+      );
+    });
+    return normalizeOcrOutput(text);
+  } finally {
+    fs.promises.unlink(inputPath).catch(() => {});
+  }
+}
+
+async function runOcrAttempt(attempt: { buffer: Buffer; psm: number }): Promise<string> {
+  return Promise.race([
+    runTesseract(attempt.buffer, attempt.psm),
+    new Promise<string>((_, reject) => {
+      setTimeout(() => reject(new Error("Tiempo agotado al leer la INE.")), 28000);
+    }),
+  ]);
+}
+
+function hasEnoughIdentityText(text: string): boolean {
+  return identityTokens(text).length >= 2;
 }
 
 async function extractIneText(img: string): Promise<string> {
@@ -428,15 +466,15 @@ async function extractIneText(img: string): Promise<string> {
   const variants = await buildIneOcrVariants(imgBuffer);
   const attempts: Array<{ buffer: Buffer; psm: number }> = [
     { buffer: variants[0], psm: 6 },
-    { buffer: variants[1], psm: 6 },
-    { buffer: variants[0], psm: 11 },
+    { buffer: variants[1], psm: 11 },
   ];
   const texts: string[] = [];
 
   for (const attempt of attempts) {
     try {
-      const text = await runTesseract(attempt.buffer, attempt.psm);
+      const text = await runOcrAttempt(attempt);
       if (text && identityTokens(text).length > 0) texts.push(text);
+      if (hasEnoughIdentityText(texts.join("\n"))) break;
     } catch (error: any) {
       log(fecha() + " WARN: OCR INE intento fallido: " + (error?.message || error) + "\n");
     }
@@ -452,7 +490,7 @@ async function extractIneText(img: string): Promise<string> {
     )
   ).join("\n");
 
-  if (identityTokens(merged).length < 2) {
+  if (!hasEnoughIdentityText(merged)) {
     throw new Error("No se pudo extraer texto suficiente de la INE. Intenta con mejor luz y la credencial completa dentro del rectangulo.");
   }
 
@@ -2409,6 +2447,4 @@ export const desbloquearBack = async (req: Request, res: Response) => {
         return res.status(500).json({ estado: false, mensaje: "Error al desbloquear visitante" });
     }
 };
-
-
 

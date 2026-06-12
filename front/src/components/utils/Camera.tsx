@@ -178,9 +178,14 @@ export default function Camera({
         const cropX = Math.round((srcW - cropW) / 2);
         const cropY = Math.round((srcH - cropH) / 2);
 
+        const maxWidth = 1400;
+        const scale = Math.min(1, maxWidth / cropW);
+        const outW = Math.max(1, Math.round(cropW * scale));
+        const outH = Math.max(1, Math.round(cropH * scale));
+
         const canvas = document.createElement("canvas");
-        canvas.width = cropW;
-        canvas.height = cropH;
+        canvas.width = outW;
+        canvas.height = outH;
         const ctx = canvas.getContext("2d");
         if (!ctx) {
           resolve(dataUrl);
@@ -194,10 +199,10 @@ export default function Camera({
           cropH,
           0,
           0,
-          cropW,
-          cropH
+          outW,
+          outH
         );
-        resolve(canvas.toDataURL("image/jpeg", 0.95));
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
       };
       img.onerror = () => resolve(dataUrl);
       img.src = dataUrl;
