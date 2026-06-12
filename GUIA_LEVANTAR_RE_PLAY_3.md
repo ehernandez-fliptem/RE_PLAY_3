@@ -44,7 +44,7 @@ PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1 -Target backfront
 PowerShell -ExecutionPolicy Bypass -File scripts\update.ps1 -Target all
 ```
 
-PowerShell -ExecutionPolicy Bypass -File scripts\update-with-deps.ps1 -Target back
+PowerShell -ExecutionPolicy Bypass -File scripts\update-with-deps.ps1 -Target back  
 
 ---
 # Si no funciona hacerlo manual
