@@ -136,6 +136,11 @@ export default function Camera({
   const [showModal, setShowModal] = useState(false);
   const isIneCapture = String(name || "").toLowerCase().includes("ine");
   const isFluidHeight = typeof containerHeight === "string" && containerHeight === "100%";
+  const cameraObjectFit = isIneCapture ? "contain" : "fill";
+  const resolvedContainerHeight =
+    isIneCapture && !isFluidHeight && isMobile
+      ? "min(62vh, 520px)"
+      : containerHeight;
 
   const chooseRearCamera = (videoDevices: MediaDeviceInfo[]) => {
     if (videoDevices.length <= 1) return videoDevices[0]?.deviceId || "";
@@ -440,12 +445,14 @@ export default function Camera({
           width: "100%",
           flex: isFluidHeight ? 1 : "unset",
           minHeight: isFluidHeight ? 0 : 220,
-          height: containerHeight,
-          maxHeight: typeof containerHeight === "number" ? containerHeight : "none",
+          height: resolvedContainerHeight,
+          maxHeight: typeof resolvedContainerHeight === "number" ? resolvedContainerHeight : "none",
+          aspectRatio: isIneCapture && !isFluidHeight ? "16 / 10" : undefined,
           padding: 0,
           overflow: "hidden",
           border: `1px solid ${theme.palette.divider}`,
           borderRadius: 1,
+          bgcolor: isIneCapture ? "#111" : "transparent",
         }}
       >
         {discretMenuDevices && !disabledDevicesMenu && (
@@ -505,7 +512,7 @@ export default function Camera({
                 }
                 screenshotFormat="image/jpeg"
                 videoConstraints={webcamConstraints}
-                style={{ width: "100%", height: "100%", objectFit: "fill" }}
+                style={{ width: "100%", height: "100%", objectFit: cameraObjectFit }}
               />
             )}
           </Fragment>
@@ -526,7 +533,7 @@ export default function Camera({
               }
               screenshotFormat="image/jpeg"
               videoConstraints={webcamConstraints}
-              style={{ width: "100%", height: "100%", objectFit: "fill" }}
+              style={{ width: "100%", height: "100%", objectFit: cameraObjectFit }}
             />
             <canvas
               ref={canvasRef}
@@ -562,8 +569,10 @@ export default function Camera({
             >
               <Box
                 sx={{
-                  width: isIneCapture ? "78%" : "62%",
-                  height: isIneCapture ? "54%" : "78%",
+                  width: isIneCapture ? "min(88%, 640px)" : "62%",
+                  aspectRatio: isIneCapture ? "1.586 / 1" : undefined,
+                  maxHeight: isIneCapture ? "58%" : undefined,
+                  height: isIneCapture ? "auto" : "78%",
                   borderRadius: isIneCapture ? "12px" : "50%",
                   border: "2px solid rgba(255,255,255,0.85)",
                   backgroundColor: "transparent",

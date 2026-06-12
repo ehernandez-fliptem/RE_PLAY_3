@@ -9,6 +9,8 @@ import {
   type ModalProps,
   Stack,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { CheckCircle, Cancel, Replay } from "@mui/icons-material";
 import type { OnResultFunction } from "react-qr-reader";
@@ -54,6 +56,8 @@ export default function LectorQrVisitantes({
   onAuthorizeIdentity,
 }: Props) {
   const formContext = useFormContext();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const ineCapture = useWatch({ control: formContext.control, name: "img_ine_validacion" }) as string;
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<ResultState | null>(null);
@@ -155,7 +159,13 @@ export default function LectorQrVisitantes({
                 overflow: "hidden",
                 p: 2,
               }
-            : undefined
+            : {
+                maxHeight: { xs: "calc(100dvh - 72px)", sm: "calc(90dvh - 88px)" },
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                p: { xs: 1.5, sm: 2 },
+              }
         }
       >
         <Box
@@ -186,19 +196,35 @@ export default function LectorQrVisitantes({
         )}
 
         {!isLoading && result && result.requiere_validacion_identidad && (
-          <Stack spacing={2} alignItems="center" sx={{ py: 2 }}>
+          <Stack
+            spacing={2}
+            alignItems="center"
+            sx={{
+              py: { xs: 1, sm: 2 },
+              flex: 1,
+              minHeight: 0,
+              overflow: "hidden",
+            }}
+          >
             <Typography variant="h6" textAlign="center">
               Validar identidad
             </Typography>
             <Typography variant="body2" textAlign="center">
               {result.nombre ? `QR de ${result.nombre}. Captura la INE para habilitar entrada.` : result.message}
             </Typography>
-            <Box sx={{ width: "100%", maxWidth: 620 }}>
+            <Box
+              sx={{
+                width: "100%",
+                maxWidth: 680,
+                flex: { xs: 1, sm: "unset" },
+                minHeight: { xs: 0, sm: "unset" },
+              }}
+            >
               <Camera
                 name="img_ine_validacion"
                 showButton
                 defaultMode={1}
-                containerHeight={360}
+                containerHeight={isMobile ? "100%" : 380}
                 disabledDevicesMenu={false}
               />
             </Box>
@@ -409,7 +435,7 @@ export default function LectorQrVisitantes({
           position: "absolute",
           width: hideBackdrop
             ? { xs: "calc(100vw - 16px)", sm: "min(680px, calc(100vw - 32px))" }
-            : { xs: "96%", sm: "92%", md: "min(78vw, 980px)", lg: "min(68vw, 1100px)" },
+            : { xs: "100vw", sm: "92%", md: "min(78vw, 980px)", lg: "min(68vw, 1100px)" },
           ...(hideBackdrop
             ? {
                 left: "50%",
@@ -420,11 +446,13 @@ export default function LectorQrVisitantes({
                 overflow: "hidden",
               }
             : {
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                maxHeight: "90dvh",
+                top: { xs: 0, sm: "50%" },
+                left: { xs: 0, sm: "50%" },
+                transform: { xs: "none", sm: "translate(-50%, -50%)" },
+                height: { xs: "100dvh", sm: "auto" },
+                maxHeight: { xs: "100dvh", sm: "90dvh" },
                 overflow: "hidden",
+                borderRadius: { xs: 0, sm: 2 },
               }),
         }}
       >

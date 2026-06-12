@@ -21,14 +21,16 @@ import {
   Lock,
   LockOpen,
   QrCodeScanner,
-  RestoreFromTrash,
+  Restore,
   Upload,
   Verified,
+  WarningAmber,
   // Upload, // Carga masiva oculta temporalmente
   Visibility,
 } from "@mui/icons-material";
 import {
   Avatar,
+  Box,
   Button,
   Chip,
   Dialog,
@@ -41,6 +43,9 @@ import {
   RadioGroup,
   TextField,
   Tooltip,
+  Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { enqueueSnackbar } from "notistack";
 import { useConfirm } from "material-ui-confirm";
@@ -64,12 +69,67 @@ import { areDocumentosChecksComplete } from "./documentosChecks";
 
 const pageSizeOptions = [10, 25, 50];
 
+type VisitanteConfirmTone = "warning" | "success" | "danger";
+
+const VISITANTE_CONFIRM_COLORS: Record<VisitanteConfirmTone, string> = {
+  warning: "#ed6c02",
+  success: "#2e7d32",
+  danger: "#d32f2f",
+};
+
+const VisitanteConfirmContent = ({
+  tone,
+  message,
+  support,
+}: {
+  tone: VisitanteConfirmTone;
+  message: string;
+  support: string;
+}) => {
+  const color = VISITANTE_CONFIRM_COLORS[tone];
+  return (
+    <Box
+      sx={{
+        textAlign: "center",
+        px: { xs: 0, sm: 1 },
+        pt: 0.5,
+        pb: 1,
+      }}
+    >
+      <Box
+        sx={{
+          width: 44,
+          height: 44,
+          mx: "auto",
+          mb: 1.5,
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          bgcolor: `${color}14`,
+          color,
+        }}
+      >
+        <WarningAmber fontSize="medium" />
+      </Box>
+      <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 0.75 }}>
+        {message}
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        {support}
+      </Typography>
+    </Box>
+  );
+};
+
 export default function Visitantes() {
   //Pruebas para catalogo de visitantes
   // console.log("[VISITANTES] render");
   // console.log("Prueba 01");
 
   const apiRef = useGridApiRef();
+  const theme = useTheme();
+  const fullScreenAccessModal = useMediaQuery(theme.breakpoints.down("sm"));
   const [error, setError] = useState<string>();
   const navigate = useNavigate();
   const confirm = useConfirm();
@@ -96,6 +156,13 @@ export default function Visitantes() {
   const autoBlockedByTrashRef = useRef<Record<string, boolean>>({});
   const setRowLoading = (id: string, isLoading: boolean) =>
     setLoadingRows((prev) => ({ ...prev, [id]: isLoading }));
+  const refrescarTabla = () => {
+    apiRef.current?.dataSource?.fetchRows?.();
+  };
+  const refrescarDespuesCambioEstado = (id: string) => {
+    if (selectedRowId === id) setSelectedRowId(null);
+    refrescarTabla();
+  };
 
   const handleOpenScanner = () => {
     setShowQRScanner(true);
@@ -314,13 +381,27 @@ export default function Visitantes() {
     verificarRegistro(row._id);
   };
 
-  const cambiarEstado = async (ID: string, activo: boolean, nombre: string) => {
+  const cambiarEstado = async (ID: string, activo: boolean) => {
     if (!activo) {
       confirm({
-        title: "¿Seguro que deseas restaurar a este visitante?",
-        description: nombre,
+        title: "Restaurar visitante",
+        content: (
+          <VisitanteConfirmContent
+            tone="success"
+            message={"\u00bfSeguro que deseas restaurar a este visitante?"}
+            support={"El visitante volver\u00e1 a estar activo y podr\u00e1 utilizarse nuevamente."}
+          />
+        ),
         allowClose: true,
-        confirmationText: "Continuar",
+        confirmationText: "Restaurar",
+        confirmationButtonProps: {
+          color: "success",
+          variant: "contained",
+        },
+        cancellationButtonProps: {
+          color: "secondary",
+          variant: "contained",
+        },
       })
         .then(async (result) => {
           if (!result.confirmed) return;
@@ -329,6 +410,7 @@ export default function Visitantes() {
           });
           if (res.data.estado) {
             apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
+            refrescarDespuesCambioEstado(ID);
             if (autoBlockedByTrashRef.current[ID]) {
               setRowLoading(ID, true);
               try {
@@ -356,10 +438,24 @@ export default function Visitantes() {
     }
 
     confirm({
-      title: "¿Seguro que deseas desactivar a este visitante?",
-      description: "Al desactivar, se bloqueará el acceso y no se podrá editar.",
+      title: "Desactivar visitante",
+      content: (
+        <VisitanteConfirmContent
+          tone="warning"
+          message={"\u00bfSeguro que deseas desactivar a este visitante?"}
+          support={"El visitante ya no podr\u00e1 ser editado ni utilizado para nuevos accesos."}
+        />
+      ),
       allowClose: true,
-      confirmationText: "Continuar",
+      confirmationText: "Desactivar",
+      confirmationButtonProps: {
+        color: "warning",
+        variant: "contained",
+      },
+      cancellationButtonProps: {
+        color: "secondary",
+        variant: "contained",
+      },
     })
       .then(async (result) => {
         if (!result.confirmed) return;
@@ -371,6 +467,7 @@ export default function Visitantes() {
           if (res.data.estado) {
             const rowBefore = apiRef.current?.getRow(ID) as any;
             apiRef.current?.updateRows([{ _id: ID, activo: !activo }]);
+            refrescarDespuesCambioEstado(ID);
 
             // Si aún no está bloqueado, aplicar bloqueo automático al desactivar.
             if (rowBefore && !isBlockedNow(rowBefore)) {
@@ -423,12 +520,26 @@ export default function Visitantes() {
     }
   };
 
-  const eliminarPermanente = (ID: string, nombre: string) => {
+  const eliminarPermanente = (ID: string) => {
     confirm({
-      title: "¿Seguro que deseas eliminar permanentemente este visitante?",
-      description: nombre,
+      title: "Eliminar visitante",
+      content: (
+        <VisitanteConfirmContent
+          tone="danger"
+          message={"\u00bfSeguro que deseas eliminar permanentemente a este visitante?"}
+          support={"Esta acci\u00f3n no se podr\u00e1 deshacer."}
+        />
+      ),
       allowClose: true,
-      confirmationText: "Continuar",
+      confirmationText: "Eliminar definitivamente",
+      confirmationButtonProps: {
+        color: "error",
+        variant: "contained",
+      },
+      cancellationButtonProps: {
+        color: "secondary",
+        variant: "contained",
+      },
     })
       .then(async (result) => {
         if (!result.confirmed) return;
@@ -804,24 +915,24 @@ const accionBloquear = (ID: string) => {
                   gridActions.push(
                     row.activo ? (
                       <GridActionsCellItem
-                        icon={<Delete color="success" />}
-                        onClick={() => cambiarEstado(row._id, row.activo, row.nombre)}
-                        label="Desactivar"
-                        title="Desactivar"
+                        icon={<Delete sx={{ color: "#ed6c02" }} />}
+                        onClick={() => cambiarEstado(row._id, row.activo)}
+                        label="Desactivar visitante"
+                        title="Desactivar visitante"
                       />
                     ) : (
                       <Fragment>
                         <GridActionsCellItem
-                          icon={<RestoreFromTrash color="error" />}
-                          onClick={() => cambiarEstado(row._id, row.activo, row.nombre)}
-                          label="Restaurar"
-                          title="Restaurar"
+                          icon={<Restore color="success" />}
+                          onClick={() => cambiarEstado(row._id, row.activo)}
+                          label="Restaurar visitante"
+                          title="Restaurar visitante"
                         />
                         <GridActionsCellItem
                           icon={<Delete color="error" />}
-                          onClick={() => eliminarPermanente(row._id, row.nombre)}
-                          label="Eliminar permanentemente"
-                          title="Eliminar permanentemente"
+                          onClick={() => eliminarPermanente(row._id)}
+                          label="Eliminar definitivamente"
+                          title="Eliminar definitivamente"
                         />
                       </Fragment>
                     )
@@ -1036,9 +1147,28 @@ const accionBloquear = (ID: string) => {
           />
         </FormProvider>
       )}
-      <Dialog open={accessModal.open} onClose={cerrarModalAcceso} maxWidth="md" fullWidth>
+      <Dialog
+        open={accessModal.open}
+        onClose={cerrarModalAcceso}
+        maxWidth="md"
+        fullWidth
+        fullScreen={fullScreenAccessModal}
+        PaperProps={{
+          sx: fullScreenAccessModal
+            ? { height: "100dvh", m: 0, borderRadius: 0 }
+            : { borderRadius: 2 },
+        }}
+      >
         <DialogTitle>Habilitar acceso</DialogTitle>
-        <DialogContent>
+        <DialogContent
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 1.5,
+            overflow: "hidden",
+            pb: 1,
+          }}
+        >
           <RadioGroup
             row
             value={accessModal.modo}
@@ -1062,17 +1192,23 @@ const accionBloquear = (ID: string) => {
           />
           {(accessModal.modo === "entrada" || accessModal.modo === "ambos") && (
             <FormProvider {...accessForm}>
-              <Camera
-                name="img_ine_manual"
-                showButton
-                defaultMode={1}
-                containerHeight={360}
-              />
+              <Box sx={{ flex: fullScreenAccessModal ? 1 : "unset", minHeight: 0 }}>
+                <Camera
+                  name="img_ine_manual"
+                  showButton
+                  defaultMode={1}
+                  containerHeight={fullScreenAccessModal ? "100%" : 380}
+                />
+              </Box>
               {manualIne && (
                 <Avatar
                   src={manualIne}
                   variant="rounded"
-                  sx={{ width: "100%", height: 160, mt: 2 }}
+                  sx={{
+                    width: "100%",
+                    height: fullScreenAccessModal ? 120 : 160,
+                    mt: 1.5,
+                  }}
                 />
               )}
             </FormProvider>
