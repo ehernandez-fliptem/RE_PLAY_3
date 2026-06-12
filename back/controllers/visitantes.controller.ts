@@ -25,6 +25,7 @@ import FaceDescriptors from '../models/FaceDescriptors';
 import path from "path";
 import dayjs from "dayjs";
 import sharp from "sharp";
+import { createWorker } from "tesseract.js";
 import { execFile } from "child_process";
 import DispositivosHv from "../models/DispositivosHv";
 import crypto from "crypto";
@@ -291,6 +292,10 @@ const didDocChecksChange = (
 };
 
 const ACCESS_MINUTES = 5;
+type OcrVariant = { name: string; buffer: Buffer };
+type OcrAttempt = { variant: OcrVariant; psm: number; lang?: string };
+const ocrWorkerPromises = new Map<string, Promise<any>>();
+const ocrWorkerQueues = new Map<string, Promise<void>>();
 
 function ocrTraceId(): string {
   return `ocr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -415,7 +420,7 @@ function normalizeOcrOutput(value: string): string {
     .join("\n");
 }
 
-async function buildIneOcrVariants(imgBuffer: Buffer, traceId = ""): Promise<Buffer[]> {
+async function buildIneOcrVariants(imgBuffer: Buffer, traceId = ""): Promise<OcrVariant[]> {
   const metadata = await sharp(imgBuffer).rotate().metadata();
   if (!metadata.width || !metadata.height) throw new Error("No se pudo leer la imagen de INE.");
   if (traceId) {
@@ -430,49 +435,56 @@ async function buildIneOcrVariants(imgBuffer: Buffer, traceId = ""): Promise<Buf
   }
 
   const base = sharp(imgBuffer).rotate();
-  const normalized = await base
-    .clone()
-    .resize({ width: 1400, height: 900, fit: "inside", withoutEnlargement: false })
-    .greyscale()
-    .normalize()
-    .sharpen()
-    .jpeg({ quality: 88 })
-    .toBuffer();
+  const safeExtract = (region: { left: number; top: number; width: number; height: number }) => {
+    const left = Math.max(0, Math.min(metadata.width! - 1, Math.round(region.left)));
+    const top = Math.max(0, Math.min(metadata.height! - 1, Math.round(region.top)));
+    const width = Math.max(1, Math.min(metadata.width! - left, Math.round(region.width)));
+    const height = Math.max(1, Math.min(metadata.height! - top, Math.round(region.height)));
+    return { left, top, width, height };
+  };
+  const fromRegion = (x: number, y: number, width: number, height: number) =>
+    safeExtract({
+      left: metadata.width! * x,
+      top: metadata.height! * y,
+      width: metadata.width! * width,
+      height: metadata.height! * height,
+    });
 
-  const highContrast = await base
-    .clone()
-    .resize({ width: 1500, height: 950, fit: "inside", withoutEnlargement: false })
-    .greyscale()
-    .linear(1.18, -8)
-    .normalize()
-    .sharpen()
-    .jpeg({ quality: 88 })
-    .toBuffer();
+  const makeVariant = async (
+    name: string,
+    region: ReturnType<typeof safeExtract> | null,
+    mode: "normal" | "contrast" | "threshold",
+    resizeWidth: number
+  ): Promise<OcrVariant> => {
+    let image = base.clone();
+    if (region) image = image.extract(region);
+    image = image.resize({ width: resizeWidth, fit: "inside", withoutEnlargement: false }).greyscale().normalize().sharpen();
+    if (mode === "contrast") image = image.linear(1.35, -18).normalize().sharpen();
+    if (mode === "threshold") image = image.threshold(150);
+    return {
+      name,
+      buffer: await image.jpeg({ quality: 92 }).toBuffer(),
+    };
+  };
 
-  const textZone = await base
-    .clone()
-    .extract({
-      left: Math.round(metadata.width * 0.14),
-      top: Math.round(metadata.height * 0.18),
-      width: Math.round(metadata.width * 0.62),
-      height: Math.round(metadata.height * 0.58),
-    })
-    .resize({ width: 1200, fit: "inside", withoutEnlargement: false })
-    .greyscale()
-    .normalize()
-    .sharpen()
-    .jpeg({ quality: 90 })
-    .toBuffer();
-
-  const variants = [normalized, highContrast, textZone];
+  const variants: OcrVariant[] = [
+    await makeVariant("full_normal", null, "normal", 1600),
+    await makeVariant("full_threshold", null, "threshold", 1600),
+    await makeVariant("card_text_contrast", fromRegion(0.14, 0.18, 0.70, 0.60), "contrast", 1500),
+    await makeVariant("name_wide_contrast", fromRegion(0.27, 0.28, 0.46, 0.26), "contrast", 1400),
+    await makeVariant("name_photo_contrast", fromRegion(0.30, 0.36, 0.42, 0.18), "contrast", 1400),
+    await makeVariant("name_tight_normal", fromRegion(0.32, 0.38, 0.32, 0.12), "normal", 1300),
+    await makeVariant("center_text_normal", fromRegion(0.28, 0.34, 0.56, 0.38), "normal", 1500),
+  ];
   if (traceId) {
     const variantMeta = await Promise.all(
-      variants.map(async (buffer, index) => {
-        const item = await sharp(buffer).metadata();
+      variants.map(async (variant, index) => {
+        const item = await sharp(variant.buffer).metadata();
         return {
           index,
-          bytes: buffer.length,
-          kb: Math.round(buffer.length / 1024),
+          name: variant.name,
+          bytes: variant.buffer.length,
+          kb: Math.round(variant.buffer.length / 1024),
           width: item.width,
           height: item.height,
         };
@@ -483,7 +495,49 @@ async function buildIneOcrVariants(imgBuffer: Buffer, traceId = ""): Promise<Buf
   return variants;
 }
 
-async function runTesseract(buffer: Buffer, psm: number, lang = "spa", traceId = "", attemptIndex = 0): Promise<string> {
+function getTesseractLangPath(lang: string) {
+  const code = lang === "eng" ? "eng" : "spa";
+  return path.join(process.cwd(), "node_modules", "@tesseract.js-data", code, "4.0.0");
+}
+
+async function getOcrWorker(lang: string) {
+  const code = lang === "eng" ? "eng" : "spa";
+  if (!ocrWorkerPromises.has(code)) {
+    const cachePath = path.join(process.cwd(), "temp", "tesseract-cache");
+    fs.mkdirSync(cachePath, { recursive: true });
+    ocrWorkerPromises.set(
+      code,
+      createWorker(code, 1, {
+        langPath: getTesseractLangPath(code),
+        cachePath,
+        gzip: true,
+      })
+    );
+  }
+  return ocrWorkerPromises.get(code)!;
+}
+
+async function withOcrWorker<T>(lang: string, action: (worker: any) => Promise<T>): Promise<T> {
+  const code = lang === "eng" ? "eng" : "spa";
+  const previous = ocrWorkerQueues.get(code) || Promise.resolve();
+  let release: () => void = () => {};
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  ocrWorkerQueues.set(
+    code,
+    previous.catch(() => undefined).then(() => current)
+  );
+  await previous.catch(() => undefined);
+  try {
+    const worker = await getOcrWorker(code);
+    return await action(worker);
+  } finally {
+    release();
+  }
+}
+
+async function runTesseract(buffer: Buffer, psm: number, lang = "spa", traceId = "", attemptIndex = 0, variantName = ""): Promise<string> {
   await fs.promises.mkdir(path.join(process.cwd(), "temp"), { recursive: true });
   const inputPath = path.join(process.cwd(), "temp", `ine-ocr-${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`);
   await fs.promises.writeFile(inputPath, buffer);
@@ -495,36 +549,19 @@ async function runTesseract(buffer: Buffer, psm: number, lang = "spa", traceId =
       lang,
       inputBytes: buffer.length,
       inputKb: Math.round(buffer.length / 1024),
+      variant: variantName,
       tempFile: path.basename(inputPath),
     });
   }
   try {
-    const text = await new Promise<string>((resolve, reject) => {
-      execFile(
-        "tesseract",
-        [
-          inputPath,
-          "stdout",
-          "-l",
-          lang,
-          "--oem",
-          "3",
-          "--psm",
-          String(psm),
-          "--dpi",
-          "300",
-          "-c",
-          "preserve_interword_spaces=1",
-        ],
-        { windowsHide: true, timeout: 25000, maxBuffer: 6 * 1024 * 1024 },
-        (error, stdout, stderr) => {
-          if (error) {
-            reject(new Error(String(stderr || error.message).trim()));
-            return;
-          }
-          resolve(String(stdout || ""));
-        }
-      );
+    const text = await withOcrWorker(lang, async (worker) => {
+      await worker.setParameters({
+        tessedit_pageseg_mode: String(psm),
+        preserve_interword_spaces: "1",
+        user_defined_dpi: "300",
+      });
+      const result = await worker.recognize(inputPath);
+      return String(result?.data?.text || "");
     });
     const normalized = normalizeOcrOutput(text);
     if (traceId) {
@@ -533,6 +570,7 @@ async function runTesseract(buffer: Buffer, psm: number, lang = "spa", traceId =
         psm,
         lang,
         ms: Date.now() - startedAt,
+        variant: variantName,
         ...summarizeOcrText(normalized),
       });
     }
@@ -543,12 +581,12 @@ async function runTesseract(buffer: Buffer, psm: number, lang = "spa", traceId =
 }
 
 async function runOcrAttempt(
-  attempt: { buffer: Buffer; psm: number; lang?: string },
+  attempt: OcrAttempt,
   traceId = "",
   attemptIndex = 0
 ): Promise<string> {
   return Promise.race([
-    runTesseract(attempt.buffer, attempt.psm, attempt.lang, traceId, attemptIndex),
+    runTesseract(attempt.variant.buffer, attempt.psm, attempt.lang, traceId, attemptIndex, attempt.variant.name),
     new Promise<string>((_, reject) => {
       setTimeout(() => reject(new Error("Tiempo agotado al leer la INE.")), 28000);
     }),
@@ -566,13 +604,15 @@ async function extractIneText(img: string, expectedName = "", traceId = ""): Pro
   });
   const imgBuffer = decodeBase64Image(img, traceId);
   const variants = await buildIneOcrVariants(imgBuffer, traceId);
-  const attempts: Array<{ buffer: Buffer; psm: number; lang?: string }> = [
-    { buffer: variants[0], psm: 6, lang: "spa" },
-    { buffer: variants[1], psm: 6, lang: "spa" },
-    { buffer: variants[2], psm: 6, lang: "spa" },
-    { buffer: variants[0], psm: 11, lang: "spa" },
-    { buffer: variants[2], psm: 11, lang: "spa" },
-    { buffer: variants[2], psm: 6, lang: "eng" },
+  const byName = new Map(variants.map((variant) => [variant.name, variant]));
+  const attempts: OcrAttempt[] = [
+    { variant: byName.get("name_wide_contrast") || variants[0], psm: 6, lang: "spa" },
+    { variant: byName.get("name_tight_normal") || variants[0], psm: 6, lang: "spa" },
+    { variant: byName.get("center_text_normal") || variants[0], psm: 6, lang: "spa" },
+    { variant: byName.get("card_text_contrast") || variants[0], psm: 6, lang: "spa" },
+    { variant: byName.get("full_threshold") || variants[0], psm: 6, lang: "spa" },
+    { variant: byName.get("full_normal") || variants[0], psm: 6, lang: "spa" },
+    { variant: byName.get("name_photo_contrast") || variants[0], psm: 6, lang: "eng" },
   ];
   const texts: string[] = [];
 
@@ -582,7 +622,8 @@ async function extractIneText(img: string, expectedName = "", traceId = ""): Pro
         attempt: index + 1,
         psm: attempt.psm,
         lang: attempt.lang,
-        variantBytes: attempt.buffer.length,
+        variant: attempt.variant.name,
+        variantBytes: attempt.variant.buffer.length,
       });
       const text = await runOcrAttempt(attempt, traceId, index + 1);
       if (text && identityTokens(text).length > 0) texts.push(text);
@@ -614,6 +655,7 @@ async function extractIneText(img: string, expectedName = "", traceId = ""): Pro
         attempt: index + 1,
         psm: attempt.psm,
         lang: attempt.lang,
+        variant: attempt.variant.name,
         message: error?.message || String(error),
       });
     }
