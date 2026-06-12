@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import autoTable, { type UserOptions } from "jspdf-autotable";
+import autoTable, { type CellHookData, type UserOptions } from "jspdf-autotable";
 
 export type PdfReportColumn<T = Record<string, unknown>> = {
   header: string;
@@ -223,7 +223,7 @@ export function generatePdfReport<T extends Record<string, unknown>>({
         fillColor: [248, 248, 252],
       },
       columnStyles,
-      didParseCell: (data) => {
+      didParseCell: (data: CellHookData) => {
         if (data.section === "body") {
           const column = columns[data.column.index];
           if (column?.badge) {
@@ -239,7 +239,7 @@ export function generatePdfReport<T extends Record<string, unknown>>({
         doc.setDrawColor(224, 224, 228);
         doc.line(margin, pageHeight - 36, pageWidth - margin, pageHeight - 36);
       },
-      didDrawCell: (data) => {
+      didDrawCell: (data: CellHookData) => {
         if (data.section === "body") {
           const column = columns[data.column.index];
           const sourceRow = rows[data.row.index];
