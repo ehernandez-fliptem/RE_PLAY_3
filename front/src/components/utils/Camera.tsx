@@ -140,21 +140,30 @@ export default function Camera({
   const [detectionMode, setDetectionMode] = useState<1 | 2>(defaultMode);
   const [showModal, setShowModal] = useState(false);
   const [autoCaptureHint, setAutoCaptureHint] = useState("");
+  const [autoCaptureQuality, setAutoCaptureQuality] = useState(0);
   const [autoCaptureDone, setAutoCaptureDone] = useState(false);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchEnabled, setTorchEnabled] = useState(false);
+  const autoCaptureBusyRef = useRef(false);
   const stableFrameRef = useRef<{ data: Uint8ClampedArray | null; count: number }>({
     data: null,
     count: 0,
   });
   const isIneCapture = String(name || "").toLowerCase().includes("ine");
   const isFluidHeight = typeof containerHeight === "string" && containerHeight === "100%";
-  const cameraObjectFit = isIneCapture ? "contain" : "fill";
+  const cameraObjectFit = isIneCapture ? "contain" : "cover";
   const resolvedContainerHeight =
     isIneCapture && !isFluidHeight && isMobile
       ? "min(62vh, 520px)"
       : containerHeight;
+  const cameraAspectRatio = !isFluidHeight
+    ? isIneCapture
+      ? "16 / 10"
+      : isScan
+        ? "4 / 3"
+        : undefined
+    : undefined;
 
   const chooseRearCamera = (videoDevices: MediaDeviceInfo[]) => {
     if (videoDevices.length <= 1) return videoDevices[0]?.deviceId || "";
@@ -284,15 +293,20 @@ export default function Camera({
   };
 
   const evaluateIneFrame = useCallback(() => {
+    const fail = (hint: string, quality = 0) => {
+      stableFrameRef.current.count = 0;
+      return { ok: false, hint, quality };
+    };
+    const clamp = (value: number) => Math.max(0, Math.min(1, value));
     const video = (camRef || webcamRef).current?.video;
     const container = cameraBoxRef.current?.getBoundingClientRect();
     if (!video || !container?.width || !container?.height || video.readyState < 2) {
-      return { ok: false, hint: "Preparando camara..." };
+      return fail("Preparando camara...");
     }
 
     const srcW = video.videoWidth;
     const srcH = video.videoHeight;
-    if (!srcW || !srcH) return { ok: false, hint: "Preparando camara..." };
+    if (!srcW || !srcH) return fail("Preparando camara...");
 
     const fitScale = Math.min(container.width / srcW, container.height / srcH);
     const visibleW = srcW * fitScale;
@@ -310,27 +324,31 @@ export default function Camera({
     const cropH = Math.round(((guideBottom - guideTop) / visibleH) * srcH);
 
     if (cropW < srcW * 0.35 || cropH < srcH * 0.25) {
-      return { ok: false, hint: "Centra la INE dentro del rectangulo" };
+      return fail("Centra la INE dentro del rectangulo");
     }
 
-    const sampleW = 96;
-    const sampleH = 60;
+    const sampleW = 160;
+    const sampleH = 100;
     const canvas = document.createElement("canvas");
     canvas.width = sampleW;
     canvas.height = sampleH;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return { ok: false, hint: "No se pudo analizar la imagen" };
+    if (!ctx) return fail("No se pudo analizar la imagen");
     ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, sampleW, sampleH);
     const data = ctx.getImageData(0, 0, sampleW, sampleH).data;
 
     let brightness = 0;
     let contrast = 0;
     let edgeScore = 0;
+    let darkPixels = 0;
+    let lightPixels = 0;
     const gray = new Uint8ClampedArray(sampleW * sampleH);
     for (let i = 0, j = 0; i < data.length; i += 4, j++) {
       const value = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
       gray[j] = value;
       brightness += value;
+      if (value < 45) darkPixels += 1;
+      if (value > 242) lightPixels += 1;
     }
     brightness /= gray.length;
     for (let i = 0; i < gray.length; i++) {
@@ -344,6 +362,8 @@ export default function Camera({
       }
     }
     edgeScore /= sampleW * sampleH;
+    const darkRatio = darkPixels / gray.length;
+    const lightRatio = lightPixels / gray.length;
 
     let motion = 0;
     const prev = stableFrameRef.current.data;
@@ -355,18 +375,34 @@ export default function Camera({
     }
     stableFrameRef.current.data = gray;
 
-    if (brightness < 55) return { ok: false, hint: "Falta luz" };
-    if (brightness > 225) return { ok: false, hint: "Hay mucho reflejo" };
-    if (contrast < 18 || edgeScore < 10) return { ok: false, hint: "Acerca o enfoca la INE" };
+    const brightnessScore = clamp(1 - Math.abs(brightness - 145) / 115);
+    const contrastScore = clamp((contrast - 12) / 28);
+    const edgeQuality = clamp((edgeScore - 7) / 18);
+    const glarePenalty = clamp(lightRatio / 0.18);
+    const darkPenalty = clamp(darkRatio / 0.28);
+    const motionScore = prev ? clamp(1 - motion / 10) : 0.65;
+    const quality = clamp(
+      brightnessScore * 0.25 +
+        contrastScore * 0.25 +
+        edgeQuality * 0.25 +
+        motionScore * 0.25 -
+        glarePenalty * 0.12 -
+        darkPenalty * 0.08
+    );
+
+    if (brightness < 48 || darkRatio > 0.45) return fail("Falta luz", quality);
+    if (brightness > 232 || lightRatio > 0.28) return fail("Hay mucho reflejo", quality);
+    if (contrast < 13 || edgeScore < 7.5) return fail("Acerca o enfoca la INE", quality);
     if (motion > 8) {
-      stableFrameRef.current.count = 0;
-      return { ok: false, hint: "Mantente quieto" };
+      return fail("Mantente quieto", quality);
     }
+    if (quality < 0.58) return fail("Acomoda la INE en el recuadro", quality);
 
     stableFrameRef.current.count += 1;
     return {
-      ok: stableFrameRef.current.count >= 3,
-      hint: stableFrameRef.current.count >= 2 ? "Capturando..." : "Mantente quieto",
+      ok: stableFrameRef.current.count >= 2,
+      hint: stableFrameRef.current.count >= 1 ? "Capturando..." : "Mantente quieto",
+      quality,
     };
   }, [camRef]);
 
@@ -414,20 +450,25 @@ export default function Camera({
 
   useEffect(() => {
     setAutoCaptureDone(false);
+    setAutoCaptureQuality(0);
+    autoCaptureBusyRef.current = false;
     stableFrameRef.current = { data: null, count: 0 };
   }, [deviceId, name]);
 
   useEffect(() => {
     if (!autoCaptureIne || !isIneCapture || !webcamReady || autoCaptureDone || isScan) return;
     const interval = window.setInterval(async () => {
+      if (autoCaptureBusyRef.current) return;
       const result = evaluateIneFrame();
       setAutoCaptureHint(result.hint);
+      setAutoCaptureQuality(result.quality);
       if (result.ok) {
+        autoCaptureBusyRef.current = true;
         setAutoCaptureDone(true);
         window.clearInterval(interval);
         await captureImage();
       }
-    }, 700);
+    }, 300);
     return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoCaptureIne, isIneCapture, webcamReady, autoCaptureDone, isScan, evaluateIneFrame]);
@@ -650,7 +691,7 @@ export default function Camera({
           minHeight: isFluidHeight ? 0 : 220,
           height: resolvedContainerHeight,
           maxHeight: typeof resolvedContainerHeight === "number" ? resolvedContainerHeight : "none",
-          aspectRatio: isIneCapture && !isFluidHeight ? "16 / 10" : undefined,
+          aspectRatio: cameraAspectRatio,
           padding: 0,
           overflow: "hidden",
           border: `1px solid ${theme.palette.divider}`,
@@ -683,41 +724,6 @@ export default function Camera({
             </Button>
           </Box>
         )}
-        {isIneCapture && showButton && webcamReady && !isScan && (
-          <Box
-            sx={{
-              position: "absolute",
-              left: 12,
-              right: 12,
-              bottom: 12,
-              zIndex: 96,
-              display: "flex",
-              justifyContent: "center",
-              pointerEvents: "none",
-            }}
-          >
-            <Button
-              size="medium"
-              type="button"
-              variant="contained"
-              color="primary"
-              onClick={captureImage}
-              startIcon={<CameraAlt />}
-              sx={{
-                pointerEvents: "auto",
-                minHeight: 44,
-                px: 3,
-                borderRadius: 2,
-                fontWeight: 700,
-                boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
-                width: { xs: "100%", sm: "auto" },
-                maxWidth: 360,
-              }}
-            >
-              Tomar foto
-            </Button>
-          </Box>
-        )}
         {detectionMode === 1 && (
           <Fragment>
             {isScan ? (
@@ -741,7 +747,9 @@ export default function Camera({
                       padding: 0,
                     }}
                     videoStyle={{
-                      objectFit: "fill",
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
                     }}
                   />
                 ) : (
@@ -801,7 +809,7 @@ export default function Camera({
             />
           </Fragment>
         )}
-        {!isScan && !webcamError.estado && (
+        {!webcamError.estado && (
           <Box
             sx={{
               position: "absolute",
@@ -822,22 +830,32 @@ export default function Camera({
             >
               <Box
                 sx={{
-                  width: isIneCapture ? ineGuideSx.width : "62%",
-                  aspectRatio: isIneCapture ? ineGuideSx.aspectRatio : undefined,
+                  width: isScan ? { xs: "72%", sm: "58%" } : isIneCapture ? ineGuideSx.width : "62%",
+                  aspectRatio: isScan ? "1 / 1" : isIneCapture ? ineGuideSx.aspectRatio : undefined,
                   maxHeight: isIneCapture ? ineGuideSx.maxHeight : undefined,
-                  height: isIneCapture ? ineGuideSx.height : "78%",
-                  borderRadius: isIneCapture ? "12px" : "50%",
-                  border: "2px solid rgba(255,255,255,0.85)",
+                  height: isScan ? "auto" : isIneCapture ? ineGuideSx.height : "78%",
+                  borderRadius: isScan ? "18px" : isIneCapture ? "12px" : "50%",
+                  border: isIneCapture
+                    ? `3px solid ${
+                        autoCaptureQuality >= 0.58
+                          ? "#2e7d32"
+                          : autoCaptureQuality >= 0.38
+                            ? "#f9a825"
+                            : "rgba(255,255,255,0.85)"
+                      }`
+                    : "2px solid rgba(255,255,255,0.85)",
                   backgroundColor: "transparent",
                   boxShadow:
-                    "0 0 0 9999px rgba(0,0,0,0.45), 0 0 0 2px rgba(0,0,0,0.2) inset",
+                    autoCaptureQuality >= 0.58
+                      ? "0 0 0 9999px rgba(0,0,0,0.45), 0 0 18px rgba(46,125,50,0.9)"
+                      : "0 0 0 9999px rgba(0,0,0,0.45), 0 0 0 2px rgba(0,0,0,0.2) inset",
                 }}
               />
             </Box>
             <Box
               sx={{
                 position: "absolute",
-                bottom: isIneCapture && showButton ? 68 : 12,
+                bottom: 12,
                 left: 0,
                 right: 0,
                 textAlign: "center",
@@ -847,7 +865,9 @@ export default function Camera({
                 textShadow: "0 1px 2px rgba(0,0,0,0.6)",
               }}
             >
-              {isIneCapture
+              {isScan
+                ? "Coloca el codigo dentro del recuadro"
+                : isIneCapture
                 ? autoCaptureHint || "Centra la INE dentro del rectangulo"
                 : "Centra tu cara dentro del óvalo"}
             </Box>
@@ -876,7 +896,7 @@ export default function Camera({
           </Select>
         </Box>
       )}
-      {((!!setShow) || (showButton && webcamReady && !isIneCapture)) && (
+      {((!!setShow) || (showButton && webcamReady && !isScan)) && (
         <Box
           component="footer"
           sx={{
@@ -900,7 +920,7 @@ export default function Camera({
               Cancelar
             </Button>
           )}
-          {showButton && webcamReady && !isIneCapture && (
+          {showButton && webcamReady && !isScan && (
             <Button
               size="medium"
               type="submit"
@@ -908,6 +928,11 @@ export default function Camera({
               color="primary"
               onClick={captureImage}
               startIcon={<CameraAlt />}
+              sx={{
+                minHeight: 44,
+                fontWeight: 700,
+                width: { xs: "100%", sm: "auto" },
+              }}
             >
               Tomar foto
             </Button>
