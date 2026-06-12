@@ -376,6 +376,11 @@ export default function Visitantes() {
       });
       const res = await clienteAxios.get("/api/visitantes?" + urlParams.toString());
       const rows = res.data?.estado ? res.data.datos?.paginatedResults || [] : [];
+      const totalVisitantes = rows.length;
+      const visitantesVerificados = rows.filter((row: any) => Boolean(row?.verificado)).length;
+      const visitantesNoVerificados = totalVisitantes - visitantesVerificados;
+      const qrDisponibles = visitantesVerificados;
+      const entradasSemana = 0;
       const searchText = Array.isArray(quickFilterValues) && quickFilterValues.length
         ? quickFilterValues.join(" ")
         : "Sin busqueda";
@@ -386,6 +391,16 @@ export default function Visitantes() {
         fileName: `reporte-visitantes-${today}.pdf`,
         generatedBy: nombreUsuario || undefined,
         orientation: "landscape",
+        showFilters: false,
+        executiveSummary:
+          "Este reporte muestra el estado actual de los visitantes registrados, su verificacion, disponibilidad de QR, acceso y avance documental.",
+        summaryCards: [
+          { label: "Total visitantes", value: totalVisitantes, tone: "primary" },
+          { label: "Verificados", value: visitantesVerificados, tone: "success" },
+          { label: "No verificados", value: visitantesNoVerificados, tone: "danger" },
+          { label: "Con QR disponible", value: qrDisponibles, tone: "primary" },
+          { label: "Entradas esta semana", value: entradasSemana, tone: "neutral" },
+        ],
         filters: [
           { label: "Estado", value: getEstadoFiltroLabel() },
           { label: "Busqueda", value: searchText },
@@ -398,28 +413,46 @@ export default function Visitantes() {
             key: "verificado",
             width: 82,
             align: "center",
-            format: (row: any) => row.verificado ? "Verificado" : "No verificado",
+            badge: (row: any) => ({
+              label: row.verificado ? "Verificado" : "No verificado",
+              tone: row.verificado ? "success" : "danger",
+            }),
           },
           {
             header: "QR",
             key: "verificado",
             width: 76,
             align: "center",
-            format: (row: any) => row.verificado ? "Disponible" : "No disponible",
+            badge: (row: any) => ({
+              label: row.verificado ? "Disponible" : "No disponible",
+              tone: row.verificado ? "primary" : "neutral",
+            }),
           },
           {
             header: "Acceso",
             key: "activo",
             width: 96,
             align: "center",
-            format: formatAccessStatus,
+            badge: (row: any) => {
+              const status = formatAccessStatus(row);
+              return {
+                label: status,
+                tone: status === "Habilitado" ? "success" : status === "Bloqueado" ? "danger" : "neutral",
+              };
+            },
           },
           {
             header: "Documentos",
             key: "documentos_checks",
             width: 98,
             align: "center",
-            format: formatDocsStatus,
+            badge: (row: any) => {
+              const status = formatDocsStatus(row);
+              return {
+                label: status,
+                tone: status === "Completos" ? "success" : status === "Sin documentos" ? "danger" : "warning",
+              };
+            },
           },
         ],
         rows,
