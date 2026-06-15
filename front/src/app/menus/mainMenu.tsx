@@ -5,6 +5,7 @@
   // Apps, // FLAG: Checador oculto temporalmente - No borrar
   // Assignment, // FLAG: Bitácora oculta temporalmente - No borrar
   Business,
+  Description,
   Security,
   Contacts,
   // DynamicFeed, // FLAG: Pases oculto temporalmente - No borrar
@@ -117,27 +118,27 @@ const mainMenu = [
     id: 8,
     title: "Portal Contratistas",
     rol: [1, 11],
-    icon: <Engineering fontSize="small" />,
+    icon: <Business fontSize="small" />,
     submenu: [
       {
         id: 8.05,
         title: "Documentos del Contratista",
         rol: [1, 11],
-        icon: <Engineering fontSize="small" />,
+        icon: <Description fontSize="small" />,
         path: "/portal-contratistas/documentos",
       },
       {
         id: 8.1,
         title: "Visitantes",
         rol: [1, 11],
-        icon: <Engineering fontSize="small" />,
+        icon: <Group fontSize="small" />,
         path: "/portal-contratistas/visitantes",
       },
       {
         id: 8.2,
         title: "Solicitud de Visita",
         rol: [1, 11],
-        icon: <Engineering fontSize="small" />,
+        icon: <EventNote fontSize="small" />,
         path: "/portal-contratistas/solicitudes",
       },
     ],
@@ -152,7 +153,7 @@ const mainMenu = [
         id: 9.1,
         title: "Alta de Contratistas",
         rol: [1, 2],
-        icon: <Engineering fontSize="small" />,
+        icon: <AssignmentInd fontSize="small" />,
         path: "/contratistas",
       },
     ],
