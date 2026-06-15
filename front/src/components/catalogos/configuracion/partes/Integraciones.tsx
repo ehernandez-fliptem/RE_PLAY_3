@@ -25,6 +25,7 @@ export default function Integraciones() {
   const mostrarSoloIntegracionesSolicitadas = false;
   const [visibilidad, setVisibilidad] = useState({
     registro_campo: true,
+    capacitacion_publica: true,
     biostar: true,
     hikvision: true,
     hikvision_biometria: true,
@@ -53,6 +54,7 @@ export default function Integraciones() {
           setVisibilidad((prev) => ({
             ...prev,
             registro_campo: cfg.registro_campo !== false,
+            capacitacion_publica: cfg.capacitacion_publica !== false,
             biostar: cfg.biostar !== false,
             hikvision: cfg.hikvision !== false,
             hikvision_biometria: cfg.hikvision_biometria !== false,
@@ -180,6 +182,7 @@ export default function Integraciones() {
         habilitarCamaras,
         habilitarContratistas,
         habilitarRegistroCampo,
+        habilitarCapacitacionPublica,
         habilitarVisitantesAvanzado,
         habilitarVisitantesVehiculo,
       } = getValues();
@@ -193,6 +196,7 @@ export default function Integraciones() {
         habilitarCamaras,
         habilitarContratistas,
         habilitarRegistroCampo,
+        habilitarCapacitacionPublica,
         habilitarVisitantesAvanzado,
         habilitarVisitantesVehiculo,
         documentos_visitantes,
@@ -237,6 +241,7 @@ export default function Integraciones() {
             habilitarCamaras,
             habilitarContratistas,
             habilitarRegistroCampo,
+            habilitarCapacitacionPublica,
             habilitarVisitantesAvanzado,
             habilitarVisitantesVehiculo,
             documentos_visitantes,
@@ -591,6 +596,41 @@ export default function Integraciones() {
             label=""
             labelPlacement="start"
             name="habilitarRegistroCampo"
+          />
+        </Grid>
+      </Grid>
+      )}
+      {!mostrarSoloIntegracionesSolicitadas && visibilidad.capacitacion_publica && (
+      <Grid container spacing={2} sx={{ my: 2 }}>
+        <Grid size={{ xs: 12, sm: 10 }}>
+          <Stack spacing={0}>
+            <Typography variant="overline" component="h2">
+              <strong>Capacitacion publica</strong>
+            </Typography>
+            <Typography
+              variant="body2"
+              component="span"
+              sx={{ ml: { xs: 0, sm: 2 } }}
+            >
+              <small>
+                Habilita funciones publicas relacionadas con capacitacion. Esta
+                opcion queda lista para la siguiente configuracion.
+              </small>
+            </Typography>
+          </Stack>
+        </Grid>
+        <Grid
+          size={{ xs: 12, sm: 2 }}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: { xs: "center", sm: "end" },
+          }}
+        >
+          <SwitchElement
+            label=""
+            labelPlacement="start"
+            name="habilitarCapacitacionPublica"
           />
         </Grid>
       </Grid>

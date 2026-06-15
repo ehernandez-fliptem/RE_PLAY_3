@@ -22,6 +22,7 @@ interface ConfigState {
     habilitarCamaras: boolean;
     habilitarContratistas: boolean;
     habilitarRegistroCampo: boolean;
+    habilitarCapacitacionPublica: boolean;
     habilitarVisitantesAvanzado: boolean;
     habilitarVisitantesVehiculo: boolean;
     documentos_visitantes: Record<string, boolean>;
@@ -81,6 +82,7 @@ const initialState = {
     habilitarCamaras: false,
     habilitarContratistas: true,
     habilitarRegistroCampo: false,
+    habilitarCapacitacionPublica: false,
     habilitarVisitantesAvanzado: true,
     habilitarVisitantesVehiculo: true,
     documentos_visitantes: {},

@@ -139,6 +139,7 @@ type IntegracionesVisibilidad = {
     cliente_id: string;
     visibles: {
         registro_campo: boolean;
+        capacitacion_publica: boolean;
         biostar: boolean;
         hikvision: boolean;
         hikvision_biometria: boolean;
@@ -151,6 +152,7 @@ function obtenerVisibilidadIntegraciones(): IntegracionesVisibilidad {
     const cliente_id = String(CONFIG.CLIENTE_ID || "").trim();
     const defaults = {
         registro_campo: true,
+        capacitacion_publica: true,
         biostar: true,
         hikvision: true,
         hikvision_biometria: true,
@@ -169,6 +171,7 @@ function obtenerVisibilidadIntegraciones(): IntegracionesVisibilidad {
         cliente_id,
         visibles: {
             registro_campo: permitidas.has("registro_campo"),
+            capacitacion_publica: permitidas.has("capacitacion_publica"),
             biostar: permitidas.has("biostar"),
             hikvision: permitidas.has("hikvision"),
             hikvision_biometria: permitidas.has("hikvision_biometria"),
@@ -196,7 +199,7 @@ export async function obtenerIntegraciones(_req: Request, res: Response): Promis
         console.log("Obteniendo integraciones de configuración...");
         const registro = await Configuracion.findOne(
             { activo: true },
-            "habilitarIntegracionHv habilitarIntegracionBiostar habilitarIntegracionHvBiometria habilitarIntegracionCdvi habilitarContratistas habilitarRegistroCampo habilitarVisitantesAvanzado habilitarVisitantesVehiculo documentos_visitantes documentos_contratistas documentos_personalizados"
+            "habilitarIntegracionHv habilitarIntegracionBiostar habilitarIntegracionHvBiometria habilitarIntegracionCdvi habilitarContratistas habilitarRegistroCampo habilitarCapacitacionPublica habilitarVisitantesAvanzado habilitarVisitantesVehiculo documentos_visitantes documentos_contratistas documentos_personalizados"
         ).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 });
         res.status(200).send({ estado: true, datos: registro, visibilidad: obtenerVisibilidadIntegraciones() });
     } catch (error: any) {
@@ -215,6 +218,7 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
             habilitarCamaras,
             habilitarContratistas,
             habilitarRegistroCampo,
+            habilitarCapacitacionPublica,
             habilitarVisitantesAvanzado,
             habilitarVisitantesVehiculo,
             documentos_visitantes,
@@ -274,6 +278,8 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
             habilitarContratistas:
                 typeof habilitarContratistas === "boolean" ? habilitarContratistas : undefined,
             habilitarRegistroCampo: typeof habilitarRegistroCampo === "boolean" ? habilitarRegistroCampo : undefined,
+            habilitarCapacitacionPublica:
+                typeof habilitarCapacitacionPublica === "boolean" ? habilitarCapacitacionPublica : undefined,
             habilitarVisitantesAvanzado:
                 typeof habilitarVisitantesAvanzado === "boolean" ? habilitarVisitantesAvanzado : undefined,
             habilitarVisitantesVehiculo:
@@ -298,6 +304,9 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
         }
         if (update.habilitarRegistroCampo === undefined) {
             delete update.habilitarRegistroCampo;
+        }
+        if (update.habilitarCapacitacionPublica === undefined) {
+            delete update.habilitarCapacitacionPublica;
         }
         if (update.habilitarVisitantesAvanzado === undefined) {
             delete update.habilitarVisitantesAvanzado;

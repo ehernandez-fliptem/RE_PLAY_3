@@ -123,6 +123,7 @@ type FormValues = {
   habilitarCamaras: boolean;
   habilitarContratistas: boolean;
   habilitarRegistroCampo: boolean;
+  habilitarCapacitacionPublica: boolean;
   habilitarVisitantesAvanzado: boolean;
   habilitarVisitantesVehiculo: boolean;
   documentos_visitantes: DocChecks;
@@ -264,6 +265,7 @@ const resolver = yup.object().shape({
   habilitarCamaras: yup.boolean().required("Este campo es obligatorio."),
   habilitarContratistas: yup.boolean().required("Este campo es obligatorio."),
   habilitarRegistroCampo: yup.boolean().required("Este campo es obligatorio."),
+  habilitarCapacitacionPublica: yup.boolean().required("Este campo es obligatorio."),
   habilitarVisitantesAvanzado: yup.boolean().required("Este campo es obligatorio."),
   habilitarVisitantesVehiculo: yup.boolean().required("Este campo es obligatorio."),
   documentos_visitantes: yup
@@ -387,6 +389,7 @@ const initialValue: FormValues = {
   habilitarCamaras: false,
   habilitarContratistas: true,
   habilitarRegistroCampo: false,
+  habilitarCapacitacionPublica: false,
   habilitarVisitantesAvanzado: true,
   habilitarVisitantesVehiculo: true,
   documentos_visitantes: {
