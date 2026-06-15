@@ -103,11 +103,12 @@ function normalizarPermisosRoles(permisosActuales: any, rolesCatalogo: Array<{ r
 }
 
 function rolesPermitidosSegunIntegraciones(
-    flags: { contratistas?: boolean; campo?: boolean },
+    flags: { contratistas?: boolean; campo?: boolean; biostar?: boolean },
     rolesCatalogo: Array<{ rol: number }>
 ) {
     const base = new Set<number>([1, 2, 4, 5, 13]);
     const legacyOcultos = new Set<number>([6, 7, 10]);
+    if (!flags.biostar) base.delete(13);
     if (flags.contratistas) base.add(11);
     if (flags.campo) base.add(12);
 
@@ -117,6 +118,7 @@ function rolesPermitidosSegunIntegraciones(
         if (legacyOcultos.has(rolNum)) continue;
         if (rolNum === 11 && !flags.contratistas) continue;
         if (rolNum === 12 && !flags.campo) continue;
+        if (rolNum === 13 && !flags.biostar) continue;
         base.add(rolNum);
     }
     return Array.from(base);
@@ -125,7 +127,7 @@ function rolesPermitidosSegunIntegraciones(
 function normalizarPermisosRolesFiltrados(
     permisosActuales: any,
     rolesCatalogo: Array<{ rol: number }>,
-    flags: { contratistas?: boolean; campo?: boolean }
+    flags: { contratistas?: boolean; campo?: boolean; biostar?: boolean }
 ) {
     const rolesPermitidos = new Set(rolesPermitidosSegunIntegraciones(flags, rolesCatalogo));
     const rolesFiltrados = rolesCatalogo.filter((r) => rolesPermitidos.has(Number(r.rol)));
@@ -173,6 +175,20 @@ function obtenerVisibilidadIntegraciones(): IntegracionesVisibilidad {
             contratistas: permitidas.has("contratistas"),
         },
     };
+}
+
+async function actualizarUsuariosRolTabletQr(habilitarIntegracionBiostar: unknown) {
+    if (typeof habilitarIntegracionBiostar !== "boolean") return;
+    await Usuarios.updateMany(
+        { rol: 13 },
+        {
+            $set: {
+                activo: habilitarIntegracionBiostar,
+                token_web: "",
+                token_app: "",
+            },
+        }
+    );
 }
 
 export async function obtenerIntegraciones(_req: Request, res: Response): Promise<void> {
@@ -351,6 +367,7 @@ export async function modificarIntegraciones(req: Request, res: Response): Promi
                 }
             );
         }
+        await actualizarUsuariosRolTabletQr(habilitarIntegracionBiostar);
 
         res.status(200).json({ estado: true, datos: update });
     } catch (error: any) {
@@ -418,6 +435,11 @@ export async function obtener(_req: Request, res: Response): Promise<void> {
             { activo: true },
             { activo: 0, creado_por: 0, fecha_creacion: 0, modificado_por: 0, fecha_modificacion: 0 }
         );
+        const rolesVisibles = roles.filter((r: any) => {
+            const rolNum = Number(r.rol);
+            if (rolNum === 13 && !configJson?.habilitarIntegracionBiostar) return false;
+            return true;
+        });
         const rolesLite = roles.map((r: any) => ({ rol: Number(r.rol) }));
         configJson.permisos_roles = normalizarPermisosRolesFiltrados(
             configJson?.permisos_roles,
@@ -425,6 +447,7 @@ export async function obtener(_req: Request, res: Response): Promise<void> {
             {
                 contratistas: !!configJson?.habilitarContratistas,
                 campo: !!configJson?.habilitarRegistroCampo,
+                biostar: !!configJson?.habilitarIntegracionBiostar,
             }
         );
         res.status(200).send({
@@ -434,7 +457,7 @@ export async function obtener(_req: Request, res: Response): Promise<void> {
                 tipos_registros,
                 tipos_dispositivos,
                 tipos_documentos,
-                roles,
+                roles: rolesVisibles,
                 visibilidad_integraciones: obtenerVisibilidadIntegraciones(),
             }
         });
@@ -463,6 +486,9 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                     campo: typeof configuracion?.habilitarRegistroCampo === "boolean"
                         ? configuracion.habilitarRegistroCampo
                         : false,
+                    biostar: typeof configuracion?.habilitarIntegracionBiostar === "boolean"
+                        ? configuracion.habilitarIntegracionBiostar
+                        : false,
                 }
             ),
         };
@@ -475,6 +501,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                 return;
             }
             await registro.save();
+            await actualizarUsuariosRolTabletQr(configEntrada?.habilitarIntegracionBiostar);
             emitSocketEvent("configuracion:permisos-actualizados", {
                 ts: Date.now(),
                 roles: Array.isArray(configEntrada?.permisos_roles)
@@ -497,6 +524,7 @@ export async function modificar(req: Request, res: Response): Promise<void> {
                     }
                     res.status(500).send({ estado: false, mensaje: `${err.name}: ${err.message}` });
                 });
+            await actualizarUsuariosRolTabletQr(configEntrada?.habilitarIntegracionBiostar);
             emitSocketEvent("configuracion:permisos-actualizados", {
                 ts: Date.now(),
                 roles: Array.isArray(configEntrada?.permisos_roles)

@@ -4,9 +4,18 @@ import { UserRequest } from '../types/express';
 import { QueryParams } from "../types/queryparams";
 import Accesos from '../models/Accesos';
 import Usuarios, { IUsuario } from '../models/Usuarios';
+import Configuracion, { IConfiguracion } from "../models/Configuracion";
 import { fecha, log } from "../middlewares/log";
 import { customAggregationForDataGrids, isEmptyObject, resizeImage } from '../utils/utils';
 import { validarModelo } from '../validators/validadores';
+
+const isBiostarEnabled = async () => {
+    const cfg = await Configuracion.findOne(
+        { activo: true },
+        "habilitarIntegracionBiostar"
+    ).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 }) as IConfiguracion | null;
+    return !!cfg?.habilitarIntegracionBiostar;
+};
 
 export async function obtenerTodos(req: Request, res: Response): Promise<void> {
     try {
@@ -205,7 +214,8 @@ export async function crear(req: Request, res: Response): Promise<void> {
     try {
         const { img_acceso, nombre, identificador, id_empresa, modo_apertura_biostar, segundos_apertura_biostar } = req.body;
         const id_usuario = (req as UserRequest).userId;
-        const modoApertura = String(modo_apertura_biostar || "pulso") === "manual" ? "manual" : "pulso";
+        const biostarEnabled = await isBiostarEnabled();
+        const modoApertura = biostarEnabled && String(modo_apertura_biostar || "pulso") === "manual" ? "manual" : "pulso";
         const segundosApertura = Math.min(30, Math.max(1, Number(segundos_apertura_biostar || 3)));
         const registro = new Accesos({
             img_acceso: img_acceso ? await resizeImage(img_acceso) : "",
@@ -233,7 +243,8 @@ export async function modificar(req: Request, res: Response): Promise<void> {
     try {
         const { img_acceso, nombre, identificador, id_empresa, modo_apertura_biostar, segundos_apertura_biostar } = req.body;
         const id_usuario = (req as UserRequest).userId;
-        const modoApertura = String(modo_apertura_biostar || "pulso") === "manual" ? "manual" : "pulso";
+        const biostarEnabled = await isBiostarEnabled();
+        const modoApertura = biostarEnabled && String(modo_apertura_biostar || "pulso") === "manual" ? "manual" : "pulso";
         const segundosApertura = Math.min(30, Math.max(1, Number(segundos_apertura_biostar || 3)));
         const registro = await Accesos.findByIdAndUpdate(
             req.params.id,

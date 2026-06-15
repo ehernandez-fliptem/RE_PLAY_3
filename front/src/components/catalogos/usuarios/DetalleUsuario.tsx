@@ -38,7 +38,7 @@ type TUsuario = {
 };
 
 export default function DetalleUsuario() {
-  const { roles } = useSelector((state: IRootState) => state.config.data);
+  const { roles, habilitarIntegracionBiostar } = useSelector((state: IRootState) => state.config.data);
   const { id } = useParams();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
@@ -245,15 +245,17 @@ export default function DetalleUsuario() {
                     size={{ xs: 12, sm: "grow" }}
                     sx={{ ml: { xs: 2, sm: 0 } }}
                   >
-                    {rol.map((item) => (
+                    {rol
+                      .filter((item) => habilitarIntegracionBiostar || item !== 13)
+                      .map((item) => (
                       <Grid key={item} size="auto">
                         <Chip
                           label={getRoleLabel(item, roles[item]?.nombre)}
                           size="small"
                           sx={(theme) => ({
-                            bgcolor: roles[item].color || "#C4C4C4",
+                            bgcolor: roles[item]?.color || "#C4C4C4",
                             color: theme.palette.getContrastText(
-                              roles[item].color || "secondary.main"
+                              roles[item]?.color || "secondary.main"
                             ),
                           })}
                         />

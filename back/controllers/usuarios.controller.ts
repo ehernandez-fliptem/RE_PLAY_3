@@ -27,6 +27,19 @@ import FaceDetector from '../classes/FaceDetector';
 import FaceDescriptors from '../models/FaceDescriptors';
 const faceDetector = new FaceDetector();
 const normalizarCorreo = (correo?: string) => String(correo || "").trim().toLowerCase();
+const isBiostarEnabled = async () => {
+    const cfg = await Configuracion.findOne(
+        { activo: true },
+        "habilitarIntegracionBiostar"
+    ).sort({ fecha_modificacion: -1, fecha_creacion: -1, _id: -1 }) as IConfiguracion | null;
+    return !!cfg?.habilitarIntegracionBiostar;
+};
+
+const sanitizarRolesPorIntegraciones = async (roles: unknown) => {
+    const rolesArray = Array.isArray(roles) ? roles.map((item) => Number(item)).filter((item) => Number.isFinite(item)) : [];
+    if (await isBiostarEnabled()) return rolesArray;
+    return rolesArray.filter((item) => item !== 13);
+};
 
 export async function obtenerTodos(req: Request, res: Response): Promise<void> {
     try {
@@ -34,6 +47,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
         const isMaster = (req as UserRequest).isMaster;
         const { id_empresa } = await Usuarios.findById(id_usuario, 'id_empresa') as IUsuario
         const estadoFiltro = String((req.query as any)?.estado || "activos").trim().toLowerCase();
+        const biostarEnabled = await isBiostarEnabled();
 
         const { filter, pagination, sort, scope } = req.query as { filter: string; pagination: string; sort: string; scope?: string; };
         const queryFilter = JSON.parse(filter) as QueryParams["filter"];
@@ -55,7 +69,7 @@ export async function obtenerTodos(req: Request, res: Response): Promise<void> {
                 ? { rol: 11 }
                 : scope === "campo"
                     ? { rol: 12 }
-                    : { rol: { $nin: [11, 12] } };
+                    : { rol: { $nin: biostarEnabled ? [11, 12] : [11, 12, 13] } };
         const aggregation: PipelineStage[] = [
             {
                 $match: {
@@ -910,6 +924,11 @@ export async function crear(req: Request, res: Response): Promise<void> {
     try {
         const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, contrasena, rol, modo_tablet_qr } = req.body;
         const id_usuario = (req as UserRequest).userId;
+        const rolSanitizado = await sanitizarRolesPorIntegraciones(rol);
+        if (!rolSanitizado.length) {
+            res.status(200).json({ estado: false, mensaje: "Selecciona al menos un rol habilitado." });
+            return;
+        }
         const correoNormalizado = normalizarCorreo(correo);
         const empleadoVinculado = correoNormalizado
             ? await Empleados.findOne({ correo: correoNormalizado, activo: true }, "_id id_empleado nombre apellido_pat apellido_mat").lean()
@@ -932,9 +951,9 @@ export async function crear(req: Request, res: Response): Promise<void> {
             telefono,
             extension,
             correo: correoNormalizado,
-            rol,
+            rol: rolSanitizado,
             id_empleado_vinculado: empleadoVinculado?._id || null,
-            modo_tablet_qr: Array.isArray(rol) && rol.includes(13) && ["entrada", "salida", "ambos"].includes(String(modo_tablet_qr))
+            modo_tablet_qr: rolSanitizado.includes(13) && ["entrada", "salida", "ambos"].includes(String(modo_tablet_qr))
                 ? String(modo_tablet_qr)
                 : "ambos",
             esRoot: empresa?.esRoot,
@@ -958,7 +977,7 @@ export async function crear(req: Request, res: Response): Promise<void> {
         await nuevoUsuario
             .save()
             .then(async (reg_saved) => {
-                let roles = await Roles.find({ rol: { $in: rol }, activo: true }, 'nombre')
+                let roles = await Roles.find({ rol: { $in: rolSanitizado }, activo: true }, 'nombre')
                 const rolesString = roles.map((item) => item.nombre).join(' - ');
                 const nombreCompleto = [reg_saved.nombre, reg_saved.apellido_pat, reg_saved.apellido_mat]
                     .filter(Boolean)
@@ -1012,6 +1031,11 @@ export async function modificar(req: Request, res: Response): Promise<void> {
     try {
         const { img_usuario, nombre, apellido_pat, apellido_mat, id_empresa, id_piso, accesos, id_puesto, id_departamento, id_cubiculo, movil, telefono, extension, correo, contrasena, rol, modo_tablet_qr } = req.body;
         const id_usuario = (req as UserRequest).userId;
+        const rolSanitizado = await sanitizarRolesPorIntegraciones(rol);
+        if (!rolSanitizado.length) {
+            res.status(200).json({ estado: false, mensaje: "Selecciona al menos un rol habilitado." });
+            return;
+        }
         const correoNormalizado = normalizarCorreo(correo);
         const empleadoVinculado = correoNormalizado
             ? await Empleados.findOne({ correo: correoNormalizado, activo: true }, "_id").lean()
@@ -1040,9 +1064,9 @@ export async function modificar(req: Request, res: Response): Promise<void> {
 
                 correo: correoNormalizado,
                 contrasena,
-                rol,
+                rol: rolSanitizado,
                 id_empleado_vinculado: empleadoVinculado?._id || null,
-                modo_tablet_qr: Array.isArray(rol) && rol.includes(13) && ["entrada", "salida", "ambos"].includes(String(modo_tablet_qr))
+                modo_tablet_qr: rolSanitizado.includes(13) && ["entrada", "salida", "ambos"].includes(String(modo_tablet_qr))
                     ? String(modo_tablet_qr)
                     : "ambos",
                 esRoot: empresa?.esRoot,

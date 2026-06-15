@@ -32,7 +32,7 @@ import ErrorOverlay from "../../error/DataGridError";
 const pageSizeOptions = [25, 50, 100];
 
 export default function Usuarios() {
-  const { roles, habilitarContratistas, habilitarRegistroCampo } = useSelector(
+  const { roles, habilitarContratistas, habilitarRegistroCampo, habilitarIntegracionBiostar } = useSelector(
     (state: IRootState) => state.config.data
   );
   const apiRef = useGridApiRef();
@@ -83,7 +83,7 @@ export default function Usuarios() {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tipoVista, estadoFiltro]
+    [tipoVista, estadoFiltro, habilitarIntegracionBiostar]
   );
 
   const initialState: GridInitialState = useMemo(
@@ -255,7 +255,9 @@ export default function Usuarios() {
             minWidth: 150,
             renderCell: ({ value }) => (
               <Grid container spacing={1} sx={{ width: "100%", my: 1 }}>
-                {value.map((item: number) => (
+                {(value || [])
+                  .filter((item: number) => habilitarIntegracionBiostar || item !== 13)
+                  .map((item: number) => (
                   <Grid key={item} size={12}>
                     <Chip
                       label={getRoleLabel(item, roles[item]?.nombre)}
@@ -263,9 +265,9 @@ export default function Usuarios() {
                       color="secondary"
                       sx={(theme) => ({
                         width: "100%",
-                        bgcolor: roles[item].color || "secondary.main",
+                        bgcolor: roles[item]?.color || "secondary.main",
                         color: theme.palette.getContrastText(
-                          roles[item].color || "secondary.main"
+                          roles[item]?.color || "secondary.main"
                         ),
                       })}
                     />
@@ -274,7 +276,8 @@ export default function Usuarios() {
               </Grid>
             ),
             valueFormatter: (value: number[]) => {
-              return value
+              return (value || [])
+                .filter((item) => habilitarIntegracionBiostar || item !== 13)
                 .map((item) => getRoleLabel(item, roles[item]?.nombre))
                 .join(", ");
             },

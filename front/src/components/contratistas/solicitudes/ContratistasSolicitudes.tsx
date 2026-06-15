@@ -248,45 +248,8 @@ export default function ContratistasSolicitudes({ embedded = false }: Contratist
     { label: "Rechazadas", count: resumen.rechazadas, active: estadoFiltro === 3, onClick: () => actualizarEstadoFiltro(3) },
   ];
 
-  const summaryCards = [
-    { label: "Total", value: resumen.total, tone: "#6d00f5" },
-    { label: "Aprobadas", value: resumen.aprobadas, tone: "#2e7d32" },
-    { label: "Pendientes", value: resumen.pendientes, tone: "#ed6c02" },
-    { label: "Rechazadas", value: resumen.rechazadas, tone: "#d32f2f" },
-  ];
-
   return (
     <Box sx={{ minHeight: 400, position: "relative", display: "flex", flexDirection: "column", gap: 1.5 }}>
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: {
-            xs: "repeat(2, minmax(0, 1fr))",
-            md: "repeat(5, minmax(0, 1fr))",
-          },
-          gap: 1.25,
-        }}
-      >
-        {summaryCards.map((card) => (
-          <Paper
-            key={card.label}
-            variant="outlined"
-            sx={{
-              p: 1.5,
-              borderRadius: 2,
-              borderColor: "rgba(0,0,0,0.08)",
-              boxShadow: "0 4px 16px rgba(20, 20, 43, 0.04)",
-            }}
-          >
-            <Typography variant="h5" fontWeight={800} sx={{ color: card.tone, lineHeight: 1 }}>
-              {card.value}
-            </Typography>
-            <Typography variant="caption" color="text.secondary" fontWeight={700}>
-              {card.label}
-            </Typography>
-          </Paper>
-        ))}
-      </Box>
       <Box
         sx={{
           display: "flex",

@@ -56,8 +56,11 @@ const Main = styled("main", { shouldForwardProp: (prop) => prop !== "open" })<{
 }>(({ theme }) => ({
   flexGrow: 1,
   padding: theme.spacing(3),
-  height: "auto",
+  paddingBottom: theme.spacing(4),
+  boxSizing: "border-box",
+  height: "100dvh",
   minHeight: "100dvh",
+  overflow: "auto",
   width: `calc(${drawerWidth}px - 100%)`,
   transition: theme.transitions.create("margin", {
     easing: theme.transitions.easing.sharp,
@@ -65,6 +68,44 @@ const Main = styled("main", { shouldForwardProp: (prop) => prop !== "open" })<{
   }),
   marginLeft: `-${drawerWidth}px`,
   backgroundColor: theme.palette.mode === "light" ? "#E6E6E6" : "transparent",
+  "&:has(.MuiDataGrid-root)": {
+    overflow: "hidden",
+  },
+  "& > div:has(.MuiDataGrid-root), & > .MuiBox-root:has(.MuiDataGrid-root)": {
+    height: `calc(100dvh - ${appBarHeight}px - ${theme.spacing(7)})`,
+    minHeight: 0,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+  },
+  "& > div:has(.MuiDataGrid-root) > .MuiBox-root:has(.MuiDataGrid-root), & > .MuiBox-root:has(.MuiDataGrid-root) > .MuiBox-root:has(.MuiDataGrid-root)": {
+    minHeight: 0,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    flex: 1,
+  },
+  "& .MuiPaper-root:has(> .MuiDataGrid-root)": {
+    minHeight: 0,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    flex: 1,
+  },
+  "& > div:has(.MuiDataGrid-root) .MuiDataGrid-root, & > .MuiBox-root:has(.MuiDataGrid-root) .MuiDataGrid-root": {
+    height: "auto",
+    minHeight: 0,
+    flex: 1,
+    marginBottom: 0,
+    backgroundColor: theme.palette.background.paper,
+  },
+  [theme.breakpoints.down("sm")]: {
+    padding: theme.spacing(2),
+    paddingBottom: theme.spacing(3),
+    "& > div:has(.MuiDataGrid-root), & > .MuiBox-root:has(.MuiDataGrid-root)": {
+      height: `calc(100dvh - ${appBarHeight}px - ${theme.spacing(5)})`,
+    },
+  },
   variants: [
     {
       props: ({ open }) => open,

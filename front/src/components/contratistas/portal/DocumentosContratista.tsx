@@ -326,12 +326,6 @@ export default function DocumentosContratista() {
             ),
           }}
           sx={{
-            height: {
-              xs: "calc(100dvh - 176px)",
-              sm: "calc(100dvh - 204px)",
-            },
-            minHeight: { xs: 520, sm: 560 },
-            mb: { xs: 2, sm: 3 },
             bgcolor: "#fff",
             "& .MuiDataGrid-cell.MuiDataGrid-cell--focus": {
               outline: "none",

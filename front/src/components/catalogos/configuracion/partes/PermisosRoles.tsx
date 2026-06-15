@@ -31,6 +31,7 @@ export default function PermisosRoles() {
   const rolesPermitidos = useMemo(() => {
     const base = new Set<number>([1, 2, 4, 5, 13]);
     const legacyOcultos = new Set<number>([6, 7, 10]);
+    if (!flags.biostar) base.delete(13);
     if (flags.contratistas) base.add(11);
     if (flags.campo) base.add(12);
     roles.forEach((r) => {
@@ -38,10 +39,11 @@ export default function PermisosRoles() {
       if (!rolNum || legacyOcultos.has(rolNum)) return;
       if (rolNum === 11 && !flags.contratistas) return;
       if (rolNum === 12 && !flags.campo) return;
+      if (rolNum === 13 && !flags.biostar) return;
       base.add(rolNum);
     });
     return Array.from(base);
-  }, [flags.contratistas, flags.campo, roles]);
+  }, [flags.contratistas, flags.campo, flags.biostar, roles]);
 
   const defaultsByRole = useMemo<Record<number, ModuloPermisoId[]>>(
     () => ({

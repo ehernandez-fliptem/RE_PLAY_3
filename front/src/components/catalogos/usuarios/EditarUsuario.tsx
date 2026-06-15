@@ -205,7 +205,7 @@ const initialValue: FormValues = {
 
 export default function EditarUsuario() {
   const { id: ID } = useParams();
-  const { roles, habilitarContratistas, habilitarRegistroCampo } = useSelector(
+  const { roles, habilitarContratistas, habilitarRegistroCampo, habilitarIntegracionBiostar } = useSelector(
     (state: IRootState) => state.config.data
   );
   const ROLES = Object.entries(roles)
@@ -214,6 +214,7 @@ export default function EditarUsuario() {
       if ([6, 7, 10].includes(rol)) return false;
       if (rol === 11) return habilitarContratistas;
       if (rol === 12) return habilitarRegistroCampo;
+      if (rol === 13) return habilitarIntegracionBiostar;
       return true;
     })
     .sort((a, b) => Number(a[0]) - Number(b[0]))

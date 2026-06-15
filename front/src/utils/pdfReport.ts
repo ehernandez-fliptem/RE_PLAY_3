@@ -22,11 +22,13 @@ export type PdfReportOptions<T = Record<string, unknown>> = {
   summaryCards?: Array<{ label: string; value: string | number; tone?: PdfReportSummaryTone }>;
   generatedBy?: string;
   generatedAt?: Date;
+  headerMeta?: string;
   orientation?: "portrait" | "landscape";
   footerText?: string;
   emptyMessage?: string;
   showFilters?: boolean;
   executiveSummary?: string;
+  tableTitle?: string;
 };
 
 const formatDateTime = (date = new Date()) =>
@@ -66,11 +68,13 @@ export function generatePdfReport<T extends Record<string, unknown>>({
   summaryCards = [],
   generatedBy,
   generatedAt = new Date(),
+  headerMeta,
   orientation = "landscape",
   footerText = "Reporte generado automaticamente por el sistema",
   emptyMessage = "No se encontraron registros con los filtros seleccionados.",
   showFilters = true,
   executiveSummary,
+  tableTitle = "Listado de visitantes",
 }: PdfReportOptions<T>): Blob {
   const doc = new jsPDF({ orientation, unit: "pt", format: "letter" });
   doc.setProperties({ title: fileName });
@@ -97,7 +101,12 @@ export function generatePdfReport<T extends Record<string, unknown>>({
     doc.text(subtitle, margin, 54);
   }
   doc.setFontSize(9.5);
-  doc.text(`Generado el ${generatedText}`, margin, 74);
+  doc.text(
+    headerMeta ? `Generado el ${generatedText}   |   ${headerMeta}` : `Generado el ${generatedText}`,
+    margin,
+    74,
+    { maxWidth: pageWidth - margin * 2 - (generatedBy ? 180 : 0) }
+  );
   if (generatedBy) {
     doc.text(`Generado por: ${generatedBy}`, pageWidth - margin, 74, { align: "right" });
   }
@@ -140,17 +149,36 @@ export function generatePdfReport<T extends Record<string, unknown>>({
 
   if (showFilters && filters.length) {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(70, 70, 70);
-    doc.text("Filtros aplicados", margin, cursorY);
-    cursorY += 14;
-    doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    filters.forEach(({ label, value }) => {
-      doc.text(`${label}: ${safeText(value)}`, margin, cursorY);
-      cursorY += 12;
+    doc.setTextColor(70, 70, 70);
+    doc.text("Filtros", margin, cursorY);
+
+    const filterText = filters
+      .map(({ label, value }) => `${label}: ${safeText(value)}`)
+      .join("  |  ");
+    const filterLines = doc.splitTextToSize(
+      filterText,
+      pageWidth - margin * 2 - 54
+    );
+    const filterBoxHeight = Math.max(24, filterLines.length * 9 + 12);
+
+    doc.setFillColor(249, 249, 252);
+    doc.roundedRect(
+      margin + 44,
+      cursorY - 13,
+      pageWidth - margin * 2 - 44,
+      filterBoxHeight,
+      7,
+      7,
+      "F"
+    );
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.6);
+    doc.setTextColor(86, 91, 101);
+    filterLines.forEach((line: string, index: number) => {
+      doc.text(line, margin + 56, cursorY + index * 9);
     });
-    cursorY += 4;
+    cursorY += filterBoxHeight + 6;
   }
 
   if (executiveSummary) {
@@ -168,7 +196,7 @@ export function generatePdfReport<T extends Record<string, unknown>>({
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
   doc.setTextColor(45, 45, 45);
-  doc.text("Listado de visitantes", margin, cursorY);
+  doc.text(tableTitle, margin, cursorY);
   cursorY += 14;
 
   if (!rows.length) {
@@ -277,8 +305,8 @@ export function generatePdfReport<T extends Record<string, unknown>>({
     doc.setPage(page);
     const pageHeight = doc.internal.pageSize.getHeight();
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(110, 110, 110);
+    doc.setFontSize(6.4);
+    doc.setTextColor(132, 132, 142);
     doc.setDrawColor(224, 224, 228);
     doc.line(margin, pageHeight - 36, pageWidth - margin, pageHeight - 36);
     doc.text(footerText, margin, pageHeight - 20);

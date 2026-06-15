@@ -20,6 +20,8 @@ import { setFormErrors, notifyFormErrors } from "../../helpers/formHelper";
 import ModalContainer from "../../utils/ModalContainer";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import type { GridDataSourceApiBase } from "@mui/x-data-grid";
+import { useSelector } from "react-redux";
+import type { IRootState } from "../../../app/store";
 
 type FormValues = {
   identificador: string;
@@ -57,6 +59,9 @@ const initialValue: FormValues = {
 };
 
 export default function NuevoAcceso() {
+  const { habilitarIntegracionBiostar } = useSelector(
+    (state: IRootState) => state.config.data
+  );
   const formContext = useForm({
     defaultValues: initialValue,
     resolver: yupResolver(resolver),
@@ -116,27 +121,31 @@ export default function NuevoAcceso() {
                   fullWidth
                   margin="normal"
                 />
-                <SelectElement
-                  name="modo_apertura_biostar"
-                  label="Modo de apertura BioStar"
-                  required
-                  fullWidth
-                  margin="normal"
-                  options={[
-                    { id: "pulso", label: "Pulso" },
-                    { id: "manual", label: "Manual (abrir/cerrar)" },
-                  ]}
-                />
-                {formContext.watch("modo_apertura_biostar") === "pulso" && (
-                  <TextFieldElement
-                    name="segundos_apertura_biostar"
-                    label="Segundos de apertura"
-                    type="number"
-                    required
-                    fullWidth
-                    margin="normal"
-                    inputProps={{ min: 1, max: 30 }}
-                  />
+                {habilitarIntegracionBiostar && (
+                  <>
+                    <SelectElement
+                      name="modo_apertura_biostar"
+                      label="Modo de apertura BioStar"
+                      required
+                      fullWidth
+                      margin="normal"
+                      options={[
+                        { id: "pulso", label: "Pulso" },
+                        { id: "manual", label: "Manual (abrir/cerrar)" },
+                      ]}
+                    />
+                    {formContext.watch("modo_apertura_biostar") === "pulso" && (
+                      <TextFieldElement
+                        name="segundos_apertura_biostar"
+                        label="Segundos de apertura"
+                        type="number"
+                        required
+                        fullWidth
+                        margin="normal"
+                        inputProps={{ min: 1, max: 30 }}
+                      />
+                    )}
+                  </>
                 )}
                 <Divider sx={{ my: 2 }} />
                 <Box
