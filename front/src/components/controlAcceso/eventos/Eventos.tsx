@@ -307,6 +307,17 @@ export default function Eventos() {
     setCanSearch(true);
   }, []);
 
+  useEffect(() => {
+    if (habilitarRegistroCampo) return;
+    const panelActual = String(formContext.getValues("panel") || "");
+    if (panelActual === "campo" || panelActual === "todos") {
+      formContext.setValue("panel", "all", {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
+    }
+  }, [habilitarRegistroCampo, formContext]);
+
   const clearForm = () => {
     formContext.reset();
   };
@@ -316,8 +327,9 @@ export default function Eventos() {
   };
 
   const esEventoCampo = (row: GridValidRowModel) =>
-    Number(row?.tipo_dispositivo) === 4 ||
-    String(row?.panel || "").toLowerCase().includes("campo");
+    !!habilitarRegistroCampo &&
+    (Number(row?.tipo_dispositivo) === 4 ||
+      String(row?.panel || "").toLowerCase().includes("campo"));
 
   const obtenerCoords = (ubicacion: unknown) => {
     const raw = String(ubicacion || "");
@@ -748,7 +760,18 @@ export default function Eventos() {
 
   return (
     <Fragment>
-      <Box component="section" sx={{ mb: 4 }}>
+      <Box
+        className="eventos-page"
+        sx={{
+          height: "100%",
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 3,
+          overflow: "hidden",
+        }}
+      >
+      <Box component="section" sx={{ flexShrink: 0 }}>
         <Card
           elevation={0}
           sx={(theme) => ({
@@ -964,7 +987,14 @@ export default function Eventos() {
           </CardContent>
         </Card>
       </Box>
-      <div style={{ position: "relative" }}>
+      <Box
+        sx={{
+          position: "relative",
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden",
+        }}
+      >
         <DataGrid
           apiRef={apiRef}
           initialState={initialState}
@@ -1107,6 +1137,9 @@ export default function Eventos() {
             },
           ]}
           disableRowSelectionOnClick
+          columnVisibilityModel={{
+            ubicacion: !!habilitarRegistroCampo,
+          }}
           disableColumnFilter
           filterDebounceMs={1000}
           dataSource={dataSource}
@@ -1124,6 +1157,17 @@ export default function Eventos() {
           pagination
           pageSizeOptions={pageSizeOptions}
           showToolbar
+          sx={{
+            height: "100%",
+            minHeight: 0,
+            "& .MuiDataGrid-main": {
+              minHeight: 0,
+              overflow: "hidden",
+            },
+            "& .MuiDataGrid-virtualScroller": {
+              overflowY: "auto !important",
+            },
+          }}
           localeText={{
             ...esES.components.MuiDataGrid.defaultProps.localeText,
             toolbarColumns: "",
@@ -1172,7 +1216,8 @@ export default function Eventos() {
           />
         </FormProvider>
       )}
-      </div>
+      </Box>
+      </Box>
 
       <Dialog
         open={openReporte}
