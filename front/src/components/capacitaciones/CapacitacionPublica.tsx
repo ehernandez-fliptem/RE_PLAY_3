@@ -35,6 +35,15 @@ export default function CapacitacionPublica() {
     load();
   }, [navigate, slug]);
 
+  useEffect(() => {
+    if (!capacitacion?.titulo) return;
+    const previousTitle = document.title;
+    document.title = capacitacion.titulo;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [capacitacion?.titulo]);
+
   const registrarResultado = async (payload: any) => {
     if (!capacitacion?._id) return;
     await clienteAxios.post(`/api/capacitaciones/publica/${capacitacion._id}/resultados`, payload);
