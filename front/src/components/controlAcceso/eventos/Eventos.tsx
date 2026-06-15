@@ -89,7 +89,7 @@ type EventoReportePersona = Record<string, unknown> & {
   entradas: number;
   salidas: number;
   totalEventos: number;
-  primeraEntrada: string;
+  ultimaEntrada: string;
   ultimaSalida: string;
   ultimoMovimiento: string;
   ultimasVisitas: string;
@@ -524,8 +524,8 @@ export default function Eventos() {
           entradas: entradas.length,
           salidas: salidas.length,
           totalEventos: ordenados.length,
-          primeraEntrada: entradas[0]?.fecha_creacion
-            ? formatReportDate(entradas[0].fecha_creacion)
+          ultimaEntrada: entradas[entradas.length - 1]?.fecha_creacion
+            ? formatReportDate(entradas[entradas.length - 1].fecha_creacion)
             : "--",
           ultimaSalida: salidas[salidas.length - 1]?.fecha_creacion
             ? formatReportDate(salidas[salidas.length - 1].fecha_creacion)
@@ -573,7 +573,7 @@ export default function Eventos() {
             <td>${row.entradas}</td>
             <td>${row.salidas}</td>
             <td>${row.totalEventos}</td>
-            <td>${escapeHtml(row.primeraEntrada)}</td>
+            <td>${escapeHtml(row.ultimaEntrada)}</td>
             <td>${escapeHtml(row.ultimaSalida)}</td>
             <td>${escapeHtml(row.ultimoMovimiento)}</td>
             <td>${escapeHtml(row.ultimasVisitas)}</td>
@@ -608,7 +608,7 @@ export default function Eventos() {
                 <th>Entradas</th>
                 <th>Salidas</th>
                 <th>Total eventos</th>
-                <th>Primera entrada</th>
+                <th>Última entrada</th>
                 <th>Última salida</th>
                 <th>Último movimiento</th>
                 <th>Movimientos recientes</th>
@@ -656,7 +656,7 @@ export default function Eventos() {
         tableTitle: "Resumen por persona",
         showFilters: false,
         footerText:
-          "Reporte agrupado por persona. Cada registro resume entradas, salidas y movimientos recientes para facilitar la revision del periodo.",
+          "Reporte agrupado por persona. Cada registro resume entradas, salidas y movimientos recientes.",
         summaryCards: [
           { label: "Personas", value: rows.length, tone: "primary" },
           { label: "Entradas", value: totalEntradas, tone: "success" },
@@ -664,14 +664,14 @@ export default function Eventos() {
           { label: "Eventos", value: eventos.length, tone: "neutral" },
         ],
         columns: [
-          { header: "Persona", key: "persona", width: 130 },
-          { header: "Entradas", key: "entradas", width: 58, align: "center" },
-          { header: "Salidas", key: "salidas", width: 58, align: "center" },
-          { header: "Total", key: "totalEventos", width: 50, align: "center" },
-          { header: "Primera entrada", key: "primeraEntrada", width: 88 },
-          { header: "Ultima salida", key: "ultimaSalida", width: 88 },
-          { header: "Ultimo movimiento", key: "ultimoMovimiento", width: 115 },
-          { header: "Movimientos recientes", key: "ultimasVisitas", width: 210 },
+          { header: "Persona", key: "persona", width: 108 },
+          { header: "Entradas", key: "entradas", width: 54, align: "center" },
+          { header: "Salidas", key: "salidas", width: 50, align: "center" },
+          { header: "Total", key: "totalEventos", width: 40, align: "center" },
+          { header: "Ultima entrada", key: "ultimaEntrada", width: 76 },
+          { header: "Ultima salida", key: "ultimaSalida", width: 76 },
+          { header: "Ultimo movimiento", key: "ultimoMovimiento", width: 96 },
+          { header: "Movimientos recientes", key: "ultimasVisitas", width: 216 },
         ],
         rows,
         emptyMessage: "No se encontraron eventos con los filtros seleccionados.",

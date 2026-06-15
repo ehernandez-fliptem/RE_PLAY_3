@@ -168,6 +168,7 @@ export default function Empleados() {
     (huellaHikiEnabled ? "hiki" : "biostar");
   const proveedorHuellaLabel = proveedorHuellaActual === "hiki" ? "Hikvision" : "BioStar";
   const haySiguienteProveedorHuella = huellaProviderIndex < huellaProviderQueue.length - 1;
+  const hayIntegracionesSyncActivas = huellaHikiEnabled || !!habilitarIntegracionBiostar;
 
   const fingers = [
     { id: 1, label: "Pulgar Izq" },
@@ -569,7 +570,14 @@ export default function Empleados() {
 
   useEffect(() => {
     const state = location.state as any;
-    if (state?.reopenSyncBiostar && location.pathname === "/empleados") {
+    if (
+      state?.reopenSyncBiostar &&
+      location.pathname === "/empleados"
+    ) {
+      if (!habilitarIntegracionBiostar) {
+        navigate(location.pathname, { replace: true, state: {} });
+        return;
+      }
       setSyncBioOpen(true);
       cargarSyncBiostarPreview();
       navigate(location.pathname, { replace: true, state: {} });
@@ -587,9 +595,13 @@ export default function Empleados() {
       navigate(location.pathname, { replace: true, state: {} });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state, huellaHikiEnabled, huellaBiostarEnabled, tarjetaHikiEnabled]);
+  }, [location.state, huellaHikiEnabled, huellaBiostarEnabled, tarjetaHikiEnabled, habilitarIntegracionBiostar]);
 
   const cargarResumenGrupos = useCallback(async () => {
+    if (!habilitarIntegracionBiostar) {
+      setBiostarGroupOptions([]);
+      return;
+    }
     try {
       const res = await clienteAxios.get("/api/empleados/biostar-grupos-resumen");
       if (res.data?.estado) {
@@ -598,11 +610,21 @@ export default function Empleados() {
     } catch {
       setBiostarGroupOptions([]);
     }
-  }, []);
+  }, [habilitarIntegracionBiostar]);
 
   useEffect(() => {
     cargarResumenGrupos();
   }, [cargarResumenGrupos]);
+
+  useEffect(() => {
+    if (habilitarIntegracionBiostar) return;
+    setBiostarGroupFilter("");
+    setBiostarGroupOptions([]);
+    setSyncBioOpen(false);
+    setSyncBioPendientes([]);
+    setSyncBioSelected("");
+    setSyncBioSelectionModel({ type: "include", ids: new Set() });
+  }, [habilitarIntegracionBiostar]);
 
   const devReplayEnabled = false;
   const biometriaBadgeWidth = 126;
@@ -654,8 +676,10 @@ export default function Empleados() {
             sort: JSON.stringify(params.sortModel),
           });
           urlParams.set("estado", estadoFiltro);
-          urlParams.set("biostar_live", "1");
-          if (biostarGroupFilter) {
+          if (habilitarIntegracionBiostar) {
+            urlParams.set("biostar_live", "1");
+          }
+          if (habilitarIntegracionBiostar && biostarGroupFilter) {
             urlParams.set("biostar_group_id", biostarGroupFilter);
           }
           const res = await clienteAxios.get(
@@ -671,7 +695,8 @@ export default function Empleados() {
             setPendingSyncCount(
               rows.filter(
                 (r: any) =>
-                  !!r.sync_hikvision_pendiente || !!r.sync_biostar_pendiente
+                  (huellaHikiEnabled && !!r.sync_hikvision_pendiente) ||
+                  (habilitarIntegracionBiostar && !!r.sync_biostar_pendiente)
               ).length
             );
             rowCount = res.data.datos.totalCount[0]?.count || 0;
@@ -688,7 +713,7 @@ export default function Empleados() {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [biostarGroupFilter, estadoFiltro]
+    [biostarGroupFilter, estadoFiltro, habilitarIntegracionBiostar, huellaHikiEnabled]
   );
 
   useEffect(() => {
@@ -721,6 +746,13 @@ export default function Empleados() {
   };
 
   const cargarSyncBiostarPreview = useCallback(async () => {
+    if (!habilitarIntegracionBiostar) {
+      setSyncBioLoading(false);
+      setSyncBioPendientes([]);
+      setSyncBioSelected("");
+      setSyncBioSelectionModel({ type: "include", ids: new Set() });
+      return;
+    }
     try {
       setSyncBioLoading(true);
       const res = await clienteAxios.get("/api/empleados/biostar-sync/preview");
@@ -738,9 +770,13 @@ export default function Empleados() {
     } finally {
       setSyncBioLoading(false);
     }
-  }, [navigate]);
+  }, [navigate, habilitarIntegracionBiostar]);
 
   const abrirSyncBiostar = async () => {
+    if (!habilitarIntegracionBiostar) {
+      apiRef.current?.dataSource?.fetchRows?.();
+      return;
+    }
     setSyncBioOpen(true);
     await cargarSyncBiostarPreview();
   };
@@ -1150,7 +1186,7 @@ export default function Empleados() {
 
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
-      {pendingSyncCount > 0 && (
+      {hayIntegracionesSyncActivas && pendingSyncCount > 0 && (
         <Alert severity="warning" sx={{ mb: 1 }}>
           Hay {pendingSyncCount} empleado(s) con sincronización pendiente con integraciones.
         </Alert>
@@ -1443,10 +1479,13 @@ export default function Empleados() {
                   );
                 }
               }
-              if (row.sync_hikvision_pendiente || row.sync_biostar_pendiente) {
+              if (
+                (huellaHikiEnabled && row.sync_hikvision_pendiente) ||
+                (habilitarIntegracionBiostar && row.sync_biostar_pendiente)
+              ) {
                 const sistemas = [
-                  ...(row.sync_hikvision_pendiente ? ["Hikvision"] : []),
-                  ...(row.sync_biostar_pendiente ? ["BioStar"] : []),
+                  ...(huellaHikiEnabled && row.sync_hikvision_pendiente ? ["Hikvision"] : []),
+                  ...(habilitarIntegracionBiostar && row.sync_biostar_pendiente ? ["BioStar"] : []),
                 ].join(", ");
                 gridActions.push(
                   <GridActionsCellItem
@@ -1552,7 +1591,7 @@ export default function Empleados() {
                       <Add fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Sincronizar BioStar">
+                  <Tooltip title={habilitarIntegracionBiostar ? "Sincronizar BioStar" : "Recargar"}>
                     <IconButton onClick={abrirSyncBiostar}>
                       <Autorenew fontSize="small" />
                     </IconButton>
@@ -1570,16 +1609,17 @@ export default function Empleados() {
           ),
         }}
       />
-      <Dialog
-        open={syncBioOpen}
-        onClose={(_, reason) => {
-          if (reason === "backdropClick") return;
-          setSyncBioOpen(false);
-        }}
-        fullWidth
-        maxWidth="md"
-        PaperProps={{ sx: { minHeight: 560 } }}
-      >
+      {habilitarIntegracionBiostar && (
+        <Dialog
+          open={syncBioOpen}
+          onClose={(_, reason) => {
+            if (reason === "backdropClick") return;
+            setSyncBioOpen(false);
+          }}
+          fullWidth
+          maxWidth="md"
+          PaperProps={{ sx: { minHeight: 560 } }}
+        >
         <DialogTitle>Pendientes de BioStar</DialogTitle>
         <DialogContent dividers sx={{ minHeight: 460 }}>
           <TextField
@@ -1683,7 +1723,8 @@ export default function Empleados() {
             {syncBioSelectedIds.length > 1 ? "Dar de alta seleccionados" : "Dar de alta"}
           </Button>
         </DialogActions>
-      </Dialog>
+        </Dialog>
+      )}
       <Dialog
         open={biometriaOpen}
         onClose={(_, reason) => {

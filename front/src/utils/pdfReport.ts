@@ -228,8 +228,9 @@ export function generatePdfReport<T extends Record<string, unknown>>({
       head,
       body,
       startY: cursorY + 10,
-      margin: { left: margin, right: margin },
+      margin: { left: margin, right: margin, bottom: 54 },
       tableWidth: pageWidth - margin * 2,
+      rowPageBreak: "avoid",
       styles: {
         font: "helvetica",
         fontSize: 8.8,
@@ -244,8 +245,9 @@ export function generatePdfReport<T extends Record<string, unknown>>({
         fillColor: [55, 35, 85],
         textColor: [255, 255, 255],
         fontStyle: "bold",
-        fontSize: 8.8,
+        fontSize: 7.2,
         minCellHeight: 28,
+        overflow: "hidden",
       },
       alternateRowStyles: {
         fillColor: [248, 248, 252],
