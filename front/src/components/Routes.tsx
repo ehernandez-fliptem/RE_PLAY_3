@@ -1,4 +1,4 @@
-import { useRoutes, Navigate } from "react-router-dom";
+import { useRoutes, Navigate, useLocation, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import type { IRootState } from "../app/store";
 import Logout from "./auth/Logout";
@@ -92,7 +92,6 @@ import Contratistas from "./contratistas/Contratistas";
 import NuevoContratista from "./contratistas/NuevoContratista";
 import EditarContratista from "./contratistas/EditarContratista";
 import DetalleContratista from "./contratistas/DetalleContratista";
-import ContratistasSolicitudes from "./contratistas/solicitudes/ContratistasSolicitudes";
 import DetalleContratistasSolicitud from "./contratistas/solicitudes/DetalleContratistasSolicitud";
 import PortalVisitantes from "./contratistas/portal/Visitantes";
 import NuevoPortalVisitante from "./contratistas/portal/NuevoVisitante";
@@ -112,6 +111,17 @@ import DetalleCamara from "./catalogos/camaras/DetalleCamara";
 import EditarCamara from "./catalogos/camaras/EditarCamara";
 import Campo from "./campo/Campo";
 import { canViewModule, getMainModuleForRole, mainModulePath } from "../app/utils/permisosRoles";
+
+function RedirectSolicitudContratistaDetalle() {
+  const { id } = useParams();
+  const location = useLocation();
+  return (
+    <Navigate
+      to={`/visitantes/solicitudes-contratistas/detalle/${id || ""}${location.search}`}
+      replace
+    />
+  );
+}
 
 export default function Routes() {
   const { rol } = useSelector((state: IRootState) => state.auth.data);
@@ -322,13 +332,11 @@ export default function Routes() {
       children: [
         {
           path: "",
-          element: canContratistas ? <ContratistasSolicitudes /> : <Unauthorized />,
-          children: [
-            {
-              path: "detalle/:id",
-              element: canContratistas ? <DetalleContratistasSolicitud /> : <Unauthorized />,
-            },
-          ],
+          element: canContratistas ? <Navigate to="/visitantes?tab=solicitudes-contratistas" replace /> : <Unauthorized />,
+        },
+        {
+          path: "detalle/:id",
+          element: canContratistas ? <RedirectSolicitudContratistaDetalle /> : <Unauthorized />,
         },
         {
           path: "*",
@@ -577,6 +585,10 @@ export default function Routes() {
             {
               path: "verificar-visitante/:id",
               element: canVisitantes ? <VerificarVisitante /> : <Unauthorized />,
+            },
+            {
+              path: "solicitudes-contratistas/detalle/:id",
+              element: canContratistas ? <DetalleContratistasSolicitud /> : <Unauthorized />,
             },
           ],
         },

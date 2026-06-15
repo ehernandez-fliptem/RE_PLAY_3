@@ -81,6 +81,7 @@ export default function DetalleContratistasSolicitud() {
   const docsCfg = useMemo(() => getDocumentosConfig(configDocs, "visitantes"), [configDocs]);
   const enabledDocKeys = useMemo(() => docsCfg.required.map((d) => d.key).concat(docsCfg.optional.map((d) => d.key)), [docsCfg]);
   const isAprobarMode = new URLSearchParams(location.search).get("modo") === "aprobar";
+  const solicitudesPath = "/visitantes?tab=solicitudes-contratistas";
 
   useEffect(() => {
     const obtenerRegistro = async () => {
@@ -131,7 +132,7 @@ export default function DetalleContratistasSolicitud() {
   );
 
   const regresar = () => {
-    navigate(`/contratistas/solicitudes`);
+    navigate(solicitudesPath);
   };
 
   const aprobarSolicitud = async () => {
@@ -147,7 +148,7 @@ export default function DetalleContratistasSolicitud() {
       });
       if (res.data.estado) {
         enqueueSnackbar("Solicitud aprobada.", { variant: "success" });
-        navigate("/contratistas/solicitudes");
+        navigate(solicitudesPath);
       } else {
         enqueueSnackbar(res.data.mensaje, { variant: "warning" });
       }

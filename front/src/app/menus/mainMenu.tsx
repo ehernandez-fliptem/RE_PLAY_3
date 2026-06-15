@@ -154,13 +154,6 @@ const mainMenu = [
         icon: <Engineering fontSize="small" />,
         path: "/contratistas",
       },
-      {
-        id: 9.2,
-        title: "Solicitudes Contratistas",
-        rol: [1, 2],
-        icon: <Engineering fontSize="small" />,
-        path: "/contratistas/solicitudes",
-      },
     ],
   },
   {

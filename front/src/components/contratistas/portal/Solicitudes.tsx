@@ -12,8 +12,8 @@ import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { Outlet, useNavigate } from "react-router-dom";
 import { esES } from "@mui/x-data-grid/locales";
 import DataGridToolbar from "../../utils/DataGridToolbar";
-import { Add, Refresh, Visibility } from "@mui/icons-material";
-import { Box, Chip, IconButton, Tooltip } from "@mui/material";
+import { Add, FilterAltOff, Refresh, Visibility } from "@mui/icons-material";
+import { Box, Button, Chip, IconButton, Tooltip } from "@mui/material";
 import ErrorOverlay from "../../error/DataGridError";
 import { AxiosError } from "axios";
 import dayjs from "dayjs";
@@ -43,7 +43,6 @@ export default function PortalSolicitudes() {
     rechazadas: 0,
     parciales: 0,
   });
-  const chipScale = 1.5;
   const [fechaDesdeError, setFechaDesdeError] = useState<string>("");
   const [fechaHastaError, setFechaHastaError] = useState<string>("");
 
@@ -180,6 +179,13 @@ export default function PortalSolicitudes() {
     apiRef.current?.dataSource?.fetchRows?.();
   };
 
+  const statusFilters = [
+    { label: "Todos", count: resumen.total, active: estadoFiltro === null, onClick: () => actualizarEstadoFiltro(null) },
+    { label: "Aprobadas", count: resumen.aprobadas, active: estadoFiltro === 2, onClick: () => actualizarEstadoFiltro(2) },
+    { label: "Pendientes", count: resumen.pendientes, active: estadoFiltro === 1, onClick: () => actualizarEstadoFiltro(1) },
+    { label: "Rechazadas", count: resumen.rechazadas, active: estadoFiltro === 3, onClick: () => actualizarEstadoFiltro(3) },
+  ];
+
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
       <Box
@@ -191,12 +197,16 @@ export default function PortalSolicitudes() {
           mb: 1.5,
           backgroundColor: "#fff",
           borderRadius: 2,
-          p: 1.5,
-          boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+          p: { xs: 1.5, md: 2 },
+          border: "1px solid rgba(0,0,0,0.08)",
+          boxShadow: "0 8px 24px rgba(20, 20, 43, 0.05)",
+          "& .MuiChip-root": {
+            borderRadius: 1.5,
+          },
         }}
       >
         <DatePicker
-          label="Desde"
+          label="Fecha desde"
           value={fechaDesde}
           onChange={actualizarFechaDesde}
           maxDate={fechaHasta}
@@ -214,15 +224,13 @@ export default function PortalSolicitudes() {
             textField: {
               error: Boolean(fechaDesdeError),
               helperText: fechaDesdeError,
-              sx: {
-                backgroundColor: "#fff",
-                borderRadius: 1,
-              },
+              size: "small",
+              sx: { minWidth: { xs: "100%", md: 180 } },
             },
           }}
         />
         <DatePicker
-          label="Hasta"
+          label="Fecha hasta"
           value={fechaHasta}
           onChange={actualizarFechaHasta}
           minDate={fechaDesde}
@@ -240,103 +248,52 @@ export default function PortalSolicitudes() {
             textField: {
               error: Boolean(fechaHastaError),
               helperText: fechaHastaError,
-              sx: {
-                backgroundColor: "#fff",
-                borderRadius: 1,
+              size: "small",
+              sx: { minWidth: { xs: "100%", md: 180 } },
+            },
+          }}
+        />
+        {statusFilters.map((filter) => (
+          <Chip
+            key={filter.label}
+            label={`${filter.label}: ${filter.count}`}
+            onClick={filter.onClick}
+            sx={{
+              height: 30,
+              justifyContent: "center",
+              bgcolor: filter.active ? "#6d00f5" : "#f3f4f8",
+              color: filter.active ? "#fff" : "#3d3d4d",
+              border: filter.active ? "1px solid #6d00f5" : "1px solid #e4e5ec",
+              "& .MuiChip-label": {
+                px: 1.25,
+                fontWeight: 700,
+                fontSize: 12,
+                textAlign: "center",
               },
-            },
-          }}
-        />
-        <Chip
-          label={`Todos: ${resumen.total}`}
-          color={estadoFiltro === null ? "primary" : "default"}
-          onClick={() => actualizarEstadoFiltro(null)}
-          sx={{
-            minWidth: 150 * chipScale,
-            height: 30 * chipScale,
-            justifyContent: "center",
-            "& .MuiChip-label": {
-              px: 1.5 * chipScale,
-              color: estadoFiltro === null ? "#fff" : "#2f2f2f",
-              fontWeight: 600,
-              fontSize: 12 * chipScale,
-              textAlign: "center",
-            },
-          }}
-        />
-        <Chip
-          label={`Aprobadas: ${resumen.aprobadas}`}
-          color={estadoFiltro === 2 ? "success" : "default"}
-          onClick={() => actualizarEstadoFiltro(2)}
-          sx={{
-            minWidth: 150 * chipScale,
-            height: 30 * chipScale,
-            justifyContent: "center",
-            "& .MuiChip-label": {
-              px: 1.5 * chipScale,
-              color: estadoFiltro === 2 ? "#fff" : "#2f2f2f",
-              fontWeight: 600,
-              fontSize: 12 * chipScale,
-              textAlign: "center",
-            },
-          }}
-        />
-        <Chip
-          label={`Pendientes: ${resumen.pendientes}`}
-          color={estadoFiltro === 1 ? "warning" : "default"}
-          onClick={() => actualizarEstadoFiltro(1)}
-          sx={{
-            minWidth: 150 * chipScale,
-            height: 30 * chipScale,
-            justifyContent: "center",
-            "& .MuiChip-label": {
-              px: 1.5 * chipScale,
-              color: estadoFiltro === 1 ? "#fff" : "#2f2f2f",
-              fontWeight: 600,
-              fontSize: 12 * chipScale,
-              textAlign: "center",
-            },
-          }}
-        />
-        <Chip
-          label={`Rechazadas: ${resumen.rechazadas}`}
-          color={estadoFiltro === 3 ? "error" : "default"}
-          onClick={() => actualizarEstadoFiltro(3)}
-          sx={{
-            minWidth: 150 * chipScale,
-            height: 30 * chipScale,
-            justifyContent: "center",
-            "& .MuiChip-label": {
-              px: 1.5 * chipScale,
-              color: estadoFiltro === 3 ? "#fff" : "#2f2f2f",
-              fontWeight: 600,
-              fontSize: 12 * chipScale,
-              textAlign: "center",
-            },
-          }}
-        />
+              "&:hover": {
+                bgcolor: filter.active ? "#5d00d4" : "#eceef6",
+              },
+            }}
+          />
+        ))}
         <Box sx={{ flex: 1 }} />
-        <Chip
-          label="Limpiar filtros"
-          color="default"
+        <Button
+          variant="outlined"
+          startIcon={<FilterAltOff />}
           onClick={() => {
             actualizarEstadoFiltro(null);
             actualizarFechaDesde(dayjs().startOf("month"));
             actualizarFechaHasta(dayjs().endOf("month"));
           }}
           sx={{
-            minWidth: 170 * chipScale,
-            height: 30 * chipScale,
-            justifyContent: "center",
-            "& .MuiChip-label": {
-              px: 1.5 * chipScale,
-              color: "#2f2f2f",
-              fontWeight: 600,
-              fontSize: 12 * chipScale,
-              textAlign: "center",
-            },
+            minHeight: 36,
+            textTransform: "none",
+            borderColor: "rgba(122, 61, 240, 0.35)",
+            color: "#6d00f5",
           }}
-        />
+        >
+          Limpiar filtros
+        </Button>
       </Box>
       <DataGrid
         apiRef={apiRef}

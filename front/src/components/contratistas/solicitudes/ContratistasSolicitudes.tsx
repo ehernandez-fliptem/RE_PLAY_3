@@ -12,7 +12,7 @@ import { clienteAxios, handlingError } from "../../../app/config/axios";
 import { Outlet, useNavigate } from "react-router-dom";
 import { esES } from "@mui/x-data-grid/locales";
 import DataGridToolbar from "../../utils/DataGridToolbar";
-import { Refresh, Verified, Visibility } from "@mui/icons-material";
+import { FilterAltOff, InboxOutlined, Refresh, Verified, Visibility } from "@mui/icons-material";
 import {
   Box,
   Button,
@@ -21,17 +21,22 @@ import {
   IconButton,
   InputLabel,
   MenuItem,
+  Paper,
   Select,
+  Stack,
   Tooltip,
+  Typography,
 } from "@mui/material";
 import ErrorOverlay from "../../error/DataGridError";
 import { AxiosError } from "axios";
 import dayjs from "dayjs";
-import { useSelector } from "react-redux";
-import type { IRootState } from "../../../app/store";
 import { DatePicker, type DateValidationError } from "@mui/x-date-pickers";
 
 const pageSizeOptions = [10, 25, 50];
+
+type ContratistasSolicitudesProps = {
+  embedded?: boolean;
+};
 
 const getEstadoLabel = (estado?: number) => {
   if (estado === 2) return { label: "Aprobada", color: "success" as const };
@@ -40,14 +45,12 @@ const getEstadoLabel = (estado?: number) => {
   return { label: "Pendiente de verificar", color: "warning" as const };
 };
 
-export default function ContratistasSolicitudes() {
-  const { esRoot } = useSelector((state: IRootState) => state.auth.data);
+export default function ContratistasSolicitudes({ embedded = false }: ContratistasSolicitudesProps) {
   const apiRef = useGridApiRef();
   const [error, setError] = useState<string>();
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [selectedRowEstado, setSelectedRowEstado] = useState<number | null>(null);
   const navigate = useNavigate();
-  const autoRefreshEnabled = true;
   const [estadoFiltro, setEstadoFiltro] = useState<number | null>(null);
   const [fechaDesde, setFechaDesde] = useState(dayjs().startOf("month"));
   const [fechaHasta, setFechaHasta] = useState(dayjs().endOf("month"));
@@ -59,7 +62,6 @@ export default function ContratistasSolicitudes() {
     parciales: 0,
     urgentes: 0,
   });
-  const chipScale = 1.5;
   const [fechaDesdeError, setFechaDesdeError] = useState<string>("");
   const [fechaHastaError, setFechaHastaError] = useState<string>("");
   const [urgenteFiltro, setUrgenteFiltro] = useState(false);
@@ -198,8 +200,15 @@ export default function ContratistasSolicitudes() {
     []
   );
 
+  const getDetallePath = (ID: string, modo?: "aprobar") => {
+    const suffix = modo ? `?modo=${modo}` : "";
+    return embedded
+      ? `/visitantes/solicitudes-contratistas/detalle/${ID}${suffix}`
+      : `detalle/${ID}${suffix}`;
+  };
+
   const verRegistro = (ID: string) => {
-    navigate(`detalle/${ID}`);
+    navigate(getDetallePath(ID));
   };
 
   const actualizarEstadoFiltro = (estado: number | null) => {
@@ -232,23 +241,70 @@ export default function ContratistasSolicitudes() {
     apiRef.current?.dataSource?.fetchRows?.();
   };
 
+  const statusFilters = [
+    { label: "Todos", count: resumen.total, active: isTodosSelected, onClick: () => actualizarEstadoFiltro(null) },
+    { label: "Aprobadas", count: resumen.aprobadas, active: estadoFiltro === 2, onClick: () => actualizarEstadoFiltro(2) },
+    { label: "Pendientes", count: resumen.pendientes, active: estadoFiltro === 1, onClick: () => actualizarEstadoFiltro(1) },
+    { label: "Rechazadas", count: resumen.rechazadas, active: estadoFiltro === 3, onClick: () => actualizarEstadoFiltro(3) },
+  ];
+
+  const summaryCards = [
+    { label: "Total", value: resumen.total, tone: "#6d00f5" },
+    { label: "Aprobadas", value: resumen.aprobadas, tone: "#2e7d32" },
+    { label: "Pendientes", value: resumen.pendientes, tone: "#ed6c02" },
+    { label: "Rechazadas", value: resumen.rechazadas, tone: "#d32f2f" },
+  ];
+
   return (
-    <div style={{ minHeight: 400, position: "relative" }}>
+    <Box sx={{ minHeight: 400, position: "relative", display: "flex", flexDirection: "column", gap: 1.5 }}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: {
+            xs: "repeat(2, minmax(0, 1fr))",
+            md: "repeat(5, minmax(0, 1fr))",
+          },
+          gap: 1.25,
+        }}
+      >
+        {summaryCards.map((card) => (
+          <Paper
+            key={card.label}
+            variant="outlined"
+            sx={{
+              p: 1.5,
+              borderRadius: 2,
+              borderColor: "rgba(0,0,0,0.08)",
+              boxShadow: "0 4px 16px rgba(20, 20, 43, 0.04)",
+            }}
+          >
+            <Typography variant="h5" fontWeight={800} sx={{ color: card.tone, lineHeight: 1 }}>
+              {card.value}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" fontWeight={700}>
+              {card.label}
+            </Typography>
+          </Paper>
+        ))}
+      </Box>
       <Box
         sx={{
           display: "flex",
           flexWrap: "wrap",
           gap: 1.5,
           alignItems: "center",
-          mb: 1.5,
           backgroundColor: "#fff",
           borderRadius: 2,
-          p: 1.5,
-          boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+          p: { xs: 1.5, md: 2 },
+          border: "1px solid rgba(0,0,0,0.08)",
+          boxShadow: "0 8px 24px rgba(20, 20, 43, 0.05)",
+          "& .MuiChip-root": {
+            borderRadius: 1.5,
+          },
         }}
       >
         <DatePicker
-          label="Desde"
+          label="Fecha desde"
           value={fechaDesde}
           onChange={actualizarFechaDesde}
           maxDate={fechaHasta}
@@ -266,15 +322,13 @@ export default function ContratistasSolicitudes() {
             textField: {
               error: Boolean(fechaDesdeError),
               helperText: fechaDesdeError,
-              sx: {
-                backgroundColor: "#fff",
-                borderRadius: 1,
-              },
+              size: "small",
+              sx: { minWidth: { xs: "100%", md: 180 } },
             },
           }}
         />
         <DatePicker
-          label="Hasta"
+          label="Fecha hasta"
           value={fechaHasta}
           onChange={actualizarFechaHasta}
           minDate={fechaDesde}
@@ -292,14 +346,12 @@ export default function ContratistasSolicitudes() {
             textField: {
               error: Boolean(fechaHastaError),
               helperText: fechaHastaError,
-              sx: {
-                backgroundColor: "#fff",
-                borderRadius: 1,
-              },
+              size: "small",
+              sx: { minWidth: { xs: "100%", md: 180 } },
             },
           }}
         />
-        <FormControl size="small" sx={{ minWidth: 220 }}>
+        <FormControl size="small" sx={{ minWidth: { xs: "100%", md: 220 } }}>
           <InputLabel>Empresa</InputLabel>
           <Select
             label="Empresa"
@@ -314,96 +366,33 @@ export default function ContratistasSolicitudes() {
             ))}
           </Select>
         </FormControl>
+        {statusFilters.map((filter) => (
         <Chip
-          label={`Todos: ${resumen.total}`}
-          color={isTodosSelected ? "primary" : "default"}
-          onClick={() => actualizarEstadoFiltro(null)}
+          key={filter.label}
+          label={`${filter.label}: ${filter.count}`}
+          onClick={filter.onClick}
           sx={{
-            minWidth: 150 * chipScale,
-            height: 30 * chipScale,
+            height: 30,
             justifyContent: "center",
+            bgcolor: filter.active ? "#6d00f5" : "#f3f4f8",
+            color: filter.active ? "#fff" : "#3d3d4d",
+            border: filter.active ? "1px solid #6d00f5" : "1px solid #e4e5ec",
             "& .MuiChip-label": {
-              px: 1.5 * chipScale,
-              color: isTodosSelected ? "#fff" : "#2f2f2f",
-              fontWeight: 600,
-              fontSize: 12 * chipScale,
+              px: 1.25,
+              fontWeight: 700,
+              fontSize: 12,
               textAlign: "center",
+            },
+            "&:hover": {
+              bgcolor: filter.active ? "#5d00d4" : "#eceef6",
             },
           }}
         />
-        <Chip
-          label={`Aprobadas: ${resumen.aprobadas}`}
-          color={estadoFiltro === 2 ? "success" : "default"}
-          onClick={() => actualizarEstadoFiltro(2)}
-          sx={{
-            minWidth: 150 * chipScale,
-            height: 30 * chipScale,
-            justifyContent: "center",
-            "& .MuiChip-label": {
-              px: 1.5 * chipScale,
-              color: estadoFiltro === 2 ? "#fff" : "#2f2f2f",
-              fontWeight: 600,
-              fontSize: 12 * chipScale,
-              textAlign: "center",
-            },
-          }}
-        />
-        <Chip
-          label={`Pendientes: ${resumen.pendientes}`}
-          color={estadoFiltro === 1 ? "warning" : "default"}
-          onClick={() => actualizarEstadoFiltro(1)}
-          sx={{
-            minWidth: 150 * chipScale,
-            height: 30 * chipScale,
-            justifyContent: "center",
-            "& .MuiChip-label": {
-              px: 1.5 * chipScale,
-              color: estadoFiltro === 1 ? "#fff" : "#2f2f2f",
-              fontWeight: 600,
-              fontSize: 12 * chipScale,
-              textAlign: "center",
-            },
-          }}
-        />
-        <Chip
-          label={`Rechazadas: ${resumen.rechazadas}`}
-          color={estadoFiltro === 3 ? "error" : "default"}
-          onClick={() => actualizarEstadoFiltro(3)}
-          sx={{
-            minWidth: 150 * chipScale,
-            height: 30 * chipScale,
-            justifyContent: "center",
-            "& .MuiChip-label": {
-              px: 1.5 * chipScale,
-              color: estadoFiltro === 3 ? "#fff" : "#2f2f2f",
-              fontWeight: 600,
-              fontSize: 12 * chipScale,
-              textAlign: "center",
-            },
-          }}
-        />
-        <Chip
-          label={`Urgentes: ${resumen.urgentes}`}
-          color={isUrgenteSelected ? "warning" : "default"}
-          onClick={actualizarUrgente}
-          sx={{
-            minWidth: 150 * chipScale,
-            height: 30 * chipScale,
-            justifyContent: "center",
-            "& .MuiChip-label": {
-              px: 1.5 * chipScale,
-              color: isUrgenteSelected ? "#fff" : "#2f2f2f",
-              fontWeight: 600,
-              fontSize: 12 * chipScale,
-              textAlign: "center",
-            },
-            bgcolor: isUrgenteSelected ? "#ff7a00" : undefined,
-          }}
-        />
+        ))}
         <Box sx={{ flex: 1 }} />
-        <Chip
-          label="Limpiar filtros"
-          color="default"
+        <Button
+          variant="outlined"
+          startIcon={<FilterAltOff />}
           onClick={() => {
             actualizarEstadoFiltro(null);
             actualizarFechaDesde(dayjs().startOf("month"));
@@ -412,19 +401,24 @@ export default function ContratistasSolicitudes() {
             setEmpresaFiltro("");
           }}
           sx={{
-            minWidth: 170 * chipScale,
-            height: 30 * chipScale,
-            justifyContent: "center",
-            "& .MuiChip-label": {
-              px: 1.5 * chipScale,
-              color: "#2f2f2f",
-              fontWeight: 600,
-              fontSize: 12 * chipScale,
-              textAlign: "center",
-            },
+            minHeight: 36,
+            textTransform: "none",
+            borderColor: "rgba(122, 61, 240, 0.35)",
+            color: "#6d00f5",
           }}
-        />
+        >
+          Limpiar filtros
+        </Button>
       </Box>
+      <Paper
+        variant="outlined"
+        sx={{
+          borderRadius: 2,
+          overflow: "hidden",
+          borderColor: "rgba(0,0,0,0.08)",
+          boxShadow: "0 8px 24px rgba(20, 20, 43, 0.06)",
+        }}
+      >
       <DataGrid
         apiRef={apiRef}
         initialState={initialState}
@@ -474,8 +468,9 @@ export default function ContratistasSolicitudes() {
                   color={estado.color}
                   size="small"
                   sx={{
-                    minWidth: 170,
-                    height: 24,
+                    minWidth: 150,
+                    height: 26,
+                    borderRadius: 1.5,
                     justifyContent: "center",
                     "& .MuiChip-label": {
                       px: 1.5,
@@ -516,7 +511,7 @@ export default function ContratistasSolicitudes() {
         onRowDoubleClick={(params) => {
           const estado = typeof params.row?.estado === "number" ? params.row.estado : null;
           if (estado === 1) {
-            navigate(`detalle/${String(params.id)}?modo=aprobar`);
+            navigate(getDetallePath(String(params.id), "aprobar"));
             return;
           }
           verRegistro(String(params.id));
@@ -546,11 +541,37 @@ export default function ContratistasSolicitudes() {
           toolbarFilters: "",
           toolbarDensity: "",
           toolbarExport: "",
-          noRowsLabel: "Sin registros",
+          noRowsLabel: "Sin solicitudes registradas",
         }}
         sx={{
+          minHeight: 460,
+          border: 0,
+          "& .MuiDataGrid-toolbarContainer": {
+            p: 1.25,
+            gap: 1,
+            borderBottom: "1px solid rgba(0,0,0,0.08)",
+          },
+          "& .MuiDataGrid-columnHeaders": {
+            bgcolor: "#fafbfe",
+            borderBottom: "1px solid rgba(0,0,0,0.08)",
+          },
+          "& .MuiDataGrid-columnHeaderTitle": {
+            fontWeight: 800,
+            color: "#2f2f3a",
+          },
+          "& .MuiDataGrid-row": {
+            minHeight: "52px !important",
+          },
+          "& .MuiDataGrid-row:hover": {
+            bgcolor: "rgba(122, 61, 240, 0.05)",
+          },
+          "& .MuiDataGrid-cell": {
+            py: 1,
+            borderColor: "rgba(0,0,0,0.06)",
+          },
           "& .row-selected": {
-            outline: "2px solid #7A3DF0",
+            bgcolor: "rgba(122, 61, 240, 0.08)",
+            outline: "2px solid rgba(122, 61, 240, 0.65)",
             outlineOffset: -2,
           },
           "& .MuiDataGrid-cell.MuiDataGrid-cell--focus": {
@@ -566,7 +587,7 @@ export default function ContratistasSolicitudes() {
         slots={{
           toolbar: () => (
             <DataGridToolbar
-              tableTitle="Solicitudes de Contratistas"
+              tableTitle={embedded ? "Listado de solicitudes" : "Solicitudes de Contratistas"}
               customActionButtons={
                 <>
                   <Button
@@ -574,9 +595,18 @@ export default function ContratistasSolicitudes() {
                     size="small"
                     startIcon={<Verified />}
                     onClick={() => {
-                      if (selectedRowId) navigate(`detalle/${selectedRowId}?modo=aprobar`);
+                      if (selectedRowId) navigate(getDetallePath(selectedRowId, "aprobar"));
                     }}
                     disabled={!selectedRowId || selectedRowEstado !== 1}
+                    sx={{
+                      textTransform: "none",
+                      borderRadius: 1.5,
+                      boxShadow: "none",
+                      "&.Mui-disabled": {
+                        bgcolor: "#f0edf8",
+                        color: "#8b829d",
+                      },
+                    }}
                   >
                     Verificar
                   </Button>
@@ -589,38 +619,39 @@ export default function ContratistasSolicitudes() {
               }
             />
           ),
+          noRowsOverlay: () => (
+            <Stack height="100%" alignItems="center" justifyContent="center" spacing={1.25} sx={{ p: 3, textAlign: "center" }}>
+              <Box
+                sx={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: "50%",
+                  bgcolor: "rgba(122, 61, 240, 0.10)",
+                  color: "#6d00f5",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <InboxOutlined />
+              </Box>
+              <Box>
+                <Typography variant="subtitle1" fontWeight={800}>
+                  Sin solicitudes registradas
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  No hay solicitudes de visita que coincidan con los criterios seleccionados.
+                </Typography>
+              </Box>
+            </Stack>
+          ),
         }}
       />
+      </Paper>
       {error && (
         <ErrorOverlay error={error} gridDataRef={apiRef.current?.dataSource} />
       )}
-      {esRoot && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 8,
-            left: 0,
-            right: 0,
-            display: "flex",
-            justifyContent: "center",
-            pointerEvents: "none",
-            zIndex: 1200,
-          }}
-        >
-          <span
-            style={{
-              fontSize: 12,
-              color: "rgba(0, 0, 0, 0.45)",
-              background: "rgba(255, 255, 255, 0.75)",
-              padding: "2px 8px",
-              borderRadius: 8,
-            }}
-          >
-            Auto-refresh: {autoRefreshEnabled ? "activo" : "inactivo"}
-          </span>
-        </div>
-      )}
       <Outlet context={apiRef.current?.dataSource} />
-    </div>
+    </Box>
   );
 }

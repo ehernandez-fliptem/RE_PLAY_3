@@ -1,4 +1,5 @@
 import { useState, useMemo, Fragment, useRef } from "react";
+import type { SyntheticEvent } from "react";
 import {
   DataGrid,
   useGridApiRef,
@@ -10,11 +11,12 @@ import {
   type GridRowSelectionModel,
 } from "@mui/x-data-grid";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { esES } from "@mui/x-data-grid/locales";
 import DataGridToolbar from "../../utils/DataGridToolbar";
 import {
   Add,
+  AssignmentTurnedIn,
   Delete,
   Edit,
   GetApp,
@@ -41,6 +43,10 @@ import {
   IconButton,
   Radio,
   RadioGroup,
+  Paper,
+  Stack,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
@@ -70,6 +76,8 @@ import {
 } from "./documentosChecks";
 import DocumentosIncompletosContent from "./DocumentosIncompletosContent";
 import { generatePdfReport, openPdfBlob } from "../../../utils/pdfReport";
+import ContratistasSolicitudes from "../../contratistas/solicitudes/ContratistasSolicitudes";
+import { canViewModule } from "../../../app/utils/permisosRoles";
 // sin helpers de documentos en tabla
 
 
@@ -138,9 +146,41 @@ export default function Visitantes() {
   const fullScreenAccessModal = useMediaQuery(theme.breakpoints.down("sm"));
   const [error, setError] = useState<string>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const confirm = useConfirm();
   const { rol, nombre: nombreUsuario } = useSelector((state: IRootState) => state.auth.data);
+  const { habilitarContratistas } = useSelector((state: IRootState) => state.config.data);
+  const permisosRoles = useSelector((state: IRootState) => state.config.data.permisos_roles);
   const esRecep = rol.includes(5);
+  const esSuper = rol.includes(1);
+  const esAdmin = rol.includes(2);
+  const esRolPersonalizado = rol.some((r) => Number(r) >= 100);
+  const puedeVerSolicitudesContratistas =
+    habilitarContratistas &&
+    (esSuper || esAdmin || esRolPersonalizado) &&
+    canViewModule(permisosRoles as any, rol, "contratistas");
+  const isSolicitudesRoute = location.pathname.includes("/visitantes/solicitudes-contratistas");
+  const activeTab =
+    puedeVerSolicitudesContratistas &&
+    (searchParams.get("tab") === "solicitudes-contratistas" || isSolicitudesRoute)
+      ? "solicitudes-contratistas"
+      : "visitantes";
+  const headerConfig =
+    activeTab === "solicitudes-contratistas"
+      ? {
+          title: "Solicitudes de contratistas",
+          subtitle: "Administra, revisa y valida las solicitudes de visita realizadas por contratistas.",
+          icon: <AssignmentTurnedIn fontSize="small" />,
+        }
+      : {
+          title: "Visitantes",
+          subtitle: "Administra visitantes y revisa solicitudes de contratistas desde un solo lugar.",
+          icon: <QrCodeScanner fontSize="small" />,
+        };
+  const handleTabChange = (_event: SyntheticEvent, value: string) => {
+    navigate(value === "solicitudes-contratistas" ? "/visitantes?tab=solicitudes-contratistas" : "/visitantes");
+  };
   const formContext = useForm({ defaultValues: { qr: "" } });
   const accessForm = useForm({ defaultValues: { img_ine_manual: "" } });
   const manualIne = useWatch({ control: accessForm.control, name: "img_ine_manual" }) as string;
@@ -914,6 +954,86 @@ const accionBloquear = (ID: string) => {
 
   return (
     <div style={{ minHeight: 400, position: "relative" }}>
+      {puedeVerSolicitudesContratistas && (
+        <Paper
+          variant="outlined"
+          sx={{
+            mb: 2,
+            borderRadius: 2,
+            overflow: "hidden",
+            borderColor: "rgba(122, 61, 240, 0.18)",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+          }}
+        >
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            justifyContent="space-between"
+            alignItems={{ xs: "flex-start", md: "center" }}
+            gap={1}
+            sx={{ px: 2, pt: 1.5, pb: 1 }}
+          >
+            <Stack
+              key={activeTab}
+              direction="row"
+              spacing={1.25}
+              alignItems="center"
+              sx={{
+                animation: `${activeTab === "solicitudes-contratistas" ? "slideInRight" : "slideInLeft"} 220ms ease-out`,
+                "@keyframes slideInRight": {
+                  from: { opacity: 0, transform: "translateX(12px)" },
+                  to: { opacity: 1, transform: "translateX(0)" },
+                },
+                "@keyframes slideInLeft": {
+                  from: { opacity: 0, transform: "translateX(-12px)" },
+                  to: { opacity: 1, transform: "translateX(0)" },
+                },
+              }}
+            >
+              <Box
+                sx={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 1.5,
+                  bgcolor: "rgba(122, 61, 240, 0.10)",
+                  color: "#6d00f5",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flex: "0 0 auto",
+                }}
+              >
+                {headerConfig.icon}
+              </Box>
+              <Box>
+                <Typography variant="h6" fontWeight={800}>
+                  {headerConfig.title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {headerConfig.subtitle}
+                </Typography>
+              </Box>
+            </Stack>
+          </Stack>
+          <Tabs
+            value={activeTab}
+            onChange={handleTabChange}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{
+              px: 1,
+              borderTop: "1px solid rgba(0,0,0,0.06)",
+              "& .MuiTab-root": { textTransform: "none", fontWeight: 700 },
+            }}
+          >
+            <Tab label="Visitantes" value="visitantes" />
+            <Tab label="Solicitudes de contratistas" value="solicitudes-contratistas" />
+          </Tabs>
+        </Paper>
+      )}
+      {activeTab === "solicitudes-contratistas" ? (
+        <ContratistasSolicitudes embedded />
+      ) : (
+      <>
       <DataGrid
         apiRef={apiRef}
         initialState={initialState}
@@ -1382,6 +1502,8 @@ const accionBloquear = (ID: string) => {
         </DialogActions>
       </Dialog>
       <Outlet context={apiRef.current?.dataSource} />
+      </>
+      )}
     </div>
   );
 }

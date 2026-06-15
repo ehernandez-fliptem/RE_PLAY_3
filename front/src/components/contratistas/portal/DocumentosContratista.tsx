@@ -20,6 +20,7 @@ import {
   Edit,
   ExpandMore,
   Refresh,
+  UploadFile,
   Visibility,
 } from "@mui/icons-material";
 import Swal from "sweetalert2";
@@ -240,7 +241,7 @@ export default function DocumentosContratista() {
   const estado = getEstadoLabel(registro?.estado_validacion);
 
   return (
-    <div style={{ minHeight: 400, position: "relative" }}>
+    <Box sx={{ minHeight: 400, position: "relative", pb: { xs: 2, sm: 3 } }}>
       {isLoading ? (
         <Spinner />
       ) : (
@@ -251,6 +252,7 @@ export default function DocumentosContratista() {
           disableColumnFilter
           disableRowSelectionOnClick
           pagination
+          showToolbar
           pageSizeOptions={[10]}
           localeText={{
             ...esES.components.MuiDataGrid.defaultProps.localeText,
@@ -276,10 +278,69 @@ export default function DocumentosContratista() {
                 }
               />
             ),
+            noRowsOverlay: () => (
+              <Stack
+                height="100%"
+                minHeight={{ xs: 320, sm: 420 }}
+                alignItems="center"
+                justifyContent="center"
+                spacing={1.5}
+                sx={{ py: { xs: 4, sm: 6 }, px: 2, textAlign: "center" }}
+              >
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    bgcolor: "rgba(122, 61, 240, 0.10)",
+                    color: "#6d00f5",
+                  }}
+                >
+                  <UploadFile fontSize="medium" />
+                </Box>
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={700}>
+                    Aún no hay documentación cargada
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Agrega los documentos de tu empresa para iniciar la revisión.
+                  </Typography>
+                </Box>
+                <Button
+                  variant="contained"
+                  startIcon={<UploadFile />}
+                  onClick={abrirEditor}
+                  sx={{
+                    textTransform: "none",
+                    width: { xs: "100%", sm: "auto" },
+                    maxWidth: 280,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Agregar documentación
+                </Button>
+              </Stack>
+            ),
           }}
           sx={{
+            height: {
+              xs: "calc(100dvh - 176px)",
+              sm: "calc(100dvh - 204px)",
+            },
+            minHeight: { xs: 520, sm: 560 },
+            mb: { xs: 2, sm: 3 },
+            bgcolor: "#fff",
             "& .MuiDataGrid-cell.MuiDataGrid-cell--focus": {
               outline: "none",
+            },
+            "& .MuiDataGrid-overlayWrapper": {
+              minHeight: "100%",
+            },
+            "& .MuiDataGrid-overlayWrapperInner": {
+              minHeight: "inherit",
             },
             "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
               outline: "none",
@@ -693,7 +754,7 @@ export default function DocumentosContratista() {
           </Card>
         </Box>
       </Modal>
-    </div>
+    </Box>
   );
 }
 
