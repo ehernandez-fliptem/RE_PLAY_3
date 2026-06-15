@@ -1,5 +1,6 @@
 export type EstadoCapacitacion = "borrador" | "publicada" | "inactiva";
 export type TipoBloqueCapacitacion =
+  | "identificacion"
   | "texto"
   | "imagen"
   | "video"

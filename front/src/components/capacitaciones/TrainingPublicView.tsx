@@ -41,6 +41,13 @@ type ProgressState = {
   confirmaciones: Record<string, boolean>;
 };
 
+type IdentityState = {
+  nombre: string;
+  correo: string;
+  empresa: string;
+  numero_empleado: string;
+};
+
 const initialProgress: ProgressState = {
   vistos: {},
   checks: {},
@@ -78,11 +85,15 @@ function BlockRenderer({
   color,
   progress,
   setProgress,
+  identity,
+  setIdentity,
 }: {
   block: BloqueCapacitacion;
   color: string;
   progress: ProgressState;
   setProgress: Dispatch<SetStateAction<ProgressState>>;
+  identity: IdentityState;
+  setIdentity: Dispatch<SetStateAction<IdentityState>>;
 }) {
   const content = block.contenido || {};
   const items = getBlockItems(block);
@@ -112,6 +123,41 @@ function BlockRenderer({
         )}
         <Divider />
       </Box>
+    );
+  }
+
+  if (block.tipo === "identificacion") {
+    const pedirCorreo = content.pedir_correo !== false;
+    const correoObligatorio = pedirCorreo && Boolean(content.correo_obligatorio);
+    return (
+      <Stack spacing={2}>
+        <Box>
+          <Typography variant="h6">{content.titulo || block.titulo || "Identificate para continuar"}</Typography>
+          <Typography color="text.secondary" variant="body2">
+            {content.descripcion || "Escribe tu nombre para registrar que completaste esta capacitacion."}
+          </Typography>
+        </Box>
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: pedirCorreo ? "repeat(2, minmax(0, 1fr))" : "1fr" }, gap: 2 }}>
+          <TextField
+            label={content.etiqueta_nombre || "Nombre completo"}
+            value={identity.nombre}
+            onChange={(event) => setIdentity((current) => ({ ...current, nombre: event.target.value }))}
+            required
+            fullWidth
+          />
+          {pedirCorreo && (
+            <TextField
+              label={content.etiqueta_correo || "Correo electronico"}
+              type="email"
+              value={identity.correo}
+              onChange={(event) => setIdentity((current) => ({ ...current, correo: event.target.value }))}
+              required={correoObligatorio}
+              helperText={correoObligatorio ? "Obligatorio para continuar" : "Opcional"}
+              fullWidth
+            />
+          )}
+        </Box>
+      </Stack>
     );
   }
 
@@ -483,7 +529,7 @@ function BlockRenderer({
   );
 }
 
-function getMissingRules(step: PasoCapacitacion, progress: ProgressState, elapsedSeconds: number) {
+function getMissingRules(step: PasoCapacitacion, progress: ProgressState, elapsedSeconds: number, identity: IdentityState) {
   const missing: string[] = [];
   const blocks = step.bloques || [];
   const rules = step.reglas_avance || {};
@@ -492,6 +538,15 @@ function getMissingRules(step: PasoCapacitacion, progress: ProgressState, elapse
   }
   if (rules.requiere_ver_todos_los_bloques && blocks.some((block) => !progress.vistos[block.id])) {
     missing.push("Revisa todos los bloques para continuar.");
+  }
+  const bloqueIdentificacionIncompleto = blocks.some((block) => {
+    if (block.tipo !== "identificacion") return false;
+    const content = block.contenido || {};
+    const requiereCorreo = content.pedir_correo !== false && Boolean(content.correo_obligatorio);
+    return !identity.nombre.trim() || (requiereCorreo && !identity.correo.trim());
+  });
+  if (bloqueIdentificacionIncompleto) {
+    missing.push("Completa los datos de identificacion.");
   }
   if (
     rules.requiere_checklist &&
@@ -548,13 +603,13 @@ export default function TrainingPublicView({ capacitacion, preview, onFinish }: 
   const [progress, setProgress] = useState<ProgressState>(initialProgress);
   const [stepStartedAt, setStepStartedAt] = useState(Date.now());
   const [tick, setTick] = useState(Date.now());
-  const [identity, setIdentity] = useState({ nombre: "", correo: "", empresa: "", numero_empleado: "" });
+  const [identity, setIdentity] = useState<IdentityState>({ nombre: "", correo: "", empresa: "", numero_empleado: "" });
   const [saving, setSaving] = useState(false);
   const color = capacitacion.color_principal || "#6d00f5";
   const steps = useMemo(() => [...(capacitacion.pasos || [])].sort((a, b) => a.orden - b.orden), [capacitacion.pasos]);
   const step = steps[activeStep];
   const elapsed = Math.floor((tick - stepStartedAt) / 1000);
-  const missing = step ? getMissingRules(step, progress, elapsed) : [];
+  const missing = step ? getMissingRules(step, progress, elapsed, identity) : [];
   const canContinue = missing.length === 0;
   const percent = steps.length ? Math.round(((activeStep + (finished ? 1 : 0)) / steps.length) * 100) : 0;
   const config = capacitacion.configuracion || {};
@@ -703,7 +758,14 @@ export default function TrainingPublicView({ capacitacion, preview, onFinish }: 
                   .map((block) => (
                     <Card key={block.id} variant="outlined" sx={{ borderRadius: 3 }}>
                       <CardContent>
-                        <BlockRenderer block={block} color={color} progress={progress} setProgress={setProgress} />
+                        <BlockRenderer
+                          block={block}
+                          color={color}
+                          progress={progress}
+                          setProgress={setProgress}
+                          identity={identity}
+                          setIdentity={setIdentity}
+                        />
                       </CardContent>
                     </Card>
                   ))}

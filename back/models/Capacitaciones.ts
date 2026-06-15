@@ -3,6 +3,7 @@ import uniqueValidator from "mongoose-unique-validator";
 
 export type EstadoCapacitacion = "borrador" | "publicada" | "inactiva";
 export type TipoBloqueCapacitacion =
+    | "identificacion"
     | "texto"
     | "imagen"
     | "video"
@@ -83,6 +84,7 @@ const bloqueSchema = new Schema<IBloqueCapacitacion>(
         tipo: {
             type: String,
             enum: [
+                "identificacion",
                 "texto",
                 "imagen",
                 "video",
