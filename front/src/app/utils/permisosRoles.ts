@@ -49,6 +49,7 @@ export const mainModulePath: Record<string, string> = {
   dispositivos_hikvision: "/dispositivos-hikvision",
   camaras: "/camaras",
   biostar: "/biostarar/conexion",
+  capacitaciones: "/capacitaciones",
   configuracion: "/configuracion",
   permisos: "/configuracion",
 };

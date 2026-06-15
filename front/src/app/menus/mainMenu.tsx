@@ -32,6 +32,7 @@
   VideoCameraFront,
   Engineering,
   Place,
+  School,
 } from "@mui/icons-material";
 
 const mainMenu = [
@@ -169,6 +170,13 @@ const mainMenu = [
     rol: [1, 2, 5, 13],
     icon: <EventNote fontSize="small" />,
     path: "/eventos",
+  },
+  {
+    id: 0.905,
+    title: "Capacitaciones",
+    rol: [1, 2],
+    icon: <School fontSize="small" />,
+    path: "/capacitaciones",
   },
   {
     id: 0.91,

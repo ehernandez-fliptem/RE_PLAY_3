@@ -26,6 +26,7 @@ export default function PermisosRoles() {
     camaras: !!watch("habilitarCamaras"),
     contratistas: !!watch("habilitarContratistas"),
     campo: !!watch("habilitarRegistroCampo"),
+    capacitacion_publica: !!watch("habilitarCapacitacionPublica"),
   };
 
   const rolesPermitidos = useMemo(() => {
@@ -48,7 +49,7 @@ export default function PermisosRoles() {
   const defaultsByRole = useMemo<Record<number, ModuloPermisoId[]>>(
     () => ({
       1: MODULOS_PERMISOS.map((m) => m.id),
-      2: ["eventos", "kiosco", "empleados", "visitantes", "contratistas", "directorio", "catalogos", "biostar"],
+      2: ["eventos", "kiosco", "empleados", "visitantes", "contratistas", "directorio", "catalogos", "biostar", "capacitaciones"],
       4: ["visitantes"],
       5: ["eventos", "kiosco", "visitantes"],
       11: ["portal_contratistas"],
@@ -82,6 +83,7 @@ export default function PermisosRoles() {
         if (m.integracion === "camaras") return flags.camaras;
         if (m.integracion === "contratistas") return flags.contratistas;
         if (m.integracion === "campo") return flags.campo;
+        if (m.integracion === "capacitacion_publica") return flags.capacitacion_publica;
         return true;
       }),
     [flags]

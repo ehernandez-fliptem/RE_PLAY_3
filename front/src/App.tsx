@@ -46,6 +46,7 @@ import styled from "@emotion/styled";
 import GlobalError from "./components/error/GlobalError";
 import { globalTheme } from "./themes/theme";
 import NuevoRegistroVisit from "./components/recepcion/bitacora/registros/NuevoRegistroVisit";
+import CapacitacionPublica from "./components/capacitaciones/CapacitacionPublica";
 
 dayjs.extend(utc);
 dayjs.extend(advancedFormat);
@@ -218,6 +219,14 @@ function App() {
                   >
                     <BrowserRouter>
                       <Routes>
+                        <Route
+                          path="/capacitacion/:slug"
+                          element={<CapacitacionPublica />}
+                        />
+                        <Route
+                          path="/public/capacitacion/:slug"
+                          element={<CapacitacionPublica />}
+                        />
                         <Route
                           path="/*"
                           element={

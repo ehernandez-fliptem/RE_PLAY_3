@@ -13,10 +13,11 @@ export type ModuloPermisoId =
   | "dispositivos_hikvision"
   | "camaras"
   | "biostar"
+  | "capacitaciones"
   | "configuracion"
   | "permisos";
 
-export const MODULOS_PERMISOS: Array<{ id: ModuloPermisoId; nombre: string; integracion?: "hv" | "biostar" | "camaras" | "contratistas" | "campo" }> = [
+export const MODULOS_PERMISOS: Array<{ id: ModuloPermisoId; nombre: string; integracion?: "hv" | "biostar" | "camaras" | "contratistas" | "campo" | "capacitacion_publica" }> = [
   { id: "kiosco", nombre: "Kiosco" },
   { id: "usuarios", nombre: "Usuarios" },
   { id: "empleados", nombre: "Empleados" },
@@ -31,7 +32,7 @@ export const MODULOS_PERMISOS: Array<{ id: ModuloPermisoId; nombre: string; inte
   { id: "dispositivos_hikvision", nombre: "Dispositivos Hikvision", integracion: "hv" },
   { id: "camaras", nombre: "Camaras", integracion: "camaras" },
   { id: "biostar", nombre: "BioStar", integracion: "biostar" },
+  { id: "capacitaciones", nombre: "Capacitaciones", integracion: "capacitacion_publica" },
   { id: "configuracion", nombre: "Configuracion" },
   { id: "permisos", nombre: "Permisos" },
 ];
-

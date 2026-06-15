@@ -21,6 +21,29 @@ import { useDispatch } from "react-redux";
 import { updateConfig } from "../../../../app/features/config/configSlice";
 import Swal from "sweetalert2";
 
+type IntegrationRowProps = {
+  children: React.ReactNode;
+  nested?: boolean;
+};
+
+function IntegrationRow({ children, nested = false }: IntegrationRowProps) {
+  return (
+    <Box
+      sx={{
+        borderBottom: "1px solid",
+        borderColor: "divider",
+        py: 2,
+        px: { xs: 0, sm: nested ? 2 : 0 },
+        ml: { xs: 0, sm: nested ? 2 : 0 },
+        bgcolor: nested ? "action.hover" : "transparent",
+        borderRadius: nested ? 1 : 0,
+      }}
+    >
+      {children}
+    </Box>
+  );
+}
+
 export default function Integraciones() {
   const mostrarSoloIntegracionesSolicitadas = false;
   const [visibilidad, setVisibilidad] = useState({
@@ -498,7 +521,8 @@ export default function Integraciones() {
         <Devices color="primary" sx={{ mr: 1 }} />{" "}
         <strong>Integraciones</strong>
       </Typography>
-      <Grid container spacing={2} sx={{ my: 2 }}>
+      <IntegrationRow>
+      <Grid container spacing={2}>
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
             <Typography variant="overline" component="h2">
@@ -531,8 +555,10 @@ export default function Integraciones() {
           />
         </Grid>
       </Grid>
+      </IntegrationRow>
       {habilitarVisitantesAvanzado && (
-        <Grid container spacing={2} sx={{ my: 1, ml: { xs: 0, sm: 2 } }}>
+        <IntegrationRow nested>
+        <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 10 }}>
             <Stack spacing={0}>
               <Typography variant="overline" component="h2">
@@ -564,9 +590,11 @@ export default function Integraciones() {
             />
           </Grid>
         </Grid>
+        </IntegrationRow>
       )}
       {!mostrarSoloIntegracionesSolicitadas && visibilidad.registro_campo && (
-      <Grid container spacing={2} sx={{ my: 2 }}>
+      <IntegrationRow>
+      <Grid container spacing={2}>
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
             <Typography variant="overline" component="h2">
@@ -599,13 +627,15 @@ export default function Integraciones() {
           />
         </Grid>
       </Grid>
+      </IntegrationRow>
       )}
       {!mostrarSoloIntegracionesSolicitadas && visibilidad.capacitacion_publica && (
-      <Grid container spacing={2} sx={{ my: 2 }}>
+      <IntegrationRow>
+      <Grid container spacing={2}>
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
             <Typography variant="overline" component="h2">
-              <strong>Capacitacion publica</strong>
+              <strong>Capacitaciones publicas</strong>
             </Typography>
             <Typography
               variant="body2"
@@ -613,8 +643,8 @@ export default function Integraciones() {
               sx={{ ml: { xs: 0, sm: 2 } }}
             >
               <small>
-                Habilita funciones publicas relacionadas con capacitacion. Esta
-                opcion queda lista para la siguiente configuracion.
+                Habilita el modulo privado de capacitaciones y las rutas publicas
+                para cursos guiados.
               </small>
             </Typography>
           </Stack>
@@ -634,9 +664,11 @@ export default function Integraciones() {
           />
         </Grid>
       </Grid>
+      </IntegrationRow>
       )}
       {visibilidad.biostar && (
-      <Grid container spacing={2} sx={{ my: 2 }}>
+      <IntegrationRow>
+      <Grid container spacing={2}>
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
             <Typography variant="overline" component="h2">
@@ -669,9 +701,11 @@ export default function Integraciones() {
           />
         </Grid>
       </Grid>
+      </IntegrationRow>
       )}
       {visibilidad.hikvision && (
-      <Grid container spacing={2} sx={{ my: 2 }}>
+      <IntegrationRow>
+      <Grid container spacing={2}>
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
             <Typography variant="overline" component="h2">
@@ -704,9 +738,11 @@ export default function Integraciones() {
           />
         </Grid>
       </Grid>
+      </IntegrationRow>
       )}
       {visibilidad.hikvision && visibilidad.hikvision_biometria && habilitarIntegracionHv && (
-        <Grid container spacing={2} sx={{ my: 1, ml: { xs: 0, sm: 2 } }}>
+        <IntegrationRow nested>
+        <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 10 }}>
             <Stack spacing={0}>
               <Typography variant="overline" component="h2">
@@ -740,18 +776,44 @@ export default function Integraciones() {
             />
           </Grid>
         </Grid>
+        </IntegrationRow>
       )}
       {!mostrarSoloIntegracionesSolicitadas && visibilidad.contratistas && (
       <>
-      <Grid container spacing={2} sx={{ my: 2 }}>
+      <IntegrationRow>
+      <Grid container spacing={2}>
         <Grid size={{ xs: 12, sm: 10 }}>
           <Stack spacing={0}>
             <Typography variant="overline" component="h2">
               <strong>Portal de Visitas para Contratistas</strong>
             </Typography>
+            <Typography
+              variant="body2"
+              component="span"
+              sx={{ ml: { xs: 0, sm: 2 } }}
+            >
+              <small>
+                Habilita o deshabilita el modulo de contratistas en el sistema.
+              </small>
+            </Typography>
           </Stack>
         </Grid>
+        <Grid
+          size={{ xs: 12, sm: 2 }}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: { xs: "center", sm: "end" },
+          }}
+        >
+          <SwitchElement
+            label=""
+            labelPlacement="start"
+            name="habilitarContratistas"
+          />
+        </Grid>
       </Grid>
+      </IntegrationRow>
       {habilitarContratistas && (
         <Box sx={{ ml: { xs: 0, sm: 2 }, mt: 1 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>
@@ -879,26 +941,6 @@ export default function Integraciones() {
           </Box>
         </Box>
       )}
-      <Typography
-        variant="body2"
-        component="span"
-        sx={{ ml: { xs: 0, sm: 2 }, display: "block", mt: 1 }}
-      >
-        <small>Habilita o deshabilita el modulo de contratistas en el sistema.</small>
-      </Typography>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: { xs: "center", sm: "end" },
-          mt: 1,
-        }}
-      >
-        <SwitchElement
-          label=""
-          labelPlacement="start"
-          name="habilitarContratistas"
-        />
-      </Box>
       {!habilitarRegistroCampo && (
         <Typography
           variant="caption"

@@ -31,6 +31,7 @@ const MODULOS_SISTEMA = [
     "dispositivos_hikvision",
     "camaras",
     "biostar",
+    "capacitaciones",
     "configuracion",
     "permisos",
 ] as const;
@@ -46,6 +47,7 @@ const MODULOS_POR_ROL_PREDETERMINADO: Record<number, string[]> = {
         "directorio",
         "catalogos",
         "biostar",
+        "capacitaciones",
     ],
     4: ["visitantes"],
     5: ["eventos", "kiosco", "visitantes"],

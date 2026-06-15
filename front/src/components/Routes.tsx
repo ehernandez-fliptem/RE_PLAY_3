@@ -110,6 +110,10 @@ import NuevaCamara from "./catalogos/camaras/NuevaCamara";
 import DetalleCamara from "./catalogos/camaras/DetalleCamara";
 import EditarCamara from "./catalogos/camaras/EditarCamara";
 import Campo from "./campo/Campo";
+import Capacitaciones from "./capacitaciones/Capacitaciones";
+import CapacitacionForm from "./capacitaciones/CapacitacionForm";
+import VistaPreviaCapacitacion from "./capacitaciones/VistaPreviaCapacitacion";
+import ResultadosCapacitacion from "./capacitaciones/ResultadosCapacitacion";
 import { canViewModule, getMainModuleForRole, mainModulePath } from "../app/utils/permisosRoles";
 
 function RedirectSolicitudContratistaDetalle() {
@@ -125,7 +129,7 @@ function RedirectSolicitudContratistaDetalle() {
 
 export default function Routes() {
   const { rol } = useSelector((state: IRootState) => state.auth.data);
-  const { habilitarCamaras, habilitarIntegracionHv, habilitarIntegracionBiostar, habilitarContratistas, habilitarRegistroCampo } =
+  const { habilitarCamaras, habilitarIntegracionHv, habilitarIntegracionBiostar, habilitarContratistas, habilitarRegistroCampo, habilitarCapacitacionPublica } =
     useSelector(
     (state: IRootState) => state.config.data
   );
@@ -163,6 +167,8 @@ export default function Routes() {
   const canPortalContratistas =
     (esContratista || esSuper || esRolPersonalizado) && habilitarContratistas && canModule("portal_contratistas");
   const canConfiguracion = (esSuper || esRolPersonalizado) && canModule("configuracion");
+  const canCapacitaciones =
+    (puedeAdmin || esRolPersonalizado) && habilitarCapacitacionPublica && canModule("capacitaciones");
 
   return useRoutes([
     {
@@ -721,6 +727,37 @@ export default function Routes() {
                 ),
             },
           ],
+        },
+      ],
+    },
+    {
+      path: "/capacitaciones/*",
+      children: [
+        {
+          path: "",
+          element: canCapacitaciones ? <Capacitaciones /> : <Unauthorized />,
+          children: [
+            {
+              path: "nueva",
+              element: canCapacitaciones ? <CapacitacionForm mode="new" /> : <Unauthorized />,
+            },
+            {
+              path: ":id/editar",
+              element: canCapacitaciones ? <CapacitacionForm mode="edit" /> : <Unauthorized />,
+            },
+            {
+              path: ":id/vista-previa",
+              element: canCapacitaciones ? <VistaPreviaCapacitacion /> : <Unauthorized />,
+            },
+            {
+              path: ":id/resultados",
+              element: canCapacitaciones ? <ResultadosCapacitacion /> : <Unauthorized />,
+            },
+          ],
+        },
+        {
+          path: "*",
+          element: <Unknown />,
         },
       ],
     },

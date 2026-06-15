@@ -41,6 +41,7 @@ import authRoutes from './routes/auth.routes';
 import asignacionesRoutes from './routes/asignaciones.routes';
 // import chatbotRoutes from './routes/chatbot.routes';
 import camarasRoutes from './routes/camaras.routes';
+import capacitacionesRoutes from './routes/capacitaciones.routes';
 import configuracionRoutes from './routes/configuracion.routes';
 import cubiculosRoutes from './routes/cubiculos.routes';
 import dashboardRoutes from './routes/dashboard.routes';
@@ -128,6 +129,7 @@ export default async function Server() {
         app.use('/api/asignaciones', asignacionesRoutes);
         // app.use('/api/chatbot', chatbotRoutes);
         app.use('/api/camaras', camarasRoutes);
+        app.use('/api/capacitaciones', capacitacionesRoutes);
         app.use('/api/configuracion', configuracionRoutes);
         app.use('/api/cubiculos', cubiculosRoutes);
         app.use('/api/dashboard', dashboardRoutes);

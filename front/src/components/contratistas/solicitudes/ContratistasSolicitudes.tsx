@@ -68,7 +68,6 @@ export default function ContratistasSolicitudes({ embedded = false }: Contratist
   const [empresaFiltro, setEmpresaFiltro] = useState("");
   const [empresasDisponibles, setEmpresasDisponibles] = useState<string[]>([]);
   const isTodosSelected = estadoFiltro === null && !urgenteFiltro;
-  const isUrgenteSelected = urgenteFiltro;
 
   const safeIso = (value: dayjs.Dayjs | null) => {
     if (!value || !value.isValid()) return "";
@@ -214,12 +213,6 @@ export default function ContratistasSolicitudes({ embedded = false }: Contratist
   const actualizarEstadoFiltro = (estado: number | null) => {
     setEstadoFiltro(estado);
     setUrgenteFiltro(false);
-    apiRef.current?.dataSource?.fetchRows?.();
-  };
-
-  const actualizarUrgente = () => {
-    setUrgenteFiltro(true);
-    setEstadoFiltro(null);
     apiRef.current?.dataSource?.fetchRows?.();
   };
 

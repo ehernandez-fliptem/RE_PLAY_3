@@ -169,6 +169,7 @@ export default function MenuApplication({ children }: MenuProps) {
     habilitarCamaras,
     habilitarContratistas,
     habilitarRegistroCampo,
+    habilitarCapacitacionPublica,
     roles,
     imgCorreo,
     permisos_roles,
@@ -404,6 +405,7 @@ export default function MenuApplication({ children }: MenuProps) {
       { startsWith: "/contratistas", modulo: "contratistas" },
       { startsWith: "/directorio", modulo: "directorio" },
       { startsWith: "/eventos", modulo: "eventos" },
+      { startsWith: "/capacitaciones", modulo: "capacitaciones" },
       { startsWith: "/escaner-qr", modulo: "escaner_qr" },
       { startsWith: "/accesos", modulo: "catalogos" },
       { startsWith: "/empresas", modulo: "catalogos" },
@@ -649,6 +651,7 @@ export default function MenuApplication({ children }: MenuProps) {
               "9": "contratistas",
               "0.8": "directorio",
               "0.9": "eventos",
+              "0.905": "capacitaciones",
               "0.91": "escaner_qr",
               "1": "catalogos",
               "99": "dispositivos_hikvision",
@@ -671,6 +674,9 @@ export default function MenuApplication({ children }: MenuProps) {
             if (item.id === 99.5) seeItem = (esAdminOSuper || esRolPersonalizado) && habilitarIntegracionBiostar;
             if (item.id === 0.65) {
               seeItem = seeItem && habilitarRegistroCampo;
+            }
+            if (item.id === 0.905) {
+              seeItem = seeItem && habilitarCapacitacionPublica;
             }
             if (item.id === 8 || item.id === 9) {
               seeItem = seeItem && habilitarContratistas;
