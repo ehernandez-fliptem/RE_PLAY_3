@@ -419,6 +419,7 @@ export default function Usuarios() {
           toolbar: () => (
             <DataGridToolbar
               tableTitle="Usuarios del sistema"
+              showExportButton={false}
               customActionButtons={
                 <Fragment>
                   {mostrarSelector && (

@@ -260,18 +260,6 @@ function normalizeOrden<T extends { orden: number }>(items: T[]) {
   return items.map((item, index) => ({ ...item, orden: index + 1 }));
 }
 
-function parseLines(value: string) {
-  return value
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((texto, index) => ({ id: String(index + 1), texto }));
-}
-
-function stringifyItems(items: any[]) {
-  return (items || []).map((item) => item.texto || item.label || item.titulo || item).join("\n");
-}
-
 function defaultContentForType(tipo: TipoBloqueCapacitacion) {
   if (tipo === "identificacion") {
     return {

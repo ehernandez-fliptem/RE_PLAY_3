@@ -59,6 +59,7 @@ import type { IRootState } from "../../../app/store";
 import InfiniteAutocomplete from "../../utils/InfiniteAutocomplete";
 import LectorQrVisitantes from "../../recepcion/visitantes/LectorQrVisitantes";
 import { notifyFormErrors } from "../../helpers/formHelper";
+import { downloadExcelWorkbook } from "../../../utils/excelReport";
 import { generatePdfReport, openPdfBlob } from "../../../utils/pdfReport";
 
 
@@ -551,89 +552,45 @@ export default function Eventos() {
       .sort((a, b) => a.persona.localeCompare(b.persona, "es-MX"));
   };
 
-  const downloadBlob = (blob: Blob, fileName: string) => {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-  };
-
-  const escapeHtml = (value: unknown) =>
-    String(value ?? "--")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-
   const generarExcelEventos = (
     rows: EventoReportePersona[],
     filtros: Array<{ label: string; value: string | number | boolean }>,
     fileName: string
   ) => {
-    const filtrosHtml = filtros
-      .map((item) => `<tr><td>${escapeHtml(item.label)}</td><td>${escapeHtml(item.value)}</td></tr>`)
-      .join("");
-    const rowsHtml = rows
-      .map(
-        (row) => `
-          <tr>
-            <td>${escapeHtml(row.persona)}</td>
-            <td>${row.entradas}</td>
-            <td>${row.salidas}</td>
-            <td>${row.totalEventos}</td>
-            <td>${escapeHtml(row.ultimaEntrada)}</td>
-            <td>${escapeHtml(row.ultimaSalida)}</td>
-            <td>${escapeHtml(row.ultimoMovimiento)}</td>
-            <td>${escapeHtml(row.ultimasVisitas)}</td>
-          </tr>`
-      )
-      .join("");
-    const html = `
-      <html>
-        <head>
-          <meta charset="UTF-8" />
-          <style>
-            body { font-family: Arial, sans-serif; color: #24242a; }
-            h1 { color: #5f00d6; }
-            table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
-            th { background: #372355; color: #ffffff; text-align: left; }
-            th, td { border: 1px solid #d9d9e3; padding: 8px; vertical-align: top; }
-            tr:nth-child(even) td { background: #f7f5fb; }
-          </style>
-        </head>
-        <body>
-          <h1>Reporte de eventos</h1>
-          <p>Reporte agrupado por persona. Cada persona aparece una sola vez.</p>
-          <h2>Filtros aplicados</h2>
-          <table>
-            <tbody>${filtrosHtml}</tbody>
-          </table>
-          <h2>Resumen por persona</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Persona</th>
-                <th>Entradas</th>
-                <th>Salidas</th>
-                <th>Total eventos</th>
-                <th>Última entrada</th>
-                <th>Última salida</th>
-                <th>Último movimiento</th>
-                <th>Movimientos recientes</th>
-              </tr>
-            </thead>
-            <tbody>${rowsHtml || '<tr><td colspan="8">No se encontraron eventos con los filtros seleccionados.</td></tr>'}</tbody>
-          </table>
-        </body>
-      </html>`;
-    downloadBlob(
-      new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" }),
-      fileName
-    );
+    downloadExcelWorkbook(fileName, [
+      {
+        name: "Resumen",
+        rows: [
+          ["Reporte de eventos"],
+          ["Reporte agrupado por persona. Cada persona aparece una sola vez."],
+          [],
+          ["Filtros aplicados"],
+          ...filtros.map((item) => [String(item.label), String(item.value)]),
+          [],
+          [
+            "Persona",
+            "Entradas",
+            "Salidas",
+            "Total eventos",
+            "Ultima entrada",
+            "Ultima salida",
+            "Ultimo movimiento",
+            "Movimientos recientes",
+          ],
+          ...rows.map((row) => [
+            row.persona,
+            row.entradas,
+            row.salidas,
+            row.totalEventos,
+            row.ultimaEntrada,
+            row.ultimaSalida,
+            row.ultimoMovimiento,
+            row.ultimasVisitas,
+          ]),
+        ],
+        columnWidths: [32, 12, 12, 14, 20, 20, 28, 70],
+      },
+    ]);
   };
 
   const generarReporteEventos = async (format: "pdf" | "excel") => {
@@ -652,7 +609,7 @@ export default function Eventos() {
       const today = dayjs().format("YYYY-MM-DD");
 
       if (format === "excel") {
-        generarExcelEventos(rows, filtros, `reporte-eventos-${today}.xls`);
+        generarExcelEventos(rows, filtros, `reporte-eventos-${today}.xlsx`);
         enqueueSnackbar("Reporte Excel generado.", { variant: "success" });
         setOpenReporte(false);
         return;

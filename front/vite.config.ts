@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
     return {
         optimizeDeps: {
             include: ['face-api.js'],
+            exclude: ['xlsx-js-style'],
         },
         server: {
             proxy: {

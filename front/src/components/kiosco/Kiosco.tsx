@@ -8,6 +8,7 @@ import {
   CardMedia,
   Chip,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
@@ -36,7 +37,11 @@ import {
   ArrowUpward,
   ChevronLeft,
   ChevronRight,
+  Close,
+  GridOn,
+  PictureAsPdf,
   QrCodeScanner,
+  Summarize,
 } from "@mui/icons-material";
 import ErrorOverlay from "../error/DataGridError";
 import SearchInput from "../recepcion/bitacora/utils/SearchInput";
@@ -44,6 +49,8 @@ import { DatePicker } from "@mui/x-date-pickers";
 import imgSinFoto from "../../assets/img/app/UserSinImagen.png";
 import { enqueueSnackbar } from "notistack";
 import LectorQrVisitantes from "../recepcion/visitantes/LectorQrVisitantes";
+import { downloadExcelWorkbook } from "../../utils/excelReport";
+import { generatePdfReport, openPdfBlob, type PdfReportColumn } from "../../utils/pdfReport";
 
 const StyledStack = styled(Stack)(({ theme }) => ({
   width: "100%",
@@ -78,6 +85,23 @@ type ARGS = {
   datos: IRegistro;
 };
 
+type KioscoReporteRow = Record<string, unknown> & {
+  nombre: string;
+  origen: string;
+  movimiento: string;
+  fecha: string;
+  panel: string;
+  acceso: string;
+};
+
+type KioscoStats = {
+  totalCount?: number;
+  totalCountUserIn?: number;
+  totalCountVisitIn?: number;
+  totalCountUserOut?: number;
+  totalCountVisitOut?: number;
+};
+
 
 const pageSizeOptions = [12, 24, 48];
 const KIOSCO_PANEL_STORAGE_KEY = "SELECTED_KIOSCO_PANEL";
@@ -99,8 +123,22 @@ const getOrigenLabel = (item: IRegistro) => {
 
 const hasImage = (value?: string) => Boolean(value && value.trim().length > 0);
 
+const kioscoReportColumns: PdfReportColumn<KioscoReporteRow>[] = [
+  { header: "Nombre", key: "nombre", width: 160 },
+  { header: "Origen", key: "origen", width: 70 },
+  { header: "Movimiento", key: "movimiento", width: 80 },
+  { header: "Fecha y hora", key: "fecha", width: 105 },
+  { header: "Panel", key: "panel", width: 145 },
+  { header: "Acceso", key: "acceso", width: 145 },
+];
+
+function safeReportCell(value: unknown) {
+  return String(value ?? "").trim() || "--";
+}
+
 export default function Kiosco() {
   const socket = useSelector((state: IRootState) => state.ws.data);
+  const auth = useSelector((state: IRootState) => state.auth.data);
   const { tipos_eventos } = useSelector(
     (state: IRootState) => state.config.data
   );
@@ -112,6 +150,8 @@ export default function Kiosco() {
   const [firstRecord, setFirstRecord] = useState<IRegistro>();
   const [showModal, setShowModal] = useState(false);
   const [selectedReg, setSelectedReg] = useState<IRegistro | null>(null);
+  const [openReporte, setOpenReporte] = useState(false);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   // Filtering, sorting and pagination
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(12);
@@ -136,6 +176,123 @@ export default function Kiosco() {
     tipos_eventos?.[tipo] || { nombre: "Sin tipo", color: "#9e9e9e" };
   const colorIn = getTipoEvento(5).color || "#2e7d32";
   const colorOut = getTipoEvento(6).color || "#ef6c00";
+
+  const getPanelReporteLabel = () => {
+    if (panelFilter === "all") return "Todos";
+    if (panelFilter === "campo") return "Registro de campo";
+    if (panelFilter === "paneles") return "Paneles de acceso";
+    return "Panel seleccionado";
+  };
+
+  const getFechaReporteLabel = () => dayjs(searchDate || dayjs()).format("DD/MM/YYYY");
+
+  const mapRegistroToReporte = (item: IRegistro): KioscoReporteRow => ({
+    nombre: safeReportCell(item.nombre),
+    origen: item.tipo_origen === 2 ? "Visitante" : "Usuario",
+    movimiento: item.tipo_check === 6 ? "Salida" : "Entrada",
+    fecha: dayjs(item.fecha_creacion).format("DD/MM/YYYY, HH:mm:ss"),
+    panel: safeReportCell(item.panel),
+    acceso: safeReportCell(item.acceso),
+  });
+
+  const fetchRegistrosReporteKiosco = async () => {
+    const dateFilter = searchDate?.toISOString() || "";
+    const urlParams = new URLSearchParams({
+      date: dateFilter,
+      panel: panelFilter,
+      filter: JSON.stringify(quickFilter ? [quickFilter] : []),
+      pagination: JSON.stringify({ page: 0, pageSize: 100000 }),
+      sort: JSON.stringify(sort),
+    });
+    const res = await clienteAxios.get("/api/eventos/kiosco?" + urlParams.toString());
+    if (!res.data.estado) throw new Error(res.data.mensaje || "No se pudo obtener la informacion del kiosco.");
+    const first = res.data.datos.firstRecord as IRegistro | undefined;
+    const rows = (res.data.datos.paginatedResults || []) as IRegistro[];
+    const cleanRows = [
+      ...(first && (Number(first.tipo_origen) === 1 || Number(first.tipo_origen) === 2) ? [first] : []),
+      ...rows,
+    ].filter((item, index, array) => {
+      if (Number(item?.tipo_origen) !== 1 && Number(item?.tipo_origen) !== 2) return false;
+      return array.findIndex((row) => row._id === item._id) === index;
+    });
+    return {
+      rows: cleanRows,
+      stats: (res.data.datos.stats || {}) as KioscoStats,
+    };
+  };
+
+  const generarExcelKiosco = (rows: KioscoReporteRow[], stats: KioscoStats, fileName: string) => {
+    downloadExcelWorkbook(fileName, [
+      {
+        name: "Reporte",
+        rows: [
+          ["Reporte de kiosco"],
+          [`Fecha: ${getFechaReporteLabel()}`],
+          [`Panel: ${getPanelReporteLabel()}`],
+          [],
+          ["Total", stats.totalCount || rows.length],
+          ["Usuarios entrada", stats.totalCountUserIn || 0],
+          ["Usuarios salida", stats.totalCountUserOut || 0],
+          ["Visitantes entrada", stats.totalCountVisitIn || 0],
+          ["Visitantes salida", stats.totalCountVisitOut || 0],
+          [],
+          ["Nombre", "Origen", "Movimiento", "Fecha y hora", "Panel", "Acceso"],
+          ...rows.map((row) => [
+            safeReportCell(row.nombre),
+            safeReportCell(row.origen),
+            safeReportCell(row.movimiento),
+            safeReportCell(row.fecha),
+            safeReportCell(row.panel),
+            safeReportCell(row.acceso),
+          ]),
+        ],
+        columnWidths: [34, 16, 18, 22, 24, 24],
+      },
+    ]);
+  };
+
+  const generarReporteKiosco = async (format: "pdf" | "excel") => {
+    try {
+      setIsGeneratingReport(true);
+      const { rows: registros, stats } = await fetchRegistrosReporteKiosco();
+      const rows = registros.map(mapRegistroToReporte);
+      const today = dayjs().format("YYYYMMDD-HHmm");
+      if (format === "excel") {
+        generarExcelKiosco(rows, stats, `reporte-kiosco-${today}.xlsx`);
+        enqueueSnackbar("Reporte Excel generado.", { variant: "success" });
+        setOpenReporte(false);
+        return;
+      }
+      const pdfBlob = generatePdfReport<KioscoReporteRow>({
+        title: "Reporte de kiosco",
+        subtitle: "Entradas y salidas",
+        fileName: `reporte-kiosco-${today}.pdf`,
+        tableTitle: "Movimientos del dia",
+        headerMeta: `Fecha: ${getFechaReporteLabel()} | Panel: ${getPanelReporteLabel()}`,
+        generatedBy: auth.nombre,
+        showFilters: false,
+        columns: kioscoReportColumns,
+        rows,
+        summaryCards: [
+          { label: "Total", value: stats.totalCount || rows.length, tone: "neutral" },
+          { label: "Usuarios entrada", value: stats.totalCountUserIn || 0, tone: "success" },
+          { label: "Usuarios salida", value: stats.totalCountUserOut || 0, tone: "warning" },
+          { label: "Visitantes entrada", value: stats.totalCountVisitIn || 0, tone: "success" },
+          { label: "Visitantes salida", value: stats.totalCountVisitOut || 0, tone: "warning" },
+        ],
+        emptyMessage: "No se encontraron registros del dia seleccionado.",
+        footerText: "Reporte de kiosco generado por el sistema.",
+      });
+      openPdfBlob(pdfBlob);
+      enqueueSnackbar("Reporte PDF generado.", { variant: "success" });
+      setOpenReporte(false);
+    } catch (error) {
+      handlingError(error);
+      enqueueSnackbar("No se pudo generar el reporte de kiosco.", { variant: "error" });
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
 
   const obtenerRegistros = useCallback(async () => {
     setCargando(true);
@@ -914,7 +1071,24 @@ export default function Kiosco() {
                         }}
                         setValue={setQuickFilter}
                       />
-                      <Box sx={{ width: "100%", display: "flex", justifyContent: "end" }}>
+                      <Box
+                        sx={{
+                          width: "100%",
+                          display: "flex",
+                          justifyContent: "end",
+                          gap: 1,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => setOpenReporte(true)}
+                          startIcon={<Summarize fontSize="small" />}
+                          sx={{ textTransform: "none" }}
+                        >
+                          Reporte
+                        </Button>
                         <Button
                           size="small"
                           variant="outlined"
@@ -1127,6 +1301,89 @@ export default function Kiosco() {
           />
         </FormProvider>
       )}
+      <Dialog
+        open={openReporte}
+        onClose={() => {
+          if (!isGeneratingReport) setOpenReporte(false);
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ pr: 6, pb: 1.5, position: "relative" }}>
+          Generar reporte de kiosco
+          <IconButton
+            aria-label="Cerrar"
+            onClick={() => setOpenReporte(false)}
+            disabled={isGeneratingReport}
+            sx={{ position: "absolute", right: 12, top: 10, color: "error.main" }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ py: 2.5 }}>
+          <Stack spacing={2}>
+            <Typography variant="body2" color="text.secondary">
+              Se generara con la informacion del kiosco para el dia seleccionado.
+            </Typography>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+                gap: 1,
+              }}
+            >
+              {[
+                ["Fecha", getFechaReporteLabel()],
+                ["Panel", getPanelReporteLabel()],
+                ["Busqueda", quickFilter || "Sin busqueda"],
+                ["Orden", sorting === "asc" ? "Mas antiguos primero" : "Mas recientes primero"],
+              ].map(([label, value]) => (
+                <Box
+                  key={label}
+                  sx={{
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    p: 1.2,
+                    bgcolor: "background.default",
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    {label}
+                  </Typography>
+                  <Typography fontWeight={700}>{value}</Typography>
+                </Box>
+              ))}
+            </Box>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2, gap: 1, flexWrap: "wrap" }}>
+          <Button
+            variant="text"
+            color="secondary"
+            disabled={isGeneratingReport}
+            onClick={() => setOpenReporte(false)}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<GridOn />}
+            disabled={isGeneratingReport}
+            onClick={() => generarReporteKiosco("excel")}
+          >
+            Generar Excel
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<PictureAsPdf />}
+            disabled={isGeneratingReport}
+            onClick={() => generarReporteKiosco("pdf")}
+          >
+            {isGeneratingReport ? "Generando..." : "Generar PDF"}
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Dialog
         open={showModal}
         onClose={handleClose}

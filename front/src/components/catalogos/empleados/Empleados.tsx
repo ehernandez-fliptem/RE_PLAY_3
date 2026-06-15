@@ -1544,6 +1544,7 @@ export default function Empleados() {
           toolbar: () => (
             <DataGridToolbar
               tableTitle="Gestión de Empleados"
+              showExportButton={false}
               customActionButtons={
                 <Fragment>
                   {habilitarIntegracionBiostar && (
