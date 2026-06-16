@@ -142,6 +142,7 @@ type IntegracionesVisibilidad = {
     visibles: {
         registro_campo: boolean;
         capacitacion_publica: boolean;
+        visitantes_avanzado: boolean;
         biostar: boolean;
         hikvision: boolean;
         hikvision_biometria: boolean;
@@ -155,6 +156,7 @@ function obtenerVisibilidadIntegraciones(): IntegracionesVisibilidad {
     const defaults = {
         registro_campo: true,
         capacitacion_publica: true,
+        visitantes_avanzado: true,
         biostar: true,
         hikvision: true,
         hikvision_biometria: true,
@@ -174,6 +176,7 @@ function obtenerVisibilidadIntegraciones(): IntegracionesVisibilidad {
         visibles: {
             registro_campo: permitidas.has("registro_campo"),
             capacitacion_publica: permitidas.has("capacitacion_publica"),
+            visitantes_avanzado: permitidas.has("visitantes_avanzado"),
             biostar: permitidas.has("biostar"),
             hikvision: permitidas.has("hikvision"),
             hikvision_biometria: permitidas.has("hikvision_biometria"),

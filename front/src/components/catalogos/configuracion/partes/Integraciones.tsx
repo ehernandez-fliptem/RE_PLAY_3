@@ -49,6 +49,7 @@ export default function Integraciones() {
   const [visibilidad, setVisibilidad] = useState({
     registro_campo: true,
     capacitacion_publica: true,
+    visitantes_avanzado: true,
     biostar: true,
     hikvision: true,
     hikvision_biometria: true,
@@ -78,6 +79,7 @@ export default function Integraciones() {
             ...prev,
             registro_campo: cfg.registro_campo !== false,
             capacitacion_publica: cfg.capacitacion_publica !== false,
+            visitantes_avanzado: cfg.visitantes_avanzado !== false,
             biostar: cfg.biostar !== false,
             hikvision: cfg.hikvision !== false,
             hikvision_biometria: cfg.hikvision_biometria !== false,
@@ -521,42 +523,44 @@ export default function Integraciones() {
         <Devices color="primary" sx={{ mr: 1 }} />{" "}
         <strong>Integraciones</strong>
       </Typography>
-      <IntegrationRow>
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, sm: 10 }}>
-          <Stack spacing={0}>
-            <Typography variant="overline" component="h2">
-              <strong>Configuracion avanzada de visitantes</strong>
-            </Typography>
-            <Typography
-              variant="body2"
-              component="span"
-              sx={{ ml: { xs: 0, sm: 2 } }}
-            >
-              <small>
-                Activa controles opcionales para el registro de visitantes. Si
-                se apaga, sus opciones quedan guardadas pero no se aplican.
-              </small>
-            </Typography>
-          </Stack>
+      {visibilidad.visitantes_avanzado && (
+        <IntegrationRow>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 10 }}>
+            <Stack spacing={0}>
+              <Typography variant="overline" component="h2">
+                <strong>Configuracion avanzada de visitantes</strong>
+              </Typography>
+              <Typography
+                variant="body2"
+                component="span"
+                sx={{ ml: { xs: 0, sm: 2 } }}
+              >
+                <small>
+                  Activa controles opcionales para el registro de visitantes. Si
+                  se apaga, sus opciones quedan guardadas pero no se aplican.
+                </small>
+              </Typography>
+            </Stack>
+          </Grid>
+          <Grid
+            size={{ xs: 12, sm: 2 }}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: { xs: "center", sm: "end" },
+            }}
+          >
+            <SwitchElement
+              label=""
+              labelPlacement="start"
+              name="habilitarVisitantesAvanzado"
+            />
+          </Grid>
         </Grid>
-        <Grid
-          size={{ xs: 12, sm: 2 }}
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: { xs: "center", sm: "end" },
-          }}
-        >
-          <SwitchElement
-            label=""
-            labelPlacement="start"
-            name="habilitarVisitantesAvanzado"
-          />
-        </Grid>
-      </Grid>
-      </IntegrationRow>
-      {habilitarVisitantesAvanzado && (
+        </IntegrationRow>
+      )}
+      {visibilidad.visitantes_avanzado && habilitarVisitantesAvanzado && (
         <IntegrationRow nested>
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 10 }}>
