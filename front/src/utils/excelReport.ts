@@ -10,6 +10,8 @@ export type ExcelSheet = {
 
 type CellStyle = Record<string, unknown>;
 
+type XlsxRuntime = typeof XLSX & { default?: typeof XLSX };
+
 const palette = {
   purple: "5F00D6",
   purpleDark: "372355",
@@ -25,6 +27,67 @@ function safeSheetName(name: string) {
     .replace(/[\\/?*[\]:]/g, " ")
     .trim()
     .slice(0, 31) || "Reporte";
+}
+
+function getXlsxRuntime() {
+  const candidates = [
+    XLSX,
+    (XLSX as XlsxRuntime).default,
+    (globalThis as typeof globalThis & { XLSX?: typeof XLSX }).XLSX,
+  ].filter(Boolean) as typeof XLSX[];
+  const runtime = candidates.find((candidate) => typeof candidate.write === "function");
+
+  if (!runtime) {
+    throw new Error("No se pudo inicializar el generador de Excel.");
+  }
+
+  return runtime;
+}
+
+function encodeColumn(columnIndex: number) {
+  let column = "";
+  let value = columnIndex + 1;
+
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    column = String.fromCharCode(65 + remainder) + column;
+    value = Math.floor((value - remainder - 1) / 26);
+  }
+
+  return column;
+}
+
+function encodeCell(rowIndex: number, columnIndex: number) {
+  return `${encodeColumn(columnIndex)}${rowIndex + 1}`;
+}
+
+function encodeRange(rowCount: number, columnCount: number) {
+  return `A1:${encodeCell(Math.max(rowCount - 1, 0), Math.max(columnCount - 1, 0))}`;
+}
+
+function getCellType(value: ExcelCell): XLSX.ExcelDataType {
+  if (typeof value === "number") return "n";
+  if (typeof value === "boolean") return "b";
+  if (value instanceof Date) return "d";
+  return "s";
+}
+
+function rowsToWorksheet(rows: ExcelCell[][]): XLSX.WorkSheet {
+  const worksheet: XLSX.WorkSheet = {};
+  const maxColumns = getMaxColumns(rows);
+
+  rows.forEach((row, rowIndex) => {
+    row.forEach((value, columnIndex) => {
+      if (isEmptyValue(value)) return;
+      worksheet[encodeCell(rowIndex, columnIndex)] = {
+        t: getCellType(value),
+        v: value,
+      };
+    });
+  });
+
+  worksheet["!ref"] = encodeRange(Math.max(rows.length, 1), maxColumns);
+  return worksheet;
 }
 
 function getMaxColumns(rows: ExcelCell[][]) {
@@ -73,7 +136,7 @@ function borderStyle(color = palette.grayLine) {
 }
 
 function getCell(worksheet: XLSX.WorkSheet, rowIndex: number, columnIndex: number) {
-  const address = XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex });
+  const address = encodeCell(rowIndex, columnIndex);
   worksheet[address] ??= { t: "s", v: "" };
   return worksheet[address] as XLSX.CellObject & { s?: CellStyle };
 }
@@ -171,6 +234,7 @@ function applyExcelStyles(worksheet: XLSX.WorkSheet, rows: ExcelCell[][]) {
 }
 
 export function downloadExcelWorkbook(fileName: string, sheets: ExcelSheet[]) {
+  const runtime = getXlsxRuntime();
   const workbook: XLSX.WorkBook = {
     SheetNames: [],
     Sheets: {},
@@ -178,7 +242,7 @@ export function downloadExcelWorkbook(fileName: string, sheets: ExcelSheet[]) {
 
   sheets.forEach((sheet) => {
     const sheetName = safeSheetName(sheet.name);
-    const worksheet = XLSX.utils.aoa_to_sheet(sheet.rows);
+    const worksheet = rowsToWorksheet(sheet.rows);
     if (sheet.columnWidths?.length) {
       worksheet["!cols"] = sheet.columnWidths.map((width) => ({ wch: width }));
     }
@@ -187,8 +251,20 @@ export function downloadExcelWorkbook(fileName: string, sheets: ExcelSheet[]) {
     workbook.Sheets[sheetName] = worksheet;
   });
 
-  XLSX.writeFile(workbook, fileName.endsWith(".xlsx") ? fileName : `${fileName}.xlsx`, {
+  const output = runtime.write(workbook, {
     bookType: "xlsx",
+    type: "array",
     compression: true,
   });
+  const blob = new Blob([output], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName.endsWith(".xlsx") ? fileName : `${fileName}.xlsx`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
