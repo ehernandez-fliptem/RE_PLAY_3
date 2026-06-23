@@ -40,6 +40,54 @@ const getEstadoLabel = (estado?: number) => {
   return { label: "Pendiente", color: "warning" as const };
 };
 
+const portalModalShellSx = {
+  height: "100%",
+  width: "100%",
+  display: "flex",
+  alignItems: { xs: "stretch", sm: "center" },
+  justifyContent: "center",
+  p: { xs: 1, sm: 2 },
+  outline: "none",
+  "&:focus, &:focus-visible": { outline: "none" },
+};
+
+const portalModalCardSx = {
+  width: "100%",
+  maxWidth: 1100,
+  maxHeight: { xs: "calc(100dvh - 16px)", sm: "calc(100dvh - 32px)" },
+  display: "flex",
+  flexDirection: "column",
+};
+
+const portalModalContentSx = {
+  overflowY: "auto",
+  overflowX: "hidden",
+  maxHeight: { xs: "calc(100dvh - 16px)", sm: "calc(100dvh - 32px)" },
+};
+
+const documentoRowSx = {
+  display: "flex",
+  alignItems: { xs: "flex-start", sm: "center" },
+  justifyContent: "space-between",
+  flexDirection: { xs: "column", sm: "row" },
+  gap: { xs: 1, sm: 2 },
+  borderBottom: "1px dashed #e6e6e6",
+  pb: 1,
+};
+
+const documentoActionsSx = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: { xs: "space-between", sm: "flex-end" },
+  gap: 1,
+  width: { xs: "100%", sm: "auto" },
+  minWidth: 0,
+  "& .MuiTypography-root": {
+    minWidth: 0,
+    overflowWrap: "anywhere",
+  },
+};
+
 export default function DocumentosContratista() {
   const config = useSelector(selectCurrentData);
   const [configDocs, setConfigDocs] = useState<any>(config);
@@ -347,20 +395,9 @@ export default function DocumentosContratista() {
       )}
 
       <Modal open={showEditor} onClose={() => setShowEditor(false)} sx={{ outline: "none" }}>
-        <Box
-          sx={{
-            height: "100%",
-            width: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 2,
-            outline: "none",
-            "&:focus, &:focus-visible": { outline: "none" },
-          }}
-        >
-          <Card sx={{ width: "100%", maxWidth: 1100 }}>
-            <CardContent>
+        <Box sx={portalModalShellSx}>
+          <Card sx={portalModalCardSx}>
+            <CardContent sx={portalModalContentSx}>
               {isSaving ? (
                 <Spinner />
               ) : (
@@ -405,17 +442,10 @@ export default function DocumentosContratista() {
                     {requiredKeys.map((key) => (
                       <Box
                         key={key}
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 2,
-                          borderBottom: "1px dashed #e6e6e6",
-                          pb: 1,
-                        }}
+                        sx={documentoRowSx}
                       >
                         <Typography>{docsCfg.labelByKey[key] || key}</Typography>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Box sx={documentoActionsSx}>
                           <Typography variant="caption">
                             {documentosArchivos[key]?.name
                               ? documentosArchivos[key]?.name
@@ -456,17 +486,10 @@ export default function DocumentosContratista() {
                     {optionalKeys.map((key) => (
                       <Box
                         key={key}
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 2,
-                          borderBottom: "1px dashed #e6e6e6",
-                          pb: 1,
-                        }}
+                        sx={documentoRowSx}
                       >
                         <Typography>{docsCfg.labelByKey[key] || key}</Typography>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Box sx={documentoActionsSx}>
                           <Typography variant="caption">
                             {documentosArchivos[key]?.name
                               ? documentosArchivos[key]?.name
@@ -515,20 +538,9 @@ export default function DocumentosContratista() {
       </Modal>
 
       <Modal open={showViewer} onClose={() => setShowViewer(false)} sx={{ outline: "none" }}>
-        <Box
-          sx={{
-            height: "100%",
-            width: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 2,
-            outline: "none",
-            "&:focus, &:focus-visible": { outline: "none" },
-          }}
-        >
-          <Card sx={{ width: "100%", maxWidth: 1100 }}>
-            <CardContent>
+        <Box sx={portalModalShellSx}>
+          <Card sx={portalModalCardSx}>
+            <CardContent sx={portalModalContentSx}>
               <Typography variant="h4" component="h2" textAlign="center">
                 Documentos del Contratista
               </Typography>
