@@ -75,6 +75,7 @@ Versión 1.0
 - Ilustración 14. Catálogos
 - Ilustración 15. Reportes con filtros
 - Ilustración 16. Configuración general
+- Ilustración 17. Ciclo de vida de una visita (creación a finalización)
 
 ---
 
@@ -139,7 +140,9 @@ El producto base de RE cubre las siguientes capacidades:
 | Reportes | Consulta y exportación de visitas, eventos y horas. |
 | Configuración | Parámetros generales, permisos por rol y activación de módulos. |
 
-`[Foto: panel principal tras iniciar sesión — Ilustración 2]`
+`[Foto: panel principal tras iniciar sesión]`
+
+**Ilustración 2.** Panel principal tras iniciar sesión
 
 ## 5. Reglas de negocio generales
 
@@ -182,7 +185,7 @@ El sistema envía notificaciones por correo en momentos clave del proceso, segú
 - **Recuperación de contraseña** (código de verificación).
 - **Acceso / credenciales** para usuarios.
 
-> El envío de correos depende de que la **configuración de correo** esté completa. Si no se envían, debe revisarse dicha configuración (ver MA-RE-001).
+> El envío de correos depende de que la **configuración de correo** esté completa. Ante fallas de envío, la configuración se revisa conforme al Manual de Administración (MA-RE-001).
 
 ## 6. Funcionalidad por módulo
 
@@ -199,13 +202,17 @@ Para cada módulo se describe su **propósito**, las **acciones** disponibles so
 - **Bloqueo:** tras varios intentos fallidos, la cuenta se bloquea (30 min predeterminado) o hasta desbloqueo por el administrador.
 - **Cierre de sesión:** manual (menú de perfil) o automático por expiración.
 
-`[Foto: inicio de sesión — Ilustración 1]`
+`[Foto: inicio de sesión]`
+
+**Ilustración 1.** Inicio de sesión
 
 ### 6.2 Visitantes
 
 **Propósito:** administrar a las personas externas que acuden a las instalaciones.
 
-`[Foto: listado de visitantes — Ilustración 3]`
+`[Foto: listado de visitantes]`
+
+**Ilustración 3.** Listado de visitantes
 
 **Acciones sobre cada visitante:** Ver, Editar, Verificar, Generar QR, Bloquear/Desbloquear, Reenviar, Activar/Inactivar, Eliminar.
 
@@ -228,13 +235,17 @@ Para cada módulo se describe su **propósito**, las **acciones** disponibles so
 - La **verificación** confirma los datos del visitante antes de autorizar su acceso.
 - **Bloquear** impide el acceso (su QR deja de ser válido) sin borrar el registro.
 
-`[Foto: verificación de visitante — Ilustración 5]`
+`[Foto: verificación de visitante]`
+
+**Ilustración 5.** Verificación de visitante
 
 ### 6.3 Registro de visitas (Bitácora)
 
 **Propósito:** registrar y dar seguimiento a las visitas/citas; es el módulo principal de operación.
 
-`[Foto: bitácora de visitas — Ilustración 6]`
+`[Foto: bitácora de visitas]`
+
+**Ilustración 6.** Bitácora de visitas
 
 **Acciones sobre cada visita:** Ver, Editar, Cancelar, Finalizar.
 
@@ -255,7 +266,9 @@ Para cada módulo se describe su **propósito**, las **acciones** disponibles so
 - Las visitas **no se eliminan**: se **Cancelan** (anula y, si aplica, envía correo) o se **Finalizan** (cierra y registra la salida).
 - El **estado** de la visita avanza automáticamente conforme ocurre la entrada, la salida y la finalización (ver sección 7).
 
-`[Foto: nuevo registro de visita — Ilustración 7]`
+`[Foto: nuevo registro de visita]`
+
+**Ilustración 7.** Nuevo registro de visita
 
 ### 6.4 Liga de registro (autoservicio)
 
@@ -267,14 +280,21 @@ Para cada módulo se describe su **propósito**, las **acciones** disponibles so
 2. El visitante **abre la liga**; el sistema **valida el enlace** y el visitante captura/confirma sus datos.
 3. El sistema crea el registro e **invalida la liga** (de un solo uso y con vigencia limitada).
 
-`[Foto: envío de liga de registro — Ilustración 8]`
-`[Foto: registro desde la liga (visitante) — Ilustración 9]`
+`[Foto: envío de liga de registro]`
+
+**Ilustración 8.** Envío de liga de registro
+
+`[Foto: registro desde la liga (visitante)]`
+
+**Ilustración 9.** Registro desde la liga (visitante)
 
 ### 6.5 Empleados
 
 **Propósito:** administrar al personal interno sujeto a control de acceso.
 
-`[Foto: listado de empleados — Ilustración 10]`
+`[Foto: listado de empleados]`
+
+**Ilustración 10.** Listado de empleados
 
 **Acciones sobre cada empleado:** Ver, Editar, Generar QR, Activar/Inactivar, Desbloquear, Eliminar.
 
@@ -301,7 +321,9 @@ Para cada módulo se describe su **propósito**, las **acciones** disponibles so
 
 **Propósito:** administrar las cuentas con acceso al sistema y sus permisos.
 
-`[Foto: listado de usuarios — Ilustración 11]`
+`[Foto: listado de usuarios]`
+
+**Ilustración 11.** Listado de usuarios
 
 **Acciones sobre cada usuario:** Ver, Editar, Generar QR, Reenviar, Desbloquear, Activar/Inactivar, Eliminar.
 
@@ -329,14 +351,21 @@ Para cada módulo se describe su **propósito**, las **acciones** disponibles so
 - **Escáner QR:** valida el código QR y los permisos; registra el evento de **entrada** y, a la salida, el de **salida**.
 - **Eventos:** consulta del histórico de accesos con filtros. Es un módulo de **consulta**: los eventos **no se editan ni se eliminan** (acciones disponibles: Ver e Imagen de evidencia).
 
-`[Foto: escáner QR validando un acceso — Ilustración 12]`
-`[Foto: eventos de acceso — Ilustración 13]`
+`[Foto: escáner QR validando un acceso]`
+
+**Ilustración 12.** Escáner QR validando un acceso
+
+`[Foto: eventos de acceso]`
+
+**Ilustración 13.** Eventos de acceso
 
 ### 6.8 Catálogos
 
 **Propósito:** mantener los datos base reutilizados por el resto del sistema: **empresas, pisos, accesos, puestos, departamentos y cubículos**. Los catálogos de **horarios** y **pases** existen como componentes operativos cuando la instalación los mantiene habilitados.
 
-`[Foto: catálogos — Ilustración 14]`
+`[Foto: catálogos]`
+
+**Ilustración 14.** Catálogos
 
 **Acciones sobre cada registro:** Ver, Editar, Activar/Inactivar, Eliminar.
 
@@ -354,7 +383,9 @@ Para cada módulo se describe su **propósito**, las **acciones** disponibles so
 - Reportes de **visitas, eventos y horas** con **filtros** (fecha, acceso, anfitrión, visitante, estado, etc.).
 - **Exportación** a **PDF** y **Excel**, respetando los permisos del usuario que los genera.
 
-`[Foto: reportes con filtros — Ilustración 15]`
+`[Foto: reportes con filtros]`
+
+**Ilustración 15.** Reportes con filtros
 
 ### 6.10 Configuración
 
@@ -366,7 +397,9 @@ Para cada módulo se describe su **propósito**, las **acciones** disponibles so
 - Administración de **permisos por rol** y **roles personalizados**.
 - **Activación/desactivación de módulos opcionales**.
 
-`[Foto: configuración general — Ilustración 16]`
+`[Foto: configuración general]`
+
+**Ilustración 16.** Configuración general
 
 > El detalle de esta sección se describe en el Manual de Administración **MA-RE-001**.
 
@@ -385,6 +418,8 @@ Una visita avanza por una secuencia de estados que reflejan su situación dentro
 > El estado avanza **automáticamente** conforme ocurren los eventos de acceso; algunas transiciones (Cancelar, Finalizar) son acciones manuales del usuario.
 
 `[Foto: secuencia de un registro desde su creación hasta su finalización]`
+
+**Ilustración 17.** Ciclo de vida de una visita (creación a finalización)
 
 ## 8. Flujos principales
 

@@ -126,7 +126,9 @@ El sistema maneja distintos perfiles. Cada uno define las funciones y módulos d
 
 La primera vez que se inicia el sistema aparecerá una vista para el registro del **usuario administrador**. Una vez registrado, esta vista no volverá a presentarse.
 
-`[Foto: pantalla de configuración inicial — Ilustración 1]`
+`[Foto: pantalla de configuración inicial]`
+
+**Ilustración 1.** Configuración inicial
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -142,7 +144,9 @@ Una vez creado el usuario, se podrá acceder al sistema con esas credenciales.
 
 La pantalla de inicio de sesión es el punto de acceso al sistema de Recepción Electrónica. Para ingresar, el usuario debe capturar el **correo/usuario** y la **contraseña** proporcionados por el administrador del sistema. En caso de no recordar la contraseña, podrá iniciar el proceso de recuperación desde la misma pantalla.
 
-`[Foto: pantalla de inicio de sesión — Ilustración 2]`
+`[Foto: pantalla de inicio de sesión]`
+
+**Ilustración 2.** Inicio de sesión
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -158,15 +162,21 @@ Si el usuario no recuerda su contraseña, puede iniciar el proceso de recuperaci
 
 **Paso 1.** Capture el correo electrónico registrado en el sistema y envíe la solicitud. El sistema enviará un **código de verificación** al correo indicado.
 
-`[Foto: pantalla de recuperación — captura de correo — Ilustración 3]`
+`[Foto: pantalla de recuperación — captura de correo]`
+
+**Ilustración 3.** Recuperar contraseña (envío de correo)
 
 **Paso 2.** Capture el código de verificación recibido en su correo para continuar con el proceso.
 
-`[Foto: pantalla de código de verificación — Ilustración 4]`
+`[Foto: pantalla de código de verificación]`
+
+**Ilustración 4.** Código de verificación
 
 **Paso 3.** Defina su nueva contraseña y confírmela.
 
-`[Foto: pantalla de restablecer contraseña — Ilustración 5]`
+`[Foto: pantalla de restablecer contraseña]`
+
+**Ilustración 5.** Restablecer contraseña
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -184,7 +194,9 @@ Si el usuario no recuerda su contraseña, puede iniciar el proceso de recuperaci
 
 **Cerrar sesión manualmente.** Para salir del sistema de forma segura, presione el **avatar / foto de perfil** ubicado en la **esquina superior derecha** de la pantalla y seleccione la opción **Cerrar sesión**. El sistema cerrará su sesión y lo regresará a la pantalla de inicio de sesión.
 
-`[Foto: menú del perfil con la opción Cerrar sesión — Ilustración 25]`
+`[Foto: menú del perfil con la opción Cerrar sesión]`
+
+**Ilustración 25.** Menú de perfil / Cerrar sesión
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -204,7 +216,9 @@ Si el usuario no recuerda su contraseña, puede iniciar el proceso de recuperaci
 
 El sistema permite al usuario consultar y actualizar la información de su perfil, con el fin de mantener sus datos al día dentro de la plataforma. Entre los datos que el usuario puede actualizar se encuentran el nombre, correo electrónico, teléfono móvil, teléfono de oficina y extensión; en la sección de sistema es posible actualizar la contraseña.
 
-`[Foto: pantalla de editar perfil — Ilustración 6]`
+`[Foto: pantalla de editar perfil]`
+
+**Ilustración 6.** Editar perfil
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -218,7 +232,9 @@ El sistema permite al usuario consultar y actualizar la información de su perfi
 
 El sistema cuenta con un **menú lateral** que permite acceder a los distintos módulos disponibles. La visualización de algunas opciones depende del perfil asignado al usuario. Los módulos que contienen subopciones pueden desplegarse o contraerse para facilitar la navegación.
 
-`[Foto: menú principal — Ilustración 7]`
+`[Foto: menú principal]`
+
+**Ilustración 7.** Menú principal
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -244,7 +260,9 @@ Elementos generales del menú (según rol):
 
 En diversos módulos del sistema la información se presenta mediante **tablas**. Aunque el contenido varía según la sección, su estructura general es similar y está diseñada para facilitar la visualización, búsqueda y gestión de los registros.
 
-`[Foto: composición de una tabla — Ilustración 8]`
+`[Foto: composición de una tabla]`
+
+**Ilustración 8.** Composición de tablas
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -333,7 +351,9 @@ Esta sección explica cómo afectan a su información las acciones que **modific
 
 El módulo **Visitantes** permite consultar, registrar y administrar a las personas externas que acuden a las instalaciones. Desde esta vista es posible visualizar la información general de cada visitante, filtrar por estatus, realizar búsquedas y ejecutar acciones según los permisos disponibles.
 
-`[Foto: listado de visitantes — Ilustración 9]`
+`[Foto: listado de visitantes]`
+
+**Ilustración 9.** Listado de visitantes
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -362,7 +382,9 @@ Siga estos pasos para dar de alta un visitante:
 
 **Paso 2.** El sistema abrirá el formulario **Nuevo visitante**.
 
-`[Foto: formulario de nuevo visitante — Ilustración 10]`
+`[Foto: formulario de nuevo visitante]`
+
+**Ilustración 10.** Nuevo visitante
 
 **Paso 3.** Capture la información. Los campos marcados con asterisco (\*) son **obligatorios**; los demás son **opcionales**:
 
@@ -391,7 +413,9 @@ Siga estos pasos para dar de alta un visitante:
 
 Antes de autorizar el acceso, el visitante puede requerir **verificación**. Desde el detalle del visitante, el usuario confirma sus datos y lo marca como verificado.
 
-`[Foto: pantalla de verificación de visitante — Ilustración 11]`
+`[Foto: pantalla de verificación de visitante]`
+
+**Ilustración 11.** Verificación de visitante
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -409,7 +433,9 @@ Acciones adicionales disponibles sobre un visitante:
 
 El registro de visitas es el módulo principal de operación. Desde la **Bitácora** el usuario puede consultar las visitas registradas y dar seguimiento a su estado durante el proceso de recepción.
 
-`[Foto: bitácora / registros de visita — Ilustración 12]`
+`[Foto: bitácora / registros de visita]`
+
+**Ilustración 12.** Bitácora / registros de visita
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -437,7 +463,9 @@ Siga estos pasos para crear una visita o cita:
 
 **Paso 2.** El sistema abrirá el formulario **Nuevo registro de visita**.
 
-`[Foto: formulario de nuevo registro de visita — Ilustración 13]`
+`[Foto: formulario de nuevo registro de visita]`
+
+**Ilustración 13.** Nuevo registro de visita
 
 **Paso 3.** Capture la información. Los campos marcados con asterisco (\*) son **obligatorios**; los demás son **opcionales**:
 
@@ -478,7 +506,9 @@ El sistema permite que sea el **propio visitante** quien complete su registro, m
 
 **Paso 1.** Un usuario autorizado selecciona **Enviar liga de registro**, captura el correo del visitante, la fecha, el anfitrión y los accesos, y envía la invitación.
 
-`[Foto: envío de liga de registro — Ilustración 14]`
+`[Foto: envío de liga de registro]`
+
+**Ilustración 14.** Envío de liga de registro
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -490,7 +520,9 @@ El sistema permite que sea el **propio visitante** quien complete su registro, m
 
 **Paso 2.** El visitante abre la liga, el sistema valida el enlace y el visitante captura o confirma sus datos para completar su registro.
 
-`[Foto: registro desde la liga (vista del visitante) — Ilustración 15]`
+`[Foto: registro desde la liga (vista del visitante)]`
+
+**Ilustración 15.** Registro desde la liga (visitante)
 
 > **Nota:** La liga tiene una vigencia limitada y se invalida una vez utilizada. Si expira, será necesario enviar una nueva.
 
@@ -500,7 +532,9 @@ El sistema permite que sea el **propio visitante** quien complete su registro, m
 
 El módulo **Empleados** permite administrar a las personas internas sujetas a control de acceso. Su estructura es similar a la de Visitantes: listado con filtros, búsqueda, alta y acciones.
 
-`[Foto: listado de empleados — Ilustración 16]`
+`[Foto: listado de empleados]`
+
+**Ilustración 16.** Listado de empleados
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -525,7 +559,9 @@ El módulo **Empleados** permite administrar a las personas internas sujetas a c
 
 **Paso 2.** El sistema abrirá el formulario **Nuevo empleado**.
 
-`[Foto: formulario de nuevo empleado — Ilustración 17]`
+`[Foto: formulario de nuevo empleado]`
+
+**Ilustración 17.** Nuevo empleado
 
 **Paso 3.** Capture la información. Los campos con asterisco (\*) son **obligatorios**; los demás son **opcionales**:
 
@@ -581,7 +617,9 @@ El **Directorio** permite consultar empleados registrados sin entrar al flujo co
 
 El módulo **Usuarios** permite consultar y administrar a las personas con acceso al sistema. Desde esta vista es posible visualizar la información de cada usuario, filtrar por estatus, buscar y ejecutar acciones.
 
-`[Foto: listado de usuarios — Ilustración 18]`
+`[Foto: listado de usuarios]`
+
+**Ilustración 18.** Listado de usuarios
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -606,7 +644,9 @@ El módulo **Usuarios** permite consultar y administrar a las personas con acces
 
 **Paso 2.** El sistema abrirá el formulario **Nuevo usuario**.
 
-`[Foto: formulario de nuevo usuario — Ilustración 19]`
+`[Foto: formulario de nuevo usuario]`
+
+**Ilustración 19.** Nuevo usuario
 
 **Paso 3.** Capture la información. Los campos con asterisco (\*) son **obligatorios**; los demás son **opcionales**:
 
@@ -639,7 +679,9 @@ El módulo **Usuarios** permite consultar y administrar a las personas con acces
 
 El **Kiosco** es una vista de operación pensada para recepción o tablet, desde la cual se consultan y registran los eventos de acceso.
 
-`[Foto: vista de kiosco — Ilustración 20]`
+`[Foto: vista de kiosco]`
+
+**Ilustración 20.** Kiosco
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -651,7 +693,9 @@ El **Kiosco** es una vista de operación pensada para recepción o tablet, desde
 
 La pantalla **Escáner QR** permite validar el código QR de visitantes, usuarios y empleados para autorizar el acceso.
 
-`[Foto: escáner QR validando un acceso — Ilustración 21]`
+`[Foto: escáner QR validando un acceso]`
+
+**Ilustración 21.** Escáner QR
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -670,7 +714,9 @@ La pantalla **Escáner QR** permite validar el código QR de visitantes, usuario
 
 El módulo **Eventos** permite consultar los accesos registrados (entradas, salidas, autorizaciones, cancelaciones) y aplicar filtros para su revisión.
 
-`[Foto: pantalla de eventos — Ilustración 22]`
+`[Foto: pantalla de eventos]`
+
+**Ilustración 22.** Eventos
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -691,7 +737,9 @@ El módulo **Eventos** permite consultar los accesos registrados (entradas, sali
 
 La sección **Catálogos** concentra los registros base necesarios para la operación: empresas, pisos, accesos, puestos, departamentos, cubículos y horarios. Todos comparten una estructura similar de consulta, alta, edición y activación.
 
-`[Foto: pantalla de un catálogo — Ilustración 23]`
+`[Foto: pantalla de un catálogo]`
+
+**Ilustración 23.** Catálogos
 
 | N. | Campo | Descripción |
 | --- | --- | --- |
@@ -730,7 +778,9 @@ La sección **Catálogos** concentra los registros base necesarios para la opera
 
 La sección **Reportes** permite consultar la información de las visitas, eventos y horas registradas, mediante diferentes filtros, y exportar los resultados.
 
-`[Foto: pantalla de reportes con filtros — Ilustración 24]`
+`[Foto: pantalla de reportes con filtros]`
+
+**Ilustración 24.** Reportes
 
 | N. | Campo | Descripción |
 | --- | --- | --- |

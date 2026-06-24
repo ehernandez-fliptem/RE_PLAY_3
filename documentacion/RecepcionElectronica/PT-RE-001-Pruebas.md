@@ -130,7 +130,7 @@ Validar que el producto base cumple con los requerimientos funcionales (DR-RE-00
 `[Foto: evidencia de validación de QR]`
 `[Foto: evidencia de reporte exportado]`
 
-> Las evidencias deben capturarse sin exponer datos personales reales, QR reales, tokens ni valores de `.env`.
+> Las evidencias se capturan sin exponer datos personales reales, QR reales, tokens ni valores de `.env`.
 
 ## 6. Control documental
 

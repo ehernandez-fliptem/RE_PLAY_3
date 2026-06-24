@@ -96,7 +96,9 @@ El administrador es responsable de:
 
 La primera vez que se inicia el sistema se muestra el flujo de **configuración inicial**, que permite crear los datos mínimos para operar: **empresa**, **piso**, **acceso**, **usuario administrador** y la **configuración general**. Una vez completado, este flujo no vuelve a mostrarse.
 
-`[Foto: flujo de configuración inicial — Ilustración 1]`
+`[Foto: flujo de configuración inicial]`
+
+**Ilustración 1.** Flujo de configuración inicial
 
 | Paso | Acción | Resultado |
 | --- | --- | --- |
@@ -150,7 +152,9 @@ De forma complementaria, las **rutas críticas** de configuración requieren con
 
 Desde **Configuración** se pueden **crear** y **eliminar** roles personalizados (numeración ≥ 100), definiendo qué **módulos** son visibles para cada uno. Esto permite ajustar el sistema a estructuras organizacionales específicas sin alterar los roles base.
 
-`[Foto: creación de rol personalizado — Ilustración 4]`
+`[Foto: creación de rol personalizado]`
+
+**Ilustración 4.** Creación de rol personalizado
 
 **Cómo crear un rol personalizado:**
 
@@ -170,7 +174,9 @@ Desde **Configuración** se pueden **crear** y **eliminar** roles personalizados
 
 Desde **Configuración** (rol Administrador, con condición root para parámetros críticos) se administra el comportamiento global del sistema.
 
-`[Foto: configuración general — Ilustración 2]`
+`[Foto: configuración general]`
+
+**Ilustración 2.** Configuración general
 
 ### 6.1 Parámetros generales
 
@@ -185,9 +191,11 @@ Desde **Configuración** (rol Administrador, con condición root para parámetro
 
 El correo es necesario para enviar invitaciones, ligas de registro, códigos de recuperación y notificaciones. Si los correos **no se envían**, revise esta configuración.
 
-`[Foto: configuración de correo — Ilustración 5]`
+`[Foto: configuración de correo]`
 
-**Elementos que debe validar el administrador:**
+**Ilustración 5.** Configuración de correo
+
+**Elementos validados por el administrador:**
 
 - Cuenta o cuentas de correo configuradas.
 - Cuenta asignada al flujo de visitantes.
@@ -223,7 +231,9 @@ El sistema base puede ampliarse con **módulos opcionales** (integraciones). Su 
 - **Banderas de configuración** (`habilitar…`) que encienden o apagan cada módulo.
 - La **lista de módulos visibles por cliente** y su **modo de visibilidad** (para todos o por cliente).
 
-`[Foto: activación de módulos — Ilustración 6]`
+`[Foto: activación de módulos]`
+
+**Ilustración 6.** Activación de módulos
 
 | Acción | Efecto |
 | --- | --- |
@@ -251,7 +261,9 @@ Mantenga actualizados los catálogos base, ya que son **requeridos** por otros p
 
 **empresas, pisos, accesos, puestos, departamentos, cubículos, horarios y pases.**
 
-`[Foto: administración de catálogos — Ilustración 7]`
+`[Foto: administración de catálogos]`
+
+**Ilustración 7.** Administración de catálogos
 
 Cada catálogo permite **crear, editar y Activar/Inactivar**. 
 
@@ -266,7 +278,9 @@ Cada catálogo permite **crear, editar y Activar/Inactivar**.
 
 ## 9. Gestión de usuarios
 
-`[Foto: gestión de usuarios — desbloqueo — Ilustración 8]`
+`[Foto: gestión de usuarios — desbloqueo]`
+
+**Ilustración 8.** Gestión de usuarios (desbloqueo)
 
 ### 9.1 Alta y edición
 
@@ -306,7 +320,7 @@ Cuando un usuario supera el número de intentos fallidos, su cuenta se **bloquea
 | Gestión de secretos | No exponer archivos de configuración (`.env`) ni certificados. | PSI.12 |
 | Contraseñas | Exigir contraseñas robustas; promover su cambio periódico. | PSI.05 |
 
-> **Importante:** Las evidencias, capturas y reportes que se compartan **no deben exponer** datos sensibles (contraseñas, tokens, identificadores de sesión, direcciones IP ni datos personales innecesarios).
+> **Importante:** Las evidencias, capturas y reportes compartidos **no exponen** datos sensibles (contraseñas, tokens, identificadores de sesión, direcciones IP ni datos personales innecesarios).
 
 ## 12. Respaldos y continuidad
 
