@@ -38,6 +38,8 @@ Versión 1.0
 7. Registro de visitas (Bitácora)
 8. Liga de registro para el visitante
 9. Módulo de Empleados
+   - 9.1 Cómo registrar un nuevo empleado
+   - 9.2 Directorio de empleados
 10. Módulo de Usuarios
 11. Control de acceso
     - 11.1 Kiosco
@@ -92,6 +94,7 @@ Este documento describe de manera detallada las principales opciones disponibles
 **Nota.**
 
 - Las opciones visibles en el sistema dependen del **rol** asignado a cada usuario; por ello, es posible que algunas pantallas descritas en este manual no estén disponibles para todos los perfiles.
+- Este manual describe la operación base de Recepción Electrónica. Los módulos opcionales o integraciones, como Contratistas, BioStar, Hikvision, Visitantes Avanzado, Registro Campo o Capacitaciones, se documentan en manuales o documentos de integración separados cuando aplican.
 - Para dudas sobre la operación del sistema o incidencias técnicas, el usuario deberá comunicarse con el área responsable de soporte o con el administrador del sistema.
 
 El sistema de Recepción Electrónica permite a los usuarios:
@@ -553,6 +556,24 @@ Funciones adicionales:
 - **Carga masiva:** descargue el formato, complételo y cárguelo para registrar varios empleados a la vez.
 - **Generar QR:** obtiene el código QR del empleado para el control de acceso.
 - **Directorio:** consulta de empleados registrados.
+
+### 9.2 Directorio de empleados
+
+El **Directorio** permite consultar empleados registrados sin entrar al flujo completo de administración. Es útil para localizar rápidamente información de contacto, área, puesto o ubicación de una persona interna.
+
+> Disponible para perfiles autorizados. La información visible depende de los permisos del usuario y de los datos capturados para cada empleado.
+
+**Uso general del Directorio:**
+
+**Paso 1.** Ingrese a la opción **Directorio** desde el menú principal.
+
+**Paso 2.** Use el buscador o los filtros disponibles para localizar al empleado.
+
+**Paso 3.** Revise la información mostrada en la tabla o tarjeta de resultados.
+
+**Paso 4.** Si necesita modificar información, hágalo desde el módulo **Empleados**, siempre que su perfil tenga permiso de edición.
+
+> **Nota:** El Directorio es principalmente de consulta. Para altas, bajas, activación, inactivación o cambios de datos, utilice el módulo **Empleados**.
 
 ## 10. Módulo de Usuarios
 
