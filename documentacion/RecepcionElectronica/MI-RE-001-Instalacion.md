@@ -25,6 +25,31 @@ Guía de instalación, despliegue y operación de los procesos del núcleo de Re
 
 ---
 
+## Contenido
+
+1. Requisitos previos
+2. Instalación desde cero
+3. Variables de entorno
+4. Actualización
+5. Flujo manual
+6. Operación con PM2
+7. HTTPS
+8. Scripts disponibles
+9. Verificación post-despliegue
+10. Respaldo y recuperación
+11. Control documental
+
+---
+
+## Contenido de imágenes
+
+- Ilustración 1. Verificación de versiones (node, npm, mongod)
+- Ilustración 2. Ejecución exitosa de setup.ps1
+- Ilustración 3. Salida de pm2 list con el proceso back en línea
+- Ilustración 4. Pantalla de login tras el despliegue
+
+---
+
 ## 1. Requisitos previos
 
 - Node.js LTS.
@@ -33,6 +58,8 @@ Guía de instalación, despliegue y operación de los procesos del núcleo de Re
 - PowerShell (Windows).
 
 `[Foto: verificación de versiones con node -v, npm -v y mongod --version]`
+
+**Ilustración 1.** Verificación de versiones (node, npm, mongod)
 
 ## 2. Instalación desde cero
 
@@ -45,6 +72,8 @@ PowerShell -ExecutionPolicy Bypass -File scripts\setup.ps1
 El script instala dependencias, compila y levanta los procesos con PM2.
 
 `[Foto: ejecución exitosa de setup.ps1]`
+
+**Ilustración 2.** Ejecución exitosa de setup.ps1
 
 ## 3. Variables de entorno
 
@@ -116,6 +145,8 @@ pm2 save                       # Guardar estado
 
 `[Foto: salida de pm2 list con el proceso back en línea]`
 
+**Ilustración 3.** Salida de pm2 list con el proceso back en línea
+
 ## 7. HTTPS
 
 ```powershell
@@ -144,6 +175,8 @@ Los certificados se almacenan en `back/secure` y deben tratarse como informació
 4. El flujo de setup inicial aparece si la instalación es nueva.
 
 `[Foto: pantalla de login cargada tras el despliegue]`
+
+**Ilustración 4.** Pantalla de login tras el despliegue
 
 ## 10. Respaldo y recuperación
 

@@ -25,6 +25,26 @@ Casos de prueba y evidencia de validación del núcleo de Recepción Electrónic
 
 ---
 
+## Contenido
+
+1. Objetivo y alcance
+2. Tipos de prueba
+3. Casos de prueba
+4. Checklist de validación
+5. Evidencias
+6. Control documental
+
+---
+
+## Contenido de imágenes
+
+- Ilustración 1. Evidencia de login exitoso
+- Ilustración 2. Evidencia de registro de visita creado
+- Ilustración 3. Evidencia de validación de QR
+- Ilustración 4. Evidencia de reporte exportado
+
+---
+
 ## 1. Objetivo y alcance
 
 Validar que el producto base cumple con los requerimientos funcionales (DR-RE-001) y mantiene los controles de seguridad. Las pruebas de módulos opcionales se documentan en sus respectivos documentos.
@@ -126,9 +146,20 @@ Validar que el producto base cumple con los requerimientos funcionales (DR-RE-00
 ## 5. Evidencias
 
 `[Foto: evidencia de login exitoso]`
+
+**Ilustración 1.** Evidencia de login exitoso
+
 `[Foto: evidencia de registro de visita creado]`
+
+**Ilustración 2.** Evidencia de registro de visita creado
+
 `[Foto: evidencia de validación de QR]`
+
+**Ilustración 3.** Evidencia de validación de QR
+
 `[Foto: evidencia de reporte exportado]`
+
+**Ilustración 4.** Evidencia de reporte exportado
 
 > Las evidencias se capturan sin exponer datos personales reales, QR reales, tokens ni valores de `.env`.
 

@@ -25,7 +25,24 @@ Identificación, evaluación y mitigación de riesgos del producto base.
 
 ---
 
-## 1. Metodología
+## Contenido
+
+1. Objetivo y alcance
+2. Metodología
+3. Matriz de riesgos
+4. Seguimiento
+5. Revisión
+6. Control documental
+
+---
+
+## 1. Objetivo y alcance
+
+Identificar, evaluar y dar seguimiento a los principales **riesgos** asociados a la operación, la seguridad y la continuidad del producto base de **Recepción Electrónica (RE)**, así como definir las **medidas de mitigación** y los responsables correspondientes.
+
+El alcance corresponde al **núcleo de RE** y a su entorno de operación (acceso, datos, servicio, respaldo y cambios). Los riesgos específicos de **módulos opcionales** se documentan en sus propios documentos de integración. Esta matriz se alinea con las políticas internas de seguridad (PSI.05, Control 8.11 y PSI.12).
+
+## 2. Metodología
 
 Cada riesgo se evalúa por **impacto** (Alto/Medio/Bajo) y **probabilidad** (Alta/Media/Baja). El **nivel** resulta de la combinación de ambos. Se define una **mitigación** y un **responsable**.
 
@@ -35,7 +52,7 @@ Cada riesgo se evalúa por **impacto** (Alto/Medio/Bajo) y **probabilidad** (Alt
 | Medio | Bajo | Medio | Alto |
 | Bajo | Bajo | Bajo | Medio |
 
-## 2. Matriz de riesgos
+## 3. Matriz de riesgos
 
 | ID | Riesgo | Categoría | Impacto | Prob. | Nivel | Mitigación |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -54,7 +71,7 @@ Cada riesgo se evalúa por **impacto** (Alto/Medio/Bajo) y **probabilidad** (Alt
 | R-013 | Falta de trazabilidad de cambios. | Cumplimiento | Medio | Baja | Bajo | Bitácora de cambios y control de versiones (BC-RE-001). |
 | R-014 | Certificados HTTPS no válidos o vencidos. | Técnico | Medio | Media | Medio | Configuración y renovación de certificados. |
 
-## 3. Seguimiento
+## 4. Seguimiento
 
 | ID | Estado | Acción en curso | Responsable | Fecha de revisión |
 | --- | --- | --- | --- | --- |
@@ -63,11 +80,11 @@ Cada riesgo se evalúa por **impacto** (Alto/Medio/Bajo) y **probabilidad** (Alt
 | R-004 | Abierto | | | |
 | R-005 | Abierto | | | |
 
-## 4. Revisión
+## 5. Revisión
 
 Esta matriz debe revisarse al menos una vez al año o ante cambios significativos en sistemas, datos tratados o riesgos, conforme a PSI.12.
 
-## 5. Control documental
+## 6. Control documental
 
 | Documento | Código | Versión | Fecha | Responsable | Estado |
 | --- | --- | --- | --- | --- | --- |
