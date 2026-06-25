@@ -156,17 +156,18 @@ Estas reglas aplican de forma transversal a todo el sistema y son la base del co
 - Cuando la sesión **expira** —o si el administrador **deshabilita** la cuenta— el sistema cierra la sesión automáticamente y redirige al usuario a la pantalla de inicio de sesión, donde deberá **autenticarse nuevamente**.
 - La **visibilidad de módulos y acciones** depende del **rol** del usuario y de la configuración de permisos.
 
-### 5.2 Estados Activo / Inactivo y eliminación
+### 5.2 Estados Activo / Inactivo, eliminación y anonimización
 
-El sistema distingue tres operaciones que afectan a la permanencia de un registro:
+El sistema distingue las siguientes operaciones que afectan a la permanencia de un registro:
 
 | Operación | Efecto | ¿Reversible por el usuario? |
 | --- | --- | --- |
 | **Inactivar** | El registro se **oculta** de las listas activas pero **se conserva**. Puede volver a verse con el filtro Inactivos/Todos y reactivarse. | Sí (Activar). |
 | **Eliminar** | El registro se **marca como eliminado** y **desaparece de todas las listas** (incluso del filtro Inactivos/Todos). La información se conserva internamente, pero **el usuario no puede recuperarla** desde el sistema. | No (requiere soporte). |
+| **Anonimizar** | Aplicable a la **baja de empleados**: el sistema **sobrescribe de forma física** los datos personales (correo, nombre y teléfono) para evitar su identificación y recuperación, conforme a PSI.05. | No. |
 | **Cancelar / Finalizar** (visitas) | Cierra el ciclo de la visita conservando su historial; no se elimina. | Según estado. |
 
-> **Regla:** Para "dar de baja" sin perder historial se utiliza **Inactivar**. **Eliminar** se reserva para registros que ya no deben existir; algunos procesos avanzados sí borran datos de forma definitiva, por lo que debe tratarse como una acción **no recuperable** desde la operación normal. Los **eventos de acceso no se eliminan** (son registro histórico) y las **visitas no se eliminan**: se **Cancelan** o **Finalizan**.
+> **Regla:** Para "dar de baja" sin perder historial se utiliza **Inactivar**. **Eliminar** se reserva para registros que ya no deben existir; debe tratarse como una acción **no recuperable** desde la operación normal. La **anonimización** se aplica en la **baja de empleados** y, por diseño, es **definitiva** (no se puede revertir). Los **eventos de acceso no se eliminan** (son registro histórico) y las **visitas no se eliminan**: se **Cancelan** o **Finalizan**.
 
 ### 5.3 Validación de formularios
 
@@ -309,7 +310,9 @@ Para cada módulo se describe su **propósito**, las **acciones** disponibles so
 | Accesos | Sí | Al menos un acceso. |
 | Apellido materno / Contacto / Puesto / Departamento / Cubículo / Horario / Foto | No | — |
 
-**Funciones adicionales:** **carga masiva** (formato descargable), **generación de QR** y consulta desde **Directorio**.
+**Funciones adicionales:** **carga masiva** (formato descargable), **generación de QR**, consulta desde **Directorio** y **anonimización** en la baja del empleado.
+
+> **Baja del empleado (PSI.05):** al finalizar la relación del empleado, además de darlo de baja, el sistema permite **anonimizar** sus datos personales (correo, nombre y teléfono) sobrescribiéndolos de forma física para evitar su identificación y recuperación (ver 5.2).
 
 **Directorio:**
 

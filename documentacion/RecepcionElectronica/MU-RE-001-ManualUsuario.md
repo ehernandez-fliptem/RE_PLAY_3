@@ -553,6 +553,8 @@ El módulo **Empleados** permite administrar a las personas internas sujetas a c
 - **Desbloquear:** restablece el acceso de un empleado que fue **bloqueado** (por ejemplo, por intentos o por una suspensión), sin borrar su registro.
 - **Eliminar:** **quita** al empleado y desaparece de **todas** las listas (no se ve ni con el filtro Inactivos/Todos). **No podrá recuperarlo usted mismo.** Si solo desea darlo de baja conservando su historial, use **Inactivar**. Ver sección 5.5.
 
+> **Nota (baja de empleados):** Cuando un empleado finaliza su relación con la empresa, además de darlo de baja, sus **datos personales (correo, nombre y teléfono) se anonimizan** por política de protección de datos, de modo que ya no pueden identificarse ni recuperarse. Esta acción es **definitiva**.
+
 ### 9.1 Cómo registrar un nuevo empleado
 
 **Paso 1.** En la pantalla de **Empleados**, presione el botón **Nuevo / Más (+)** en la parte superior.

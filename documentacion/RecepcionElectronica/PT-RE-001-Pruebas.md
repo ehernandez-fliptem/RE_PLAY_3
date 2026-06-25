@@ -47,7 +47,7 @@ Casos de prueba y evidencia de validación del núcleo de Recepción Electrónic
 
 ## 1. Objetivo y alcance
 
-Validar que el producto base cumple con los requerimientos funcionales (DR-RE-001) y mantiene los controles de seguridad. Las pruebas de módulos opcionales se documentan en sus respectivos documentos.
+Validar que el producto base cumple con los requerimientos funcionales (DR-RE-001) y mantiene los controles de seguridad alineados con **PSI.01**, **PSI.05** (incluido el enmascaramiento de datos) y **PSI.12**. Las pruebas de módulos opcionales se documentan en sus respectivos documentos.
 
 ## 2. Tipos de prueba
 
@@ -76,7 +76,7 @@ Validar que el producto base cumple con los requerimientos funcionales (DR-RE-00
 | PT-011 | Edición y cambio de estado. | Cambios reflejados. | |
 | PT-012 | Carga masiva con formato. | Registros importados; errores reportados. | |
 | PT-013 | Generación de QR. | QR generado correctamente. | |
-| PT-014 | Anonimización/eliminación. | Datos anonimizados/eliminados. | |
+| PT-014 | Anonimización en baja de empleado. | Datos personales (correo, nombre, teléfono) sobrescritos físicamente; no recuperables (PSI.05). | |
 
 ### 3.3 Visitantes
 
@@ -128,7 +128,9 @@ Validar que el producto base cumple con los requerimientos funcionales (DR-RE-00
 | PT-070 | Acceso a ruta sin permiso de rol. | Acceso denegado. | |
 | PT-071 | Manejo de error sin datos sensibles. | Error controlado, sin información técnica. | |
 | PT-072 | Rate limit en autenticación. | Peticiones excesivas limitadas. | |
-| PT-073 | Logs sin secretos ni datos personales completos. | Bitácora conforme a Control 8.11. | |
+| PT-073 | Logs sin secretos ni datos personales completos. | Bitácora conforme a PSI.05 (sin datos sensibles completos). | |
+| PT-074 | Datos de prueba sin información real de producción. | Pruebas realizadas con datos ficticios/anonimizados; ambientes separados (PSI.12). | |
+| PT-075 | Contraseñas almacenadas cifradas. | Las contraseñas se guardan cifradas; no se exponen en claro (PSI.05). | |
 
 ## 4. Checklist de validación
 

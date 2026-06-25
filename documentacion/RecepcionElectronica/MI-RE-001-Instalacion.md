@@ -184,6 +184,8 @@ Los certificados se almacenan en `back/secure` y deben tratarse como informació
 - Resguardar los archivos `.env` y certificados de `back/secure` en un lugar seguro.
 - Documentar fecha y responsable de cada respaldo.
 
+> **Alineación (PSI.01 / PSI.09):** los respaldos y el resguardo de configuración del proyecto forman parte de los requisitos de seguridad de proyectos; mantenga evidencia de los respaldos y verifique periódicamente su restauración.
+
 ## 11. Control documental
 
 | Documento | Código | Versión | Fecha | Responsable | Estado |

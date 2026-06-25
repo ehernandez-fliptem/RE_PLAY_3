@@ -105,7 +105,7 @@ Archivos principales:
 - Soporte HTTP y HTTPS (certificados en `back/secure`).
 - Registro de peticiones para trazabilidad.
 
-Alineación con políticas: **PSI.12** (desarrollo seguro), **PSI.05** (control de accesos), **Control 8.11** (enmascaramiento).
+Alineación con políticas: **PSI.01** (requisitos de seguridad en proyectos), **PSI.05** (control de accesos y enmascaramiento de datos) y **PSI.12** (desarrollo seguro).
 
 ## 6. Extensibilidad (módulos opcionales)
 

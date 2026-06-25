@@ -204,10 +204,10 @@ Parámetros generales del sistema.
 
 ## 5. Consideraciones de protección de datos
 
-- `contrasena` de usuarios: hash; nunca en claro.
-- Datos personales: minimización/enmascaramiento según perfil (Control 8.11).
-- `logs`: no deben almacenar contraseñas, tokens ni datos personales completos.
-- Anonimización disponible para personas dadas de baja.
+- `contrasena` de usuarios: almacenada cifrada (hash); nunca en claro (PSI.05).
+- Datos personales: minimización/enmascaramiento según perfil (PSI.05 — Enmascaramiento).
+- `logs`: no deben almacenar contraseñas, tokens ni datos personales completos (PSI.05 / PSI.12).
+- **Anonimización de empleados dados de baja:** sobrescritura **física** (no lógica) de `correo`, `nombre` y `telefono`, para evitar su recuperación (PSI.05).
 
 `[Foto: vista de MongoDB Compass mostrando las colecciones del núcleo]`
 

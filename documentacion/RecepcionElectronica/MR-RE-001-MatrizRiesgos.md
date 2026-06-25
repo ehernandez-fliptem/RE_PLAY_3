@@ -40,7 +40,7 @@ Identificación, evaluación y mitigación de riesgos del producto base.
 
 Identificar, evaluar y dar seguimiento a los principales **riesgos** asociados a la operación, la seguridad y la continuidad del producto base de **Recepción Electrónica (RE)**, así como definir las **medidas de mitigación** y los responsables correspondientes.
 
-El alcance corresponde al **núcleo de RE** y a su entorno de operación (acceso, datos, servicio, respaldo y cambios). Los riesgos específicos de **módulos opcionales** se documentan en sus propios documentos de integración. Esta matriz se alinea con las políticas internas de seguridad (PSI.05, Control 8.11 y PSI.12).
+El alcance corresponde al **núcleo de RE** y a su entorno de operación (acceso, datos, servicio, respaldo y cambios). Los riesgos específicos de **módulos opcionales** se documentan en sus propios documentos de integración. Esta matriz se alinea con las políticas internas de seguridad (PSI.01, PSI.05 —incluido su apartado de enmascaramiento de datos— y PSI.12).
 
 ## 2. Metodología
 
@@ -57,7 +57,7 @@ Cada riesgo se evalúa por **impacto** (Alto/Medio/Bajo) y **probabilidad** (Alt
 | ID | Riesgo | Categoría | Impacto | Prob. | Nivel | Mitigación |
 | --- | --- | --- | --- | --- | --- | --- |
 | R-001 | Acceso no autorizado por credenciales débiles o compartidas. | Seguridad | Alto | Media | Alto | Hash de contraseñas, bloqueo por intentos, mínimo privilegio (PSI.05). |
-| R-002 | Exposición de datos personales en pantallas/reportes/logs. | Seguridad | Alto | Media | Alto | Minimización/enmascaramiento, logs sin datos completos (Control 8.11). |
+| R-002 | Exposición de datos personales en pantallas/reportes/logs. | Seguridad | Alto | Media | Alto | Minimización/enmascaramiento, logs sin datos completos (PSI.05). |
 | R-003 | Exposición de secretos (.env, certificados). | Seguridad | Alto | Baja | Medio | Variables de entorno fuera de repositorio, resguardo de `back/secure` (PSI.12). |
 | R-004 | Pérdida de datos por falta de respaldo. | Operación | Alto | Media | Alto | Respaldos periódicos de MongoDB y verificación de restauración. |
 | R-005 | Indisponibilidad del servicio. | Operación | Alto | Media | Alto | Gestión con PM2, reinicio automático y monitoreo. |
@@ -65,11 +65,13 @@ Cada riesgo se evalúa por **impacto** (Alto/Medio/Bajo) y **probabilidad** (Alt
 | R-007 | Errores que revelan información técnica al usuario. | Seguridad | Medio | Media | Medio | Manejo controlado de errores (PSI.12). |
 | R-008 | Envío de correos fallido (invitaciones/ligas). | Operación | Medio | Media | Medio | Configuración validada de correo y reintentos. |
 | R-009 | Asignación incorrecta de permisos. | Seguridad | Medio | Media | Medio | Revisión periódica de accesos y matriz de roles (PSI.05). |
-| R-010 | Datos de prueba reales en ambientes no productivos. | Cumplimiento | Medio | Media | Medio | Datos ficticios/anonimizados en pruebas (Control 8.33/8.11). |
+| R-010 | Datos de prueba reales en ambientes no productivos. | Cumplimiento | Medio | Media | Medio | Datos ficticios/anonimizados en pruebas; separación de ambientes (PSI.12). |
 | R-011 | Tokens/ligas de registro reutilizados o expirados mal gestionados. | Seguridad | Medio | Baja | Bajo | Invalidación de token tras uso y expiración configurada. |
 | R-012 | Dependencias con vulnerabilidades. | Técnico | Medio | Media | Medio | Revisión y actualización de dependencias (PSI.12). |
 | R-013 | Falta de trazabilidad de cambios. | Cumplimiento | Medio | Baja | Bajo | Bitácora de cambios y control de versiones (BC-RE-001). |
 | R-014 | Certificados HTTPS no válidos o vencidos. | Técnico | Medio | Media | Medio | Configuración y renovación de certificados. |
+| R-015 | Datos personales de empleados dados de baja no anonimizados. | Cumplimiento | Alto | Media | Alto | Anonimización física (correo, nombre y teléfono) como parte de la baja del empleado (PSI.05). |
+| R-016 | Falta de revisión periódica de accesos de administrador. | Seguridad | Medio | Media | Medio | Revisión de accesos privilegiados cada 5 meses por personal independiente (PSI.05). |
 
 ## 4. Seguimiento
 

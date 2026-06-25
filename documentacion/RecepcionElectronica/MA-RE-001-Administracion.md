@@ -293,32 +293,36 @@ Cada catálogo permite **crear, editar y Activar/Inactivar**.
 
 Cuando un usuario supera el número de intentos fallidos, su cuenta se **bloquea** temporalmente. El administrador puede **desbloquearla** desde la acción correspondiente en el listado de usuarios, sin necesidad de esperar el tiempo de bloqueo.
 
-### 9.3 Inactivar vs. Eliminar
+### 9.3 Inactivar, Eliminar y Anonimizar
 
 | Acción | Cuándo usarla | Efecto |
 | --- | --- | --- |
 | **Inactivar** | Para retirar el acceso de un usuario conservando su cuenta e historial. | Se oculta de las listas activas; reversible con **Activar**. |
 | **Eliminar** | Solo cuando la cuenta no debe existir. | Desaparece de todas las listas; **no recuperable** por el usuario desde el sistema. |
+| **Anonimizar** | En la **baja de empleados** que finalizaron su relación, conforme a PSI.05. | **Sobrescribe de forma física** los datos personales (correo, nombre y teléfono) para evitar su identificación y recuperación. **No es reversible.** |
 
-> **Protección de datos:** Aplique minimización/anonimización cuando corresponda, conforme a la política de protección de datos (Control 8.11). No conserve datos personales más allá de lo necesario.
+> **Protección de datos (PSI.05 — Enmascaramiento):** Como parte de la **baja de un empleado**, debe aplicarse la **anonimización física** (no lógica) de sus datos personales —**correo, nombre y teléfono**— de modo que no puedan recuperarse. No conserve datos personales más allá de lo necesario. Las contraseñas del sistema se almacenan **cifradas**.
 
 ## 10. Gestión de visitantes y empleados
 
 - **Visitantes:** el administrador y recepción pueden registrar, verificar, bloquear/desbloquear, generar QR y cambiar el estado de los visitantes (ver MU-RE-001).
 - **Empleados:** administre altas, accesos, horarios y QR; utilice la **carga masiva** para registrar varios a la vez.
 - **Directorio:** valide que los empleados activos tengan datos completos de contacto, área y ubicación, ya que esta información se consulta desde recepción.
-- Para dar de baja, prefiera **Inactivar** sobre **Eliminar** (conserva historial).
+- **Baja de empleados:** cuando un empleado finaliza su relación, además de darlo de baja, aplique la **anonimización** de sus datos personales (correo, nombre y teléfono) conforme a PSI.05 (ver 9.3).
+- Para retirar temporalmente a un usuario o registro conservando su historial, prefiera **Inactivar** sobre **Eliminar**.
 
 ## 11. Seguridad de la operación (ISO)
 
 | Control | Acción del administrador | Referencia |
 | --- | --- | --- |
-| Mínimo privilegio | Asignar solo el rol y los accesos necesarios. | PSI.05 |
-| Revisión de accesos | Revisar periódicamente usuarios activos/inactivos y sus permisos. | PSI.05 |
-| Protección de datos | Aplicar minimización/anonimización cuando corresponda. | Control 8.11 |
+| Mínimo privilegio | Asignar solo el rol y los accesos necesarios (necesidad de saber y de usar). | PSI.05 |
+| Revisión de accesos | Revisar los accesos de administrador **cada 5 meses** y ante cambios mayores, por personal ajeno a la asignación de accesos; conservar el registro. | PSI.05 |
+| Protección de datos | Aplicar minimización y **anonimización física** (correo, nombre, teléfono) en la baja de empleados. | PSI.05 (Enmascaramiento) |
+| Identificadores únicos | Garantizar un identificador (correo) y credenciales únicas por usuario; no compartir cuentas. | PSI.05 |
 | Trazabilidad | Conservar la bitácora de cambios relevantes. | PSI.12 |
 | Gestión de secretos | No exponer archivos de configuración (`.env`) ni certificados. | PSI.12 |
-| Contraseñas | Exigir contraseñas robustas; promover su cambio periódico. | PSI.05 |
+| Contraseñas | Exigir contraseñas robustas; promover su cambio periódico y considerar MFA cuando la tecnología lo permita. | PSI.05 |
+| Respaldos del proyecto | Mantener respaldos y resguardo de configuración conforme a los requisitos de proyectos. | PSI.01 / PSI.09 |
 
 > **Importante:** Las evidencias, capturas y reportes compartidos **no exponen** datos sensibles (contraseñas, tokens, identificadores de sesión, direcciones IP ni datos personales innecesarios).
 
@@ -347,6 +351,8 @@ Cuando un usuario supera el número de intentos fallidos, su cuenta se **bloquea
 | Semanal | Revisar usuarios nuevos, bloqueos y cuentas inactivas. |
 | Mensual | Revisar permisos por rol y accesos; depurar catálogos en desuso (Inactivar). |
 | Mensual | Verificar respaldos y probar una restauración. |
+| Cada 5 meses | Revisar formalmente los **accesos de administrador** (privilegiados), por personal ajeno a la asignación de accesos, y conservar el registro (PSI.05). |
+| En cada baja de empleado | Aplicar la **anonimización** de datos personales (correo, nombre, teléfono) conforme a PSI.05. |
 | Según cambios | Actualizar parámetros, módulos y roles personalizados. |
 
 ## 15. Preguntas o incidencias comunes

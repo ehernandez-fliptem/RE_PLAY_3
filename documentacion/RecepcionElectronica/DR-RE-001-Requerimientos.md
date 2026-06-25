@@ -148,7 +148,7 @@ El producto está orientado a operar en sitio (instalación local del cliente) y
 | RF-021 | El sistema debe permitir asignar empresa, piso, accesos y horarios a los empleados. | Alta |
 | RF-022 | El sistema debe permitir la carga masiva de empleados mediante formato descargable. | Media |
 | RF-023 | El sistema debe generar el código QR del empleado. | Media |
-| RF-024 | El sistema debe permitir anonimizar y eliminar de forma permanente a un empleado. | Media |
+| RF-024 | El sistema debe permitir anonimizar al empleado dado de baja, sobrescribiendo de forma física sus datos personales (correo, nombre y teléfono) para evitar su identificación y recuperación, así como darlo de baja. | Media |
 | RF-025 | El sistema debe mantener un directorio consultable de empleados. | Baja |
 
 ### 6.4 Gestión de visitantes
@@ -161,7 +161,7 @@ El producto está orientado a operar en sitio (instalación local del cliente) y
 | RF-033 | El sistema debe permitir autorizar el acceso por QR a un visitante. | Alta |
 | RF-034 | El sistema debe permitir la carga masiva de visitantes. | Baja |
 | RF-035 | El sistema debe asociar documentos al visitante y permitir su validación. | Media |
-| RF-036 | El sistema debe permitir anonimizar y eliminar permanentemente a un visitante. | Media |
+| RF-036 | El sistema debe permitir cambiar el estado y eliminar permanentemente a un visitante cuando la operación autorizada lo requiera. | Media |
 
 ### 6.5 Registro de visitas / citas
 
@@ -235,18 +235,21 @@ El producto está orientado a operar en sitio (instalación local del cliente) y
 
 ## 8. Requerimientos de seguridad
 
-Los siguientes requerimientos alinean el producto base con las políticas internas de seguridad de la información:
+Los siguientes requerimientos alinean el producto base con las políticas internas de seguridad de la información (**PSI.01**, **PSI.05** —incluido su apartado de enmascaramiento de datos— y **PSI.12**):
 
 | ID | Requerimiento | Referencia |
 | --- | --- | --- |
-| RNF-S01 | El acceso a funciones y datos debe restringirse por rol, permiso y necesidad operativa (mínimo privilegio). | PSI.05 Control de Accesos |
-| RNF-S02 | Las contraseñas de usuarios deben almacenarse mediante hash y nunca mostrarse ni registrarse en claro. | PSI.05 / Control 8.11 |
+| RNF-S01 | El acceso a funciones y datos debe restringirse por rol, permiso y necesidad operativa (mínimo privilegio, necesidad de saber y de usar). | PSI.05 Control de Accesos |
+| RNF-S02 | Las contraseñas de usuarios deben almacenarse de forma cifrada (hash) y nunca mostrarse ni registrarse en claro. | PSI.05 |
 | RNF-S03 | Las credenciales técnicas y secretos deben gestionarse mediante variables de entorno y cifrado, fuera del código fuente. | PSI.12 Desarrollo Seguro |
-| RNF-S04 | Los datos personales sensibles deben minimizarse o enmascararse según el perfil del usuario. | Control 8.11 Enmascaramiento |
-| RNF-S05 | El sistema debe validar entradas en frontend y backend, y manejar errores sin exponer información técnica sensible. | PSI.12 |
+| RNF-S04 | Los datos personales sensibles deben minimizarse o enmascararse según el perfil del usuario. | PSI.05 (Enmascaramiento) |
+| RNF-S05 | El sistema debe validar entradas en frontend y backend (sintáctica y semántica) y manejar errores sin exponer información técnica sensible. | PSI.12 |
 | RNF-S06 | El sistema debe aplicar límites de tasa (rate limiting) a rutas sensibles de autenticación. | PSI.05 / PSI.12 |
-| RNF-S07 | El sistema debe permitir anonimización de personas dadas de baja conforme a la política de protección de datos. | Control 8.11 |
-| RNF-S08 | Los registros (logs) no deben almacenar contraseñas, tokens ni datos personales completos. | Control 8.11 / PSI.12 |
+| RNF-S07 | El sistema debe permitir la anonimización física (no lógica) de los datos de empleados dados de baja (correo, nombre y teléfono). | PSI.05 (Enmascaramiento) |
+| RNF-S08 | Los registros (logs) no deben almacenar contraseñas, tokens ni datos personales completos. | PSI.05 / PSI.12 |
+| RNF-S09 | Cada usuario debe identificarse con un identificador único (correo) y credenciales propias; el sistema debe rechazar identificadores duplicados. | PSI.05 |
+| RNF-S10 | El sistema debe soportar autenticación robusta y considerar el doble factor (MFA) cuando la tecnología lo permita. | PSI.05 |
+| RNF-S11 | El proyecto debe instalarse, desplegarse y respaldarse conforme a los requisitos de seguridad de proyectos. | PSI.01 / PSI.09 |
 
 ## 9. Restricciones técnicas
 
@@ -287,7 +290,7 @@ De esta forma, una entrega a cliente se compone de **la base (este conjunto docu
 | Documentos | RF-070 a RF-071 | Pruebas de adjunto y validación. |
 | Reportes | RF-080 a RF-083 | Pruebas de generación y exportación. |
 | Configuración | RF-090 a RF-093 | Pruebas de parámetros, permisos y banderas de módulos. |
-| Seguridad | RNF-S01 a RNF-S08 | Revisión de controles y evidencia ISO. |
+| Seguridad | RNF-S01 a RNF-S11 | Revisión de controles y evidencia ISO (PSI.01, PSI.05, PSI.12). |
 
 ## 13. Control documental
 
