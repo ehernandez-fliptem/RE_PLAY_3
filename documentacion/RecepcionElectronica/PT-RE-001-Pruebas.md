@@ -76,7 +76,7 @@ Validar que el producto base cumple con los requerimientos funcionales (DR-RE-00
 | PT-011 | Edición y cambio de estado. | Cambios reflejados. | |
 | PT-012 | Carga masiva con formato. | Registros importados; errores reportados. | |
 | PT-013 | Generación de QR. | QR generado correctamente. | |
-| PT-014 | Anonimización en baja de empleado. | Datos personales (correo, nombre, teléfono) sobrescritos físicamente; no recuperables (PSI.05). | |
+| PT-014 | Anonimización posterior a eliminación permanente de empleado. | El empleado eliminado deja de aparecer en RE; al cumplirse 30 días, los datos personales se sobrescriben en base de datos para conservar trazabilidad sin identificar a la persona (PSI.05). | |
 
 ### 3.3 Visitantes
 
