@@ -190,7 +190,7 @@ export async function enviarCorreoNuevoVisitanteHV(
                     <tr>
                         <td>
                             <p style="font-size:16px; text-align:center;">
-                                Presenta este código para poder ingresar a nuestras instalaciones
+                                Presenta este código QR y una identificación oficial vigente para poder ingresar a nuestras instalaciones.
                             </p>
                             <div align="center" style="margin: 20px 0;">
                                 <img src="cid:qr" style="width:320px; height:320px;" />
@@ -542,6 +542,9 @@ export async function enviarCorreoCitaVisitante(
                                     </tr>`: ''}
                                      <tr>
                                         <td><strong>Código QR para acceder: </strong></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Presenta este código QR y una identificación oficial vigente al llegar a recepción para validar tu acceso.</td>
                                     </tr>
                                     <tr>
                                         <td>
@@ -993,6 +996,9 @@ export async function enviarCorreoModificacionCitaVisitante(
                                 </tr>
                                 <tr>
                                     <td><strong>Código QR para acceder: </strong></td>
+                                </tr>
+                                <tr>
+                                    <td>Presenta este código QR y una identificación oficial vigente al llegar a recepción para validar tu acceso.</td>
                                 </tr>
                                 <tr>
                                     <td>
