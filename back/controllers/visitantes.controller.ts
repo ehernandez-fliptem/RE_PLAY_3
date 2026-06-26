@@ -2332,8 +2332,14 @@ export async function eliminarPermanente(req: Request, res: Response): Promise<v
             res.status(200).json({ estado: false, mensaje: 'Primero desactiva al visitante.' });
             return;
         }
+        const fechaEliminacion = new Date();
         await Visitantes.findByIdAndUpdate(req.params.id, {
-            $set: { eliminado_permanente: true, activo: false }
+            $set: {
+                eliminado_permanente: true,
+                activo: false,
+                fecha_eliminacion_permanente: fechaEliminacion,
+                fecha_modificacion: fechaEliminacion
+            }
         });
         res.status(200).json({ estado: true });
     } catch (error: any) {
