@@ -34,7 +34,9 @@ RE_PLAY_3 es un sistema web de recepción y control de acceso compuesto por:
 - **Procesos auxiliares** para paneles e integraciones (opcionales).
 - **Canal de tiempo real** (WebSocket).
 
-`[Foto: diagrama de arquitectura general del sistema]`
+![Diagrama de arquitectura general del sistema](img/arquitectura-general-re.svg)
+
+**Ilustración 1.** Diagrama de arquitectura general del sistema.
 
 ## 2. Arquitectura
 
