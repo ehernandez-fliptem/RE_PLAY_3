@@ -5,6 +5,7 @@ import Logout from "./auth/Logout";
 import EditarPerfil from "./common/EditarPerfil";
 import Unauthorized from "./error/401";
 import Unknown from "./error/404";
+import SinAccesoDemo from "./error/SinAccesoDemo";
 import { Dashboard } from "./common/Dashboard";
 import Empresas from "./catalogos/empresas/Empresas";
 import NuevaEmpresa from "./catalogos/empresas/NuevaEmpresa";
@@ -195,6 +196,10 @@ export default function Routes() {
     {
       path: "/logout",
       element: usuarioSistema ? <Logout /> : <Unauthorized />,
+    },
+    {
+      path: "/sinacceso",
+      element: usuarioSistema || esVisit ? <SinAccesoDemo /> : <Unauthorized />,
     },
     {
       path: "/perfil",
