@@ -12,7 +12,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { ChevronLeft } from "@mui/icons-material";
+import { ChevronLeft, LockOpen } from "@mui/icons-material";
 import ModalContainer from "../../utils/ModalContainer";
 import Spinner from "../../utils/Spinner";
 import { enqueueSnackbar } from "notistack";
@@ -35,6 +35,7 @@ type TUsuario = {
   fecha_modificacion: Date | string;
   modificado_por: string;
   activo: boolean;
+  bloqueado: boolean;
 };
 
 export default function DetalleUsuario() {
@@ -43,6 +44,7 @@ export default function DetalleUsuario() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [isResending, setIsResending] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
   const [datos, setDatos] = useState<TUsuario>({
     img_usuario: "",
     nombre: "",
@@ -57,6 +59,7 @@ export default function DetalleUsuario() {
     fecha_modificacion: new Date(),
     modificado_por: "",
     activo: false,
+    bloqueado: false,
   });
   const {
     img_usuario,
@@ -72,6 +75,7 @@ export default function DetalleUsuario() {
     fecha_modificacion,
     modificado_por,
     activo,
+    bloqueado,
   } = datos;
 
   useEffect(() => {
@@ -114,6 +118,27 @@ export default function DetalleUsuario() {
       if (restartSession) navigate("/logout", { replace: true });
     } finally {
       setIsResending(false);
+    }
+  };
+
+  const desbloquearUsuario = async () => {
+    if (!id || isUnlocking || !bloqueado) return;
+    try {
+      setIsUnlocking(true);
+      const res = await clienteAxios.patch(`/api/usuarios/desbloquear/${id}`);
+      if (res.data?.estado) {
+        setDatos((prev) => ({ ...prev, bloqueado: false }));
+        enqueueSnackbar("Usuario desbloqueado correctamente.", { variant: "success" });
+      } else {
+        enqueueSnackbar(res.data?.mensaje || "No se pudo desbloquear el usuario.", {
+          variant: "warning",
+        });
+      }
+    } catch (error) {
+      const { restartSession } = handlingError(error);
+      if (restartSession) navigate("/logout", { replace: true });
+    } finally {
+      setIsUnlocking(false);
     }
   };
 
@@ -345,6 +370,26 @@ export default function DetalleUsuario() {
               justifyContent="end"
               sx={{ width: "100%" }}
             >
+              <Button
+                sx={{
+                  width: { xs: "100%", sm: "auto" },
+                  bgcolor: "grey.500",
+                  color: "common.white",
+                  "&:hover": { bgcolor: "grey.600" },
+                  "&.Mui-disabled": {
+                    bgcolor: "grey.300",
+                    color: "grey.600",
+                  },
+                }}
+                type="button"
+                size="medium"
+                variant="contained"
+                onClick={desbloquearUsuario}
+                disabled={isUnlocking || isLoading || !bloqueado}
+                startIcon={<LockOpen />}
+              >
+                {isUnlocking ? "Desbloqueando..." : "Desbloquear"}
+              </Button>
               <Button
                 sx={{ width: { xs: "100%", sm: "auto" } }}
                 type="button"

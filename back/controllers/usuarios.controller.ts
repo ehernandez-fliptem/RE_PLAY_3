@@ -612,6 +612,13 @@ export async function obtenerUno(req: Request, res: Response): Promise<void> {
                     puesto: "$puesto.nombre",
                     departamento: "$departamento.nombre",
                     cubiculo: "$cubiculo.nombre",
+                    bloqueado: {
+                        $cond: {
+                            if: { $eq: ["$token_bloqueo", ""] },
+                            then: false,
+                            else: true
+                        }
+                    },
                 }
             },
             {
