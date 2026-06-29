@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="860" viewBox="0 0 1280 860" role="img" aria-labelledby="title desc">
+  <title id="title">Diagrama de arquitectura del sistema por separacion de capas</title>
+  <desc id="desc">Arquitectura de Recepcion Electronica separada en capa cliente, presentacion, API, negocio, datos, servicios externos y controles transversales.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f5f7fa; }
+      .title { font: 700 30px Arial, sans-serif; fill: #172033; }
+      .subtitle { font: 15px Arial, sans-serif; fill: #536173; }
+      .layer { stroke-width: 2; rx: 12; }
+      .layer-title { font: 700 18px Arial, sans-serif; fill: #172033; }
+      .text { font: 14px Arial, sans-serif; fill: #344256; }
+      .small { font: 12px Arial, sans-serif; fill: #5b6878; }
+      .tag { font: 700 12px Arial, sans-serif; fill: #ffffff; }
+      .chip-blue { fill: #2f6faf; }
+      .chip-green { fill: #2f7d4f; }
+      .chip-orange { fill: #b86500; }
+      .chip-red { fill: #b94545; }
+      .chip-gray { fill: #596678; }
+      .client { fill: #eef4fb; stroke: #2f6faf; }
+      .front { fill: #eaf3ff; stroke: #2f6faf; }
+      .api { fill: #edf8f1; stroke: #2f7d4f; }
+      .business { fill: #f2fbf5; stroke: #2f7d4f; }
+      .data { fill: #fff5e8; stroke: #b86500; }
+      .external { fill: #fff0f0; stroke: #b94545; }
+      .security { fill: #eef1f5; stroke: #596678; }
+      .arrow { stroke: #425166; stroke-width: 2.4; fill: none; marker-end: url(#arrowhead); }
+      .arrow-soft { stroke: #6d7c8f; stroke-width: 2; fill: none; stroke-dasharray: 7 5; marker-end: url(#arrowhead-soft); }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#425166" />
+    </marker>
+    <marker id="arrowhead-soft" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#6d7c8f" />
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1280" height="860" />
+  <text class="title" x="54" y="54">Arquitectura del sistema RE - Separacion de capas</text>
+  <text class="subtitle" x="54" y="82">Vista por responsabilidades tecnicas y flujo principal de comunicacion.</text>
+
+  <rect class="layer client" x="80" y="120" width="1120" height="86" />
+  <rect class="chip-blue" x="104" y="144" width="116" height="26" rx="13" />
+  <text class="tag" x="132" y="162">CAPA 1</text>
+  <text class="layer-title" x="250" y="150">Cliente / usuarios</text>
+  <text class="text" x="250" y="176">Navegador web, tablet/kiosco, recepcion, administradores, visitantes y contratistas.</text>
+
+  <rect class="layer front" x="80" y="240" width="1120" height="96" />
+  <rect class="chip-blue" x="104" y="270" width="116" height="26" rx="13" />
+  <text class="tag" x="132" y="288">CAPA 2</text>
+  <text class="layer-title" x="250" y="270">Presentacion / frontend</text>
+  <text class="text" x="250" y="296">React + Vite + TypeScript + Material UI. Rutas, menus, pantallas, formularios, validaciones de interfaz y consumo de API.</text>
+  <text class="small" x="250" y="318">Ejemplos: Login, Dashboard, Usuarios, Visitantes, Bitacora, Eventos, Kiosco, Reportes, Configuracion.</text>
+
+  <rect class="layer api" x="80" y="370" width="1120" height="96" />
+  <rect class="chip-green" x="104" y="400" width="116" height="26" rx="13" />
+  <text class="tag" x="132" y="418">CAPA 3</text>
+  <text class="layer-title" x="250" y="400">API / servidor de aplicacion</text>
+  <text class="text" x="250" y="426">Node.js + Express + TypeScript. Rutas REST, autenticacion JWT, validacion de roles, rate limit, carga de archivos y WebSocket.</text>
+  <text class="small" x="250" y="448">Ejemplos: /api/usuarios, /api/visitantes, /api/eventos, /api/registros, /api/reportes.</text>
+
+  <rect class="layer business" x="80" y="500" width="1120" height="96" />
+  <rect class="chip-green" x="104" y="530" width="116" height="26" rx="13" />
+  <text class="tag" x="132" y="548">CAPA 4</text>
+  <text class="layer-title" x="250" y="530">Logica de negocio</text>
+  <text class="text" x="250" y="556">Controladores, servicios, validadores y procesos programados. Gestionan reglas de usuarios, visitantes, QR, eventos, reportes y anonimizacion.</text>
+  <text class="small" x="250" y="578">Ejemplos: controllers, utils, validators, cron, handlers y realtime.</text>
+
+  <rect class="layer data" x="80" y="630" width="540" height="110" />
+  <rect class="chip-orange" x="104" y="660" width="116" height="26" rx="13" />
+  <text class="tag" x="132" y="678">CAPA 5</text>
+  <text class="layer-title" x="250" y="660">Persistencia / datos</text>
+  <text class="text" x="250" y="686">MongoDB + Mongoose.</text>
+  <text class="small" x="250" y="708">Colecciones: usuarios, empleados, visitantes, registros, eventos, configuraciones, bitacoras y documentos.</text>
+
+  <rect class="layer external" x="660" y="630" width="540" height="110" />
+  <rect class="chip-red" x="684" y="660" width="136" height="26" rx="13" />
+  <text class="tag" x="710" y="678">EXTERNOS</text>
+  <text class="layer-title" x="850" y="660">Servicios e integraciones</text>
+  <text class="text" x="850" y="686">SMTP, Hikvision, BioStar, camaras, QR, Azure y modulos opcionales.</text>
+  <text class="small" x="850" y="708">Se activan por configuracion y variables de entorno segun cliente.</text>
+
+  <rect class="layer security" x="80" y="770" width="1120" height="58" />
+  <rect class="chip-gray" x="104" y="786" width="150" height="26" rx="13" />
+  <text class="tag" x="125" y="804">TRANSVERSAL</text>
+  <text class="layer-title" x="285" y="796">Controles de seguridad</text>
+  <text class="text" x="285" y="818">JWT, roles y permisos, hash de contrasenas, variables de entorno, logs, rate limit, HTTPS, respaldo y anonimizacion.</text>
+
+  <path class="arrow" d="M640 206 V240" />
+  <path class="arrow" d="M640 336 V370" />
+  <path class="arrow" d="M640 466 V500" />
+  <path class="arrow" d="M440 596 V630" />
+  <path class="arrow-soft" d="M840 596 V630" />
+
+  <path class="arrow-soft" d="M620 686 H660" />
+  <path class="arrow-soft" d="M930 630 C930 585 930 560 920 556" />
+
+  <text class="small" x="96" y="848">Flujo base: usuario -> frontend -> API -> logica de negocio -> MongoDB / servicios externos. Los controles de seguridad aplican de forma transversal.</text>
+</svg>
