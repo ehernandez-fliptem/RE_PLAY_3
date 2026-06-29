@@ -70,14 +70,16 @@
   <text class="tag" x="132" y="678">CAPA 5</text>
   <text class="layer-title" x="250" y="660">Persistencia / datos</text>
   <text class="text" x="250" y="686">MongoDB + Mongoose.</text>
-  <text class="small" x="250" y="708">Colecciones: usuarios, empleados, visitantes, registros, eventos, configuraciones, bitacoras y documentos.</text>
+  <text class="small" x="250" y="708">Colecciones: usuarios, empleados, visitantes, registros y eventos.</text>
+  <text class="small" x="250" y="728">Tambien configuraciones, bitacoras y documentos.</text>
 
   <rect class="layer external" x="660" y="630" width="540" height="110" />
-  <rect class="chip-red" x="684" y="660" width="136" height="26" rx="13" />
-  <text class="tag" x="710" y="678">EXTERNOS</text>
-  <text class="layer-title" x="850" y="660">Servicios e integraciones</text>
-  <text class="text" x="850" y="686">SMTP, Hikvision, BioStar, camaras, QR, Azure y modulos opcionales.</text>
-  <text class="small" x="850" y="708">Se activan por configuracion y variables de entorno segun cliente.</text>
+  <rect class="chip-red" x="684" y="654" width="136" height="26" rx="13" />
+  <text class="tag" x="710" y="672">EXTERNOS</text>
+  <text class="layer-title" x="850" y="656">Servicios e integraciones</text>
+  <text class="text" x="850" y="682">SMTP, Hikvision, BioStar, camaras y QR.</text>
+  <text class="text" x="850" y="704">Azure y modulos opcionales por configuracion.</text>
+  <text class="small" x="850" y="726">Separados por variables de entorno segun cliente.</text>
 
   <rect class="layer security" x="80" y="770" width="1120" height="58" />
   <rect class="chip-gray" x="104" y="786" width="150" height="26" rx="13" />
@@ -90,9 +92,6 @@
   <path class="arrow" d="M640 466 V500" />
   <path class="arrow" d="M440 596 V630" />
   <path class="arrow-soft" d="M840 596 V630" />
-
-  <path class="arrow-soft" d="M620 686 H660" />
-  <path class="arrow-soft" d="M930 630 C930 585 930 560 920 556" />
 
   <text class="small" x="96" y="848">Flujo base: usuario -> frontend -> API -> logica de negocio -> MongoDB / servicios externos. Los controles de seguridad aplican de forma transversal.</text>
 </svg>
