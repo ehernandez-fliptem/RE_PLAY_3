@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640" role="img" aria-labelledby="title desc">
+  <title id="title">Flujo del modulo Capacitaciones</title>
+  <desc id="desc">De la creacion y publicacion a la liga publica, el llenado del participante y la consulta de resultados.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f6f8fb; }
+      .box { fill: #ffffff; stroke: #506176; stroke-width: 2; rx: 10; }
+      .box-blue { fill: #e9f3ff; stroke: #2666a6; }
+      .box-green { fill: #edf8f1; stroke: #2f7d4f; }
+      .box-orange { fill: #fff4e5; stroke: #b86500; }
+      .box-gray { fill: #f0f3f7; stroke: #596678; }
+      .title { font: 700 26px Arial, sans-serif; fill: #172233; }
+      .small { font: 13px Arial, sans-serif; fill: #344256; }
+      .lbl { font: 700 15px Arial, sans-serif; fill: #172233; text-anchor: middle; }
+      .sub { font: 12px Arial, sans-serif; fill: #536173; text-anchor: middle; }
+      .arrow { stroke: #425166; stroke-width: 2.5; fill: none; marker-end: url(#ah); }
+    </style>
+    <marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#425166" /></marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="960" height="640" />
+  <text class="title" x="40" y="50">Flujo del modulo Capacitaciones</text>
+  <text class="small" x="40" y="76">De la creacion del contenido a la liga publica y la consulta de resultados.</text>
+
+  <!-- Row 1 (left to right) -->
+  <rect class="box box-blue" x="60" y="120" width="240" height="72" />
+  <text class="lbl" x="180" y="150">1. Crear capacitacion</text>
+  <text class="sub" x="180" y="170">titulo y descripcion</text>
+
+  <rect class="box box-gray" x="360" y="120" width="240" height="72" />
+  <text class="lbl" x="480" y="150">2. Pasos y bloques</text>
+  <text class="sub" x="480" y="170">contenido y reglas de avance</text>
+
+  <rect class="box box-gray" x="660" y="120" width="240" height="72" />
+  <text class="lbl" x="780" y="150">3. Vista previa</text>
+  <text class="sub" x="780" y="170">revisar antes de publicar</text>
+
+  <!-- Row 2 (right to left) -->
+  <rect class="box box-green" x="660" y="300" width="240" height="72" />
+  <text class="lbl" x="780" y="330">4. Publicar</text>
+  <text class="sub" x="780" y="350">genera la liga publica</text>
+
+  <rect class="box box-gray" x="360" y="300" width="240" height="72" />
+  <text class="lbl" x="480" y="330">5. Participante completa</text>
+  <text class="sub" x="480" y="350">abre la liga sin iniciar sesion</text>
+
+  <rect class="box box-orange" x="60" y="300" width="240" height="72" />
+  <text class="lbl" x="180" y="330">6. Resultado almacenado</text>
+  <text class="sub" x="180" y="350">al finalizar el flujo</text>
+
+  <!-- Row 3 -->
+  <rect class="box box-blue" x="60" y="480" width="240" height="72" />
+  <text class="lbl" x="180" y="510">7. Consultar resultados</text>
+  <text class="sub" x="180" y="530">avance y calificacion</text>
+
+  <path class="arrow" d="M300 156 H360" />
+  <path class="arrow" d="M600 156 H660" />
+  <path class="arrow" d="M780 192 V300" />
+  <path class="arrow" d="M660 336 H600" />
+  <path class="arrow" d="M360 336 H300" />
+  <path class="arrow" d="M180 372 V480" />
+
+  <rect class="box" x="60" y="580" width="840" height="40" />
+  <text class="small" x="86" y="605">Solo las capacitaciones publicadas son accesibles por la liga; si el modulo se apaga, la liga deja de responder.</text>
+</svg>

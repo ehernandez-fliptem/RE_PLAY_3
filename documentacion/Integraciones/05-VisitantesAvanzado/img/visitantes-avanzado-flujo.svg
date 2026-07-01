@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="760" viewBox="0 0 940 760" role="img" aria-labelledby="title desc">
+  <title id="title">Flujo del modulo Configuracion avanzada de visitantes (ingreso en vehiculo)</title>
+  <desc id="desc">Activar los interruptores, marcar si viene en coche y capturar y validar los documentos del vehiculo.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f6f8fb; }
+      .box { fill: #ffffff; stroke: #506176; stroke-width: 2; rx: 10; }
+      .box-blue { fill: #e9f3ff; stroke: #2666a6; }
+      .box-green { fill: #edf8f1; stroke: #2f7d4f; }
+      .box-orange { fill: #fff4e5; stroke: #b86500; }
+      .box-gray { fill: #f0f3f7; stroke: #596678; }
+      .diamond { fill: #fff8e1; stroke: #b86500; stroke-width: 2; }
+      .title { font: 700 24px Arial, sans-serif; fill: #172233; }
+      .small { font: 13px Arial, sans-serif; fill: #344256; }
+      .lbl { font: 700 15px Arial, sans-serif; fill: #172233; text-anchor: middle; }
+      .sub { font: 12px Arial, sans-serif; fill: #536173; text-anchor: middle; }
+      .tag { font: 700 13px Arial, sans-serif; fill: #263548; }
+      .arrow { stroke: #425166; stroke-width: 2.5; fill: none; marker-end: url(#ah); }
+    </style>
+    <marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#425166" /></marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="940" height="760" />
+  <text class="title" x="40" y="46">Flujo: Configuracion avanzada de visitantes (ingreso en vehiculo)</text>
+  <text class="small" x="40" y="72">Su unica funcion es habilitar el ingreso en vehiculo y la captura de sus documentos.</text>
+
+  <rect class="box box-blue" x="150" y="96" width="320" height="58" />
+  <text class="lbl" x="310" y="120">Activar Configuracion avanzada</text>
+  <text class="sub" x="310" y="140">hace visible el sub-interruptor de vehiculo</text>
+
+  <rect class="box box-blue" x="150" y="176" width="320" height="58" />
+  <text class="lbl" x="310" y="200">Activar Ingreso en vehiculo</text>
+  <text class="sub" x="310" y="220">requiere el interruptor anterior encendido</text>
+
+  <rect class="box box-gray" x="150" y="256" width="320" height="58" />
+  <text class="lbl" x="310" y="280">Registrar o editar un visitante</text>
+  <text class="sub" x="310" y="300">aparece la opcion "Viene en coche?"</text>
+
+  <polygon class="diamond" points="310,318 386,364 310,410 234,364" />
+  <text class="lbl" x="310" y="369">Viene en coche?</text>
+
+  <rect class="box box-gray" x="580" y="335" width="330" height="58" />
+  <text class="lbl" x="745" y="359">Se guarda sin datos de vehiculo</text>
+  <text class="sub" x="745" y="379">registro normal del visitante</text>
+
+  <rect class="box box-orange" x="150" y="454" width="320" height="58" />
+  <text class="lbl" x="310" y="478">Capturar documentos del vehiculo</text>
+  <text class="sub" x="310" y="498">licencia*, poliza* y tarjeta (opcional)</text>
+
+  <rect class="box box-green" x="150" y="558" width="320" height="58" />
+  <text class="lbl" x="310" y="582">Guardar: valida los obligatorios</text>
+  <text class="sub" x="310" y="602">si falta licencia o poliza, se marca en rojo</text>
+
+  <path class="arrow" d="M310 154 V176" />
+  <path class="arrow" d="M310 234 V256" />
+  <path class="arrow" d="M310 314 V318" />
+  <path class="arrow" d="M310 410 V454" />
+  <text class="tag" x="322" y="440">Si</text>
+  <path class="arrow" d="M386 364 H580" />
+  <text class="tag" x="474" y="356">No</text>
+  <path class="arrow" d="M310 512 V558" />
+
+  <rect class="box" x="150" y="648" width="760" height="40" />
+  <text class="small" x="176" y="673">Si el modulo se apaga, la opcion de vehiculo no aparece y sus datos no se aplican; la configuracion se conserva.</text>
+</svg>

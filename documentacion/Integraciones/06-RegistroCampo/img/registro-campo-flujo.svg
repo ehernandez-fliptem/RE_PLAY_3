@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="900" viewBox="0 0 940 900" role="img" aria-labelledby="title desc">
+  <title id="title">Flujo del modulo Registro de Campo</title>
+  <desc id="desc">El empleado abre la pantalla, concede permisos, registra entrada o salida con ubicacion y foto, y el administrador consulta reportes.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f6f8fb; }
+      .box { fill: #ffffff; stroke: #506176; stroke-width: 2; rx: 10; }
+      .box-blue { fill: #e9f3ff; stroke: #2666a6; }
+      .box-green { fill: #edf8f1; stroke: #2f7d4f; }
+      .box-orange { fill: #fff4e5; stroke: #b86500; }
+      .box-red { fill: #fff0f0; stroke: #b94545; }
+      .box-gray { fill: #f0f3f7; stroke: #596678; }
+      .diamond { fill: #fff8e1; stroke: #b86500; stroke-width: 2; }
+      .title { font: 700 26px Arial, sans-serif; fill: #172233; }
+      .small { font: 13px Arial, sans-serif; fill: #344256; }
+      .lbl { font: 700 15px Arial, sans-serif; fill: #172233; text-anchor: middle; }
+      .sub { font: 12px Arial, sans-serif; fill: #536173; text-anchor: middle; }
+      .tag { font: 700 13px Arial, sans-serif; fill: #263548; }
+      .arrow { stroke: #425166; stroke-width: 2.5; fill: none; marker-end: url(#ah); }
+      .arrow-red { stroke: #b94545; stroke-width: 2.5; fill: none; marker-end: url(#ahr); }
+      .arrow-soft { stroke: #6d7c8f; stroke-width: 2; fill: none; marker-end: url(#ahs); stroke-dasharray: 7 5; }
+    </style>
+    <marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#425166" /></marker>
+    <marker id="ahr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#b94545" /></marker>
+    <marker id="ahs" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#6d7c8f" /></marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="940" height="900" />
+  <text class="title" x="40" y="50">Flujo del modulo Registro de Campo</text>
+  <text class="small" x="40" y="76">El empleado registra entrada o salida con ubicacion y foto; el administrador consulta los reportes.</text>
+
+  <rect class="box box-blue" x="140" y="92" width="320" height="58" />
+  <text class="lbl" x="300" y="116">El empleado abre /campo</text>
+  <text class="sub" x="300" y="136">vista del empleado de campo</text>
+
+  <rect class="box box-gray" x="140" y="172" width="320" height="58" />
+  <text class="lbl" x="300" y="196">Permitir ubicacion y camara</text>
+  <text class="sub" x="300" y="216">el navegador solicita los permisos</text>
+
+  <polygon class="diamond" points="300,244 372,282 300,320 228,282" />
+  <text class="lbl" x="300" y="287">Permisos concedidos?</text>
+
+  <rect class="box box-red" x="560" y="253" width="330" height="58" />
+  <text class="lbl" x="725" y="277">No se puede registrar</text>
+  <text class="sub" x="725" y="297">se requieren ubicacion y camara</text>
+
+  <rect class="box box-gray" x="140" y="360" width="320" height="58" />
+  <text class="lbl" x="300" y="384">El sistema obtiene la ubicacion</text>
+  <text class="sub" x="300" y="404">latitud, longitud y precision</text>
+
+  <rect class="box box-gray" x="140" y="440" width="320" height="58" />
+  <text class="lbl" x="300" y="464">Registrar Entrada o Salida</text>
+  <text class="sub" x="300" y="484">segun la accion siguiente</text>
+
+  <rect class="box box-gray" x="140" y="520" width="320" height="58" />
+  <text class="lbl" x="300" y="544">Captura de fotografia</text>
+  <text class="sub" x="300" y="564">evidencia del movimiento</text>
+
+  <rect class="box box-orange" x="140" y="600" width="320" height="58" />
+  <text class="lbl" x="300" y="624">Se envia el movimiento</text>
+  <text class="sub" x="300" y="644">con la fecha/hora del servidor</text>
+
+  <rect class="box box-green" x="140" y="680" width="320" height="58" />
+  <text class="lbl" x="300" y="704">Se almacena y actualiza el estado</text>
+  <text class="sub" x="300" y="724">ultimo y siguiente movimiento</text>
+
+  <rect class="box box-blue" x="560" y="680" width="330" height="58" />
+  <text class="lbl" x="725" y="704">Administrador: consulta reportes</text>
+  <text class="sub" x="725" y="724">movimientos de todos los empleados</text>
+
+  <path class="arrow" d="M300 150 V172" />
+  <path class="arrow" d="M300 230 V244" />
+  <path class="arrow" d="M300 320 V360" />
+  <text class="tag" x="312" y="348">Si</text>
+  <path class="arrow-red" d="M372 282 H560" />
+  <text class="tag" x="452" y="274">No</text>
+  <path class="arrow" d="M300 418 V440" />
+  <path class="arrow" d="M300 498 V520" />
+  <path class="arrow" d="M300 578 V600" />
+  <path class="arrow" d="M300 658 V680" />
+  <path class="arrow-soft" d="M460 709 H560" />
+
+  <rect class="box" x="140" y="770" width="750" height="40" />
+  <text class="small" x="166" y="795">El sistema registra la fecha/hora del servidor (no la del dispositivo) para evitar manipulaciones.</text>
+</svg>

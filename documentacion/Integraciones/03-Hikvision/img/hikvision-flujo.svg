@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="850" viewBox="0 0 940 850" role="img" aria-labelledby="title desc">
+  <title id="title">Flujo del modulo Hikvision</title>
+  <desc id="desc">Activacion, alta y prueba de panel, sincronizacion de personas, eventos y validacion por rostro.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f6f8fb; }
+      .box { fill: #ffffff; stroke: #506176; stroke-width: 2; rx: 10; }
+      .box-blue { fill: #e9f3ff; stroke: #2666a6; }
+      .box-green { fill: #edf8f1; stroke: #2f7d4f; }
+      .box-orange { fill: #fff4e5; stroke: #b86500; }
+      .box-red { fill: #fff0f0; stroke: #b94545; }
+      .box-gray { fill: #f0f3f7; stroke: #596678; }
+      .diamond { fill: #fff8e1; stroke: #b86500; stroke-width: 2; }
+      .title { font: 700 26px Arial, sans-serif; fill: #172233; }
+      .small { font: 13px Arial, sans-serif; fill: #344256; }
+      .lbl { font: 700 15px Arial, sans-serif; fill: #172233; text-anchor: middle; }
+      .sub { font: 12px Arial, sans-serif; fill: #536173; text-anchor: middle; }
+      .tag { font: 700 13px Arial, sans-serif; fill: #263548; }
+      .arrow { stroke: #425166; stroke-width: 2.5; fill: none; marker-end: url(#ah); }
+      .arrow-red { stroke: #b94545; stroke-width: 2.5; fill: none; marker-end: url(#ahr); }
+    </style>
+    <marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#425166" /></marker>
+    <marker id="ahr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#b94545" /></marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="940" height="850" />
+  <text class="title" x="40" y="50">Flujo del modulo Hikvision</text>
+  <text class="small" x="40" y="76">De la activacion y alta del panel a la sincronizacion, los eventos y la validacion por rostro.</text>
+
+  <rect class="box box-blue" x="150" y="92" width="320" height="58" />
+  <text class="lbl" x="310" y="116">Activar Hikvision</text>
+  <text class="sub" x="310" y="136">y, opcional, Huella y tarjeta</text>
+
+  <rect class="box box-gray" x="150" y="172" width="320" height="58" />
+  <text class="lbl" x="310" y="196">Alta del panel</text>
+  <text class="sub" x="310" y="216">IP, credenciales, acceso y tipo de evento</text>
+
+  <rect class="box box-orange" x="150" y="252" width="320" height="58" />
+  <text class="lbl" x="310" y="276">Probar conexion y guardar</text>
+  <text class="sub" x="310" y="296">verifica la comunicacion con el panel</text>
+
+  <rect class="box box-gray" x="150" y="332" width="320" height="58" />
+  <text class="lbl" x="310" y="356">Al crear o editar personas</text>
+  <text class="sub" x="310" y="376">se marca la sincronizacion pendiente</text>
+
+  <rect class="box box-orange" x="150" y="412" width="320" height="58" />
+  <text class="lbl" x="310" y="436">Sincronizar hacia el panel</text>
+  <text class="sub" x="310" y="456">usuarios, tarjetas y fotos</text>
+
+  <rect class="box box-blue" x="150" y="492" width="320" height="58" />
+  <text class="lbl" x="310" y="516">El panel reporta eventos</text>
+  <text class="sub" x="310" y="536">se registran en RE</text>
+
+  <polygon class="diamond" points="310,554 380,600 310,646 240,600" />
+  <text class="lbl" x="310" y="605">Rostro coincide?</text>
+
+  <rect class="box box-green" x="150" y="690" width="320" height="58" />
+  <text class="lbl" x="310" y="714">Acceso autorizado</text>
+  <text class="sub" x="310" y="734">y evento registrado</text>
+
+  <rect class="box box-red" x="580" y="571" width="330" height="58" />
+  <text class="lbl" x="745" y="595">Acceso rechazado</text>
+  <text class="sub" x="745" y="615">puede complementarse con QR</text>
+
+  <path class="arrow" d="M310 150 V172" />
+  <path class="arrow" d="M310 230 V252" />
+  <path class="arrow" d="M310 310 V332" />
+  <path class="arrow" d="M310 390 V412" />
+  <path class="arrow" d="M310 470 V492" />
+  <path class="arrow" d="M310 550 V554" />
+  <path class="arrow" d="M310 646 V690" />
+  <text class="tag" x="322" y="674">Si</text>
+  <path class="arrow-red" d="M380 600 H580" />
+  <text class="tag" x="474" y="592">No</text>
+
+  <rect class="box" x="150" y="778" width="760" height="40" />
+  <text class="small" x="176" y="803">La validacion por rostro requiere el submodulo Huella y tarjeta activo; sin coincidencia, el acceso se rechaza.</text>
+</svg>

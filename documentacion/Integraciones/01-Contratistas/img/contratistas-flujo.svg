@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="1080" viewBox="0 0 960 1080" role="img" aria-labelledby="title desc">
+  <title id="title">Flujo del modulo Contratistas</title>
+  <desc id="desc">Diagrama de flujo: alta del contratista, portal, documentos, revision, aprobacion o rechazo con reenvio, y solicitud de visita.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f6f8fb; }
+      .box { fill: #ffffff; stroke: #506176; stroke-width: 2; rx: 10; }
+      .box-blue { fill: #e9f3ff; stroke: #2666a6; }
+      .box-green { fill: #edf8f1; stroke: #2f7d4f; }
+      .box-orange { fill: #fff4e5; stroke: #b86500; }
+      .box-red { fill: #fff0f0; stroke: #b94545; }
+      .box-gray { fill: #f0f3f7; stroke: #596678; }
+      .diamond { fill: #fff8e1; stroke: #b86500; stroke-width: 2; }
+      .title { font: 700 26px Arial, sans-serif; fill: #172233; }
+      .small { font: 13px Arial, sans-serif; fill: #344256; }
+      .lbl { font: 700 15px Arial, sans-serif; fill: #172233; text-anchor: middle; }
+      .sub { font: 12px Arial, sans-serif; fill: #536173; text-anchor: middle; }
+      .tag { font: 700 13px Arial, sans-serif; fill: #263548; }
+      .arrow { stroke: #425166; stroke-width: 2.5; fill: none; marker-end: url(#ah); }
+      .arrow-red { stroke: #b94545; stroke-width: 2.5; fill: none; marker-end: url(#ahr); }
+    </style>
+    <marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#425166" /></marker>
+    <marker id="ahr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#b94545" /></marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="960" height="1080" />
+  <text class="title" x="40" y="50">Flujo del modulo Contratistas</text>
+  <text class="small" x="40" y="76">Del alta del contratista a la aprobacion de la visita, incluyendo el reenvio de documentos.</text>
+
+  <!-- Main column boxes (center x = 310, x = 150, w = 320, h = 58) -->
+  <rect class="box box-blue" x="150" y="92" width="320" height="58" />
+  <text class="lbl" x="310" y="116">Alta del contratista</text>
+  <text class="sub" x="310" y="136">Personal interno (Administrador / Recepcion)</text>
+
+  <rect class="box box-orange" x="150" y="172" width="320" height="58" />
+  <text class="lbl" x="310" y="196">El sistema crea el usuario de portal</text>
+  <text class="sub" x="310" y="216">y envia el correo de acceso al contratista</text>
+
+  <rect class="box box-gray" x="150" y="252" width="320" height="58" />
+  <text class="lbl" x="310" y="276">El contratista ingresa al portal</text>
+  <text class="sub" x="310" y="296">con el correo y la contrasena recibidos</text>
+
+  <rect class="box box-gray" x="150" y="332" width="320" height="58" />
+  <text class="lbl" x="310" y="356">Sube los documentos de la empresa</text>
+  <text class="sub" x="310" y="376">primero la documentacion de la empresa</text>
+
+  <rect class="box box-gray" x="150" y="412" width="320" height="58" />
+  <text class="lbl" x="310" y="436">Registra a sus visitantes</text>
+  <text class="sub" x="310" y="456">y adjunta los documentos de cada uno</text>
+
+  <rect class="box box-blue" x="150" y="492" width="320" height="58" />
+  <text class="lbl" x="310" y="516">El personal interno revisa</text>
+  <text class="sub" x="310" y="536">valida documentos y datos del visitante</text>
+
+  <!-- Decision diamond -->
+  <polygon class="diamond" points="310,552 386,598 310,644 234,598" />
+  <text class="lbl" x="310" y="603">Aprobado?</text>
+
+  <!-- Yes path -->
+  <rect class="box box-green" x="150" y="686" width="320" height="58" />
+  <text class="lbl" x="310" y="710">Se vincula a un visitante de RE</text>
+  <text class="sub" x="310" y="730">el visitante queda aprobado</text>
+
+  <rect class="box box-gray" x="150" y="766" width="320" height="58" />
+  <text class="lbl" x="310" y="790">El contratista envia la solicitud de visita</text>
+  <text class="sub" x="310" y="810">fecha, anfitriones y lista de visitantes</text>
+
+  <rect class="box box-blue" x="150" y="846" width="320" height="58" />
+  <text class="lbl" x="310" y="870">El interno revisa la solicitud</text>
+  <text class="sub" x="310" y="890">por visitante: aprobado / rechazado / parcial</text>
+
+  <rect class="box box-green" x="150" y="926" width="320" height="58" />
+  <text class="lbl" x="310" y="950">Visitante aprobado</text>
+  <text class="sub" x="310" y="970">listo para el proceso de visita en RE</text>
+
+  <!-- No branch (right) -->
+  <rect class="box box-red" x="580" y="569" width="330" height="58" />
+  <text class="lbl" x="745" y="593">Se indica el motivo del rechazo</text>
+  <text class="sub" x="745" y="613">y se notifica al contratista por correo</text>
+
+  <rect class="box box-orange" x="580" y="660" width="330" height="58" />
+  <text class="lbl" x="745" y="684">El contratista corrige y vuelve a subir</text>
+  <text class="sub" x="745" y="704">los documentos para nueva revision</text>
+
+  <!-- Main arrows -->
+  <path class="arrow" d="M310 150 V172" />
+  <path class="arrow" d="M310 230 V252" />
+  <path class="arrow" d="M310 310 V332" />
+  <path class="arrow" d="M310 390 V412" />
+  <path class="arrow" d="M310 470 V492" />
+  <path class="arrow" d="M310 550 V552" />
+  <path class="arrow" d="M310 644 V686" />
+  <text class="tag" x="322" y="672">Si</text>
+  <path class="arrow" d="M310 744 V766" />
+  <path class="arrow" d="M310 824 V846" />
+  <path class="arrow" d="M310 904 V926" />
+
+  <!-- No branch arrows -->
+  <path class="arrow-red" d="M386 598 H580" />
+  <text class="tag" x="474" y="590">No</text>
+  <path class="arrow-red" d="M745 627 V660" />
+  <path class="arrow" d="M910 689 H930 V521 H470" />
+
+  <rect class="box" x="150" y="1012" width="760" height="40" />
+  <text class="small" x="176" y="1037">El ciclo de revision se repite hasta que la documentacion sea aprobada; solo entonces avanza la solicitud de visita.</text>
+</svg>
