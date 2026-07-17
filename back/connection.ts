@@ -105,7 +105,17 @@ export async function connectDB(): Promise<void> {
                 { tipo: 2, nombre: 'QR', color: "#8245BF" },
                 { tipo: 3, nombre: 'Panel AC', color: "#BF456A" },
                // { tipo: 4, nombre: 'Móvil', color: "#BF6A45" },
+                { tipo: 5, nombre: 'Huella', color: "#0B6E4F" },
             ]);
+        }
+        if (validarTiposDisp > 0) {
+            // Huella en caseta (BioMini) no es 'QR' ni 'Panel AC': el panel de pared
+            // resuelve solo, aquí la identificación la hace el agente y la apertura
+            // la ordena esta app. Sin tipo propio, los reportes no los distinguen.
+            const existeHuella = await TiposDispositivos.findOne({ tipo: 5 }, "_id").lean();
+            if (!existeHuella) {
+                await TiposDispositivos.create({ tipo: 5, nombre: 'Huella', color: "#0B6E4F" });
+            }
         }
     } catch (error: any) {
         throw error;

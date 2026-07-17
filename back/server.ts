@@ -54,6 +54,7 @@ import contratistasDocumentosRoutes from './routes/contratistasDocumentos.routes
 import empresasRoutes from './routes/empresas.routes';
 import errorRoutes from './routes/error.routes';
 import eventosRoutes from './routes/eventos.routes';
+import biometriaAgenteRoutes from './routes/biometriaAgente.routes';
 import dispositivosHvRoutes from './routes/dispositivoshv.routes';
 import dispositivosBiostarRoutes from './routes/dispositivosBiostar.routes';
 import dispositivosSupremaRoutes from './routes/dispositivosSuprema.routes';
@@ -142,6 +143,7 @@ export default async function Server() {
         app.use('/api/empresas', empresasRoutes);
         app.use('/api/error', errorRoutes);
         app.use('/api/eventos', eventosRoutes);
+        app.use('/api/biometria-agente', biometriaAgenteRoutes);
         app.use('/api/dispositivos-hikvision', dispositivosHvRoutes);
         app.use('/api/dispositivos-biostar', dispositivosBiostarRoutes);
         app.use('/api/dispositivos-suprema', dispositivosSupremaRoutes);

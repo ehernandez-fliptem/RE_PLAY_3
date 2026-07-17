@@ -30,6 +30,7 @@ export interface IEmpleado extends Document {
     huellas_hiki_registradas?: number[];
     huellas_biostar_registradas?: number[];
     huellas_template_dev?: Record<string, string>;
+    huellas_template_biostar?: Record<string, string>;
     tarjetas_registradas: string[];
     tarjetas_web?: Array<{
         id: string;
@@ -141,6 +142,11 @@ const empleadoSchema = new Schema<IEmpleado>({
     huellas_hiki_registradas: { type: [Number], default: [] },
     huellas_biostar_registradas: { type: [Number], default: [] },
     huellas_template_dev: { type: Map, of: String, default: {} },
+    // Plantillas BioStar cacheadas para el 1:N del agente en caseta (BioMini).
+    // Clave: indice de dedo (1-10). Valor: JSON {t0,t1} cifrado con AES-256-GCM
+    // (ver cifrarPlantillaEnReposo). Nunca se guarda una plantilla en claro.
+    // BioStar sigue siendo la fuente de verdad; esto es cache reconstruible.
+    huellas_template_biostar: { type: Map, of: String, default: {} },
     tarjetas_registradas: { type: [String], default: [] },
     tarjetas_web: {
         type: [

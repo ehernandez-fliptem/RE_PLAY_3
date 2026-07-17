@@ -9,6 +9,7 @@ const envMailPath = path.resolve(__dirname, "..", ".env.correos");
 const envMailExamplePath = path.resolve(__dirname, "..", ".env.correos.example");
 const envClientsPath = path.resolve(__dirname, "..", ".env.clientes");
 const envClientsExamplePath = path.resolve(__dirname, "..", ".env.clientes.example");
+const envBiometriaPath = path.resolve(__dirname, "..", ".env.biometria");
 if (fs.existsSync(envRootPath)) {
     dotenv.config({ path: envRootPath });
 }
@@ -28,6 +29,12 @@ if (fs.existsSync(envClientsPath)) {
     dotenv.config({ path: envClientsPath, override: true });
 } else if (fs.existsSync(envClientsExamplePath)) {
     dotenv.config({ path: envClientsExamplePath, override: true });
+}
+// Secreto del Agente Biometrico (BioMini en caseta). Archivo aparte y fuera de
+// git: back/.env esta versionado, y este secreto es lo unico que protege las
+// plantillas biometricas que viajan a cada caseta. Ver .env.biometria.example.
+if (fs.existsSync(envBiometriaPath)) {
+    dotenv.config({ path: envBiometriaPath, override: true });
 }
 dotenv.config();
 
@@ -80,6 +87,12 @@ const envSchema = z.object({
     SECRET_CRYPTO: z.string(),
     SECRET_TOKEN_SOCKET: z.string(),
     SECRET_EXCELJS: z.string(),
+
+    // Secreto compartido con el Agente Biometrico local (BioMini en caseta).
+    // Default vacio a proposito: las instalaciones sin lector de huella no deben
+    // dejar de arrancar por esto. Los endpoints de biometria lo validan al usarlo.
+    AGENTE_BIOMETRICO_SECRET: z.string().default(""),
+    AGENTE_BIOMETRICO_PORT: z.coerce.number().default(8790),
 
     LIFE_TIME: z.string(),
     LIFE_TIME_EMAIL: z.string(),

@@ -1,8 +1,11 @@
-import { useMemo, useState } from "react";
-import { Box } from "@mui/material";
+import { useEffect, useMemo, useState } from "react";
+import { Box, Stack, ToggleButton, ToggleButtonGroup } from "@mui/material";
+import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
+import FingerprintIcon from "@mui/icons-material/Fingerprint";
 import { enqueueSnackbar } from "notistack";
 import { FormProvider, useForm } from "react-hook-form";
 import LectorQrVisitantes from "../../recepcion/visitantes/LectorQrVisitantes";
+import LectorHuella from "./LectorHuella";
 import { clienteAxios, handlingError } from "../../../app/config/axios";
 
 type ResultState = {
@@ -14,9 +17,25 @@ type ResultState = {
   biostar_modo_manual?: boolean;
 };
 
+type Metodo = "qr" | "huella";
+
+/**
+ * El metodo se guarda por dispositivo, no por usuario: una caseta con BioMini y
+ * una tablet sin el pueden compartir la misma cuenta y quedarse cada una en lo
+ * suyo entre recargas.
+ */
+const STORAGE_KEY = "CASETA_METODO";
+
 export default function EscanerQr() {
   const formContext = useForm({ defaultValues: { qr: "" } });
   const [showQRScanner, setShowQRScanner] = useState(true);
+  const [metodo, setMetodo] = useState<Metodo>(
+    () => (localStorage.getItem(STORAGE_KEY) as Metodo) || "qr"
+  );
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, metodo);
+  }, [metodo]);
 
   const onQrValidate = useMemo(
     () => async (qr: string): Promise<ResultState> => {
@@ -84,7 +103,7 @@ export default function EscanerQr() {
   );
 
   return (
-    <Box
+    <Stack
       sx={{
         width: "100%",
         height: {
@@ -94,19 +113,44 @@ export default function EscanerQr() {
         minHeight: { xs: 320, sm: 420 },
       }}
     >
-      {showQRScanner && (
-        <FormProvider {...formContext}>
-          <LectorQrVisitantes
-            name="qr"
-            setShow={setShowQRScanner}
-            onQrValidate={onQrValidate}
-            onManualClose={onManualClose}
-            hideBackdrop
-            hideActions
-            allowEscapeClose={false}
-          />
-        </FormProvider>
-      )}
-    </Box>
+      <Box sx={{ display: "flex", justifyContent: "center", pb: 1 }}>
+        <ToggleButtonGroup
+          exclusive
+          size="small"
+          value={metodo}
+          onChange={(_, v: Metodo | null) => v && setMetodo(v)}
+          aria-label="Metodo de identificacion"
+        >
+          <ToggleButton value="qr" aria-label="Identificar por QR">
+            <QrCodeScannerIcon sx={{ mr: 1 }} fontSize="small" />
+            QR
+          </ToggleButton>
+          <ToggleButton value="huella" aria-label="Identificar por huella">
+            <FingerprintIcon sx={{ mr: 1 }} fontSize="small" />
+            Huella
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+
+      <Box sx={{ flex: 1, minHeight: 0 }}>
+        {/* La camara se desmonta al pasar a huella: dejarla viva encendida sin
+            usarla gasta bateria y deja el LED prendido frente a la gente. */}
+        {metodo === "qr" && showQRScanner && (
+          <FormProvider {...formContext}>
+            <LectorQrVisitantes
+              name="qr"
+              setShow={setShowQRScanner}
+              onQrValidate={onQrValidate}
+              onManualClose={onManualClose}
+              hideBackdrop
+              hideActions
+              allowEscapeClose={false}
+            />
+          </FormProvider>
+        )}
+
+        {metodo === "huella" && <LectorHuella activo />}
+      </Box>
+    </Stack>
   );
 }

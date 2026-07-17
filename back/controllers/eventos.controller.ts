@@ -37,6 +37,7 @@ import FaceDetector from "../classes/FaceDetector";
 import FaceDescriptors from "../models/FaceDescriptors";
 import { biostarRequest } from "../classes/Biostar";
 import { abrirPuertaPorAccesoBiostar, cerrarPuertaPorAccesoBiostar } from "../utils/biostarApertura";
+import { procesarAccesoEmpleado } from "../utils/accesoEmpleado";
 import {
     getPanelModeFromTipoEvento,
     setVisitantePanelAccess,
@@ -1694,65 +1695,18 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
                 return;
             }
             if (lector === 0) {
-                if (!id_acceso) {
-                    comentario = "Tu usuario no tiene acceso asociado para validar apertura.";
-                    await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, (empleado as any)._id);
-                    res.status(200).json({ estado: false, mensaje: comentario });
-                    return;
-                }
-                const accesosEmpleado = Array.isArray((empleado as any).accesos) ? (empleado as any).accesos : [];
-                const puedeAbrirEnEsteAcceso = accesosEmpleado.some((item: any) => String(item) === String(id_acceso));
-                if (!puedeAbrirEnEsteAcceso) {
-                    comentario = "El empleado no tiene permiso para este acceso.";
-                    await guardarEventoNoValido("", "", comentario, id_usuario, qr, null, null, (empleado as any)._id);
-                    res.status(200).json({ estado: false, mensaje: comentario });
-                    return;
-                }
-                const ultimo = await Eventos.findOne({
-                    id_empleado: (empleado as any)._id,
+                // Las reglas de acceso viven en procesarAccesoEmpleado para que la
+                // huella (validar-huella) aplique exactamente las mismas.
+                const resultado = await procesarAccesoEmpleado({
+                    empleado,
                     id_acceso,
-                    tipo_check: { $in: [5, 6] },
-                })
-                    .sort({ fecha_creacion: -1 })
-                    .lean<{ tipo_check?: number }>();
-                const tipo_evento = resolverTipoEvento(ultimo?.tipo_check);
-                const evento = new Eventos({
-                    tipo_dispositivo: 2,
-                    tipo_check: tipo_evento,
+                    id_usuario,
+                    resolverTipoEvento,
+                    biostarModoManual,
+                    metodo: "qr",
                     qr: String(qr),
-                    id_empleado: (empleado as any)._id,
-                    id_acceso,
-                    creado_por: id_usuario,
-                    fecha_creacion: Date.now(),
                 });
-                await evento.save();
-
-                let aperturaError = "";
-                if (tipo_evento === 5) {
-                    const openRes = await abrirPuertaPorAccesoBiostar({
-                        idAcceso: id_acceso,
-                        idPersona: (empleado as any)._id,
-                        tipoPersona: "empleado",
-                        origen: "hiki_evento",
-                    });
-                    if (!openRes.ok && !openRes.skipped) {
-                        aperturaError = openRes.message || "Error desconocido.";
-                    }
-                }
-                socket.emit("eventos:nuevo-evento", {
-                    id_evento: evento._id,
-                });
-                const nombre = `${(empleado as any).nombre || ""} ${(empleado as any).apellido_pat || ""} ${(empleado as any).apellido_mat || ""}`.trim();
-                res.status(200).json({
-                    estado: true,
-                    datos: {
-                        puedeAcceder: true,
-                        nombre,
-                        tipo_check: tipo_evento,
-                        advertencia_apertura: aperturaError || undefined,
-                        biostar_modo_manual: biostarModoManual,
-                    },
-                });
+                res.status(200).json(resultado);
                 return;
             }
             const { validarHorario, autorizacionCheck } = await Configuracion.findOne({}) as IConfiguracion;
@@ -1764,6 +1718,75 @@ export async function validarQr(req: Request, res: Response): Promise<void> {
             const datos = await validacionHorario(id_horario, tipo_evento);
             res.status(200).json({ estado: true, datos: { ...datos, autorizacionCheck } })
         }
+    } catch (error: any) {
+        log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
+        res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });
+    }
+}
+
+/**
+ * Valida un acceso identificado por huella en caseta (BioMini + agente local).
+ *
+ * El 1:N ya ocurrio en el agente, que corre en la PC de caseta y tiene el SDK de
+ * Suprema. Aqui llega la identidad resuelta y se le aplican las MISMAS reglas que
+ * al QR, via procesarAccesoEmpleado.
+ *
+ * Sobre confianza: el agente afirma la identidad y el backend no la puede
+ * re-verificar (no tiene matcher). Es el mismo nivel de confianza que la tablet
+ * con QR, que afirma haber leido un codigo. Lo que si se valida es que el
+ * personId corresponda a un empleado real, activo y con permiso en este acceso.
+ */
+export async function validarHuella(req: Request, res: Response): Promise<void> {
+    try {
+        const id_usuario = (req as UserRequest).userId;
+        const id_acceso = (req as UserRequest).accessId;
+        const esTabletQr = Array.isArray((req as UserRequest).role) && (req as UserRequest).role.includes(13);
+        const modoTabletQr = ((req as UserRequest).tabletQrMode || "ambos") as "entrada" | "salida" | "ambos";
+
+        const configBio = await Configuracion.findOne({}, "habilitarIntegracionBiostar");
+        if (!configBio?.habilitarIntegracionBiostar) {
+            res.status(200).json({ estado: false, mensaje: "La integracion de BioStar esta desactivada." });
+            return;
+        }
+
+        const personId = String(req.body?.personId || "").trim();
+        if (!Types.ObjectId.isValid(personId)) {
+            const comentario = "El agente biometrico devolvio un identificador invalido.";
+            await guardarEventoNoValido("", "", comentario, id_usuario, "", null, null, null, 5);
+            res.status(200).json({ estado: false, mensaje: comentario });
+            return;
+        }
+
+        const empleado = await Empleados.findOne(
+            { _id: personId },
+            "activo accesos nombre apellido_pat apellido_mat"
+        );
+        if (!empleado) {
+            const comentario = "La huella corresponde a un empleado que ya no existe en el sistema.";
+            await guardarEventoNoValido("", "", comentario, id_usuario, "", null, null, null, 5);
+            res.status(200).json({ estado: false, mensaje: comentario });
+            return;
+        }
+
+        const accesoConfig = id_acceso
+            ? await Accesos.findById(id_acceso, "modo_apertura_biostar").lean<{ modo_apertura_biostar?: "pulso" | "manual" } | null>()
+            : null;
+
+        const resultado = await procesarAccesoEmpleado({
+            empleado,
+            id_acceso,
+            id_usuario,
+            // Mismo criterio de entrada/salida que el QR: una caseta configurada
+            // como "entrada" siempre marca entrada, aunque se lea con el dedo.
+            resolverTipoEvento: (ultimo?: number | null) => {
+                if (!esTabletQr || modoTabletQr === "ambos") return ultimo === 5 ? 6 : 5;
+                return modoTabletQr === "entrada" ? 5 : 6;
+            },
+            biostarModoManual: accesoConfig?.modo_apertura_biostar === "manual",
+            metodo: "huella",
+        });
+
+        res.status(200).json(resultado);
     } catch (error: any) {
         log(`${fecha()} ERROR: ${error.name}: ${error.message}\n`);
         res.status(500).send({ estado: false, mensaje: `${error.name}: ${error.message}` });

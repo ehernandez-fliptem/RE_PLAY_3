@@ -41,3 +41,20 @@ UserSettings/
 .vscode/
 .idea/
 .cursor/
+
+# Agente Biometrico (.NET). El bloque de arriba ignora *.csproj y *.sln, asi que
+# hay que rescatar explicitamente los del agente o el proyecto no se versiona.
+!agente_biometrico/**/*.csproj
+!agente_biometrico/**/*.sln
+agente_biometrico/**/bin/
+agente_biometrico/**/obj/
+
+# DLLs del SDK de Suprema: licencia propietaria, no redistribuibles.
+# Ver agente_biometrico/sdk/LEEME.md para saber de donde bajarlas.
+agente_biometrico/sdk/*.dll
+
+# Secreto del agente biometrico. Fuera de git a proposito: es lo unico que
+# protege las plantillas que viajan a cada caseta. El .example si se versiona.
+back/.env.biometria
+agente_biometrico/**/appsettings.Production.json
+agente_biometrico/**/appsettings.Local.json

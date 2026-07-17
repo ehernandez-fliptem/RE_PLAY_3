@@ -16,6 +16,7 @@ import {
     obtenerPanelesKiosco,
     obtenerAlertasRelojPaneles,
     validarRostro,
+    validarHuella,
     cerrarManualBiostar,
 } from "../controllers/eventos.controller";
 
@@ -36,6 +37,7 @@ router.post("/reportes", validarTokenYRol([1, 2, 5, 13]), obtenerTodosPorFiltro)
 router.post("/panel", validarTokenYRol([1]), guardarEventoPanel);
 router.post("/validar-qr", validarTokenYRol([1, 2, 5, 13]), validarQr);
 router.post("/validar-rostro", validarTokenYRol([1, 2, 5]), validarRostro);
+router.post("/validar-huella", validarTokenYRol([1, 2, 5, 13]), validarHuella);
 router.post("/biostar/cerrar-manual", validarTokenYRol([1, 2, 5, 13]), cerrarManualBiostar);
 
 export default router;

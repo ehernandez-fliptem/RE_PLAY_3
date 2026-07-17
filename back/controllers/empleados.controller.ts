@@ -18,6 +18,7 @@ import DispositivosHv from '../models/DispositivosHv';
 import DispositivosSuprema from '../models/DispositivosSuprema';
 import DispositivosBiostar from '../models/DispositivosBiostar';
 import BiostarConexion from "../models/BiostarConexion";
+import { cifrarPlantillaEnReposo } from "../utils/agenteBiometrico";
 import Configuracion, { IConfiguracion } from '../models/Configuracion';
 import Roles from '../models/Roles';
 import Hikvision from '../classes/Hikvision';
@@ -2016,12 +2017,17 @@ export async function registrarHuellaEmpleadoPanel(req: Request, res: Response):
                 ? (registro as any).huellas_biostar_registradas
                 : [];
             const huellasBiostar = Array.from(new Set([...huellasBiostarActuales, dedo])).sort((a, b) => a - b);
+            // Cachea la plantilla cifrada para el 1:N del agente en caseta. BioStar
+            // sigue siendo la fuente de verdad; esto evita tener que releerla de
+            // BioStar en cada sincronizacion. Ver biometriaAgente.controller.ts.
+            const muestrasCache = samplesForEnroll.map((s) => ({ t0: s.template0, t1: s.template1 }));
             await Empleados.findByIdAndUpdate(
                 req.params.id,
                 {
                     $set: {
                         huellas_registradas: huellas,
                         huellas_biostar_registradas: huellasBiostar,
+                        [`huellas_template_biostar.${dedo}`]: cifrarPlantillaEnReposo(JSON.stringify(muestrasCache)),
                         modificado_por: id_usuario,
                         fecha_modificacion: Date.now(),
                     },
